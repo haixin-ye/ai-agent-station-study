@@ -1,5 +1,5 @@
 CONTAINER_NAME=ai-agent-station-study
-IMAGE_NAME=system/ai-agent-station-study:1.0
+IMAGE_NAME=system/ai-agent-station-study:1.0-SNAPSHOT
 PORT=8091
 
 echo "容器部署开始 ${CONTAINER_NAME}"

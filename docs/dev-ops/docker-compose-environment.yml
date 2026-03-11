@@ -82,6 +82,46 @@ services:
       redis:
         condition: service_healthy
 
+  vector_db:
+    image: pgvector/pgvector:v0.5.0
+    container_name: vector_db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=springai
+      - PGPASSWORD=postgres
+    volumes:
+      - ./pgvector/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: "pg_isready -U postgres -d vector_store"
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    networks:
+      - my-network
+
+  # pg 管理工具
+  pgadmin:
+    image: registry.cn-hangzhou.aliyuncs.com/xfg-studio/pgadmin4:9.1.0
+    container_name: vector_db_admin
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@qq.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - vector_db
+    networks:
+      - my-network
+
 networks:
   my-network:
     driver: bridge
