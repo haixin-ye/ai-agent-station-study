@@ -1,5 +1,8 @@
 package cn.bugstack.ai.domain.agent.service.armory.factory;
 
+import cn.bugstack.ai.domain.agent.model.entity.ArmoryCommandEntity;
+import cn.bugstack.ai.domain.agent.service.armory.RootNode;
+import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +20,16 @@ import java.util.Map;
  */
 @Service
 public class DefaultArmoryStrategyFactory {
+
+    private final RootNode rootNode;
+
+    public DefaultArmoryStrategyFactory(RootNode rootNode) {
+        this.rootNode = rootNode;
+    }
+
+    public StrategyHandler<ArmoryCommandEntity, DynamicContext, String> armoryStrategyHandler(){
+        return rootNode;
+    }
 
     @Data
     @Builder
