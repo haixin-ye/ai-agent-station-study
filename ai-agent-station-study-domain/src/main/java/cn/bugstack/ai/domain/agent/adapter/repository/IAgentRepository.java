@@ -3,6 +3,7 @@ package cn.bugstack.ai.domain.agent.adapter.repository;
 import cn.bugstack.ai.domain.agent.model.valobj.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * AiAgent 仓储接口
@@ -19,6 +20,8 @@ public interface IAgentRepository {
     List<AiClientToolMcpVO> AiClientToolMcpVOByClientIds(List<String> clientIdList);
 
     List<AiClientSystemPromptVO> AiClientSystemPromptVOByClientIds(List<String> clientIdList);
+
+    Map<String, AiClientSystemPromptVO> queryAiClientSystemPromptMapByClientIds(List<String> clientIdList);
 
     List<AiClientAdvisorVO> AiClientAdvisorVOByClientIds(List<String> clientIdList);
 
