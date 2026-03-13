@@ -8,7 +8,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.ai.zhipuai.api.ZhiPuAiApi;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -38,9 +38,9 @@ public class AgentTest {
                         .build(),
                 new DefaultArmoryStrategyFactory.DynamicContext());
 
-        ZhiPuAiApi zhiPuAiApi = (ZhiPuAiApi) applicationContext.getBean(AiAgentEnumVO.AI_CLIENT_API.getBeanName("1001"));
+        OpenAiApi openAiApi = (OpenAiApi) applicationContext.getBean(AiAgentEnumVO.AI_CLIENT_API.getBeanName("1001"));
 
-        log.info("测试结果：{}", zhiPuAiApi);
+        log.info("测试结果：{}", openAiApi);
     }
 
 }
