@@ -22,12 +22,11 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
-import org.springframework.ai.zhipuai.ZhiPuAiChatModel;
-import org.springframework.ai.zhipuai.ZhiPuAiChatOptions;
-import org.springframework.ai.zhipuai.api.ZhiPuAiApi;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 import reactor.core.publisher.Flux;
@@ -41,8 +40,7 @@ import java.util.concurrent.CountDownLatch;
 @SpringBootTest
 public class AiAgentTest {
 
-    @Autowired
-    private ZhiPuAiChatModel chatModel;
+    private ChatModel chatModel;
 
     private ChatClient chatClient;
 
@@ -55,7 +53,20 @@ public class AiAgentTest {
     @Before
     public void init() {
 
+        OpenAiApi openAiApi = OpenAiApi.builder()
+                .baseUrl("https://apis.itedus.cn")
+                .apiKey("sk-lIqVNiHon00O6veJ15Cc57DaF5Dd401f93B3A107B4B3677e")
+                .completionsPath("v1/chat/completions")
+                .embeddingsPath("v1/embeddings")
+                .build();
 
+        chatModel = OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model("gpt-4.1-mini")
+                        .toolCallbacks(new SyncMcpToolCallbackProvider(stdioMcpClient(), sseMcpClient01(), sseMcpClient02()).getToolCallbacks())
+                        .build())
+                .build();
 
         chatClient = ChatClient.builder(chatModel)
                 .defaultSystem("""
@@ -69,55 +80,62 @@ public class AiAgentTest {
                         	 3. 获取发送到 CSDN 文章的 URL 地址。
                         	 4. 微信公众号消息通知，平台：CSDN、主题：为文章标题、描述：为文章简述、跳转地址：从发布文章到CSDN获取 URL 地址
                         """)
-                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(
-//                        stdioMcpClient(),
-                        sseMcpClient01(),
-                        sseMcpClient02()).getToolCallbacks())
+                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(stdioMcpClient(), sseMcpClient01(), sseMcpClient02()).getToolCallbacks())
                 .defaultAdvisors(
                         PromptChatMemoryAdvisor.builder(
                                 MessageWindowChatMemory.builder()
                                         .maxMessages(100)
                                         .build()
                         ).build(),
-//                        new RagAnswerAdvisor(vectorStore, SearchRequest.builder()
-//                                .topK(5)
-//                                .filterExpression("knowledge == 'article-prompt-words'")
-//                                .build()),
+                        new RagAnswerAdvisor(vectorStore, SearchRequest.builder()
+                                .topK(5)
+                                .filterExpression("knowledge == 'article-prompt-words'")
+                                .build()),
                         SimpleLoggerAdvisor.builder().build())
                 .build();
     }
 
     @Test
-    public void test_chat_client_stream_01() throws InterruptedException {
+    public void test_chat_model_stream_01() throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
 
-        // 改用 chatClient，它会自动带上 init() 里的 SystemPrompt、Advisors 和 Tools
-        chatClient.prompt("有哪些工具可以使用")
-                // 如果你想给 SystemPrompt 里的 {current_date} 传值
-                .system(s -> s.param("current_date", LocalDate.now().toString()))
-                .stream()
-                .content() // 直接获取流式的文本内容，不需要手动剥 ChatResponse 的洋葱皮
-                .subscribe(
-                        content -> log.info("流式输出内容: {}", content),
-                        Throwable::printStackTrace,
-                        () -> {
-                            countDownLatch.countDown();
-                            log.info("流式传输完成");
-                        }
-                );
+        Prompt prompt = Prompt.builder()
+                .messages(new UserMessage(
+                        """
+                                有哪些工具可以使用
+                                """))
+                .build();
+
+        // 非流式，chatModel.call(prompt)
+        Flux<ChatResponse> stream = chatModel.stream(prompt);
+
+        stream.subscribe(
+                chatResponse -> {
+                    AssistantMessage output = chatResponse.getResult().getOutput();
+                    log.info("测试结果: {}", JSON.toJSONString(output));
+                },
+                Throwable::printStackTrace,
+                () -> {
+                    countDownLatch.countDown();
+                    System.out.println("Stream completed");
+                }
+        );
 
         countDownLatch.await();
     }
 
     @Test
-    public void test_chat_client_call() {
-        // 🌟 改用 chatClient 的 call 模式
-        String content = chatClient.prompt("有哪些工具可以使用")
-                .system(s -> s.param("current_date", LocalDate.now().toString()))
-                .call()
-                .content(); // 一行代码直接拿到 AI 回复的字符串
+    public void test_chat_model_call() {
+        Prompt prompt = Prompt.builder()
+                .messages(new UserMessage(
+                        """
+                                有哪些工具可以使用
+                                """))
+                .build();
 
-        log.info("测试结果(call): {}", content);
+        ChatResponse chatResponse = chatModel.call(prompt);
+
+        log.info("测试结果(call):{}", JSON.toJSONString(chatResponse));
     }
 
     @Test
@@ -205,8 +223,8 @@ public class AiAgentTest {
                                 .filterExpression("knowledge == 'article-prompt-words'")
                                 .build())
                 )
-                .defaultOptions(ZhiPuAiChatOptions.builder()
-                        .model("glm-5")
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model("gpt-4.1")
                         .build())
                 .build();
 
@@ -242,8 +260,8 @@ public class AiAgentTest {
                         ).build(),
                         new SimpleLoggerAdvisor()
                 )
-                .defaultOptions(ZhiPuAiChatOptions.builder()
-                        .model("glm-5")
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model("gpt-4.1")
                         .build())
                 .build();
 
@@ -263,7 +281,7 @@ public class AiAgentTest {
         // based on
         // https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem
         var stdioParams = ServerParameters.builder("npx")
-                .args("-y", "@modelcontextprotocol/server-filesystem", "D:\\YHX\\Desktop", "D:\\YHX\\Desktop")
+                .args("-y", "@modelcontextprotocol/server-filesystem", "/Users/fuzhengwei/Desktop", "/Users/fuzhengwei/Desktop")
                 .build();
 
         var mcpClient = McpClient.sync(new StdioClientTransport(stdioParams))
@@ -279,7 +297,7 @@ public class AiAgentTest {
 
     public McpSyncClient sseMcpClient01() {
 
-        HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://127.0.0.1:8102").build();
+        HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://192.168.1.108:8102").build();
 
         McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(180)).build();
 
@@ -291,7 +309,7 @@ public class AiAgentTest {
 
     public McpSyncClient sseMcpClient02() {
 
-        HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://127.0.0.1:8101").build();
+        HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://192.168.1.108:8101").build();
 
         McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(180)).build();
 

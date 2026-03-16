@@ -41,21 +41,30 @@ spring:
         idle-timeout: 30000
         connection-timeout: 30000
 
+#    ai:
+#      zhipuai:
+#        api-key: 219384ad7f014fa7aedafcbc4e21f68c.W5p2ASlguvFmzP8L
+#        chat:
+#          options:
+#            model: glm-5
+#        embedding-model: embedding-2
+#        embedding:
+#          options:
+#            num-batch: 1024
   ai:
-    zhipuai:
-      api-key: 219384ad7f014fa7aedafcbc4e21f68c.W5p2ASlguvFmzP8L
-      chat:
-        options:
-          model: glm-5
-      embedding-model: embedding-2
-      embedding:
-        options:
-          num-batch: 1024
+    openai:
+      base-url: https://apis.itedus.cn
+      api-key: sk-P7WzHZuFQri0TDRu3d4a5e88Ec6a46A7A16e44328eF99f4b
+
+
+
+
+
 
 # MyBatis 配置
 mybatis:
   mapper-locations: classpath:/mybatis/mapper/*.xml
-  config-location:  classpath:/mybatis/config/mybatis-config.xml
+  config-location: classpath:/mybatis/config/mybatis-config.xml
 
 # 日志
 logging:

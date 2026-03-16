@@ -1,8 +1,8 @@
 package cn.bugstack.ai.domain.agent.service.armory;
 
 import cn.bugstack.ai.domain.agent.model.entity.ArmoryCommandEntity;
-import cn.bugstack.ai.domain.agent.model.valobj.AiAgentEnumVO;
-import cn.bugstack.ai.domain.agent.model.valobj.AiClientAdvisorTypeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AiAgentEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientAdvisorTypeEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiClientAdvisorVO;
 import cn.bugstack.ai.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;

@@ -1,5 +1,6 @@
-package cn.bugstack.ai.domain.agent.model.valobj;
+package cn.bugstack.ai.domain.agent.model.valobj.enums;
 
+import cn.bugstack.ai.domain.agent.model.valobj.AiClientAdvisorVO;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

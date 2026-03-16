@@ -11,12 +11,12 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
-import org.springframework.ai.zhipuai.ZhiPuAiChatModel;
-import org.springframework.ai.zhipuai.ZhiPuAiChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RunWith(SpringRunner.class)
 @SpringBootTest
-public class ZhipuAiTest {
+public class OpenAiTest {
 
     @Value("classpath:data/dog.png")
     private Resource imageResource;
@@ -47,7 +47,7 @@ public class ZhipuAiTest {
     private Resource articlePromptWordsResource;
 
     @Autowired
-    private ZhiPuAiChatModel zhipuAiChatModel;
+    private OpenAiChatModel openAiChatModel;
 
     @Autowired
     private PgVectorStore pgVectorStore;
@@ -56,14 +56,12 @@ public class ZhipuAiTest {
 
     @Test
     public void test_call() {
-        ChatResponse response = zhipuAiChatModel.call(new Prompt(
-                "回答我1+1等于多少",
-                ZhiPuAiChatOptions.builder()
-                        .model("glm-5")
+        ChatResponse response = openAiChatModel.call(new Prompt(
+                "1+1",
+                OpenAiChatOptions.builder()
+                        .model("gpt-4o")
                         .build()));
-//        log.info("测试结果(call):{}", JSON.toJSONString(response));
-        // 不要直接序列化整个 response
-        log.info("测试结果(call): {}", response.getResult().getOutput().getText());
+        log.info("测试结果(call):{}", JSON.toJSONString(response));
     }
 
     @Test
@@ -76,25 +74,23 @@ public class ZhipuAiTest {
                         .build())
                 .build();
 
-        ChatResponse response = zhipuAiChatModel.call(new Prompt(
+        ChatResponse response = openAiChatModel.call(new Prompt(
                 userMessage,
-                ZhiPuAiChatOptions.builder()
-                        .model("glm-4v")
+                OpenAiChatOptions.builder()
+                        .model("gpt-4o")
                         .build()));
 
-//        log.info("测试结果(images):{}", JSON.toJSONString(response));
-        // 不要直接序列化整个 response
-        log.info("测试结果(call): {}", response.getResult().getOutput().getText());
+        log.info("测试结果(images):{}", JSON.toJSONString(response));
     }
 
     @Test
     public void test_stream() throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
 
-        Flux<ChatResponse> stream = zhipuAiChatModel.stream(new Prompt(
+        Flux<ChatResponse> stream = openAiChatModel.stream(new Prompt(
                 "1+1",
-                ZhiPuAiChatOptions.builder()
-                        .model("glm-5")
+                OpenAiChatOptions.builder()
+                        .model("gpt-4o")
                         .build()));
 
         stream.subscribe(
@@ -155,10 +151,10 @@ public class ZhipuAiTest {
         messages.add(new UserMessage(message));
         messages.add(ragMessage);
 
-        ChatResponse chatResponse = zhipuAiChatModel.call(new Prompt(
+        ChatResponse chatResponse = openAiChatModel.call(new Prompt(
                 messages,
-                ZhiPuAiChatOptions.builder()
-                        .model("glm-5")
+                OpenAiChatOptions.builder()
+                        .model("gpt-4o")
                         .build()));
 
         log.info("测试结果:{}", JSON.toJSONString(chatResponse));
