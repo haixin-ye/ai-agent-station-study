@@ -89,7 +89,6 @@ services:
     container_name: vector_db
     restart: always
     environment:
-      #这里的账号是admin@qq.com好像
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=ai-rag-knowledge
