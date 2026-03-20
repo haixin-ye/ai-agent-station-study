@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 /**
  * OpenAI API配置，值对象
  *
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/6/27 17:29
  */
 @Data

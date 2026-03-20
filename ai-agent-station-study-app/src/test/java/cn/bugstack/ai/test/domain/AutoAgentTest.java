@@ -19,7 +19,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 import java.util.Arrays;
 
 /**
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/7/27 17:52
  */
 @Slf4j

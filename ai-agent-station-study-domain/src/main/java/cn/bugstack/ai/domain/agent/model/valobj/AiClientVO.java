@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * AI客户端配置，值对象
  *
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/6/27 18:51
  */
 @Data

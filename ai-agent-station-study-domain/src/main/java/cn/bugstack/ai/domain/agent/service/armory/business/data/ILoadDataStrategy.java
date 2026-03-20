@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * 数据加载策略
  *
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/6/27 17:16
  */
 public interface ILoadDataStrategy {

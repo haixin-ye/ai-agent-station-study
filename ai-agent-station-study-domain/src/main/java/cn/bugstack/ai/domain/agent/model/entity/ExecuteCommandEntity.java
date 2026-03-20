@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 /**
  * 执行命令实体
  *
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/7/27 16:46
  */
 @Data

@@ -20,7 +20,7 @@ import java.util.concurrent.TimeoutException;
 /**
  * 装配支撑类
  *
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/6/27 07:14
  */
 public abstract class AbstractArmorySupport extends AbstractMultiThreadStrategyRouter<ArmoryCommandEntity, DefaultArmoryStrategyFactory.DynamicContext, String> {

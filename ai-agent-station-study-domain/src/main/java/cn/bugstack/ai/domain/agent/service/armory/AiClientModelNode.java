@@ -21,7 +21,7 @@ import java.util.List;
 /**
  * 对话模型节点配置
  *
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/7/5 12:43
  */
 @Slf4j

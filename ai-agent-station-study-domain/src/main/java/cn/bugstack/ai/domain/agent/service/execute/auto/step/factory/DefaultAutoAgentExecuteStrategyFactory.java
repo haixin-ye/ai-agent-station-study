@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * 工厂类
  *
- * @author xiaofuge bugstack.cn @小傅哥
+ * @author yhx
  * 2025/7/27 16:34
  */
 @Service
