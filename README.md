@@ -1,4 +1,4 @@
-# 🤖 AI Agent Station — 智能 AI Agent平台
+# 🤖 AI Agent Station — 智能 AI Agent平台（Cover 小傅哥）
 
 [![Java](https://img.shields.io/badge/Java-17-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-green.svg)](https://spring.io/projects/spring-boot)
