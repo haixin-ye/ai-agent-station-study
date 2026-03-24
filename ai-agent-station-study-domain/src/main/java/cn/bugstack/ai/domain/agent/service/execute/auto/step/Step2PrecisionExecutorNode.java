@@ -9,6 +9,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * 精准执行节点
@@ -56,11 +57,21 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport{
         AiAgentClientFlowConfigVO aiAgentClientFlowConfigVO = dynamicContext.getAiAgentClientFlowConfigVOMap().get(AiClientTypeEnumVO.PRECISION_EXECUTOR_CLIENT.getCode());
         ChatClient chatClient = getChatClientByClientId(aiAgentClientFlowConfigVO.getClientId());
 
+
+        String knowledgeName = dynamicContext.getValue("knowledgeName");
+        String filterExpression;
+        if (StringUtils.hasText(knowledgeName)) {
+            filterExpression = String.format("knowledge == '%s'", knowledgeName);
+        } else {
+            filterExpression = "";
+        }
+
         String executionResult = chatClient
                 .prompt(executionPrompt)
                 .advisors(a -> a
                         .param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId())
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024))
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024)
+                        .param("qa_filter_expression", filterExpression))
                 .call().content();
 
         parseExecutionResult(dynamicContext, executionResult, requestParameter.getSessionId());

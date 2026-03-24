@@ -53,16 +53,33 @@ spring:
 #            num-batch: 1024
   ai:
     openai:
-      base-url: https://apis.itedus.cn
-      api-key: sk-P7WzHZuFQri0TDRu3d4a5e88Ec6a46A7A16e44328eF99f4b
+      base-url: https://api.apimart.ai
+      api-key: XXXXsk-2ikk1D2
     agent:
       auto-config:
         enabled: true
         client-ids: 3101,3102,3103,3104
+        rag-api-id: "1001"
+        vector_name: "vector_store"
+        embedding-model-name: text-embedding-3-small
+        dimensions: 1536
 
 
 
-
+# Redis
+redis:
+  sdk:
+    config:
+      host: 127.0.0.1
+      port: 16379
+      pool-size: 10
+      min-idle-size: 5
+      idle-timeout: 30000
+      connect-timeout: 5000
+      retry-attempts: 3
+      retry-interval: 1000
+      ping-interval: 60000
+      keep-alive: true
 
 
 # MyBatis 配置

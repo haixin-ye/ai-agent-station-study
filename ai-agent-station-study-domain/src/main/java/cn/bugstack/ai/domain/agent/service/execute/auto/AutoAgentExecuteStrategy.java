@@ -13,6 +13,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 
 /**
  * 自动执行策略
+ *
  * @author yhx
  * 2025/8/5 09:49
  */
@@ -27,17 +28,18 @@ public class AutoAgentExecuteStrategy implements IExecuteStrategy {
     public void execute(ExecuteCommandEntity executeCommandEntity, ResponseBodyEmitter emitter) throws Exception {
         StrategyHandler<ExecuteCommandEntity, DefaultAutoAgentExecuteStrategyFactory.DynamicContext, String> executeHandler
                 = defaultAutoAgentExecuteStrategyFactory.armoryStrategyHandler();
-        
+
         // 创建动态上下文并初始化必要字段
         DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext = new DefaultAutoAgentExecuteStrategyFactory.DynamicContext();
         dynamicContext.setMaxStep(executeCommandEntity.getMaxStep() != null ? executeCommandEntity.getMaxStep() : 3);
         dynamicContext.setExecutionHistory(new StringBuilder());
         dynamicContext.setCurrentTask(executeCommandEntity.getMessage());
+        dynamicContext.setValue("knowledgeName", executeCommandEntity.getKnowledgeName());
         dynamicContext.setValue("emitter", emitter);
-        
+
         String apply = executeHandler.apply(executeCommandEntity, dynamicContext);
         log.info("测试结果:{}", apply);
-        
+
         // 发送完成标识
         try {
             AutoAgentExecuteResultEntity completeResult = AutoAgentExecuteResultEntity.createCompleteResult(executeCommandEntity.getSessionId());

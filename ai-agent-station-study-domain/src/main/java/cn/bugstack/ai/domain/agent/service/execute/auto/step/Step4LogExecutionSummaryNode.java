@@ -9,6 +9,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * 执行总结节点
@@ -77,12 +78,21 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
             // 获取对话客户端 - 使用任务分析客户端进行总结
             AiAgentClientFlowConfigVO aiAgentClientFlowConfigVO = dynamicContext.getAiAgentClientFlowConfigVOMap().get(AiClientTypeEnumVO.RESPONSE_ASSISTANT.getCode());
             ChatClient chatClient = getChatClientByClientId(aiAgentClientFlowConfigVO.getClientId());
-            
+
+//            String knowledgeName = dynamicContext.getValue("knowledgeName");
+//            String filterExpression;
+//            if (StringUtils.hasText(knowledgeName)) {
+//                filterExpression = String.format("knowledge == '%s'", knowledgeName);
+//            } else {
+//                filterExpression = "";
+//            }
+
             String summaryResult = chatClient
                     .prompt(summaryPrompt)
                     .advisors(a -> a
                             .param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId() + "-summary")
                             .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 50))
+//                            .param("qa_filter_expression", filterExpression))
                     .call().content();
 
             assert summaryResult != null;

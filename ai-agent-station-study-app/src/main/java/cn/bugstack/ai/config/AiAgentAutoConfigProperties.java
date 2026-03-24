@@ -25,4 +25,19 @@ public class AiAgentAutoConfigProperties {
      */
     private List<String> clientIds;
 
+    /**
+     * 用于RAG嵌入向量的API ID（对应 ai_client_api 表的 api_id）
+     */
+    private String ragApiId;
+
+    /**
+     * 向量数据库的名称
+     */
+    private String vector_name;
+
+    private String embeddingModelName; // 对应 YML 中的 embedding-model-name
+
+    private int dimensions;           // 对应 YML 中的 dimensions
+
+
 }

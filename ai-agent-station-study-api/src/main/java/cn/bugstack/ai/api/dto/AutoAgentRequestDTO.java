@@ -43,4 +43,10 @@ public class AutoAgentRequestDTO implements Serializable {
      */
     private Integer maxStep;
 
+
+    /**
+     * RAG知识库标签
+     */
+    private String knowledgeName;
+
 }

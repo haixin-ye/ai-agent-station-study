@@ -9,6 +9,7 @@ import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * 任务分析节点
@@ -28,21 +29,21 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         log.info("\n📊 阶段1: 任务状态分析");
         String analysisPrompt = String.format("""
                         **原始用户需求:** %s
-                        
+                                                
                         **当前执行步骤:** 第 %d 步 (最大 %d 步)
-                        
+                                                
                         **历史执行记录:**
                         %s
-                        
+                                                
                         **当前任务:** %s
-                        
+                                                
                         **分析要求:**
                         请深入分析用户的具体需求，制定明确的执行策略：
                         1. 理解用户真正想要什么（如：具体的学习计划、项目列表、技术方案等）
                         2. 分析需要哪些具体的执行步骤（如：搜索信息、检索项目、生成内容等）
                         3. 制定能够产生实际结果的执行策略
                         4. 确保策略能够直接回答用户的问题
-                        
+                                                
                         **输出格式要求:**
                         任务状态分析: [当前任务完成情况的详细分析]
                         执行历史评估: [对已完成工作的质量和效果评估]
@@ -61,18 +62,33 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         AiAgentClientFlowConfigVO aiAgentClientFlowConfigVO = dynamicContext.getAiAgentClientFlowConfigVOMap().get(AiClientTypeEnumVO.TASK_ANALYZER_CLIENT.getCode());
         ChatClient chatClient = getChatClientByClientId(aiAgentClientFlowConfigVO.getClientId());
 
+        String knowledgeName = dynamicContext.getValue("knowledgeName");
+        String filterExpression;
+        if (StringUtils.hasText(knowledgeName)) {
+            filterExpression = String.format("knowledge == '%s'", knowledgeName);
+        } else {
+            filterExpression = "";
+        }
+
         String analysisResult = chatClient
                 .prompt(analysisPrompt)
                 .advisors(a -> a
                         .param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId())
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024))
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024)
+                        .param("qa_filter_expression", filterExpression))
                 .call().content();
 
         assert analysisResult != null;
         parseAnalysisResult(dynamicContext, analysisResult, requestParameter.getSessionId());
-        
+
         // 将分析结果保存到动态上下文中，供下一步使用
         dynamicContext.setValue("analysisResult", analysisResult);
+
+        String step1Summary = String.format("""
+        === 第 %d 步分析记录 ===
+        %s
+        """, dynamicContext.getStep(), analysisResult);
+        dynamicContext.getExecutionHistory().append(step1Summary);
 
         // 检查是否已完成
         if (analysisResult.contains("任务状态: COMPLETED") ||
@@ -91,7 +107,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         if (dynamicContext.isCompleted() || dynamicContext.getStep() > dynamicContext.getMaxStep()) {
             return getBean("step4LogExecutionSummaryNode");
         }
-        
+
         // 否则继续执行下一步
         return getBean("step2PrecisionExecutorNode");
     }
@@ -99,7 +115,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
     private void parseAnalysisResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, String analysisResult, String sessionId) {
         int step = dynamicContext.getStep();
         log.info("\n📊 === 第 {} 步分析结果 ===", step);
-        
+
         String[] lines = analysisResult.split("\n");
         String currentSection = "";
         StringBuilder sectionContent = new StringBuilder();
@@ -172,7 +188,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
                 }
             }
         }
-        
+
         // 发送最后一个section的内容
         sendAnalysisSubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
     }
@@ -180,8 +196,8 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
     /**
      * 发送分析阶段细分结果到流式输出
      */
-    private void sendAnalysisSubResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, 
-                                      String subType, String content, String sessionId) {
+    private void sendAnalysisSubResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                       String subType, String content, String sessionId) {
         if (!subType.isEmpty() && !content.isEmpty()) {
             AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createAnalysisSubResult(
                     dynamicContext.getStep(), subType, content, sessionId);

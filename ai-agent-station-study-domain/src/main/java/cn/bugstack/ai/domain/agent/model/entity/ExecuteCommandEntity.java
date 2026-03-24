@@ -25,4 +25,6 @@ public class ExecuteCommandEntity {
 
     private Integer maxStep;
 
+    private String knowledgeName;
+
 }

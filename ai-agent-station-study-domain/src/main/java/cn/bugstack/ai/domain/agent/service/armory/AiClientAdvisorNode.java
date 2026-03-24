@@ -11,6 +11,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -25,8 +26,10 @@ import java.util.List;
 @Service
 public class AiClientAdvisorNode extends AbstractArmorySupport {
 
-    @Resource
-    private VectorStore vectorStore;
+    @Lazy
+    @Resource(name = "pgVectorStore")
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+    private VectorStore pgVectorStore;
 
     @Resource
     private AiClientNode aiClientNode;
@@ -69,7 +72,7 @@ public class AiClientAdvisorNode extends AbstractArmorySupport {
     private Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO) {
         String advisorType = aiClientAdvisorVO.getAdvisorType();
         AiClientAdvisorTypeEnumVO advisorTypeEnum = AiClientAdvisorTypeEnumVO.getByCode(advisorType);
-        return advisorTypeEnum.createAdvisor(aiClientAdvisorVO, vectorStore);
+        return advisorTypeEnum.createAdvisor(aiClientAdvisorVO, pgVectorStore);
     }
 
 }

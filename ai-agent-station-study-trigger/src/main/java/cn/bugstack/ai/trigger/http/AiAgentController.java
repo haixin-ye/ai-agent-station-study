@@ -33,7 +33,7 @@ public class AiAgentController implements IAiAgentService {
     @RequestMapping(value = "auto_agent", method = RequestMethod.POST)
     public ResponseBodyEmitter autoAgent(@RequestBody AutoAgentRequestDTO request, HttpServletResponse response) {
         log.info("AutoAgent流式执行请求开始，请求信息：{}", JSON.toJSONString(request));
-        
+
         try {
             // 设置SSE响应头
             response.setContentType("text/event-stream");
@@ -43,15 +43,16 @@ public class AiAgentController implements IAiAgentService {
 
             // 1. 创建流式输出对象
             ResponseBodyEmitter emitter = new ResponseBodyEmitter(Long.MAX_VALUE);
-            
+
             // 2. 构建执行命令实体
             ExecuteCommandEntity executeCommandEntity = ExecuteCommandEntity.builder()
                     .aiAgentId(request.getAiAgentId())
                     .message(request.getMessage())
                     .sessionId(request.getSessionId())
                     .maxStep(request.getMaxStep())
+                    .knowledgeName(request.getKnowledgeName()) //传入这个知识库名称
                     .build();
-            
+
             // 3. 异步执行AutoAgent
             threadPoolExecutor.execute(() -> {
                 try {
@@ -71,7 +72,7 @@ public class AiAgentController implements IAiAgentService {
                     }
                 }
             });
-            
+
             return emitter;
 
         } catch (Exception e) {

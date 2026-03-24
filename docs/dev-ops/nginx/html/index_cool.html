@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Auto Agent 智能体 - Pro Edition</title>
+    <script src="js/3.4.17.js"></script>
+    <script src="js/marked.min.js"></script>
+    <script src="js/purify.min.js"></script>
+    <script src="js/highlight.min.js"></script>
+    <link rel="stylesheet" href="css/github.min.css">
+    <link rel="stylesheet" href="css/css2.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        primary: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' }
+                    },
+                    boxShadow: { 'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)' }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+
+        /* 左侧阶段标识 */
+        .stage-indicator { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-right: 8px; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .stage-analysis { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); color: #0369a1; }
+        .stage-execution { background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); color: #6b21a8; }
+        .stage-supervision { background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%); color: #c2410c; }
+        .stage-summary { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); color: #15803d; }
+        .stage-error { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color: #b91c1c; }
+        .sub-type-indicator { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 500; margin-left: 4px; background-color: rgba(0, 0, 0, 0.05); color: #475569; }
+
+        /* Markdown排版 */
+        .markdown-content { margin-top: 4px; line-height: 1.7; color: #334155; }
+        .markdown-content p { margin-bottom: 0.5em; }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 { font-weight: bold; color: #1e293b; margin-top: 1em; margin-bottom: 0.5em; }
+        .markdown-content pre { background: #1e293b; color: #f8fafc; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+        .markdown-content code { font-family: 'Fira Code', monospace; font-size: 0.9em; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px; }
+        .markdown-content pre code { background: transparent; padding: 0; }
+        .markdown-content ul, .markdown-content ol { padding-left: 1.5em; margin-bottom: 0.5em; }
+        .markdown-content li { margin-bottom: 0.25em; list-style-type: disc; }
+
+        /* 动画与细节 */
+        @keyframes messageFadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .message { animation: messageFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); } }
+        .status-dot { animation: pulse-ring 2s infinite; }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .modal-enter { opacity: 1; pointer-events: auto; }
+        .modal-leave { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans overflow-hidden">
+<nav class="glass-panel px-6 py-4 flex items-center justify-between shadow-glass sticky top-0 z-30">
+    <div class="flex items-center gap-4">
+        <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg transform transition hover:scale-105">
+            <span class="text-white font-bold text-xl">🤖</span>
+        </div>
+        <div>
+            <h1 class="text-xl font-extrabold text-gray-800 tracking-tight">AI Auto Agent <span class="text-primary-600">Pro</span></h1>
+            <p class="text-xs text-gray-500 font-medium">智能对话与分析引擎</p>
+        </div>
+    </div>
+
+    <div class="hidden md:flex flex-1 items-center justify-center">
+        <div class="flex items-center gap-2 px-4 py-1.5 bg-gray-100 rounded-full border border-gray-200 shadow-inner">
+            <div class="w-2 h-2 bg-primary-500 rounded-full status-dot"></div>
+            <span class="text-sm font-medium text-gray-600">系统运行中</span>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+        <button onclick="toggleRagModal(true)" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-all shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            知识库管理
+        </button>
+        <button onclick="createNewSession()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            新建对话
+        </button>
+    </div>
+</nav>
+
+<div class="flex-1 flex overflow-hidden p-4 gap-4">
+    <aside id="sidebar" class="w-64 glass-panel rounded-2xl shadow-xl flex flex-col overflow-hidden hidden md:flex transition-all duration-300">
+        <div class="px-5 py-4 border-b border-gray-100 bg-white/60">
+            <h2 class="font-bold text-gray-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                会话历史
+            </h2>
+        </div>
+        <ul id="chatList" class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-white/40">
+        </ul>
+        <div class="p-3 border-t border-gray-100 bg-white/60">
+            <button onclick="clearAllSessions()" class="w-full py-2 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition border border-transparent hover:border-red-100">
+                清空所有历史
+            </button>
+        </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col overflow-hidden glass-panel rounded-2xl shadow-xl relative">
+        <div class="flex-1 flex overflow-hidden relative">
+
+            <div class="w-1/2 flex flex-col border-r border-gray-100 bg-white/50 relative">
+                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl bg-blue-100 p-1.5 rounded-lg">🧠</span>
+                        <h3 class="font-bold text-gray-800">Agent 思考与执行日志</h3>
+                    </div>
+                </div>
+                <div id="thinkingMessages" class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
+                </div>
+            </div>
+
+            <div class="w-1/2 flex flex-col bg-white/80 relative">
+                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl bg-green-100 p-1.5 rounded-lg">💬</span>
+                        <h3 class="font-bold text-gray-800">AI 对话</h3>
+                    </div>
+                </div>
+                <div id="resultMessages" class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar pb-10">
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white border-t border-gray-100 p-5 rounded-b-2xl relative z-30 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)]">
+            <div class="mb-4 flex flex-wrap items-center gap-3 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></span>
+                    <label class="text-sm font-semibold text-gray-700">配置:</label>
+                </div>
+
+                <select id="exampleSelect" class="px-3 py-1.5 border border-primary-200 text-primary-700 rounded-lg text-sm bg-primary-50 focus:ring-2 focus:ring-primary-300 outline-none transition-all cursor-pointer max-w-[180px]">
+                    <option value="">💡 快捷案例...</option>
+                    <option value="1+1">1+1</option>
+                    <option value="检索小傅哥的相关项目，列出一份学习计划">检索项目并定制学习计划</option>
+                </select>
+
+                <select id="aiAgentSelect" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-300 outline-none transition-all cursor-pointer">
+                    <option value="3">🤖 Auto Agent</option>
+                </select>
+
+                <select id="maxStepSelect" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-300 outline-none transition-all cursor-pointer">
+                    <option value="1">最多 1 步</option>
+                    <option value="3">最多 3 步</option>
+                    <option value="5" selected>最多 5 步</option>
+                </select>
+
+                <div class="flex items-center gap-2 border-l pl-3 border-gray-200">
+                    <label class="text-sm font-semibold text-gray-700">知识库:</label>
+                    <select id="ragSelect" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-300 outline-none transition-all cursor-pointer min-w-[140px]">
+                        <option value="">-- 不使用知识库 --</option>
+                    </select>
+                    <button onclick="loadRagTags()" class="text-gray-400 hover:text-primary-600 transition" title="刷新列表">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex gap-3 relative">
+                <textarea id="messageInput" rows="2" placeholder="与 AI Auto Agent 对话，复杂指令将自动拆解..."
+                          class="flex-1 px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-0 focus:border-primary-500 outline-none transition-all text-gray-700 placeholder-gray-400 resize-none shadow-inner custom-scrollbar"></textarea>
+                <button id="sendBtn" onclick="sendMessage()"
+                        class="px-8 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl hover:from-primary-700 hover:to-primary-600 focus:outline-none focus:ring-4 focus:ring-primary-200 transition-all font-bold flex flex-col items-center justify-center gap-1 shadow-lg transform hover:-translate-y-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    <span>发送</span>
+                </button>
+            </div>
+            <div class="mt-2 text-right">
+                <span class="text-[10px] text-gray-400 font-mono tracking-wider" id="sessionIdDisplay"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="ragModal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex justify-center items-center modal-leave transition-opacity duration-300">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all scale-95 opacity-0" id="ragModalContent">
+        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                向量知识库构建
+            </h3>
+            <button onclick="toggleRagModal(false)" class="text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="p-6">
+            <div class="flex border-b border-gray-200 mb-6">
+                <button onclick="switchTab('file')" id="tab-file" class="pb-3 px-4 font-bold text-primary-600 border-b-2 border-primary-600 transition">文档上传</button>
+                <button onclick="switchTab('git')" id="tab-git" class="pb-3 px-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent transition">Git 仓库解析</button>
+            </div>
+            <div id="panel-file" class="space-y-4">
+                <div><label class="block text-sm font-semibold text-gray-700 mb-1">标识 (Rag Tag)</label><input type="text" id="uploadRagTag" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"></div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">选择文件 (.txt/.md/.pdf)</label>
+                    <input id="uploadFile" type="file" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100" />
+                </div>
+                <button onclick="submitFileUpload()" id="uploadBtn" class="w-full py-2.5 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition">上传并向量化</button>
+            </div>
+            <div id="panel-git" class="space-y-4 hidden">
+                <div><label class="block text-sm font-semibold text-gray-700 mb-1">Git 仓库地址</label><input type="text" id="gitRepoUrl" class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"></div>
+                <div class="flex gap-4">
+                    <div class="w-1/2"><label class="block text-sm font-semibold text-gray-700 mb-1">Username</label><input type="text" id="gitUserName" class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none"></div>
+                    <div class="w-1/2"><label class="block text-sm font-semibold text-gray-700 mb-1">Token</label><input type="password" id="gitToken" class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none"></div>
+                </div>
+                <button onclick="submitGitAnalysis()" id="gitAnalyzeBtn" class="w-full mt-2 py-2.5 bg-gray-800 text-white rounded-lg font-bold hover:bg-gray-900 transition">克隆并分析</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const BASE_URL = 'http://localhost:8091';
+    let isConnected = false;
+
+    // --- 会话状态管理 (Local Storage) ---
+    const STORAGE_KEY = 'aiAgentChatSessions';
+    let sessions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    let currentSessionId = null;
+
+    const DEFAULT_LEFT_HTML = `
+        <div class="flex items-start gap-4 message w-full">
+            <div class="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"><span class="text-white text-sm font-bold">AI</span></div>
+            <div class="flex-1 bg-white border border-gray-100 rounded-2xl rounded-tl-none p-4 shadow-sm text-sm text-gray-700"><strong>系统助手:</strong> 左侧将为您透明展示 Agent 在执行复杂任务时的思考链路与节点调用过程。</div>
+        </div>`;
+    const DEFAULT_RIGHT_HTML = `
+        <div class="flex items-start gap-4 message w-full">
+            <div class="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"><span class="text-white text-sm font-bold">AI</span></div>
+            <div class="flex-1 bg-white border border-gray-100 rounded-2xl rounded-tl-none p-4 shadow-sm text-sm text-gray-700"><strong>系统助手:</strong> 您好，我是自动智能体。这里将直接为您呈现对话结果。有什么可以帮您？</div>
+        </div>`;
+
+    // 初始化
+    window.addEventListener('load', () => {
+        marked.setOptions({ breaks: true, gfm: true, highlight: (code, lang) => { try { return hljs.highlightAuto(code).value; } catch (e) { return code; } } });
+        document.getElementById('messageInput').focus();
+        loadRagTags();
+
+        if (Object.keys(sessions).length === 0) { createNewSession(); }
+        else {
+            const latestId = Object.keys(sessions).sort((a,b) => sessions[b].updatedAt - sessions[a].updatedAt)[0];
+            loadSession(latestId);
+        }
+    });
+
+    function generateSessionId() { return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5); }
+
+    function createNewSession() {
+        currentSessionId = generateSessionId();
+        sessions[currentSessionId] = { id: currentSessionId, title: '新会话', leftHtml: DEFAULT_LEFT_HTML, rightHtml: DEFAULT_RIGHT_HTML, updatedAt: Date.now() };
+        syncToStorage();
+        loadSession(currentSessionId);
+    }
+
+    function loadSession(id) {
+        if (!sessions[id]) return;
+        currentSessionId = id;
+        document.getElementById('thinkingMessages').innerHTML = sessions[id].leftHtml;
+        document.getElementById('resultMessages').innerHTML = sessions[id].rightHtml;
+        document.getElementById('sessionIdDisplay').textContent = 'Session ID: ' + id;
+        renderSidebar();
+        scrollToBottom('thinkingMessages');
+        scrollToBottom('resultMessages');
+    }
+
+    function syncDOMToSession() {
+        if (!currentSessionId || !sessions[currentSessionId]) return;
+        sessions[currentSessionId].leftHtml = document.getElementById('thinkingMessages').innerHTML;
+        sessions[currentSessionId].rightHtml = document.getElementById('resultMessages').innerHTML;
+        sessions[currentSessionId].updatedAt = Date.now();
+        syncToStorage();
+    }
+
+    function updateSessionTitle(title) {
+        if (sessions[currentSessionId] && sessions[currentSessionId].title === '新会话') {
+            sessions[currentSessionId].title = title.length > 12 ? title.substring(0, 12) + '...' : title;
+            syncToStorage();
+            renderSidebar();
+        }
+    }
+
+    function syncToStorage() { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); }
+
+    function renderSidebar() {
+        const list = document.getElementById('chatList');
+        list.innerHTML = '';
+        const sortedIds = Object.keys(sessions).sort((a,b) => sessions[b].updatedAt - sessions[a].updatedAt);
+        sortedIds.forEach(id => {
+            const session = sessions[id];
+            const isActive = id === currentSessionId;
+            const li = document.createElement('li');
+            li.className = `p-3 text-sm rounded-xl border shadow-sm cursor-pointer transition ${isActive ? 'bg-primary-50 border-primary-300' : 'bg-white border-gray-100 hover:border-primary-300 hover:shadow-md'}`;
+            li.onclick = () => loadSession(id);
+            li.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div class="font-bold ${isActive ? 'text-primary-700' : 'text-gray-600'} truncate flex-1">${session.title}</div>
+                    <button onclick="deleteSession(event, '${id}')" class="text-gray-300 hover:text-red-500 ml-2" title="删除">×</button>
+                </div>
+                <div class="text-[10px] text-gray-400 mt-1">${new Date(session.updatedAt).toLocaleTimeString()}</div>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    function deleteSession(event, id) {
+        event.stopPropagation();
+        delete sessions[id];
+        syncToStorage();
+        if (id === currentSessionId) {
+            const keys = Object.keys(sessions);
+            if (keys.length > 0) { loadSession(keys[0]); } else { createNewSession(); }
+        } else { renderSidebar(); }
+    }
+
+    function clearAllSessions() {
+        if (confirm("确定要清空所有对话记录吗？此操作无法恢复。")) {
+            sessions = {}; localStorage.removeItem(STORAGE_KEY); createNewSession();
+        }
+    }
+
+    // --- RAG 模块 ---
+    async function loadRagTags() {
+        const select = document.getElementById('ragSelect');
+        try {
+            const res = await fetch(`${BASE_URL}/api/v1/rag/query_rag_tag_list`);
+            const data = await res.json();
+            if (data.code === "0000" && data.data) {
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">-- 不使用知识库 --</option>';
+                data.data.forEach(tag => select.innerHTML += `<option value="${tag}">${tag}</option>`);
+                if(data.data.includes(currentVal)) select.value = currentVal;
+            }
+        } catch(e) { console.error('获取知识库失败', e); }
+    }
+
+    function toggleRagModal(show) {
+        const modal = document.getElementById('ragModal'), content = document.getElementById('ragModalContent');
+        if(show) { modal.classList.replace('modal-leave', 'modal-enter'); setTimeout(() => content.classList.replace('scale-95', 'scale-100'), 10); content.classList.replace('opacity-0', 'opacity-100'); }
+        else { content.classList.replace('scale-100', 'scale-95'); content.classList.replace('opacity-100', 'opacity-0'); setTimeout(() => modal.classList.replace('modal-enter', 'modal-leave'), 300); }
+    }
+
+    function switchTab(tab) {
+        document.getElementById('panel-file').classList.toggle('hidden', tab !== 'file');
+        document.getElementById('panel-git').classList.toggle('hidden', tab !== 'git');
+        document.getElementById('tab-file').className = tab === 'file' ? 'pb-3 px-4 font-bold text-primary-600 border-b-2 border-primary-600 transition' : 'pb-3 px-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent transition';
+        document.getElementById('tab-git').className = tab === 'git' ? 'pb-3 px-4 font-bold text-primary-600 border-b-2 border-primary-600 transition' : 'pb-3 px-4 font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent transition';
+    }
+
+    async function submitFileUpload() {
+        const tag = document.getElementById('uploadRagTag').value.trim(), files = document.getElementById('uploadFile').files;
+        if(!tag || files.length === 0) return alert('请填写标识并选择文件');
+        const btn = document.getElementById('uploadBtn'); btn.disabled = true; btn.innerHTML = '解析中...';
+        const formData = new FormData(); formData.append('ragTag', tag); for(let file of files) formData.append('file', file);
+        try {
+            const res = await fetch(`${BASE_URL}/api/v1/rag/file/upload`, { method: 'POST', body: formData }), data = await res.json();
+            if(data.code === "0000") { alert('构建成功！'); toggleRagModal(false); loadRagTags(); setTimeout(() => document.getElementById('ragSelect').value = tag, 500); }
+            else alert('失败: ' + data.info);
+        } catch(e) { alert('网络异常'); } finally { btn.disabled = false; btn.innerHTML = '上传并向量化'; }
+    }
+
+    // --- 核心聊天发送流 ---
+    function sendMessage() {
+        const msgInput = document.getElementById('messageInput'), message = msgInput.value.trim();
+        if (!message) return;
+        if (isConnected) return alert('Agent 执行中，请稍候...');
+
+        // 1. 打印用户问题到右侧聊天框 (纯净UI)
+        addRightChatMessage(message, 'user');
+
+        // 2. 左侧仅附加一条小日志，不清空原有思考过程
+        appendLeftLog(`【指令】触发新任务拆解执行`);
+
+        updateSessionTitle(message);
+        msgInput.value = '';
+        document.getElementById('sendBtn').disabled = true;
+
+        // 显示右侧聊天打字等待动画
+        showChatLoading();
+
+        const requestData = {
+            aiAgentId: document.getElementById('aiAgentSelect').value,
+            message: message,
+            sessionId: currentSessionId, // 延续当前 Session
+            maxStep: parseInt(document.getElementById('maxStepSelect').value),
+            knowledgeName: document.getElementById('ragSelect').value
+        };
+
+        fetch(`${BASE_URL}/api/v1/agent/auto_agent`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' }, body: JSON.stringify(requestData)
+        }).then(response => {
+            if (!response.ok) throw new Error('网络异常');
+            const reader = response.body.getReader(), decoder = new TextDecoder();
+            isConnected = true;
+
+            function readStream() {
+                reader.read().then(({ done, value }) => {
+                    if (done) { endStream(); return; }
+                    const chunk = decoder.decode(value, { stream: true }), lines = chunk.split('\n');
+                    for (let line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.substring(6).trim();
+                            if (data && data !== '[DONE]') {
+                                try { handleSSEMessage(JSON.parse(data)); } catch (e) { console.error('解析错误', e); }
+                            }
+                        }
+                    }
+                    readStream();
+                }).catch(err => endStream('中断'));
+            }
+            readStream();
+        }).catch(err => endStream(err.message));
+    }
+
+    function handleSSEMessage(jsonData) {
+        const { type, subType, step, content } = jsonData;
+        if (!content || content.trim() === '') return;
+
+        // 【右侧纯净逻辑】：只有最终的完整 summary 才打印在右侧
+        if (type === 'summary' && !subType) {
+            hideChatLoading(); // 隐藏等待动画
+            addRightChatMessage(content, 'ai');
+        }
+        else if (type === 'error') {
+            hideChatLoading();
+            addRightChatMessage(`**系统提示:** 执行出现异常\n${content}`, 'ai');
+            addLeftStageMessage(type, subType, content, step);
+        }
+        else if (type !== 'complete') {
+            // 所有其它的思考过程、子结果，都在左边日志流中展示
+            addLeftStageMessage(type, subType, content, step);
+        }
+    }
+
+    function endStream(err) {
+        isConnected = false;
+        document.getElementById('sendBtn').disabled = false;
+        hideChatLoading();
+        if(err) addLeftStageMessage('error', null, '连接失败: ' + err, null);
+        syncDOMToSession(); // 数据流结束，保存当前完整DOM
+    }
+
+    // --- UI 渲染控制 ---
+    const stageTypeMap = { 'analysis': { name: '分析阶段', icon: '🎯', class: 'stage-analysis' }, 'execution': { name: '执行阶段', icon: '⚡', class: 'stage-execution' }, 'supervision': { name: '监督阶段', icon: '🔍', class: 'stage-supervision' }, 'summary': { name: '总结阶段', icon: '📊', class: 'stage-summary' }, 'error': { name: '异常', icon: '❌', class: 'stage-error' } };
+    const subTypeMap = { 'analysis_status': '任务状态', 'analysis_strategy': '执行策略', 'execution_target': '执行目标', 'execution_process': '调用过程', 'execution_result': '执行成果', 'assessment': '质量评估', 'issues': '问题识别', 'completed_work': '已完成' };
+
+    // 右侧纯净聊天气泡渲染
+    function addRightChatMessage(text, role) {
+        const container = document.getElementById('resultMessages');
+        const isUser = role === 'user';
+        const html = `
+            <div class="flex items-start gap-4 message w-full ${isUser ? 'flex-row-reverse' : ''}">
+                <div class="w-10 h-10 bg-gradient-to-br ${isUser ? 'from-gray-700 to-gray-900' : 'from-green-400 to-green-600'} rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                    <span class="text-white text-sm font-bold">${isUser ? 'Me' : 'AI'}</span>
+                </div>
+                <div class="flex-1 ${isUser ? 'bg-primary-50 border border-primary-100' : 'bg-white border border-gray-100'} rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} p-5 shadow-sm max-w-[85%]">
+                    <div class="${isUser ? 'text-sm text-gray-800 font-medium user-message-text' : 'markdown-content'}">${isUser ? text.replace(/\n/g, '<br>') : marked.parse(text)}</div>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+        if(!isUser) container.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+        scrollToBottom('resultMessages');
+        syncDOMToSession();
+    }
+
+    // 左侧日志气泡渲染
+    function addLeftStageMessage(type, subType, content, step) {
+        const container = document.getElementById('thinkingMessages');
+        const stage = stageTypeMap[type] || { name: type, icon: '📝', class: 'stage-analysis' };
+        const subName = subType ? (subTypeMap[subType] || subType) : '';
+        let indicators = `<span class="stage-indicator ${stage.class}">${stage.icon} ${stage.name}</span>`;
+        if (subName) indicators += `<span class="sub-type-indicator">${subName}</span>`;
+        if (step) indicators += `<span class="sub-type-indicator">Step 0${step}</span>`;
+
+        const html = `
+            <div class="flex items-start gap-3 message w-full">
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center shadow flex-shrink-0"><span class="text-white text-xs font-bold">Bot</span></div>
+                <div class="flex-1 bg-white border border-gray-100 rounded-xl rounded-tl-none p-4 shadow-sm max-w-[90%]">
+                    <div class="mb-2 border-b border-gray-50 pb-2">${indicators}</div>
+                    <div class="markdown-content text-sm">${marked.parse(content)}</div>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+        scrollToBottom('thinkingMessages');
+    }
+
+    // 左侧极简文本分割线
+    function appendLeftLog(text) {
+        const html = `<div class="w-full text-center my-4"><span class="bg-gray-100 text-gray-400 text-xs px-3 py-1 rounded-full">${text}</span></div>`;
+        document.getElementById('thinkingMessages').insertAdjacentHTML('beforeend', html);
+    }
+
+    // 右侧打字动画
+    function showChatLoading() {
+        const container = document.getElementById('resultMessages');
+        const html = `
+            <div id="chat-loading" class="flex items-start gap-4 message w-full">
+                <div class="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"><span class="text-white text-sm font-bold">AI</span></div>
+                <div class="bg-transparent p-3 flex items-center gap-1.5 mt-2">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-bounce" style="animation-delay: 0s"></div>
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-bounce" style="animation-delay: 0.15s"></div>
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-bounce" style="animation-delay: 0.3s"></div>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+        scrollToBottom('resultMessages');
+    }
+    function hideChatLoading() { const el = document.getElementById('chat-loading'); if(el) el.remove(); }
+
+    function scrollToBottom(id) { const el = document.getElementById(id); if(el) el.scrollTop = el.scrollHeight; }
+
+    document.getElementById('messageInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }});
+    document.getElementById('exampleSelect').addEventListener('change', function() { if(this.value){ document.getElementById('messageInput').value = this.value; this.value = ''; }});
+
+    // --- Git 仓库解析 ---
+    async function submitGitAnalysis() {
+        const repoUrl = document.getElementById('gitRepoUrl').value.trim();
+        const userName = document.getElementById('gitUserName').value.trim();
+        const token = document.getElementById('gitToken').value.trim();
+        if(!repoUrl) return alert('请输入 Git 仓库地址');
+
+        const btn = document.getElementById('gitAnalyzeBtn');
+        btn.disabled = true;
+        btn.innerHTML = '克隆分析中 (可能需要较长时间)...';
+
+        const formData = new FormData();
+        formData.append('repoUrl', repoUrl);
+        formData.append('userName', userName || '');
+        formData.append('token', token || '');
+
+        try {
+            const res = await fetch(`${BASE_URL}/api/v1/rag/analyze_git_repository`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if(data.code === "0000") {
+                alert('Git 代码库分析完成并向量化成功！');
+                toggleRagModal(false);
+                loadRagTags();
+            } else {
+                alert('失败: ' + data.info);
+            }
+        } catch(e) {
+            alert('网络异常或解析超时');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '克隆并分析';
+        }
+    }
+</script>
+</body>
+</html>
