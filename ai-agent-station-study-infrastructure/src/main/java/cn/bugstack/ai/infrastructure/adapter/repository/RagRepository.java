@@ -10,7 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.redisson.api.RKeys;
+import org.redisson.api.RList;
 import org.redisson.api.RSet;
+import org.redisson.api.RType;
 import org.redisson.api.RedissonClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
@@ -43,6 +46,7 @@ import java.util.Set;
 public class RagRepository implements IRagRepository {
 
     private static final int BATCH_SIZE = 50;
+    private static final String RAG_TAG_KEY = "ragTag";
     private static final Set<String> TARGET_EXTENSIONS = Set.of(
             ".py", ".java", ".go", ".cpp", ".c",
             ".js", ".ts", ".vue",
@@ -61,7 +65,7 @@ public class RagRepository implements IRagRepository {
 
     @Override
     public Set<String> queryRagTagList() {
-        return new LinkedHashSet<>(redissonClient.getSet("ragTag"));
+        return new LinkedHashSet<>(getOrInitRagTagSet());
     }
 
     @Override
@@ -211,10 +215,34 @@ public class RagRepository implements IRagRepository {
     }
 
     private void appendTagIfAbsent(String knowledgeTag) {
-        RSet<String> tags = redissonClient.getSet("ragTag");
+        RSet<String> tags = getOrInitRagTagSet();
         if (!tags.contains(knowledgeTag)) {
             tags.add(knowledgeTag);
         }
+    }
+
+    private RSet<String> getOrInitRagTagSet() {
+        RKeys keys = redissonClient.getKeys();
+        RType type = keys.getType(RAG_TAG_KEY);
+        if (type == RType.LIST) {
+            migrateLegacyTagListToSet(keys);
+        } else if (type != null && type != RType.SET) {
+            log.warn("RAG tag key type mismatch, key: {}, type: {}, reset to set", RAG_TAG_KEY, type);
+            keys.delete(RAG_TAG_KEY);
+        }
+        return redissonClient.getSet(RAG_TAG_KEY);
+    }
+
+    private void migrateLegacyTagListToSet(RKeys keys) {
+        RList<String> legacyTagList = redissonClient.getList(RAG_TAG_KEY);
+        Set<String> legacyTags = new LinkedHashSet<>(legacyTagList.readAll());
+
+        keys.delete(RAG_TAG_KEY);
+        if (!legacyTags.isEmpty()) {
+            redissonClient.getSet(RAG_TAG_KEY).addAll(legacyTags);
+        }
+
+        log.warn("RAG tag key migrated from LIST to SET, key: {}, size: {}", RAG_TAG_KEY, legacyTags.size());
     }
 
     private String extractProjectName(String repoUrl) {
