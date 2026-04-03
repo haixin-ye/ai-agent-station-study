@@ -2,6 +2,7 @@ package cn.bugstack.ai.trigger.http;
 
 import cn.bugstack.ai.api.IAiAgentService;
 import cn.bugstack.ai.api.dto.AutoAgentRequestDTO;
+import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
 import cn.bugstack.ai.domain.agent.service.execute.IExecuteStrategy;
 import com.alibaba.fastjson.JSON;
@@ -60,7 +61,11 @@ public class AiAgentController implements IAiAgentService {
                 } catch (Exception e) {
                     log.error("AutoAgent执行异常：{}", e.getMessage(), e);
                     try {
-                        emitter.send("执行异常：" + e.getMessage());
+                        AutoAgentExecuteResultEntity errorResult = AutoAgentExecuteResultEntity.createErrorResult(
+                                "执行异常：" + e.getMessage(),
+                                request.getSessionId()
+                        );
+                        emitter.send("data: " + JSON.toJSONString(errorResult) + "\n\n");
                     } catch (Exception ex) {
                         log.error("发送异常信息失败：{}", ex.getMessage(), ex);
                     }
@@ -79,7 +84,11 @@ public class AiAgentController implements IAiAgentService {
             log.error("AutoAgent请求处理异常：{}", e.getMessage(), e);
             ResponseBodyEmitter errorEmitter = new ResponseBodyEmitter();
             try {
-                errorEmitter.send("请求处理异常：" + e.getMessage());
+                AutoAgentExecuteResultEntity errorResult = AutoAgentExecuteResultEntity.createErrorResult(
+                        "请求处理异常：" + e.getMessage(),
+                        request != null ? request.getSessionId() : null
+                );
+                errorEmitter.send("data: " + JSON.toJSONString(errorResult) + "\n\n");
                 errorEmitter.complete();
             } catch (Exception ex) {
                 log.error("发送错误信息失败：{}", ex.getMessage(), ex);

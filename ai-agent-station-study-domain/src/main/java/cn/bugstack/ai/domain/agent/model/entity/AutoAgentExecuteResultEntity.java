@@ -171,6 +171,36 @@ public class AutoAgentExecuteResultEntity {
     }
 
     /**
+     * 创建 token 明细结果（单次 client 调用）
+     */
+    public static AutoAgentExecuteResultEntity createTokenClientUsageResult(Integer step, String content, String sessionId) {
+        return AutoAgentExecuteResultEntity.builder()
+                .type("token")
+                .subType("client_usage")
+                .step(step)
+                .content(content)
+                .completed(false)
+                .timestamp(System.currentTimeMillis())
+                .sessionId(sessionId)
+                .build();
+    }
+
+    /**
+     * 创建 token 总计结果（整轮 agent 执行）
+     */
+    public static AutoAgentExecuteResultEntity createTokenTotalUsageResult(String content, String sessionId) {
+        return AutoAgentExecuteResultEntity.builder()
+                .type("token")
+                .subType("total_usage")
+                .step(null)
+                .content(content)
+                .completed(true)
+                .timestamp(System.currentTimeMillis())
+                .sessionId(sessionId)
+                .build();
+    }
+
+    /**
      * 创建错误结果
      */
     public static AutoAgentExecuteResultEntity createErrorResult(String content, String sessionId) {

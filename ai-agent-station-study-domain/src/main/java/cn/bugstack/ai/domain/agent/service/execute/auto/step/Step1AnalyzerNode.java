@@ -72,10 +72,16 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
 
         String analysisResult = chatClient
                 .prompt(analysisPrompt)
-                .advisors(a -> a
-                        .param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId())
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024)
-                        .param("qa_filter_expression", filterExpression))
+                .advisors(a -> {
+                    a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId())
+                            .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024)
+                            .param("qa_filter_expression", filterExpression);
+                    applyTokenStatParams(
+                            a, dynamicContext, requestParameter,
+                            aiAgentClientFlowConfigVO.getClientId(),
+                            AiClientTypeEnumVO.TASK_ANALYZER_CLIENT.getCode()
+                    );
+                })
                 .call().content();
 
         assert analysisResult != null;

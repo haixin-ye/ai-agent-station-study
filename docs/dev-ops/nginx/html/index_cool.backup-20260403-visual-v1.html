@@ -14,547 +14,110 @@
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: { sans: ['Segoe UI', 'Microsoft YaHei', 'sans-serif'] },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
                     colors: {
-                        primary: { 50: '#f2f7f6', 100: '#dbeae6', 200: '#bdd7d0', 300: '#8fb8ac', 400: '#5d9787', 500: '#3e7f70', 600: '#2e6558', 700: '#244f46', 800: '#1d403a', 900: '#17342f' }
+                        primary: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' }
                     },
-                    boxShadow: { 'glass': '0 18px 40px -28px rgba(29, 53, 47, 0.35)' }
+                    boxShadow: { 'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)' }
                 }
             }
         }
     </script>
     <style>
-        :root {
-            --bg-base: #ffffff;
-            --bg-warm: #f7f8fa;
-            --bg-paper: rgba(255, 255, 255, 0.98);
-            --bg-panel: rgba(255, 255, 255, 0.96);
-            --line-soft: rgba(15, 23, 42, 0.08);
-            --line-strong: rgba(15, 23, 42, 0.12);
-            --ink-main: #17212b;
-            --ink-soft: #5f6b7a;
-            --accent: #4f7cff;
-            --accent-deep: #3155cc;
-            --accent-glow: rgba(79, 124, 255, 0.14);
-            --rose: #dc6b4d;
-            --gold: #b78a3d;
-            --shadow-xl: 0 24px 48px -36px rgba(15, 23, 42, 0.18);
-            --shadow-md: 0 14px 28px -24px rgba(15, 23, 42, 0.12);
-            --radius-xl: 28px;
-            --radius-lg: 20px;
+        body { background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+
+        /* 左侧阶段标识 */
+        .stage-card-shell { position: relative; overflow: hidden; background:
+                linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%); border: 1px solid rgba(203, 213, 225, 0.72);
+            box-shadow: 0 18px 38px -28px rgba(15, 23, 42, 0.46), 0 10px 18px -16px rgba(14, 116, 144, 0.32); }
+        .stage-card-shell::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: linear-gradient(180deg, rgba(14, 165, 233, 0.86) 0%, rgba(16, 185, 129, 0.72) 100%); }
+        .stage-card-topbar { position: relative; margin: -16px -16px 14px -16px; padding: 14px 16px 12px 18px; background:
+                radial-gradient(circle at top right, rgba(125, 211, 252, 0.16), transparent 42%),
+                linear-gradient(180deg, rgba(249, 251, 253, 0.98) 0%, rgba(255,255,255,0.88) 100%);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.72); }
+        .stage-card-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .stage-card-chipline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+        .stage-indicator { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.24px; border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 10px 16px -18px rgba(15, 23, 42, 0.35); }
+        .stage-indicator-icon { width: 19px; height: 19px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(255,255,255,0.78); font-size: 10px; line-height: 1; box-shadow: inset 0 1px 0 rgba(255,255,255,0.8); }
+        .stage-analysis { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); color: #0369a1; }
+        .stage-execution { background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); color: #6b21a8; }
+        .stage-supervision { background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%); color: #c2410c; }
+        .stage-summary { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); color: #15803d; }
+        .stage-error { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color: #b91c1c; }
+        .stage-token { background: linear-gradient(135deg, #ecfccb 0%, #d9f99d 100%); color: #3f6212; }
+        .sub-type-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(248, 250, 252, 0.98); color: #64748b; border: 1px solid rgba(226, 232, 240, 0.96); box-shadow: inset 0 1px 0 rgba(255,255,255,0.9); }
+        .sub-type-indicator::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: 0.55; }
+        .stage-subcards { display: grid; gap: 10px; margin-top: 2px; }
+        .stage-subcard { position: relative; background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 14px; padding: 12px 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.85); }
+        .stage-subcard-title { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; color: #334155; margin-bottom: 8px; letter-spacing: 0.22px; text-transform: uppercase; }
+        .stage-subcard-title::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.10); }
+        .token-usage-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 6px; border-radius: 18px; background: rgba(255,255,255,0.82); border: 1px solid rgba(203, 213, 225, 0.88); color: #0f172a; font-size: 10px; font-weight: 800; box-shadow: 0 16px 26px -24px rgba(15, 23, 42, 0.28), inset 0 1px 0 rgba(255,255,255,0.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .token-usage-indicator .token-item { min-width: 74px; display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 8px 11px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.6); line-height: 1.05; box-shadow: inset 0 1px 0 rgba(255,255,255,0.7); }
+        .token-usage-indicator .token-label { font-size: 9px; font-weight: 800; letter-spacing: 0.7px; opacity: 0.62; }
+        .token-usage-indicator .token-value { font-size: 18px; font-weight: 800; letter-spacing: -0.03em; }
+        .token-usage-indicator .token-in { background: linear-gradient(180deg, #f3fbff 0%, #e0f2fe 100%); color: #0f4c81; border-color: rgba(125, 211, 252, 0.6); }
+        .token-usage-indicator .token-out { background: linear-gradient(180deg, #fff8f3 0%, #ffedd5 100%); color: #9a3412; border-color: rgba(253, 186, 116, 0.55); }
+        .token-usage-indicator .token-total { background: linear-gradient(180deg, #f3fff8 0%, #dcfce7 100%); color: #166534; border-color: rgba(134, 239, 172, 0.58); position: relative; }
+        .token-usage-indicator .token-total::after { content: ""; position: absolute; inset: 6px 6px auto auto; width: 8px; height: 8px; border-radius: 999px; background: rgba(22, 101, 52, 0.18); }
+        .token-usage-indicator .token-na { min-width: auto; flex-direction: row; align-items: center; gap: 8px; background: linear-gradient(180deg, #fffcf2 0%, #fef3c7 100%); color: #92400e; border-color: rgba(252, 211, 77, 0.5); }
+        .token-usage-indicator .token-na::before { content: "!"; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(146,64,14,0.08); font-size: 10px; font-weight: 800; }
+
+        @media (max-width: 1280px) {
+            .stage-card-meta { flex-direction: column; align-items: stretch; }
+            .token-usage-indicator { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
         }
 
-        body {
-            color: var(--ink-main);
-            background: #ffffff;
-            position: relative;
-        }
-
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background: none;
-            mask-image: none;
-        }
-
-        body::after {
-            content: "";
-            position: fixed;
-            inset: 22px;
-            pointer-events: none;
-            border: none;
-            border-radius: 30px;
-        }
-
-        .glass-panel {
-            background: rgba(255,255,255,0.94);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(15, 23, 42, 0.07);
-            box-shadow: var(--shadow-md);
-        }
-
-        nav.glass-panel {
-            margin: 16px 16px 0;
-            border-radius: 26px;
-            background: rgba(255,255,255,0.96);
-            border-color: rgba(15, 23, 42, 0.06);
-        }
-
-        #sidebar {
-            background: rgba(255,255,255,0.98);
-            border: 1px solid rgba(15, 23, 42, 0.07);
-        }
-
-        #chatList li {
-            border-radius: 18px !important;
-            border-color: rgba(15, 23, 42, 0.07) !important;
-            background: #ffffff !important;
-            box-shadow: 0 10px 18px -18px rgba(15, 23, 42, 0.08);
-        }
-
-        #chatList li:hover {
-            border-color: rgba(79, 124, 255, 0.2) !important;
-            background: #fbfcff !important;
-        }
-
-        #sidebar > div:first-child,
-        #sidebar > div:last-child {
-            background: #fbfcfe;
-            border-color: rgba(15, 23, 42, 0.06);
-        }
-
-        #chatList {
-            background: #f8fafc;
-        }
-
-        .flex-1.flex.flex-col.overflow-hidden.glass-panel.rounded-2xl.shadow-xl.relative {
-            background: rgba(255,255,255,0.98);
-            border: 1px solid rgba(15, 23, 42, 0.07);
-        }
-
-        #thinkingMessages,
-        #resultMessages {
-            background: #ffffff;
-        }
-
-        #thinkingMessages {
-            box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.06);
-        }
-
-        #resultMessages {
-            background: #ffffff;
-        }
-
-        #thinkingMessages > div:first-child .flex-1,
-        #resultMessages > div:first-child .flex-1 {
-            background: #ffffff !important;
-            border-color: rgba(15, 23, 42, 0.07) !important;
-            border-radius: 22px !important;
-        }
-
-        #messageInput,
-        #uploadRagTag,
-        #gitRepoUrl,
-        #gitUserName,
-        #gitToken,
-        #exampleSelect,
-        #aiAgentSelect,
-        #maxStepSelect,
-        #ragSelect {
-            background: #ffffff !important;
-            border-color: rgba(15, 23, 42, 0.1) !important;
-            color: var(--ink-main) !important;
-            box-shadow: 0 8px 16px -18px rgba(15, 23, 42, 0.08);
-        }
-
-        #messageInput {
-            border-width: 1px !important;
-            min-height: 48px;
-            border-radius: 18px !important;
-            background: #ffffff !important;
-        }
-
-        #messageInput::placeholder {
-            color: #8a928c;
-        }
-
-        #sendBtn {
-            min-width: 122px;
-            border-radius: 22px !important;
-            background: #3155cc !important;
-            box-shadow: 0 16px 24px -20px rgba(49, 85, 204, 0.45);
-        }
-
-        #sendBtn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 18px 26px -20px rgba(49, 85, 204, 0.52);
-        }
-
-        #panel-file button,
-        #panel-git button,
-        nav button {
-            border-radius: 18px !important;
-        }
-
-        #ragModalContent {
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            background: #ffffff;
-        }
-
-        .stage-card-shell {
-            position: relative;
-            overflow: hidden;
-            background: #ffffff;
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-xl);
-        }
-
-        .stage-card-shell::before {
-            content: "";
-            position: absolute;
-            inset: 0 auto 0 0;
-            width: 6px;
-            background: linear-gradient(180deg, rgba(62,127,112,0.9) 0%, rgba(183,141,82,0.8) 100%);
-        }
-
-        .stage-card-topbar {
-            position: relative;
-            margin: -16px -16px 18px -16px;
-            padding: 16px 18px 14px 22px;
-            background: #ffffff;
-            border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-        }
-
-        .stage-card-meta {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            flex-wrap: wrap;
-        }
-
-        .stage-card-chipline {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            flex: 0 1 auto;
-            min-width: 0;
-            min-height: 56px;
-            padding: 6px;
-            border-radius: 24px;
-            background: #ffffff;
-            border: 1px solid rgba(15, 23, 42, 0.07);
-            box-shadow: none;
-        }
-
-        .stage-indicator,
-        .sub-type-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            min-height: 42px;
-            border-radius: 999px;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.08px;
-        }
-
-        .stage-indicator {
-            padding: 10px 16px;
-            border: 1px solid transparent;
-            box-shadow: none;
-        }
-
-        .stage-indicator-icon {
-            width: 20px;
-            height: 20px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.85);
-            font-size: 10px;
-            line-height: 1;
-        }
-
-        .stage-analysis { background: #eef4ff; color: #3455c5; }
-        .stage-execution { background: #fff2ec; color: #cb5d38; }
-        .stage-supervision { background: #fff7e8; color: #9a6f1f; }
-        .stage-summary { background: #edf8f2; color: #2d7a4f; }
-        .stage-error { background: #fff0ee; color: #c6473d; }
-        .stage-token { background: #eff3ff; color: #4a63c8; }
-
-        .sub-type-indicator {
-            padding: 10px 14px;
-            background: #f8fafc;
-            color: #727973;
-            border: 1px solid rgba(15, 23, 42, 0.07);
-            box-shadow: none;
-        }
-
-        .sub-type-indicator::before {
-            content: "";
-            width: 6px;
-            height: 6px;
-            border-radius: 999px;
-            background: currentColor;
-            opacity: 0.45;
-        }
-
-        .stage-subcards {
-            display: grid;
-            gap: 12px;
-            margin-top: 4px;
-        }
-
-        .stage-subcard {
-            position: relative;
-            background: #fbfcfe;
-            border: 1px solid rgba(15, 23, 42, 0.06);
-            border-radius: var(--radius-lg);
-            padding: 14px 16px;
-            box-shadow: none;
-        }
-
-        .stage-subcard-title {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.24px;
-            text-transform: uppercase;
-            color: #66706a;
-        }
-
-        .stage-subcard-title::before {
-            content: "";
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: #a3afc2;
-        }
-
-        .token-usage-indicator {
-            display: inline-flex;
-            align-items: stretch;
-            flex: 0 0 auto;
-            gap: 0;
-            overflow: hidden;
-            min-height: 56px;
-            border-radius: 24px;
-            background: #ffffff;
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            box-shadow: none;
-        }
-
-        .token-usage-indicator .token-item {
-            min-width: 98px;
-            display: inline-flex;
-            flex-direction: column;
-            align-items: flex-start;
-            justify-content: center;
-            gap: 4px;
-            padding: 10px 16px 11px;
-            border-right: 1px solid rgba(15, 23, 42, 0.07);
-            line-height: 1;
-        }
-
-        .token-usage-indicator .token-item:last-child {
-            border-right: none;
-        }
-
-        .token-usage-indicator .token-label {
-            font-size: 9px;
-            font-weight: 800;
-            letter-spacing: 0.85px;
-            opacity: 0.62;
-        }
-
-        .token-usage-indicator .token-value {
-            font-size: 16px;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-        }
-
-        .token-usage-indicator .token-in { background: #eef4ff; color: #3455c5; }
-        .token-usage-indicator .token-out { background: #fff2ec; color: #cb5d38; }
-        .token-usage-indicator .token-total {
-            background: #edf8f2;
-            color: #2d7a4f;
-            position: relative;
-        }
-
-        .token-usage-indicator .token-total::after {
-            content: "";
-            position: absolute;
-            top: 11px;
-            right: 11px;
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: rgba(45, 122, 79, 0.18);
-        }
-
-        .token-usage-indicator .token-na {
-            min-width: auto;
-            flex-direction: row;
-            align-items: center;
-            gap: 8px;
-            background: #f8fafc;
-            color: #6b7280;
-        }
-
-        .token-usage-indicator .token-na::before {
-            content: "!";
-            width: 18px;
-            height: 18px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 999px;
-            background: rgba(107, 114, 128, 0.1);
-            font-size: 10px;
-            font-weight: 800;
-        }
-
-        .stage-card-shell.stage-analysis-shell::before { background: #4f7cff; }
-        .stage-card-shell.stage-analysis-shell .stage-card-topbar { background: #ffffff; }
-        .stage-card-shell.stage-execution-shell::before { background: #dc6b4d; }
-        .stage-card-shell.stage-execution-shell .stage-card-topbar { background: #ffffff; }
-        .stage-card-shell.stage-supervision-shell::before { background: #b78a3d; }
-        .stage-card-shell.stage-supervision-shell .stage-card-topbar { background: #ffffff; }
-        .stage-card-shell.stage-summary-shell::before { background: #3da56d; }
-        .stage-card-shell.stage-summary-shell .stage-card-topbar { background: #ffffff; }
-        .stage-card-shell.stage-error-shell::before { background: #e05252; }
-        .stage-card-shell.stage-error-shell .stage-card-topbar { background: #ffffff; }
-        .stage-card-shell.stage-token-shell::before { background: #6f7cf6; }
-        .stage-card-shell.stage-token-shell .stage-card-topbar { background: #ffffff; }
-
-        .stage-total-card .stage-subcards { display: none; }
-        .stage-total-card .stage-card-shell {
-            min-height: 0;
-            background: #ffffff;
-        }
-        .stage-total-card .stage-card-topbar {
-            margin-bottom: 0;
-            padding-bottom: 16px;
-            border-bottom: none;
-        }
-        .stage-total-card .stage-card-chipline {
-            background: #ffffff;
-        }
-        .stage-total-card .token-usage-indicator {
-            background: #ffffff;
-        }
-
-        .stage-avatar {
-            width: 34px;
-            height: 34px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 800;
-            box-shadow: none;
-        }
-
-        .stage-avatar-analysis { background: #4f7cff; }
-        .stage-avatar-execution { background: #dc6b4d; }
-        .stage-avatar-supervision { background: #b78a3d; }
-        .stage-avatar-summary { background: #3da56d; }
-        .stage-avatar-error { background: #e05252; }
-        .stage-avatar-token { background: #6f7cf6; }
-
-        .markdown-content {
-            margin-top: 4px;
-            line-height: 1.8;
-            color: var(--ink-soft);
-        }
-
-        .markdown-content p { margin-bottom: 0.55em; }
-        .markdown-content h1, .markdown-content h2, .markdown-content h3 {
-            font-family: "Georgia", "Times New Roman", serif;
-            font-weight: 700;
-            color: var(--ink-main);
-            margin-top: 1em;
-            margin-bottom: 0.5em;
-        }
-
-        .markdown-content pre {
-            background: #243a36;
-            color: #f8f6f1;
-            border-radius: 14px;
-            padding: 16px;
-            overflow-x: auto;
-            margin: 12px 0;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-        }
-
-        .markdown-content code {
-            font-family: Consolas, "Courier New", monospace;
-            font-size: 0.9em;
-            background: rgba(58, 89, 79, 0.08);
-            padding: 2px 5px;
-            border-radius: 6px;
-        }
-
+        /* Markdown排版 */
+        .markdown-content { margin-top: 4px; line-height: 1.7; color: #334155; }
+        .markdown-content p { margin-bottom: 0.5em; }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 { font-weight: bold; color: #1e293b; margin-top: 1em; margin-bottom: 0.5em; }
+        .markdown-content pre { background: #1e293b; color: #f8fafc; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+        .markdown-content code { font-family: 'Fira Code', monospace; font-size: 0.9em; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px; }
         .markdown-content pre code { background: transparent; padding: 0; }
         .markdown-content ul, .markdown-content ol { padding-left: 1.5em; margin-bottom: 0.5em; }
         .markdown-content li { margin-bottom: 0.25em; list-style-type: disc; }
 
-        @keyframes messageFadeInUp {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message { animation: messageFadeInUp 0.34s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-        @keyframes pulse-ring {
-            0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(62, 127, 112, 0.45); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(62, 127, 112, 0); }
-            100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(62, 127, 112, 0); }
-        }
-
+        /* 动画与细节 */
+        @keyframes messageFadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .message { animation: messageFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); } }
         .status-dot { animation: pulse-ring 2s infinite; }
 
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(108, 96, 80, 0.24);
-            border-radius: 999px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: rgba(83, 111, 103, 0.38);
-        }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         .modal-enter { opacity: 1; pointer-events: auto; }
         .modal-leave { opacity: 0; pointer-events: none; }
-
-        @media (max-width: 1280px) {
-            nav.glass-panel { margin: 10px 10px 0; }
-            body::after { inset: 12px; }
-            .stage-card-meta { flex-direction: column; align-items: stretch; }
-            .token-usage-indicator { width: 100%; flex-wrap: wrap; }
-            .token-usage-indicator .token-item { min-width: calc(50% - 1px); }
-            .stage-card-chipline { width: 100%; }
-        }
     </style>
 </head>
 <body class="h-screen flex flex-col font-sans overflow-hidden">
 <nav class="glass-panel px-6 py-4 flex items-center justify-between shadow-glass sticky top-0 z-30">
     <div class="flex items-center gap-4">
-        <div class="w-11 h-11 bg-gradient-to-br from-primary-500 to-primary-700 rounded-[18px] flex items-center justify-center shadow-lg transform transition hover:scale-105">
+        <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg transform transition hover:scale-105">
             <span class="text-white font-bold text-xl">🤖</span>
         </div>
         <div>
-            <h1 class="text-[22px] font-black text-gray-800 tracking-[-0.03em]">AI Auto Agent <span class="text-primary-700">Studio</span></h1>
-            <p class="text-[11px] text-gray-500 font-semibold tracking-[0.18em] uppercase">Reasoning Console</p>
+            <h1 class="text-xl font-extrabold text-gray-800 tracking-tight">AI Auto Agent <span class="text-primary-600">Pro</span></h1>
+            <p class="text-xs text-gray-500 font-medium">智能体对话与分析引擎</p>
         </div>
     </div>
 
     <div class="hidden md:flex flex-1 items-center justify-center">
-        <div class="flex items-center gap-2 px-4 py-2 bg-white/70 rounded-full border border-white/60 shadow-inner">
+        <div class="flex items-center gap-2 px-4 py-1.5 bg-gray-100 rounded-full border border-gray-200 shadow-inner">
             <div class="w-2 h-2 bg-primary-500 rounded-full status-dot"></div>
             <span class="text-sm font-medium text-gray-600">系统运行中</span>
         </div>
     </div>
 
     <div class="flex items-center gap-3">
-        <button onclick="toggleRagModal(true)" class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-primary-800 bg-white/80 border border-white/70 rounded-lg hover:bg-white transition-all shadow-sm">
+        <button onclick="toggleRagModal(true)" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-all shadow-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
             知识库管理
         </button>
-        <button onclick="createNewSession()" class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white/72 border border-white/70 rounded-lg hover:bg-white transition-all shadow-sm">
+        <button onclick="createNewSession()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             新建对话
         </button>
@@ -563,9 +126,9 @@
 
 <div class="flex-1 flex overflow-hidden p-4 gap-4">
     <aside id="sidebar" class="w-64 glass-panel rounded-2xl shadow-xl flex flex-col overflow-hidden hidden md:flex transition-all duration-300">
-        <div class="px-5 py-5 border-b border-gray-100 bg-white/60">
-            <h2 class="font-bold text-gray-800 flex items-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+        <div class="px-5 py-4 border-b border-gray-100 bg-white/60">
+            <h2 class="font-bold text-gray-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                 会话历史
             </h2>
         </div>
@@ -582,13 +145,10 @@
         <div class="flex-1 flex overflow-hidden relative">
 
             <div class="w-1/2 flex flex-col border-r border-gray-100 bg-white/50 relative">
-                <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <span class="text-xl bg-primary-100 text-primary-800 p-2 rounded-2xl shadow-sm">🧠</span>
-                        <div>
-                            <div class="text-[11px] uppercase tracking-[0.22em] text-gray-400 font-semibold">Trace View</div>
-                            <h3 class="font-bold text-gray-800">Agent 思考与执行日志</h3>
-                        </div>
+                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl bg-blue-100 p-1.5 rounded-lg">🧠</span>
+                        <h3 class="font-bold text-gray-800">Agent 思考与执行日志</h3>
                     </div>
                 </div>
                 <div id="thinkingMessages" class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
@@ -596,28 +156,25 @@
             </div>
 
             <div class="w-1/2 flex flex-col bg-white/80 relative">
-                <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <span class="text-xl bg-[#efe3d6] text-[#85553c] p-2 rounded-2xl shadow-sm">✦</span>
-                        <div>
-                            <div class="text-[11px] uppercase tracking-[0.22em] text-gray-400 font-semibold">Response View</div>
-                            <h3 class="font-bold text-gray-800">AI 对话</h3>
-                        </div>
+                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl bg-green-100 p-1.5 rounded-lg">💬</span>
+                        <h3 class="font-bold text-gray-800">AI 对话</h3>
                     </div>
                 </div>
-                <div id="resultMessages" class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar pb-6">
+                <div id="resultMessages" class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar pb-10">
                 </div>
             </div>
         </div>
 
-        <div class="bg-white border-t border-gray-100 px-5 py-3 rounded-b-2xl relative z-30 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)]">
-            <div class="mb-2 flex flex-wrap items-center gap-2.5 bg-white/50 px-3 py-2.5 rounded-[18px] border border-white/60">
+        <div class="bg-white border-t border-gray-100 p-5 rounded-b-2xl relative z-30 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)]">
+            <div class="mb-4 flex flex-wrap items-center gap-3 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
                 <div class="flex items-center gap-2">
-                    <span class="text-primary-700"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></span>
-                    <label class="text-xs font-semibold text-gray-700 tracking-[0.12em] uppercase">配置</label>
+                    <span class="text-gray-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></span>
+                    <label class="text-sm font-semibold text-gray-700">配置:</label>
                 </div>
 
-                <select id="exampleSelect" class="px-3 py-1.5 border border-primary-200 text-primary-700 rounded-lg text-sm bg-primary-50 focus:ring-2 focus:ring-primary-300 outline-none transition-all cursor-pointer max-w-[172px]">
+                <select id="exampleSelect" class="px-3 py-1.5 border border-primary-200 text-primary-700 rounded-lg text-sm bg-primary-50 focus:ring-2 focus:ring-primary-300 outline-none transition-all cursor-pointer max-w-[180px]">
                     <option value="">💡 快捷案例...</option>
                     <option value="1+1">1+1</option>
                     <option value="检索小傅哥的相关项目，列出一份学习计划">检索项目并定制学习计划</option>
@@ -635,7 +192,7 @@
                 </select>
 
                 <div class="flex items-center gap-2 border-l pl-3 border-gray-200">
-                    <label class="text-xs font-semibold text-gray-700">知识库</label>
+                    <label class="text-sm font-semibold text-gray-700">知识库</label>
                     <select id="ragSelect" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-300 outline-none transition-all cursor-pointer min-w-[140px]">
                         <option value="">-- 不使用知识库 --</option>
                     </select>
@@ -645,18 +202,18 @@
                 </div>
             </div>
 
-            <div class="flex gap-3 relative items-stretch">
+            <div class="flex gap-3 relative">
                 <textarea id="messageInput" rows="2" placeholder="与 AI Auto Agent 对话，复杂指令将自动拆解..."
-                          class="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-0 focus:border-primary-500 outline-none transition-all text-gray-700 placeholder-gray-400 resize-none custom-scrollbar"></textarea>
+                          class="flex-1 px-5 py-3 border-2 border-gray-200 rounded-xl focus:ring-0 focus:border-primary-500 outline-none transition-all text-gray-700 placeholder-gray-400 resize-none shadow-inner custom-scrollbar"></textarea>
                 <button id="sendBtn" onclick="sendMessage()"
-                        class="min-w-[84px] px-5 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl hover:from-primary-700 hover:to-primary-600 focus:outline-none focus:ring-4 focus:ring-primary-200 transition-all font-bold flex flex-col items-center justify-center gap-1 shadow-lg transform hover:-translate-y-0.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        class="px-8 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl hover:from-primary-700 hover:to-primary-600 focus:outline-none focus:ring-4 focus:ring-primary-200 transition-all font-bold flex flex-col items-center justify-center gap-1 shadow-lg transform hover:-translate-y-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
                     <span>发送</span>
                 </button>
             </div>
-            <div class="mt-1 text-right">
+            <div class="mt-2 text-right">
                 <span class="text-[10px] text-gray-400 font-mono tracking-wider" id="sessionIdDisplay"></span>
             </div>
         </div>
@@ -939,12 +496,12 @@
 
     // --- UI 渲染控制 ---
     const stageTypeMap = {
-        analysis: { name: 'Analysis', icon: 'A', class: 'stage-analysis', shellClass: 'stage-analysis-shell', avatarClass: 'stage-avatar-analysis' },
-        execution: { name: 'Execution', icon: 'E', class: 'stage-execution', shellClass: 'stage-execution-shell', avatarClass: 'stage-avatar-execution' },
-        supervision: { name: 'Supervision', icon: 'S', class: 'stage-supervision', shellClass: 'stage-supervision-shell', avatarClass: 'stage-avatar-supervision' },
-        summary: { name: 'Summary', icon: 'R', class: 'stage-summary', shellClass: 'stage-summary-shell', avatarClass: 'stage-avatar-summary' },
-        error: { name: 'Error', icon: '!', class: 'stage-error', shellClass: 'stage-error-shell', avatarClass: 'stage-avatar-error' },
-        token: { name: 'Token', icon: 'T', class: 'stage-token', shellClass: 'stage-token-shell', avatarClass: 'stage-avatar-token' }
+        analysis: { name: 'Analysis', icon: 'A', class: 'stage-analysis' },
+        execution: { name: 'Execution', icon: 'E', class: 'stage-execution' },
+        supervision: { name: 'Supervision', icon: 'S', class: 'stage-supervision' },
+        summary: { name: 'Summary', icon: 'R', class: 'stage-summary' },
+        error: { name: 'Error', icon: '!', class: 'stage-error' },
+        token: { name: 'Token', icon: 'T', class: 'stage-token' }
     };
     const subTypeMap = {
         analysis_status: 'Status',
@@ -990,21 +547,15 @@
         if (stageCardRuntime.cardMap[key]) return stageCardRuntime.cardMap[key];
 
         const container = document.getElementById('thinkingMessages');
-        const stage = stageTypeMap[type] || {
-            name: type,
-            icon: 'I',
-            class: 'stage-analysis',
-            shellClass: 'stage-analysis-shell',
-            avatarClass: 'stage-avatar-analysis'
-        };
+        const stage = stageTypeMap[type] || { name: type, icon: 'I', class: 'stage-analysis' };
         let indicators = `<span class="stage-indicator ${stage.class}"><span class="stage-indicator-icon">${stage.icon}</span><span>${stage.name}</span></span>`;
         if (step) indicators += `<span class="sub-type-indicator">Step 0${step}</span>`;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'flex items-start gap-3 message w-full';
         wrapper.innerHTML = `
-            <div class="stage-avatar ${stage.avatarClass}"><span>${stage.icon}</span></div>
-            <div class="stage-card-shell ${stage.shellClass} flex-1 rounded-xl rounded-tl-none p-4 max-w-[90%]">
+            <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center shadow flex-shrink-0"><span class="text-white text-xs font-bold">Bot</span></div>
+            <div class="stage-card-shell flex-1 rounded-xl rounded-tl-none p-4 max-w-[90%]">
                 <div class="stage-card-topbar">
                     <div class="stage-card-meta">
                         <div class="stage-card-chipline">${indicators}</div>
@@ -1047,10 +598,10 @@
             <span class="sub-type-indicator">Run Total</span>`;
 
         const wrapper = document.createElement('div');
-        wrapper.className = 'stage-total-card flex items-start gap-3 message w-full';
+        wrapper.className = 'flex items-start gap-3 message w-full';
         wrapper.innerHTML = `
-            <div class="stage-avatar stage-avatar-token"><span>Σ</span></div>
-            <div class="stage-card-shell stage-token-shell flex-1 rounded-xl rounded-tl-none p-4 max-w-[90%]">
+            <div class="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center shadow flex-shrink-0"><span class="text-white text-xs font-bold">Σ</span></div>
+            <div class="stage-card-shell flex-1 rounded-xl rounded-tl-none p-4 max-w-[90%]">
                 <div class="stage-card-topbar">
                     <div class="stage-card-meta">
                         <div class="stage-card-chipline">${indicators}</div>

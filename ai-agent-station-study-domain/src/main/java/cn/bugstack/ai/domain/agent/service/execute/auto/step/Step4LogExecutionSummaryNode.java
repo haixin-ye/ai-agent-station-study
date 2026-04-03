@@ -89,9 +89,15 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
 
             String summaryResult = chatClient
                     .prompt(summaryPrompt)
-                    .advisors(a -> a
-                            .param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId() + "-summary")
-                            .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 50))
+                    .advisors(a -> {
+                        a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId() + "-summary")
+                                .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 50);
+                        applyTokenStatParams(
+                                a, dynamicContext, requestParameter,
+                                aiAgentClientFlowConfigVO.getClientId(),
+                                AiClientTypeEnumVO.RESPONSE_ASSISTANT.getCode()
+                        );
+                    })
 //                            .param("qa_filter_expression", filterExpression))
                     .call().content();
 

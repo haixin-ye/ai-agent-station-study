@@ -27,8 +27,8 @@ public class RagRepositoryTest {
         RSet<String> tagSet = mock(RSet.class);
 
         when(redissonClient.getKeys()).thenReturn(keys);
-        when(keys.getType("ragTag")).thenReturn(RType.STRING);
-        when(redissonClient.getSet("ragTag")).thenReturn(tagSet);
+        when(keys.getType("ragTag")).thenReturn(RType.MAP);
+        when(redissonClient.getSet("ragTag")).thenReturn((RSet) tagSet);
         when(tagSet.iterator()).thenReturn(Collections.emptyIterator());
 
         RagRepository ragRepository = new RagRepository();
@@ -49,7 +49,7 @@ public class RagRepositoryTest {
 
         when(redissonClient.getKeys()).thenReturn(keys);
         when(keys.getType("ragTag")).thenReturn(RType.SET);
-        when(redissonClient.getSet("ragTag")).thenReturn(tagSet);
+        when(redissonClient.getSet("ragTag")).thenReturn((RSet) tagSet);
         when(tagSet.contains("agent-docs")).thenReturn(false);
 
         RagRepository ragRepository = new RagRepository();
@@ -75,9 +75,9 @@ public class RagRepositoryTest {
 
         when(redissonClient.getKeys()).thenReturn(keys);
         when(keys.getType("ragTag")).thenReturn(RType.LIST);
-        when(redissonClient.getList("ragTag")).thenReturn(legacyTagList);
+        when(redissonClient.getList("ragTag")).thenReturn((RList) legacyTagList);
         when(legacyTagList.readAll()).thenReturn(Arrays.asList("tag-a", "tag-b", "tag-a"));
-        when(redissonClient.getSet("ragTag")).thenReturn(tagSet);
+        when(redissonClient.getSet("ragTag")).thenReturn((RSet) tagSet);
         when(tagSet.iterator()).thenReturn(Collections.emptyIterator());
 
         RagRepository ragRepository = new RagRepository();

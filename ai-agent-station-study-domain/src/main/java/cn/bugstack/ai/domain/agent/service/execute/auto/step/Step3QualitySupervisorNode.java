@@ -68,10 +68,16 @@ public class Step3QualitySupervisorNode extends AbstractExecuteSupport {
 
         String supervisionResult = chatClient
                 .prompt(supervisionPrompt)
-                .advisors(a -> a
-                        .param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId())
-                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024)
-                        .param("qa_filter_expression", filterExpression))
+                .advisors(a -> {
+                    a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId())
+                            .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024)
+                            .param("qa_filter_expression", filterExpression);
+                    applyTokenStatParams(
+                            a, dynamicContext, requestParameter,
+                            aiAgentClientFlowConfigVO.getClientId(),
+                            AiClientTypeEnumVO.QUALITY_SUPERVISOR_CLIENT.getCode()
+                    );
+                })
                 .call().content();
 
         assert supervisionResult != null;
