@@ -10,6 +10,7 @@ import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import cn.bugstack.ai.domain.agent.service.armory.factory.element.RagAnswerAdvisor;
+import cn.bugstack.ai.domain.agent.service.armory.factory.element.TokenUsageAdvisor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -46,8 +47,15 @@ public enum AiClientAdvisorTypeEnumVO {
                     .filterExpression(ragAnswer.getFilterExpression())
                     .build());
         }
+    },
+
+    TOKEN_USAGE("TokenUsage", "Token 消耗统计") {
+        @Override
+        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore) {
+            return new TokenUsageAdvisor();
+        }
     }
-    
+
     ;
 
     private String code;

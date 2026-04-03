@@ -3,6 +3,7 @@ package cn.bugstack.ai.domain.agent.service.execute.auto.step;
 import cn.bugstack.ai.domain.agent.adapter.repository.IAgentRepository;
 import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
+import cn.bugstack.ai.domain.agent.model.entity.TokenUsageAccumulator;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiAgentEnumVO;
 import cn.bugstack.ai.domain.agent.service.armory.AbstractArmorySupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
@@ -35,6 +36,12 @@ public abstract class AbstractExecuteSupport extends AbstractMultiThreadStrategy
 
     public static final String CHAT_MEMORY_CONVERSATION_ID_KEY = "chat_memory_conversation_id";
     public static final String CHAT_MEMORY_RETRIEVE_SIZE_KEY = "chat_memory_response_size";
+    public static final String TOKEN_STAT_EMITTER_KEY = "token_stat_emitter";
+    public static final String TOKEN_STAT_SESSION_ID_KEY = "token_stat_session_id";
+    public static final String TOKEN_STAT_CLIENT_ID_KEY = "token_stat_client_id";
+    public static final String TOKEN_STAT_CLIENT_TYPE_KEY = "token_stat_client_type";
+    public static final String TOKEN_STAT_STEP_KEY = "token_stat_step";
+    public static final String TOKEN_STAT_ACCUMULATOR_KEY = "token_stat_accumulator";
 
     @Override
     protected void multiThread(ExecuteCommandEntity requestParameter, DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) throws ExecutionException, InterruptedException, TimeoutException {
@@ -47,6 +54,23 @@ public abstract class AbstractExecuteSupport extends AbstractMultiThreadStrategy
 
     protected <T> T getBean(String beanName) {
         return (T) applicationContext.getBean(beanName);
+    }
+
+    protected void applyTokenStatParams(ChatClient.AdvisorSpec advisorSpec,
+                                        DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                        ExecuteCommandEntity requestParameter,
+                                        String clientId,
+                                        String clientType) {
+        advisorSpec.param(TOKEN_STAT_EMITTER_KEY, dynamicContext.getValue("emitter"))
+                .param(TOKEN_STAT_SESSION_ID_KEY, requestParameter.getSessionId())
+                .param(TOKEN_STAT_CLIENT_ID_KEY, clientId)
+                .param(TOKEN_STAT_CLIENT_TYPE_KEY, clientType)
+                .param(TOKEN_STAT_STEP_KEY, dynamicContext.getStep());
+
+        TokenUsageAccumulator accumulator = dynamicContext.getValue(TOKEN_STAT_ACCUMULATOR_KEY);
+        if (accumulator != null) {
+            advisorSpec.param(TOKEN_STAT_ACCUMULATOR_KEY, accumulator);
+        }
     }
 
     /**
