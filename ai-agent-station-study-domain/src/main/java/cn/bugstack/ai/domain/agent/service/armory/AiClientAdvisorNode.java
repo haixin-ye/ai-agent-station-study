@@ -10,6 +10,7 @@ import com.alibaba.fastjson.JSON;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -72,7 +73,13 @@ public class AiClientAdvisorNode extends AbstractArmorySupport {
     private Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO) {
         String advisorType = aiClientAdvisorVO.getAdvisorType();
         AiClientAdvisorTypeEnumVO advisorTypeEnum = AiClientAdvisorTypeEnumVO.getByCode(advisorType);
-        return advisorTypeEnum.createAdvisor(aiClientAdvisorVO, pgVectorStore);
+        // 透传模型提供器，供需要额外模型的 Advisor（如 PromptInjectionSanitizer）使用
+        return advisorTypeEnum.createAdvisor(aiClientAdvisorVO, pgVectorStore, this::resolveChatModelBean);
+    }
+
+    private OpenAiChatModel resolveChatModelBean(String beanName) {
+        // 按 BeanName 动态获取轻量清洗模型
+        return getBean(beanName);
     }
 
 }

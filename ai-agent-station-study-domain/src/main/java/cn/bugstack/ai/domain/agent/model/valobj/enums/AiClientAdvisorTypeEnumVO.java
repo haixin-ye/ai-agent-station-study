@@ -1,89 +1,116 @@
 package cn.bugstack.ai.domain.agent.model.valobj.enums;
 
 import cn.bugstack.ai.domain.agent.model.valobj.AiClientAdvisorVO;
+import cn.bugstack.ai.domain.agent.service.armory.factory.element.PromptInjectionSanitizerAdvisor;
+import cn.bugstack.ai.domain.agent.service.armory.factory.element.RagAnswerAdvisor;
+import cn.bugstack.ai.domain.agent.service.armory.factory.element.TokenUsageAdvisor;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import cn.bugstack.ai.domain.agent.service.armory.factory.element.RagAnswerAdvisor;
-import cn.bugstack.ai.domain.agent.service.armory.factory.element.TokenUsageAdvisor;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
- * 顾问类型枚举
- *
- * @author yhx
- * 2025/7/19 09:02
+ * Advisor 类型策略枚举。
+ * 说明：新增 chatModelProvider 参数是为了让需要“额外模型”的 Advisor
+ * （如 PromptInjectionSanitizer）在创建时按 BeanName 动态获取模型实例。
  */
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
 public enum AiClientAdvisorTypeEnumVO {
 
-    CHAT_MEMORY("ChatMemory", "上下文记忆（内存模式）") {
+    CHAT_MEMORY("ChatMemory", "chat memory") {
         @Override
-        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore) {
+        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO,
+                                     VectorStore vectorStore,
+                                     Function<String, OpenAiChatModel> chatModelProvider) {
             AiClientAdvisorVO.ChatMemory chatMemory = aiClientAdvisorVO.getChatMemory();
+            int maxMessages = chatMemory == null ? 20 : chatMemory.getMaxMessages();
             return PromptChatMemoryAdvisor.builder(
                     MessageWindowChatMemory.builder()
-                            .maxMessages(chatMemory.getMaxMessages())
+                            .maxMessages(maxMessages)
                             .build()
             ).build();
         }
     },
-    
-    RAG_ANSWER("RagAnswer", "知识库") {
+
+    RAG_ANSWER("RagAnswer", "rag answer") {
         @Override
-        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore) {
+        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO,
+                                     VectorStore vectorStore,
+                                     Function<String, OpenAiChatModel> chatModelProvider) {
             AiClientAdvisorVO.RagAnswer ragAnswer = aiClientAdvisorVO.getRagAnswer();
+            int topK = ragAnswer == null ? 4 : ragAnswer.getTopK();
+            String filterExpression = ragAnswer == null ? null : ragAnswer.getFilterExpression();
             return new RagAnswerAdvisor(vectorStore, SearchRequest.builder()
-                    .topK(ragAnswer.getTopK())
-                    .filterExpression(ragAnswer.getFilterExpression())
+                    .topK(topK)
+                    .filterExpression(filterExpression)
                     .build());
         }
     },
 
-    TOKEN_USAGE("TokenUsage", "Token 消耗统计") {
+    TOKEN_USAGE("TokenUsage", "token usage") {
         @Override
-        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore) {
+        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO,
+                                     VectorStore vectorStore,
+                                     Function<String, OpenAiChatModel> chatModelProvider) {
             return new TokenUsageAdvisor();
         }
-    }
+    },
 
-    ;
+    PROMPT_INJECTION_SANITIZER("PromptInjectionSanitizer", "sanitize prompt injection then safeguard") {
+        @Override
+        public Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO,
+                                     VectorStore vectorStore,
+                                     Function<String, OpenAiChatModel> chatModelProvider) {
+            AiClientAdvisorVO.PromptInjectionSanitizer config = aiClientAdvisorVO.getPromptInjectionSanitizer();
+            if (config == null || isBlank(config.getSanitizeModelBeanName())) {
+                throw new RuntimeException("Prompt注入检测需要提供model名称");
+            }
+
+            OpenAiChatModel sanitizeModel = chatModelProvider.apply(config.getSanitizeModelBeanName());
+            if (sanitizeModel == null) {
+                throw new RuntimeException("Prompt注入检测 model bean not found: " + config.getSanitizeModelBeanName());
+            }
+
+            int order = aiClientAdvisorVO.getOrderNum() == null ? 0 : aiClientAdvisorVO.getOrderNum();
+            long timeoutMs = config.getSanitizeTimeoutMs() == null ? 1500L : config.getSanitizeTimeoutMs();
+
+            return new PromptInjectionSanitizerAdvisor(
+                    sanitizeModel,
+                    config.getSanitizePromptTemplate(),
+                    timeoutMs,
+                    config.getSafeGuardWords(),
+                    config.getRejectMessage(),
+                    order
+            );
+        }
+    };
 
     private String code;
     private String info;
-    
-    // 静态Map缓存，用于快速查找
+
     private static final Map<String, AiClientAdvisorTypeEnumVO> CODE_MAP = new HashMap<>();
-    
-    // 静态初始化块，在类加载时初始化Map
+
     static {
         for (AiClientAdvisorTypeEnumVO enumVO : values()) {
             CODE_MAP.put(enumVO.getCode(), enumVO);
         }
     }
-    
-    /**
-     * 策略方法：创建顾问对象
-     * @param aiClientAdvisorVO 顾问配置对象
-     * @param vectorStore 向量存储
-     * @return 顾问对象
-     */
-    public abstract Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO, VectorStore vectorStore);
-    
-    /**
-     * 根据code获取枚举
-     * @param code 编码
-     * @return 枚举对象
-     */
+
+    public abstract Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO,
+                                          VectorStore vectorStore,
+                                          Function<String, OpenAiChatModel> chatModelProvider);
+
     public static AiClientAdvisorTypeEnumVO getByCode(String code) {
         AiClientAdvisorTypeEnumVO enumVO = CODE_MAP.get(code);
         if (enumVO == null) {
@@ -92,4 +119,7 @@ public enum AiClientAdvisorTypeEnumVO {
         return enumVO;
     }
 
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
 }

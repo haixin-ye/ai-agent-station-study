@@ -2,108 +2,284 @@ package cn.bugstack.ai.domain.agent.service.execute.auto.step;
 
 import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
+import cn.bugstack.ai.domain.agent.model.entity.StepExecutionPlanVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
+import cn.bugstack.ai.domain.agent.model.valobj.AiClientToolMcpVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
+import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 /**
- * 精准任务执行节点
- *
- * @author yhx
- * 2025/7/27 16:42
+ * Node2：执行节点，只消费 Node1 的结构化计划，不基于用户原始输入重规划。
  */
 @Slf4j
 @Service
 public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
 
-    static final String WORKSPACE_ROOT = "E:\\javaProject\\ai-agent-station-study";
+    private static final String TOOL_POLICY_CACHE_PREFIX = "tool_policy_cache_";
 
     @Override
-    protected String doApply(ExecuteCommandEntity requestParameter, DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("\n阶段2: 精准任务执行");
+    protected String doApply(ExecuteCommandEntity requestParameter,
+                             DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) throws Exception {
+        log.info("阶段2: 精准任务执行(Node2)");
 
-        String analysisResult = dynamicContext.getValue("analysisResult");
-        if (analysisResult == null || analysisResult.trim().isEmpty()) {
-            log.warn("分析结果为空，使用默认执行策略");
-            analysisResult = "执行当前任务步骤";
+        StepExecutionPlanVO plan = dynamicContext.getCurrentStepPlan();
+        if (plan == null) {
+            throw new IllegalStateException("Node2 缺少 currentStepPlan，无法执行");
         }
 
-        String executionPrompt = buildExecutionPrompt(requestParameter.getMessage(), analysisResult);
+        String sanitizedGoal = dynamicContext.getSanitizedUserGoal();
+        if (!StringUtils.hasText(sanitizedGoal)) {
+            throw new IllegalStateException("Node2 缺少 sanitizedUserGoal，拒绝继续执行");
+        }
 
-        AiAgentClientFlowConfigVO aiAgentClientFlowConfigVO = dynamicContext.getAiAgentClientFlowConfigVOMap()
+        AiAgentClientFlowConfigVO flowConfig = dynamicContext.getAiAgentClientFlowConfigVOMap()
                 .get(AiClientTypeEnumVO.PRECISION_EXECUTOR_CLIENT.getCode());
-        ChatClient chatClient = getChatClientByClientId(aiAgentClientFlowConfigVO.getClientId());
+        ChatClient chatClient = getChatClientByClientId(flowConfig.getClientId());
 
-        String knowledgeName = dynamicContext.getValue("knowledgeName");
-        String filterExpression;
-        if (StringUtils.hasText(knowledgeName)) {
-            filterExpression = String.format("knowledge == '%s'", knowledgeName);
-        } else {
-            filterExpression = "";
+        Map<String, AiClientToolMcpVO.ToolPolicy> toolPolicyMap = getToolPolicyMap(flowConfig.getClientId(), dynamicContext);
+        String policyCheckError = validatePlanAgainstToolPolicy(plan, toolPolicyMap);
+        if (StringUtils.hasText(policyCheckError)) {
+            dynamicContext.setValue("lastToolError", policyCheckError);
+            throw new IllegalStateException(policyCheckError);
         }
 
-        String executionResult = chatClient
-                .prompt(executionPrompt)
-                .advisors(a -> {
-                    a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId())
-                            .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 1024)
-                            .param("qa_filter_expression", filterExpression);
-                    applyTokenStatParams(
-                            a, dynamicContext, requestParameter,
-                            aiAgentClientFlowConfigVO.getClientId(),
-                            AiClientTypeEnumVO.PRECISION_EXECUTOR_CLIENT.getCode()
-                    );
-                })
-                .call()
-                .content();
+        // 中文注释：参数提示不完整只告警不阻断，避免“缺 query 直接失败”
+        String planWarning = buildToolArgsHintWarning(plan, toolPolicyMap);
+        if (StringUtils.hasText(planWarning)) {
+            sendExecutionSubResult(dynamicContext, "execution_plan_warning",
+                    planWarning, requestParameter.getSessionId());
+        }
+
+        sendExecutionSubResult(dynamicContext, "execution_plan_read",
+                JSON.toJSONString(plan), requestParameter.getSessionId());
+        sendExecutionSubResult(dynamicContext, "execution_understanding",
+                buildExecutionUnderstanding(plan, sanitizedGoal), requestParameter.getSessionId());
+
+        String executionPrompt = buildExecutionPrompt(plan, sanitizedGoal, toolPolicyMap.get(plan.getToolName()));
+        String executionResult = callExecutor(chatClient, executionPrompt, requestParameter, dynamicContext, flowConfig, plan, sanitizedGoal);
+
+        // 参数错误允许一次重试（只修参数，不改任务）
+        if (isInvalidArgsError(executionResult)) {
+            dynamicContext.setValue("lastToolError", executionResult);
+            String retryPrompt = buildRetryPrompt(plan, sanitizedGoal, toolPolicyMap.get(plan.getToolName()), executionResult);
+            executionResult = callExecutor(chatClient, retryPrompt, requestParameter, dynamicContext, flowConfig, plan, sanitizedGoal);
+        }
 
         parseExecutionResult(dynamicContext, executionResult, requestParameter.getSessionId());
         dynamicContext.setValue("executionResult", executionResult);
+        dynamicContext.setValue("lastToolError", "");
 
-        String stepSummary = String.format("""
-                === 第%d步执行记录===
-                【分析阶段】%s
-                【执行阶段】%s
-                """, dynamicContext.getStep(), analysisResult, executionResult);
-        dynamicContext.getExecutionHistory().append(stepSummary);
+        dynamicContext.getExecutionHistory().append(String.format("""
+                === 第%d步执行记录(Node2) ===
+                【执行计划】%s
+                【执行结果】%s
+                """, dynamicContext.getStep(), JSON.toJSONString(plan), executionResult));
 
         return router(requestParameter, dynamicContext);
     }
 
-    public static String buildExecutionPrompt(String userMessage, String analysisResult) {
+    private String callExecutor(ChatClient chatClient,
+                                String prompt,
+                                ExecuteCommandEntity requestParameter,
+                                DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                AiAgentClientFlowConfigVO flowConfig,
+                                StepExecutionPlanVO plan,
+                                String sanitizedGoal) {
+        try {
+            return chatClient
+                    .prompt(prompt)
+                    .advisors(a -> {
+                        a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, buildNodeConversationId(requestParameter.getSessionId(), "node2"))
+                                .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 30)
+                                .param("qa_filter_expression", buildFilterExpression(requestParameter.getKnowledgeName()))
+                                .param("qa_query", buildRagQuery(plan, sanitizedGoal))
+                                // 中文注释：执行节点默认启用 RAG 注入，避免直答轮次出现“未检索即幻觉”
+                                .param("qa_disable", false);
+                        applyTokenStatParams(
+                                a, dynamicContext, requestParameter,
+                                flowConfig.getClientId(),
+                                AiClientTypeEnumVO.PRECISION_EXECUTOR_CLIENT.getCode()
+                        );
+                    })
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            String msg = e.getMessage() == null ? "node2 execute failed" : e.getMessage();
+            return "执行结果: 调用失败\n质量检查: " + msg;
+        }
+    }
+
+    private static String buildExecutionUnderstanding(StepExecutionPlanVO plan, String sanitizedGoal) {
         return String.format("""
-                **用户原始需求:** %s
+                全局目标: %s
+                本轮任务: %s
+                是否需要工具: %s
+                计划工具: %s
+                工具目的: %s
+                预期输出: %s
+                """,
+                safe(sanitizedGoal),
+                safe(plan.getTaskGoal()),
+                Boolean.TRUE.equals(plan.getToolRequired()),
+                safe(plan.getToolName()),
+                safe(plan.getToolPurpose()),
+                safe(plan.getExpectedOutput()));
+    }
 
-                **分析师策略:** %s
+    private static String buildFilterExpression(String knowledgeName) {
+        if (!StringUtils.hasText(knowledgeName)) {
+            return "";
+        }
+        return "knowledge == '" + knowledgeName.replace("'", "\\'") + "'";
+    }
 
-                **当前工作区根路径:** %s
+    private static String buildRagQuery(StepExecutionPlanVO plan, String sanitizedGoal) {
+        String taskGoal = plan == null ? "" : plan.getTaskGoal();
+        if (StringUtils.hasText(taskGoal)) {
+            return taskGoal;
+        }
+        return sanitizedGoal;
+    }
 
-                **执行指令:** 你是一个精准任务执行器，需要根据用户需求和分析师策略，实际执行具体任务并产出结果。
+    @SuppressWarnings("unchecked")
+    private Map<String, AiClientToolMcpVO.ToolPolicy> getToolPolicyMap(
+            String clientId,
+            DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) {
+        String cacheKey = TOOL_POLICY_CACHE_PREFIX + clientId;
+        Object cached = dynamicContext.getValue(cacheKey);
+        if (cached instanceof Map<?, ?> map) {
+            return (Map<String, AiClientToolMcpVO.ToolPolicy>) map;
+        }
 
-                **工具调用硬约束:**
-                1. 只要调用文件搜索、目录搜索、代码检索类工具，必须显式传入 path，不能省略，不能传空，不能传 undefined。
-                2. 如果调用 search_files，默认从工作区根路径 %s 开始搜索，或传入该路径下的具体子目录。
-                3. 如果你不知道路径，先使用工作区根路径 %s，不要自行省略参数。
-                4. 工具报参数错误时，不要重复错误调用，要改正参数后再继续。
+        List<AiClientToolMcpVO> tools = repository.AiClientToolMcpVOByClientIds(List.of(clientId));
+        Map<String, AiClientToolMcpVO.ToolPolicy> result = new LinkedHashMap<>();
+        for (AiClientToolMcpVO tool : tools) {
+            result.put(tool.getMcpName(), tool.getToolPolicy());
+        }
+        dynamicContext.setValue(cacheKey, result);
+        return result;
+    }
 
-                **执行要求:**
-                1. 直接执行用户的具体需求，如搜索、检索、生成内容等。
-                2. 如果需要搜索信息，请实际进行搜索和检索。
-                3. 如果需要生成计划、列表等，请直接生成完整内容。
-                4. 提供具体的执行结果，而不只是描述过程。
-                5. 确保执行结果能够直接回答用户的问题。
+    private String validatePlanAgainstToolPolicy(StepExecutionPlanVO plan,
+                                                 Map<String, AiClientToolMcpVO.ToolPolicy> toolPolicyMap) {
+        boolean toolRequired = Boolean.TRUE.equals(plan.getToolRequired());
+        if (!toolRequired) {
+            return "";
+        }
 
-                **输出格式:**
-                执行目标: [明确的执行目标]
-                执行过程: [实际执行的步骤和调用的工具]
-                执行结果: [具体的执行成果和获得的信息内容]
-                质量检查: [对执行结果的质量评估]
-                """, userMessage, analysisResult, WORKSPACE_ROOT, WORKSPACE_ROOT, WORKSPACE_ROOT);
+        if (!StringUtils.hasText(plan.getToolName())) {
+            return "Node2 计划要求调用工具，但未指定 toolName";
+        }
+
+        AiClientToolMcpVO.ToolPolicy policy = toolPolicyMap.get(plan.getToolName());
+        if (policy == null) {
+            return "Node2 指定工具未配置或不可用: " + plan.getToolName();
+        }
+
+        return "";
+    }
+
+    private String buildToolArgsHintWarning(StepExecutionPlanVO plan,
+                                            Map<String, AiClientToolMcpVO.ToolPolicy> toolPolicyMap) {
+        if (!Boolean.TRUE.equals(plan.getToolRequired()) || !StringUtils.hasText(plan.getToolName())) {
+            return "";
+        }
+
+        AiClientToolMcpVO.ToolPolicy policy = toolPolicyMap.get(plan.getToolName());
+        if (policy == null || policy.getRequiredArgs() == null || policy.getRequiredArgs().isEmpty()) {
+            return "";
+        }
+
+        String hint = plan.getToolArgsHint() == null ? "" : plan.getToolArgsHint();
+        List<String> missing = policy.getRequiredArgs().stream()
+                .filter(arg -> !hasNamedArg(hint, arg))
+                .collect(Collectors.toList());
+        if (missing.isEmpty()) {
+            return "";
+        }
+        return "计划参数提示未显式包含必填参数: " + String.join(",", missing) + "；Node2 将尝试按任务目标自动补齐。";
+    }
+
+    public static String buildExecutionPrompt(StepExecutionPlanVO plan,
+                                              String sanitizedGoal,
+                                              AiClientToolMcpVO.ToolPolicy toolPolicy) {
+        String policyJson = toolPolicy == null ? "{}" : JSON.toJSONString(toolPolicy);
+        return String.format("""
+                你是 Node2 执行器，必须严格执行 Node1 计划，不得改写任务目标。
+                【全局目标(sanitized)】
+                %s
+
+                【当前轮计划(JSON)】
+                %s
+
+                【工具策略(policy)】
+                %s
+
+                执行规则：
+                1. 先确认你读取到的计划内容，再执行。
+                2. 若 plan.toolRequired=false，不应调用工具。
+                3. 若 plan.toolRequired=true，只能调用 plan.toolName。
+                4. 工具参数不确定时，先给出文本结论，不传 undefined/null/空参数。
+                输出格式（严格）：
+                计划读取: ...
+                工具决策: ...
+                执行目标: ...
+                执行过程: ...
+                执行结果: ...
+                证据与依据: ...
+                质量检查: ...
+                """, sanitizedGoal, JSON.toJSONString(plan), policyJson);
+    }
+
+    private static String buildRetryPrompt(StepExecutionPlanVO plan,
+                                           String sanitizedGoal,
+                                           AiClientToolMcpVO.ToolPolicy toolPolicy,
+                                           String lastError) {
+        String policyJson = toolPolicy == null ? "{}" : JSON.toJSONString(toolPolicy);
+        return String.format("""
+                你是 Node2 执行器。上一次调用因参数错误失败。
+                本次仅允许修正参数，不允许变更任务目标与工具选择。
+                【全局目标(sanitized)】
+                %s
+
+                【当前轮计划(JSON)】
+                %s
+
+                【工具策略(policy)】
+                %s
+
+                【上次错误】
+                %s
+
+                输出格式（严格）：
+                计划读取: ...
+                工具决策: ...
+                执行目标: ...
+                执行过程: ...
+                执行结果: ...
+                证据与依据: ...
+                质量检查: ...
+                """, sanitizedGoal, JSON.toJSONString(plan), policyJson, lastError);
+    }
+
+    private boolean isInvalidArgsError(String executionResult) {
+        if (!StringUtils.hasText(executionResult)) {
+            return false;
+        }
+        return executionResult.contains("Invalid arguments")
+                || executionResult.contains("expected")
+                || executionResult.contains("received undefined");
     }
 
     @Override
@@ -113,54 +289,95 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
         return getBean("step3QualitySupervisorNode");
     }
 
-    private void parseExecutionResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, String executionResult, String sessionId) {
+    private void parseExecutionResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                      String executionResult, String sessionId) {
         int step = dynamicContext.getStep();
-        log.info("\n=== 第{}步执行结果===", step);
+        log.info("=== 第{}步执行结果 ===", step);
 
-        String[] lines = executionResult.split("\n");
+        String[] lines = executionResult == null ? new String[0] : executionResult.split("\n");
         String currentSection = "";
         StringBuilder sectionContent = new StringBuilder();
+        boolean hasStructuredHeader = false;
 
         for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty()) continue;
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
 
-            if (line.contains("执行目标:")) {
+            String section = detectExecutionSection(trimmed);
+            if (StringUtils.hasText(section)) {
+                hasStructuredHeader = true;
                 sendExecutionSubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
-                currentSection = "execution_target";
-                sectionContent = new StringBuilder();
-                continue;
-            } else if (line.contains("执行过程:")) {
-                sendExecutionSubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
-                currentSection = "execution_process";
-                sectionContent = new StringBuilder();
-                continue;
-            } else if (line.contains("执行结果:")) {
-                sendExecutionSubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
-                currentSection = "execution_result";
-                sectionContent = new StringBuilder();
-                continue;
-            } else if (line.contains("质量检查:")) {
-                sendExecutionSubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
-                currentSection = "execution_quality";
-                sectionContent = new StringBuilder();
+                currentSection = section;
+                sectionContent.setLength(0);
                 continue;
             }
 
             if (!currentSection.isEmpty()) {
-                sectionContent.append(line).append("\n");
+                sectionContent.append(trimmed).append("\n");
             }
         }
 
         sendExecutionSubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
+        if (!hasStructuredHeader && StringUtils.hasText(executionResult)) {
+            sendExecutionSubResult(dynamicContext, "execution_result", executionResult, sessionId);
+        }
+        sendExecutionSubResult(dynamicContext, "execution_raw_output", executionResult, sessionId);
+    }
+
+    private static String detectExecutionSection(String line) {
+        if (line.startsWith("计划读取:") || line.startsWith("PlanRead:")) {
+            return "execution_plan_read";
+        }
+        if (line.startsWith("工具决策:") || line.startsWith("ToolDecision:")) {
+            return "execution_tool_decision";
+        }
+        if (line.startsWith("执行目标:") || line.startsWith("ExecutionTarget:")) {
+            return "execution_target";
+        }
+        if (line.startsWith("执行过程:") || line.startsWith("ExecutionProcess:")) {
+            return "execution_process";
+        }
+        if (line.startsWith("执行结果:") || line.startsWith("ExecutionResult:")) {
+            return "execution_result";
+        }
+        if (line.startsWith("证据与依据:") || line.startsWith("Evidence:")) {
+            return "execution_evidence";
+        }
+        if (line.startsWith("质量检查:") || line.startsWith("QualityCheck:")) {
+            return "execution_quality";
+        }
+        return "";
+    }
+
+    private static String buildNodeConversationId(String sessionId, String nodeTag) {
+        if (!StringUtils.hasText(sessionId)) {
+            return nodeTag;
+        }
+        return sessionId + ":" + nodeTag;
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static boolean hasNamedArg(String hint, String argName) {
+        if (!StringUtils.hasText(hint) || !StringUtils.hasText(argName)) {
+            return false;
+        }
+        String normalized = hint.toLowerCase();
+        String arg = argName.toLowerCase();
+        return normalized.contains(arg + "=") || normalized.contains(arg + ":");
     }
 
     private void sendExecutionSubResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
                                         String subType, String content, String sessionId) {
-        if (!subType.isEmpty() && !content.isEmpty()) {
-            AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createExecutionSubResult(
-                    dynamicContext.getStep(), subType, content, sessionId);
-            sendSseResult(dynamicContext, result);
+        if (!StringUtils.hasText(subType) || !StringUtils.hasText(content)) {
+            return;
         }
+        AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createExecutionSubResult(
+                dynamicContext.getStep(), subType, content, sessionId);
+        sendSseResult(dynamicContext, result);
     }
 }

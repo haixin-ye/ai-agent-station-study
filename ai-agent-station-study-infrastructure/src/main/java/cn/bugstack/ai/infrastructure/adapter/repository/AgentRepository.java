@@ -5,8 +5,8 @@ import cn.bugstack.ai.domain.agent.model.valobj.*;
 import cn.bugstack.ai.infrastructure.dao.*;
 import cn.bugstack.ai.infrastructure.dao.po.*;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -169,6 +169,64 @@ public class AgentRepository implements IAgentRepository {
             // 1. 通过clientId查询关联的model配置
             List<AiClientConfig> clientConfigs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT.getCode(), clientId);
 
+            // 先加载 client -> tool_mcp（client 维度挂载）
+            for (AiClientConfig clientConfig : clientConfigs) {
+                if (AI_CLIENT_TOOL_MCP.getCode().equals(clientConfig.getTargetType()) && clientConfig.getStatus() == 1) {
+                    String mcpId = clientConfig.getTargetId();
+
+                    if (processedMcpIds.contains(mcpId)) {
+                        continue;
+                    }
+                    processedMcpIds.add(mcpId);
+
+                    AiClientToolMcp toolMcp = aiClientToolMcpDao.queryByMcpId(mcpId);
+                    if (toolMcp != null && toolMcp.getStatus() == 1) {
+                        AiClientToolMcpVO mcpVO = AiClientToolMcpVO.builder()
+                                .mcpId(toolMcp.getMcpId())
+                                .mcpName(toolMcp.getMcpName())
+                                .transportType(toolMcp.getTransportType())
+                                .transportConfig(toolMcp.getTransportConfig())
+                                .requestTimeout(toolMcp.getRequestTimeout())
+                                .build();
+
+                        String transportConfig = toolMcp.getTransportConfig();
+                        String transportType = toolMcp.getTransportType();
+
+                        try {
+                            JSONObject transportConfigJson = JSON.parseObject(transportConfig);
+                            AiClientToolMcpVO.ToolPolicy toolPolicy = transportConfigJson == null
+                                    ? null
+                                    : transportConfigJson.getObject("policy", AiClientToolMcpVO.ToolPolicy.class);
+                            mcpVO.setToolPolicy(toolPolicy);
+                            if ("sse".equals(transportType)) {
+                                if (transportConfigJson != null) {
+                                    transportConfigJson.remove("policy");
+                                }
+                                AiClientToolMcpVO.TransportConfigSse transportConfigSse = JSON.parseObject(
+                                        transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
+                                        AiClientToolMcpVO.TransportConfigSse.class);
+                                mcpVO.setTransportConfigSse(transportConfigSse);
+                            } else if ("stdio".equals(transportType)) {
+                                if (transportConfigJson != null) {
+                                    transportConfigJson.remove("policy");
+                                }
+                                Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdio = JSON.parseObject(
+                                        transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
+                                        new TypeReference<>() {
+                                        });
+
+                                AiClientToolMcpVO.TransportConfigStdio transportConfigStdio = new AiClientToolMcpVO.TransportConfigStdio();
+                                transportConfigStdio.setStdio(stdio);
+                                mcpVO.setTransportConfigStdio(transportConfigStdio);
+                            }
+                        } catch (Exception e) {
+                            log.error("解析传输配置失败: {}", e.getMessage(), e);
+                        }
+                        result.add(mcpVO);
+                    }
+                }
+            }
+
             for (AiClientConfig clientConfig : clientConfigs) {
                 if (AI_CLIENT_MODEL.getCode().equals(clientConfig.getTargetType()) && clientConfig.getStatus() == 1) {
                     String modelId = clientConfig.getTargetId();
@@ -202,14 +260,27 @@ public class AgentRepository implements IAgentRepository {
                                 String transportType = toolMcp.getTransportType();
 
                                 try {
+                                    JSONObject transportConfigJson = JSON.parseObject(transportConfig);
+                                    AiClientToolMcpVO.ToolPolicy toolPolicy = transportConfigJson == null
+                                            ? null
+                                            : transportConfigJson.getObject("policy", AiClientToolMcpVO.ToolPolicy.class);
+                                    mcpVO.setToolPolicy(toolPolicy);
                                     if ("sse".equals(transportType)) {
                                         // 解析SSE配置
-                                        ObjectMapper objectMapper = new ObjectMapper();
-                                        AiClientToolMcpVO.TransportConfigSse transportConfigSse = objectMapper.readValue(transportConfig, AiClientToolMcpVO.TransportConfigSse.class);
+                                        if (transportConfigJson != null) {
+                                            transportConfigJson.remove("policy");
+                                        }
+                                        AiClientToolMcpVO.TransportConfigSse transportConfigSse = JSON.parseObject(
+                                                transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
+                                                AiClientToolMcpVO.TransportConfigSse.class);
                                         mcpVO.setTransportConfigSse(transportConfigSse);
                                     } else if ("stdio".equals(transportType)) {
                                         // 解析STDIO配置
-                                        Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdio = JSON.parseObject(transportConfig,
+                                        if (transportConfigJson != null) {
+                                            transportConfigJson.remove("policy");
+                                        }
+                                        Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdio = JSON.parseObject(
+                                                transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
                                                 new TypeReference<>() {
                                                 });
 
@@ -329,6 +400,7 @@ public class AgentRepository implements IAgentRepository {
                 // 3. 解析extParam中的配置
                 AiClientAdvisorVO.ChatMemory chatMemory = null;
                 AiClientAdvisorVO.RagAnswer ragAnswer = null;
+                AiClientAdvisorVO.PromptInjectionSanitizer promptInjectionSanitizer = null;
 
                 String extParam = aiClientAdvisor.getExtParam();
                 if (extParam != null && !extParam.trim().isEmpty()) {
@@ -339,6 +411,9 @@ public class AgentRepository implements IAgentRepository {
                         } else if ("RagAnswer".equals(aiClientAdvisor.getAdvisorType())) {
                             // 解析ragAnswer配置
                             ragAnswer = JSON.parseObject(extParam, AiClientAdvisorVO.RagAnswer.class);
+                        } else if ("PromptInjectionSanitizer".equals(aiClientAdvisor.getAdvisorType())) {
+                            // 解析 Prompt 注入护栏配置
+                            promptInjectionSanitizer = JSON.parseObject(extParam, AiClientAdvisorVO.PromptInjectionSanitizer.class);
                         }
                     } catch (Exception e) {
                         // 解析失败时忽略，使用默认值null
@@ -353,6 +428,7 @@ public class AgentRepository implements IAgentRepository {
                         .orderNum(aiClientAdvisor.getOrderNum())
                         .chatMemory(chatMemory)
                         .ragAnswer(ragAnswer)
+                        .promptInjectionSanitizer(promptInjectionSanitizer)
                         .build();
 
                 result.add(advisorVO);

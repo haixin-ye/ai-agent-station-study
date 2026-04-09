@@ -16,6 +16,7 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -66,6 +67,8 @@ public class AiClientNode extends AbstractArmorySupport {
             for (String advisorBeanName : advisorBeanNameList) {
                 advisors.add(getBean(advisorBeanName));
             }
+            // 显式按 order 排序，保证护栏 advisor 可稳定位于链路最前
+            advisors.sort(Comparator.comparingInt(Advisor::getOrder).thenComparing(Advisor::getName));
 
             Advisor[] advisorArray = advisors.toArray(new Advisor[]{});
 

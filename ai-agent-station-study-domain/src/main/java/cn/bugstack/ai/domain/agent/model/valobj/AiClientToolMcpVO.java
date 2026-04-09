@@ -55,6 +55,11 @@ public class AiClientToolMcpVO {
      */
     private TransportConfigStdio transportConfigStdio;
 
+    /**
+     * 工具调用策略（从 transport_config.policy 解析）。
+     */
+    private ToolPolicy toolPolicy;
+
     @Data
     @Builder
     @AllArgsConstructor
@@ -78,6 +83,45 @@ public class AiClientToolMcpVO {
             private List<String> args;
             private Map<String, String> env;
         }
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class ToolPolicy {
+        /**
+         * 参数校验：必填参数名列表。
+         */
+        private List<String> requiredArgs;
+
+        /**
+         * 参数类型约束（arg -> type）。
+         */
+        private Map<String, String> argTypes;
+
+        /**
+         * 默认参数（arg -> value）。
+         */
+        private Map<String, String> defaultArgs;
+
+        /**
+         * 允许调用条件（例如 NEED_FILE_EVIDENCE）。
+         */
+        private List<String> allowedWhen;
+
+        /**
+         * 重试策略。
+         */
+        private RetryPolicy retryPolicy;
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class RetryPolicy {
+        private Integer maxRetry;
     }
 
 }
