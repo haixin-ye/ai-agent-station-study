@@ -39,11 +39,18 @@ public class RagAnswerAdvisor implements BaseAdvisor {
     @Override
     public ChatClientRequest before(ChatClientRequest chatClientRequest, AdvisorChain advisorChain) {
         HashMap<String, Object> context = new HashMap(chatClientRequest.context());
+        // 支持调用侧显式关闭本轮 RAG 注入（如 Node2 的直答轮次）
+        if (isDisabled(context)) {
+            return chatClientRequest;
+        }
 
         String userText = chatClientRequest.prompt().getUserMessage().getText();
         String advisedUserText = userText + System.lineSeparator() + this.userTextAdvise;
 
-        String query = userText;
+        // 优先使用调用侧显式传入的检索 query，避免长提示词稀释检索意图
+        String query = context.containsKey("qa_query") && StringUtils.hasText(String.valueOf(context.get("qa_query")))
+                ? String.valueOf(context.get("qa_query"))
+                : userText;
 
         SearchRequest searchRequestToUse = SearchRequest.from(this.searchRequest).query(query).filterExpression(this.doGetFilterExpression(context)).build();
         List<Document> documents = this.vectorStore.similaritySearch(searchRequestToUse);
@@ -57,6 +64,17 @@ public class RagAnswerAdvisor implements BaseAdvisor {
                 .prompt(Prompt.builder().messages(new UserMessage(advisedUserText), new AssistantMessage(JSON.toJSONString(advisedUserParams))).build())
                 .context(advisedUserParams)
                 .build();
+    }
+
+    private boolean isDisabled(Map<String, Object> context) {
+        if (context == null || !context.containsKey("qa_disable")) {
+            return false;
+        }
+        Object value = context.get("qa_disable");
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        return value != null && "true".equalsIgnoreCase(String.valueOf(value).trim());
     }
 
     @Override

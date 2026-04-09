@@ -18,6 +18,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.PathResource;
 import org.springframework.stereotype.Repository;
@@ -53,6 +54,7 @@ public class RagRepository implements IRagRepository {
             ".yml", ".yaml", ".properties", ".toml", ".xml", ".conf",
             ".md", ".txt"
     );
+
 
     @Resource
     private PgVectorStore pgVectorStore;

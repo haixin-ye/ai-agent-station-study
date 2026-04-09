@@ -73,7 +73,7 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
             boolean isCompleted = dynamicContext.isCompleted();
             log.info("\n--- 生成{}任务的最终答案 ---", isCompleted ? "已完成" : "未完成");
 
-            String summaryPrompt = getSummaryPrompt(requestParameter, dynamicContext, isCompleted);
+            String summaryPrompt = getSummaryPrompt(dynamicContext, isCompleted);
 
             // 获取对话客户端 - 使用任务分析客户端进行总结
             AiAgentClientFlowConfigVO aiAgentClientFlowConfigVO = dynamicContext.getAiAgentClientFlowConfigVOMap().get(AiClientTypeEnumVO.RESPONSE_ASSISTANT.getCode());
@@ -91,7 +91,7 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
                     .prompt(summaryPrompt)
                     .advisors(a -> {
                         a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, requestParameter.getSessionId() + "-summary")
-                                .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 50);
+                                .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 30);
                         applyTokenStatParams(
                                 a, dynamicContext, requestParameter,
                                 aiAgentClientFlowConfigVO.getClientId(),
@@ -112,8 +112,12 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
         }
     }
 
-    private static String getSummaryPrompt(ExecuteCommandEntity requestParameter, DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, boolean isCompleted) {
+    private static String getSummaryPrompt(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, boolean isCompleted) {
         String summaryPrompt;
+        String userGoal = dynamicContext.getSanitizedUserGoal();
+        if (!StringUtils.hasText(userGoal)) {
+            userGoal = dynamicContext.getRawUserGoal();
+        }
         if (isCompleted) {
             summaryPrompt = String.format("""
                     基于以下执行过程，请直接回答用户的原始问题，提供最终的答案和结果：
@@ -132,7 +136,7 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
                     
                     请直接给出用户问题的最终答案：
                     """,
-                    requestParameter.getMessage(),
+                    userGoal,
                     dynamicContext.getExecutionHistory().toString());
         } else {
             summaryPrompt = String.format("""
@@ -151,7 +155,7 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
                     
                     请基于现有信息给出用户问题的答案：
                     """,
-                    requestParameter.getMessage(),
+                    userGoal,
                     dynamicContext.getExecutionHistory().toString());
         }
         return summaryPrompt;

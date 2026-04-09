@@ -1,17 +1,35 @@
 package cn.bugstack.ai.test.domain;
 
+import cn.bugstack.ai.domain.agent.model.entity.StepExecutionPlanVO;
+import cn.bugstack.ai.domain.agent.model.valobj.AiClientToolMcpVO;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.Step2PrecisionExecutorNode;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.List;
+import java.util.Map;
+
 public class Step2PrecisionExecutorNodeTest {
 
     @Test
-    public void test_buildExecutionPrompt_includesWorkspaceAndToolPathRule() {
-        String prompt = Step2PrecisionExecutorNode.buildExecutionPrompt("帮我分析这个项目", "先读取代码结构");
+    public void testBuildExecutionPromptIncludesPlanAndPolicy() {
+        StepExecutionPlanVO plan = StepExecutionPlanVO.builder()
+                .taskGoal("read project structure")
+                .toolRequired(true)
+                .toolName("filesystem")
+                .toolArgsHint("{\"path\":\"E:\\\\javaProject\\\\ai-agent-station-study\",\"pattern\":\"Step\"}")
+                .build();
 
-        Assert.assertTrue(prompt.contains("E:\\javaProject\\ai-agent-station-study"));
-        Assert.assertTrue(prompt.contains("search_files"));
-        Assert.assertTrue(prompt.contains("必须显式传入 path"));
+        AiClientToolMcpVO.ToolPolicy policy = AiClientToolMcpVO.ToolPolicy.builder()
+                .requiredArgs(List.of("path", "pattern"))
+                .argTypes(Map.of("path", "string", "pattern", "string"))
+                .defaultArgs(Map.of("path", "E:\\javaProject\\ai-agent-station-study"))
+                .build();
+
+        String prompt = Step2PrecisionExecutorNode.buildExecutionPrompt(plan, "analyze Java 17 updates", policy);
+
+        Assert.assertTrue(prompt.contains("ai-agent-station-study"));
+        Assert.assertTrue(prompt.contains("plan.toolName"));
+        Assert.assertTrue(prompt.contains("filesystem"));
     }
 }

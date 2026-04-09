@@ -2,6 +2,7 @@ package cn.bugstack.ai.domain.agent.service.execute.auto;
 
 import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
+import cn.bugstack.ai.domain.agent.model.entity.StepExecutionPlanVO;
 import cn.bugstack.ai.domain.agent.model.entity.TokenUsageAccumulator;
 import cn.bugstack.ai.domain.agent.service.execute.IExecuteStrategy;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.AbstractExecuteSupport;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -38,7 +40,9 @@ public class AutoAgentExecuteStrategy implements IExecuteStrategy {
         DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext = new DefaultAutoAgentExecuteStrategyFactory.DynamicContext();
         dynamicContext.setMaxStep(executeCommandEntity.getMaxStep() != null ? executeCommandEntity.getMaxStep() : 3);
         dynamicContext.setExecutionHistory(new StringBuilder());
+        dynamicContext.setPlanHistory(new HashMap<Integer, StepExecutionPlanVO>());
         dynamicContext.setCurrentTask(executeCommandEntity.getMessage());
+        dynamicContext.setRawUserGoal(executeCommandEntity.getMessage());
         dynamicContext.setValue("knowledgeName", executeCommandEntity.getKnowledgeName());
         dynamicContext.setValue("emitter", emitter);
         dynamicContext.setValue(AbstractExecuteSupport.TOKEN_STAT_ACCUMULATOR_KEY, new TokenUsageAccumulator());
