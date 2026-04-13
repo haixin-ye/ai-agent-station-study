@@ -1,210 +1,237 @@
-# Auto Agent Plan-and-Execute Harness Redesign
+﻿# Auto Agent Plan-and-Execute Harness 重构设计
 
-## Context
+## 一、背景
 
-The current auto-agent harness uses a four-node loop:
+当前 auto-agent 的执行链路是四节点循环：
 
 - `Node1 -> Node2 -> Node3 -> Node1 ... -> Node4`
 
-This shape is acceptable and should be preserved. The instability comes from weak contracts between nodes, over-reliance on natural language summaries, and the absence of a trustworthy distinction between:
+这个拓扑本身可以保留，问题不在节点数量，而在于节点之间的契约太弱，过度依赖自然语言总结，缺少对下列几个环节的清晰边界：
 
-- planning
-- execution
-- verification
-- final user delivery
+- 规划
+- 执行
+- 验证
+- 最终交付
 
-The most visible failure mode is false success:
+当前最典型的故障是“假成功”：
 
-- `Node2` may fail to call MCP tools, call them incorrectly, or hallucinate a successful side effect.
-- `Node3` may accept a natural-language claim instead of a verified execution fact.
-- `Node4` may generate a polished answer that does not match real execution.
+- `Node2` 可能没有真正调用 MCP，或者调用失败，但仍然输出“已完成”。
+- `Node3` 可能把自然语言中的“完成”误当作真实完成。
+- `Node4` 可能基于前面未验证的内容，生成一个看起来很完整、但事实错误的最终回答。
 
-This redesign keeps the four-node topology but turns it into a `Plan-and-Execute with Verification and Final Composition` harness.
+因此，这次重构不是增加补丁规则，而是把现有四节点架构重构为一套更稳定的：
 
-## Goals
+- `带验证层与最终汇总层的 Plan-and-Execute Harness`
 
-- Preserve the existing four-node execution topology.
-- Make `Node1` the only planner and dispatcher.
-- Make `Node2` the only real executor.
-- Make `Node3` the only acceptance gate for execution outputs.
-- Make `Node4` produce the final answer only from accepted facts.
-- Separate runtime capability assembly from business orchestration state.
-- Replace free-form node-to-node text handoff with structured state objects in `DynamicContext`.
-- Eliminate false completion when tool execution did not actually succeed.
+## 二、目标
 
-## Non-Goals
+本次重构目标如下：
 
-- Do not redesign Spring AI client assembly itself.
-- Do not move MCP/advisor wiring into business state.
-- Do not add new runtime nodes to the execution topology.
-- Do not make `Node3` directly route to `Node2`.
+- 保留现有四节点执行拓扑。
+- 让 `Node1` 成为唯一的规划者与调度者。
+- 让 `Node2` 成为唯一的实际执行者。
+- 让 `Node3` 成为唯一的验收入口。
+- 让 `Node4` 只基于已验收成果生成最终回答。
+- 将运行时能力装配与业务编排状态彻底分离。
+- 用结构化状态对象替代自由文本式的节点间交接。
+- 消除“工具并未成功执行，但系统认为已经完成”的问题。
 
-## Architectural Principle
+## 三、非目标
 
-The system has two distinct layers and they must not be mixed.
+本次重构不做以下事情：
 
-### Runtime Capability Layer
+- 不重构 Spring AI 的 client 装配机制。
+- 不把 MCP、advisor、RAG 这些运行时能力对象直接塞进 `DynamicContext` 作为业务流转字段。
+- 不新增新的运行时节点。
+- 不改变既有物理执行拓扑。
+- 不允许 `Node3` 直接跳转到 `Node2`。
 
-This is assembled through Spring AI and database-driven configuration:
+## 四、总体原则
 
-- chat clients
-- MCP tool attachments
+系统必须明确区分两层：
+
+### 4.1 运行时能力层
+
+这部分由 Spring AI 和数据库配置完成自动装配，包括：
+
+- chat client
+- MCP tools
 - advisors
-- RAG integration
+- RAG
 - memory
 
-These are environment capabilities. They are available to nodes at runtime, but they are not themselves business-state fields exchanged between nodes.
+这些属于“环境能力”，节点可以在运行时使用它们，但它们本身不是业务状态，不属于节点之间要交换的核心数据。
 
-### Business Orchestration Layer
+### 4.2 业务编排层
 
-This is the actual harness state:
+这部分才是真正由 harness 管理的数据，例如：
 
-- session goals
-- plan objects
-- current round task
-- execution records
-- verification results
-- accepted outputs
-- overall completion state
+- 会话目标
+- 总体计划
+- 当前轮任务
+- 执行记录
+- 验证结果
+- 已验收成果
+- 总体完成状态
 
-This is what `DynamicContext` must carry.
+这部分应由 `DynamicContext` 承载。
 
-## Target Execution Shape
+## 五、目标执行形态
 
-The topology remains:
+物理拓扑保持不变：
 
 - `Node1 -> Node2 -> Node3 -> Node1 ... -> Node4`
 
-The semantic responsibilities become:
+语义职责定义如下：
 
-- `Node1`: bootstrap planner and round planner
-- `Node2`: executor
-- `Node3`: verifier and next-round directive producer
-- `Node4`: final composer
+- `Node1`：首轮总规划 + 每轮派工
+- `Node2`：本轮执行
+- `Node3`：本轮验证 + 下一轮指令生成
+- `Node4`：最终结果汇总
 
-## Node Responsibilities
+这意味着当前架构可以定义为：
 
-### Node1
+- `Plan-and-Execute with Verification and Final Composition`
 
-`Node1` has two modes.
+也可以理解为：
 
-#### Mode A: Bootstrap Planner
+- `带验收层的多轮计划执行架构`
 
-Active only when the session starts and no `masterPlan` exists.
+## 六、Node 职责设计
 
-Responsibilities:
+### 6.1 Node1
 
-- understand the original user request
-- determine whether the task is simple or complex
-- build a `masterPlan`
-- define step-level completion criteria
-- produce the first `currentRound`
+`Node1` 具有双身份，但仍是同一个节点。
 
-#### Mode B: Round Planner
+#### 模式 A：Bootstrap Planner
 
-Active on all later rounds.
+触发条件：
 
-Responsibilities:
+- 会话刚开始
+- `roundIndex = 1`
+- `masterPlan` 为空
 
-- read the prior round verification result
-- inspect `taskBoard`, `roundArchive`, `overallStatus`, and accepted outputs
-- decide whether to continue the same main step or advance to the next one
-- produce a new `currentRound`
+职责：
 
-Constraints:
+- 理解用户原始问题
+- 判断任务是简单任务还是复杂任务
+- 生成整个任务的主步骤列表
+- 定义每个主步骤的完成标准
+- 产出第一轮的 `currentRound`
 
-- `Node1` is the only planner and dispatcher
-- `Node1` does not claim execution truth
-- `Node1` does not decide actual MCP argument payloads
+#### 模式 B：Round Planner
 
-### Node2
+触发条件：
 
-`Node2` is the only execution node.
+- 非首轮，或者 `masterPlan` 已存在
 
-Responsibilities:
+职责：
 
-- read the current round task assigned by `Node1`
-- execute the round task
-- decide whether to use MCP tools
-- decide which MCP tool to use
-- decide how to build MCP input payloads
-- consume runtime capabilities such as MCP, advisors, RAG, and memory
-- produce execution output and real tool execution records
+- 读取上一轮 `Node3` 的验证结果
+- 查看 `taskBoard`、`roundArchive`、`overallStatus`
+- 判断应该继续推进同一个主步骤，还是进入下一个主步骤
+- 重新生成当前轮的 `currentRound`
 
-Constraints:
+约束：
 
-- `Node2` only works on the current round task
-- `Node2` is not a global planner
-- `Node2` may reference the original user request and runtime injected context
-- `Node2` natural-language claims are never authoritative facts by themselves
+- `Node1` 是唯一规划者与调度者
+- `Node1` 不负责具体执行
+- `Node1` 不声明执行是否成功
+- `Node1` 不能替 `Node2` 编写具体 MCP 参数 JSON
+- `Node1` 只能给出任务目标、推进策略、建议工具和期望证据
 
-### Node3
+### 6.2 Node2
 
-`Node3` is the only verification and acceptance gate.
+`Node2` 是唯一执行者。
 
-Responsibilities:
+职责：
 
-- inspect the round task from `Node1`
-- inspect the execution output from `Node2`
-- inspect the real tool execution records
-- evaluate whether the current round task passed
-- evaluate whether the current main step is complete
-- evaluate whether the overall session goal is complete
-- write accepted outputs into durable orchestration state
-- emit a next-round directive for `Node1`
+- 读取 `Node1` 为当前轮生成的 `currentRound`
+- 结合用户原始问题、advisor 注入内容、RAG 内容进行执行
+- 根据当前轮任务自行决定是否调用 MCP、调用哪个 MCP、如何构造参数
+- 输出本轮执行过程与候选结果
+- 记录本轮真实的工具调用日志
 
-Constraints:
+约束：
 
-- `Node3` cannot directly route to `Node2`
-- `Node3` only emits a directive that `Node1` reads on the next loop
-- `Node3` is the only node allowed to promote candidate outputs into accepted results
+- `Node2` 只对当前轮任务负责，不做全局规划
+- `Node2` 可以使用工具，但是否使用、如何使用，由它自己决定
+- `Node2` 的自然语言描述不是事实真相源
+- `Node2` 必须输出执行记录，但最终是否采信由 `Node3` 决定
 
-### Node4
+### 6.3 Node3
 
-`Node4` is the final response node.
+`Node3` 是唯一验收节点。
 
-Responsibilities:
+职责：
 
-- read the original raw user request
-- read the sanitized goal
-- read accepted outputs
-- read task completion state
-- read overall completion state
-- compose the final user-facing answer
+- 读取本轮任务要求
+- 读取 `Node2` 的执行结果与真实工具记录
+- 判断本轮任务是否完成
+- 判断当前主步骤是否完成
+- 判断总体任务是否完成
+- 将可信成果写入 `acceptedResults`
+- 输出下一轮给 `Node1` 的指令
 
-Constraints:
+约束：
 
-- `Node4` may use the raw request to shape style and response framing
-- `Node4` may use the sanitized goal to preserve task boundaries
-- `Node4` may only use accepted outputs as factual truth
-- `Node4` must not invent facts from unverified execution text
+- `Node3` 不能直接把流程送回 `Node2`
+- `Node3` 只能给出验证结论和下一轮指令
+- 只有 `Node3` 可以把结果提升为“已验收成果”
+- 缺乏真实工具证据时，不能放行为完成
 
-## DynamicContext Redesign
+### 6.4 Node4
 
-`DynamicContext` becomes a structured orchestration state carrier rather than a free-form string bag.
+`Node4` 是最终汇总节点。
 
-### 1. sessionGoal
+职责：
 
-Fields:
+- 读取用户原始输入
+- 读取归一化后的目标定义
+- 读取 `acceptedResults`
+- 读取 `taskBoard`
+- 读取 `overallStatus`
+- 生成面向用户的最终回答
 
-- `rawUserInput`
-- `sanitizedGoal`
-- `successCriteria`
-- `maxRounds`
-- `failurePolicy`
+约束：
 
-Purpose:
+- `Node4` 可以参考原始问题决定回答方式
+- `Node4` 不能重新自由推理事实
+- `Node4` 的事实来源只能是已验收成果
+- 如果任务部分完成或失败，必须明确说明未完成项和原因
 
-- immutable or mostly-stable session-level target definition
+## 七、DynamicContext 结构设计
 
-### 2. masterPlan
+新的 `DynamicContext` 不再是杂项文本容器，而应是一个结构化编排状态容器。建议至少包含以下部分。
 
-Fields:
+### 7.1 sessionGoal
+
+用于保存本次会话级目标。
+
+字段建议：
+
+- `rawUserInput`：用户原始提问
+- `sanitizedGoal`：系统归一化后的目标
+- `successCriteria`：成功标准
+- `maxRounds`：最大轮次
+- `failurePolicy`：失败策略
+
+说明：
+
+- 会话开始时初始化
+- 整个会话期间保持稳定
+- `Node4` 需要读取其中的 `rawUserInput`
+
+### 7.2 masterPlan
+
+用于保存总体任务主步骤。
+
+字段建议：
 
 - `planVersion`
 - `mainSteps[]`
 
-Each `mainStep` contains:
+每个 `mainStep` 建议包含：
 
 - `stepId`
 - `title`
@@ -213,17 +240,16 @@ Each `mainStep` contains:
 - `status`
 - `dependencies[]`
 
-Purpose:
+说明：
 
-- top-level plan created initially by `Node1`
-- stable enough to anchor the session
-- still allows bounded re-planning when needed
+- 首轮由 `Node1` 创建
+- 采用“混合模式”：主步骤总体稳定，但每个主步骤下的子任务可在每轮动态调整
 
-### 3. taskBoard
+### 7.3 taskBoard
 
-Task-centered view keyed by `stepId`.
+用于按任务项维度维护执行状态。
 
-Each entry contains:
+每个 `stepId` 对应一条记录，建议包含：
 
 - `status`
 - `lastRoundTask`
@@ -231,13 +257,16 @@ Each entry contains:
 - `lastFailureReason`
 - `attemptCount`
 
-Purpose:
+说明：
 
-- canonical work-progress board for main steps
+- 这是按主步骤组织的主视图
+- `Node1`、`Node3`、`Node4` 都会依赖它
 
-### 4. currentRound
+### 7.4 currentRound
 
-Fields:
+用于描述当前轮任务。
+
+字段建议：
 
 - `roundIndex`
 - `currentStepId`
@@ -246,29 +275,31 @@ Fields:
 - `plannerNotes`
 - `expectedEvidence`
 
-Purpose:
+说明：
 
-- the only valid round assignment consumed by `Node2`
+- 这是 `Node2` 的唯一合法任务入口
+- `Node2` 应只围绕这里定义的任务执行
 
-### 5. roundArchive
+### 7.5 roundArchive
 
-Round-centered audit view.
+用于按轮次存档执行快照。
 
-Each round stores:
+每轮建议保存：
 
 - `node1PlanSnapshot`
 - `node2ExecutionSnapshot`
 - `node3VerificationSnapshot`
 
-Purpose:
+说明：
 
-- traceability
-- debugging
-- front-end timeline rendering
+- 用于调试、回放和前端 trace 展示
+- 这是按轮组织的审计视图
 
-### 6. toolExecutionLog
+### 7.6 toolExecutionLog
 
-Each record contains:
+用于记录真实的工具调用事实。
+
+每条记录建议包含：
 
 - `roundIndex`
 - `stepId`
@@ -281,14 +312,16 @@ Each record contains:
 - `errorMessage`
 - `timestamp`
 
-Purpose:
+说明：
 
-- stores real tool execution facts
-- provides the evidence base for `Node3`
+- 这是 `Node3` 判断工具是否真的成功的核心依据
+- 不能用自然语言摘要代替这一层
 
-### 7. acceptedResults
+### 7.7 acceptedResults
 
-Each record contains:
+用于保存通过 `Node3` 验收的成果。
+
+每条记录建议包含：
 
 - `stepId`
 - `resultType`
@@ -297,14 +330,16 @@ Each record contains:
 - `acceptedByRound`
 - `acceptedReason`
 
-Purpose:
+说明：
 
-- contains only outputs accepted by `Node3`
-- serves as the fact source for `Node4`
+- 只有 `Node3` 可以写入这里
+- `Node4` 只能使用这里作为事实来源
 
-### 8. overallStatus
+### 7.8 overallStatus
 
-Fields:
+用于保存总任务状态。
+
+字段建议：
 
 - `state`
 - `completedSteps`
@@ -312,80 +347,80 @@ Fields:
 - `blockedReasons`
 - `finalDecision`
 
-Purpose:
+说明：
 
-- canonical overall session state
+- 决定是否继续下一轮，还是进入 `Node4`
 
-## Node Input and Output Contracts
+## 八、双轨存档原则
 
-### Node1 Contract
+本次设计采用双轨存档：
 
-Reads:
+### 8.1 按轮存档
+
+通过 `roundArchive` 保留每一轮的快照，解决“过程黑盒”的问题。
+
+### 8.2 按任务项存档
+
+通过 `taskBoard` 和 `acceptedResults` 保留每个主步骤的真实推进结果，解决“最终回答没有事实锚点”的问题。
+
+这两种视图必须同时存在，不能只保留一种。
+
+## 九、节点间输入输出契约
+
+### 9.1 Node1 输入
 
 - `sessionGoal`
 - `masterPlan`
 - `taskBoard`
 - `roundArchive`
 - `overallStatus`
-- prior `Node3` verification directive
+- 上一轮 `Node3` 的验证结论与下一轮指令
 
-Writes:
+### 9.2 Node1 输出
 
-- `masterPlan` in bootstrap mode
-- `currentRound`
-- planner snapshot into `roundArchive`
+首轮输出：
 
-Output semantics:
-
-- structured planning output
-- not a tool-execution result
-- not a task-truth claim
-
-### Node2 Contract
-
-Reads:
-
-- `currentRound`
-- `sessionGoal`
-- runtime injected MCP/advisor/RAG capabilities
-
-Writes:
-
-- `node2ExecutionSnapshot`
-- `toolExecutionLog`
-
-Output semantics:
-
-- execution narrative is a candidate explanation, not accepted truth
-- tool records are mandatory whenever tools are actually called
-
-### Node3 Contract
-
-Reads:
-
-- `currentRound`
-- `node2ExecutionSnapshot`
-- `toolExecutionLog`
 - `masterPlan`
+- 首轮 `currentRound`
+
+后续每轮输出：
+
+- 新的 `currentRound`
+- 当前选择推进的 `stepId`
+- 本轮期望证据与建议工具
+
+### 9.3 Node2 输入
+
+- `currentRound`
+- `sessionGoal.rawUserInput`
+- `sessionGoal.sanitizedGoal`
+- advisor/RAG 自动注入的内容
+- 运行时已装配的 MCP 工具
+
+### 9.4 Node2 输出
+
+- `node2ExecutionSnapshot`
+- `toolExecutionLog` 增量
+- 候选结果内容
+
+### 9.5 Node3 输入
+
+- `currentRound`
+- `node2ExecutionSnapshot`
+- `toolExecutionLog`
+- `masterPlan` 中当前步骤的完成标准
 - `taskBoard`
 - `sessionGoal`
 
-Writes:
+### 9.6 Node3 输出
 
 - `node3VerificationSnapshot`
-- updates to `taskBoard`
-- updates to `acceptedResults`
-- updates to `overallStatus`
+- `acceptedResults` 增量
+- `taskBoard` 更新
+- `overallStatus` 更新
 - `nextRoundDirective`
 
-Output semantics:
-
-- explicit round, step, and overall decisions
-- accepted result promotion only after evidence verification
-
-### Node4 Contract
-
-Reads:
+### 9.7 Node4 输入
 
 - `sessionGoal.rawUserInput`
 - `sessionGoal.sanitizedGoal`
@@ -393,94 +428,41 @@ Reads:
 - `taskBoard`
 - `overallStatus`
 
-Writes:
+### 9.8 Node4 输出
 
-- final response only
+- 最终用户回答
 
-Output semantics:
+## 十、Node1 Prompt 设计
 
-- user-facing synthesis based on accepted truth only
+`Node1` 的 prompt 应按模式切换。
 
-## Routing Model
+### 10.1 Bootstrap 模式
 
-The physical node topology must remain:
+职责：
 
-- `Node1 -> Node2 -> Node3 -> Node1 ... -> Node4`
+- 理解原始问题
+- 判断任务复杂度
+- 构建 `masterPlan`
+- 生成第一轮 `currentRound`
 
-`Node3` never directly routes to `Node2`.
+输出应至少包括：
 
-Instead, `Node3` emits one of these directives:
+- `planDecision`
+- `mainSteps`
+- `currentStepId`
+- `roundTask`
+- `suggestedTools`
+- `expectedEvidence`
 
-- `REPLAN_SAME_STEP`
-- `ADVANCE_NEXT_STEP`
-- `FINISH_SUCCESS`
-- `FINISH_PARTIAL`
-- `FINISH_FAILED`
+### 10.2 Round Planner 模式
 
-Then `Node1` reads the directive in the next cycle and decides how to produce the next `currentRound`.
+职责：
 
-This preserves the existing router shape while making state transitions explicit.
+- 读取上轮验证结果
+- 决定继续当前主步骤还是切换到下一主步骤
+- 为当前轮生成新的 `roundTask`
 
-## Tool Truth Model
-
-Tool truth is split into three levels.
-
-### toolIntent
-
-What `Node2` intended to call.
-
-This is not truth. It is only execution intent.
-
-### toolExecutionRecord
-
-What actually happened when a tool was called.
-
-This is the primary evidence source for verification.
-
-### acceptedResult
-
-What `Node3` accepted after verification.
-
-This is the only stable truth source for final response generation.
-
-## Verification Rules
-
-`Node3` verifies in this order:
-
-1. Does the current round task require tool-backed evidence?
-2. If yes, is there a corresponding tool execution record?
-3. Did the tool execution succeed?
-4. Does the result satisfy `expectedEvidence` and step completion criteria?
-5. If yes, promote the result into `acceptedResults`
-6. Otherwise emit a replan or continuation directive
-
-This prevents false success where `Node2` merely claims a side effect.
-
-## Error Taxonomy
-
-These error classes should be modeled explicitly:
-
-- `TOOL_NOT_CALLED`
-- `TOOL_CALL_FAILED`
-- `TOOL_OUTPUT_INVALID`
-- `EVIDENCE_MISSING`
-- `STEP_NOT_COMPLETE`
-- `OVERALL_NOT_COMPLETE`
-
-These should feed both verification decisions and front-end trace display.
-
-## Prompt Strategy
-
-### Node1 Prompt
-
-Two modes:
-
-- bootstrap planning mode
-- round planning mode
-
-Output should be structured enough for stable parsing, but must not over-constrain `Node2` by specifying exact MCP payloads.
-
-Recommended fields:
+输出建议包括：
 
 - `planDecision`
 - `currentStepId`
@@ -489,31 +471,44 @@ Recommended fields:
 - `expectedEvidence`
 - `replanReason`
 
-### Node2 Prompt
+说明：
 
-Must be narrow:
+- 这里的 `suggestedTools` 只是建议，不是强约束
+- 不应把具体 MCP 参数写死在 `Node1`
 
-- only work on the assigned `currentRound.roundTask`
-- may use runtime-injected context
-- decides tool usage itself
+## 十一、Node2 Prompt 设计
 
-Recommended output layers:
+`Node2` 的 prompt 应被刻意收窄为“执行当前轮任务”。
+
+要求：
+
+- 只围绕 `currentRound.roundTask` 工作
+- 可以参考原始用户问题和 advisor/RAG 注入内容
+- 是否调用工具、调用哪个工具、参数如何构造，由 `Node2` 自主决定
+- 应输出执行说明与候选成果
+- 工具调用事实应通过真实执行记录沉淀，而不是只靠口头描述
+
+建议输出结构：
 
 - `executionNarrative`
 - `candidateOutputs`
-- `toolExecutionRecords`
+- `toolIntentSummary`
 
-### Node3 Prompt
+说明：
 
-Must be an acceptance prompt, not a generic quality-scoring prompt.
+- 真正的事实依据仍以 `toolExecutionLog` 为准
 
-It should answer:
+## 十二、Node3 Prompt 设计
 
-- did the round task pass?
-- did the current step complete?
-- did the overall goal complete?
+`Node3` 应从“质量点评节点”转为“验收节点”。
 
-Recommended fields:
+它必须回答三个问题：
+
+- 当前轮任务是否完成
+- 当前主步骤是否完成
+- 总任务是否完成
+
+建议输出结构：
 
 - `roundDecision`
 - `stepDecision`
@@ -522,95 +517,241 @@ Recommended fields:
 - `issues`
 - `nextRoundDirective`
 
-### Node4 Prompt
+其中：
 
-Must only consume:
+- `acceptedResultsDelta` 决定哪些内容可以进入已验收成果
+- `nextRoundDirective` 决定 `Node1` 下一轮如何规划
 
-- original user request
-- sanitized goal
-- accepted results
-- board state
-- overall status
+## 十三、Node4 Prompt 设计
 
-Its role is presentation, not re-judgment.
+`Node4` 的输入必须严格受限。
 
-## Front-End Implications
+允许输入：
 
-The current trace UI can continue to exist, but the semantic mapping changes.
+- 用户原始问题
+- 归一化后的目标
+- 已验收成果
+- 任务板状态
+- 总体完成状态
 
-The front end should render:
+禁止输入：
 
-- bootstrap plan
-- round plan
-- executor narrative
-- tool execution records
-- verifier decision
-- accepted result promotion
-- final summary
+- 未经验证的 `Node2` 自述结论
+- 原始执行阶段的自由文本总结作为事实来源
 
-This allows users to inspect where a failure happened without relying on free-form logs alone.
+输出应覆盖三种情况：
 
-## Refactor Strategy
+- `success summary`
+- `partial completion summary`
+- `failure summary`
 
-Recommended implementation order:
+其中：
 
-1. redesign `DynamicContext`
-2. introduce explicit round and overall state objects
-3. refactor `Node3` into the sole acceptance gate
-4. refactor `Node1` into bootstrap planner plus round planner behavior
-5. refactor `Node2` to emit candidate outputs and real execution logs
-6. refactor `Node4` to read only accepted truth
-7. update front-end trace mapping
+- 表达方式可以参考原始用户问题
+- 事实内容只能来自已验收成果
 
-Reason:
+## 十四、路由与状态推进设计
 
-- verification must become correct before planning sophistication matters
-- final composition must become safe before user-facing trust can improve
+虽然物理拓扑固定，但语义状态应显式化。
 
-## Testing Strategy
+### 14.1 物理拓扑
 
-### 1. Node Contract Tests
+- `Root -> Node1`
+- `Node1 -> Node2`
+- `Node2 -> Node3`
+- `Node3 -> Node1 或 Node4`
+- `Node4 -> complete`
 
-Verify the inputs and outputs of each node:
+### 14.2 Node3 不可直接重试执行
 
-- `Node1` writes `masterPlan/currentRound`
-- `Node2` consumes only `currentRound`
-- `Node3` alone can write accepted results
-- `Node4` only reads accepted truth and goals
+由于系统拓扑限制，`Node3` 不能直接跳回 `Node2`。
 
-### 2. State Transition Tests
+因此，“重试”必须重新定义为：
 
-Verify loop progression:
+- `Node3` 只给出下一轮指令
+- `Node1` 在下一轮读取该指令
+- 由 `Node1` 重新派发给 `Node2`
 
-- bootstrap to first round
-- same-step replan
-- next-step advance
-- successful completion
-- partial completion
-- failed completion
+### 14.3 nextRoundDirective 设计
 
-### 3. Tool Truth Tests
+建议支持以下指令：
 
-Verify anti-hallucination behavior:
+- `REPLAN_SAME_STEP`
+- `ADVANCE_NEXT_STEP`
+- `FINISH_SUCCESS`
+- `FINISH_PARTIAL`
+- `FINISH_FAILED`
 
-- no tool record means no acceptance
-- failed tool record means no acceptance
-- successful tool record plus matching evidence enables acceptance
+语义如下：
 
-## Risks
+- `REPLAN_SAME_STEP`：当前步骤未完成，下一轮继续由 `Node1` 规划同一步骤
+- `ADVANCE_NEXT_STEP`：当前步骤已完成，下一轮切换到下一个主步骤
+- `FINISH_SUCCESS`：总体任务完成，进入 `Node4`
+- `FINISH_PARTIAL`：任务部分完成或达到最大轮次，进入 `Node4`
+- `FINISH_FAILED`：无法继续推进，进入 `Node4`
 
-- carrying legacy fields too long will weaken the redesign
-- allowing `Node4` to read raw execution summaries will reintroduce hallucinated completion
-- failing to explicitly distinguish accepted results from candidate results will preserve the current instability
+## 十五、工具真实性模型
 
-## Decision Summary
+为避免“工具假成功”，工具相关数据建议拆为三层：
 
-The redesign will:
+### 15.1 toolIntent
 
-- preserve the four-node topology
-- convert the harness into a plan-and-execute architecture with explicit verification
-- make `Node1` the sole planner/dispatcher
-- make `Node2` the sole executor
-- make `Node3` the sole acceptance gate
-- make `Node4` the sole final composer
-- move truth from natural language summaries into structured verified state
+表示 `Node2` 计划调用什么工具、预期完成什么目标。
+
+说明：
+
+- 这是执行意图，不是真实事实
+
+### 15.2 toolExecutionRecord
+
+表示工具真实调用记录。
+
+每条应包含：
+
+- `toolName`
+- `requestPayload`
+- `responsePayload`
+- `success`
+- `errorType`
+- `errorMessage`
+- `timestamp`
+
+说明：
+
+- 这是工具是否真的成功执行的事实来源
+
+### 15.3 acceptedResult
+
+表示通过 `Node3` 验收后，被提升为事实成果的内容。
+
+说明：
+
+- 只有这一层才允许 `Node4` 采信
+
+## 十六、通用错误分类
+
+建议统一错误分类，便于 `Node3` 验证和 `Node1` 下一轮规划：
+
+- `TOOL_NOT_CALLED`
+- `TOOL_CALL_FAILED`
+- `TOOL_OUTPUT_INVALID`
+- `EVIDENCE_MISSING`
+- `STEP_NOT_COMPLETE`
+- `OVERALL_NOT_COMPLETE`
+
+语义如下：
+
+- `TOOL_NOT_CALLED`：本轮本应依赖工具，但没有真实工具调用记录
+- `TOOL_CALL_FAILED`：工具调用报错或明确失败
+- `TOOL_OUTPUT_INVALID`：工具执行成功，但输出不满足本轮目标
+- `EVIDENCE_MISSING`：有结论，但缺少足够证据
+- `STEP_NOT_COMPLETE`：本轮推进了一部分，但当前主步骤未完成
+- `OVERALL_NOT_COMPLETE`：当前步骤可能完成，但总任务尚未完成
+
+## 十七、Node3 验收规则
+
+`Node3` 不应再做模糊的“像不像完成了”的判断，而应遵循如下顺序：
+
+1. 当前轮任务是否要求工具支撑的证据
+2. 如果要求工具证据，是否存在对应 `toolExecutionRecord`
+3. 该工具记录是否成功
+4. 工具结果是否满足 `expectedEvidence` 与 `completionCriteria`
+5. 满足时才允许写入 `acceptedResults`
+6. 否则只能输出继续规划或结束失败类指令
+
+这一步是整个重构中最关键的稳定性锚点。
+
+## 十八、Node4 回答原则
+
+`Node4` 的回答必须同时满足两个要求：
+
+### 18.1 形式对齐用户
+
+通过读取：
+
+- `sessionGoal.rawUserInput`
+
+决定回答方式、语气和交付形式。
+
+### 18.2 事实严格受限
+
+通过读取：
+
+- `acceptedResults`
+- `taskBoard`
+- `overallStatus`
+
+决定真正能说什么。
+
+因此：
+
+- `rawUserInput` 决定“怎么说”
+- `acceptedResults` 决定“能说什么”
+
+## 十九、测试策略
+
+为了避免这次重构后继续黑盒运行，测试建议分三层。
+
+### 19.1 Node Contract Tests
+
+验证各节点输入输出契约：
+
+- `Node1` 是否能生成 `masterPlan/currentRound`
+- `Node2` 是否只消费 `currentRound`
+- `Node3` 是否只把已验证成果写入 `acceptedResults`
+- `Node4` 是否只依赖已验收成果生成回答
+
+### 19.2 State Transition Tests
+
+验证状态推进：
+
+- 是否正确经过 `Node1 -> Node2 -> Node3`
+- 工具失败时是否回到 `Node1` 进行同一步骤重规划
+- 当前步骤完成时是否正确推进下一步骤
+- 总任务完成时是否正确进入 `Node4`
+
+### 19.3 Tool Truth Tests
+
+专门验证工具真实性：
+
+- `Node2` 口头说成功，但没有工具记录时，`Node3` 必须判失败
+- 工具有记录但 `success=false` 时，`Node3` 必须判失败
+- 工具成功且证据满足条件时，才能写入 `acceptedResults`
+
+## 二十、推荐落地顺序
+
+推荐实现顺序如下：
+
+1. 重构 `DynamicContext` 对象结构
+2. 引入显式的轮次状态与总体状态对象
+3. 先重写 `Node3`，让它成为唯一验收入口
+4. 再重写 `Node1`，让它成为总规划者和每轮派工者
+5. 再重写 `Node2`，让它只负责当前轮执行并沉淀真实工具记录
+6. 最后重写 `Node4`，让它只基于已验收成果生成最终回答
+7. 最后补齐前端 trace 映射与日志展示
+
+这个顺序的原因是：
+
+- 先把“真相来源”和“验收权”立住
+- 再去改规划和执行
+- 这样可以避免继续出现“流程看起来正确，但事实来源仍然不可信”的问题
+
+## 二十一、最终结论
+
+本次重构不应继续走“按功能打补丁”的路线，而应把现有四节点 harness 统一收敛为一套稳定的、明确分工的 Plan-and-Execute 变体：
+
+- `Node1`：总规划 + 每轮派工
+- `Node2`：当前轮执行
+- `Node3`：验收与下一轮指令生成
+- `Node4`：最终交付
+
+同时通过以下原则保证稳定性：
+
+- 运行时能力层与业务编排层分离
+- `DynamicContext` 结构化
+- 工具调用事实显式记录
+- 已验收成果与候选成果分离
+- `Node4` 只基于已验收成果回答
+- `Node3` 不直接重试执行，而是通过指令驱动 `Node1` 重新派工
+
+这套设计既保留了你当前项目的四节点外形，也把它实质上升级为一套更稳的 `Plan-and-Execute with Verification and Final Composition` 架构。
