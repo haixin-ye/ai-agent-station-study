@@ -3,9 +3,10 @@ package cn.bugstack.ai.domain.agent.service.execute.auto.step;
 import cn.bugstack.ai.domain.agent.adapter.repository.IAgentRepository;
 import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
+import cn.bugstack.ai.domain.agent.model.entity.RoundArchiveVO;
 import cn.bugstack.ai.domain.agent.model.entity.TokenUsageAccumulator;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiAgentEnumVO;
-import cn.bugstack.ai.domain.agent.service.armory.AbstractArmorySupport;
+import cn.bugstack.ai.domain.agent.service.execute.auto.support.AutoAgentTraceLogSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.AbstractMultiThreadStrategyRouter;
 import com.alibaba.fastjson.JSON;
@@ -19,6 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 /**
  * @author yhx
@@ -73,23 +75,27 @@ public abstract class AbstractExecuteSupport extends AbstractMultiThreadStrategy
         }
     }
 
-    /**
-     * 通用的SSE结果发送方法
-     * @param dynamicContext 动态上下文
-     * @param result 要发送的结果实体
-     */
-    protected void sendSseResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, 
-                                AutoAgentExecuteResultEntity result) {
+    protected void sendSseResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                 AutoAgentExecuteResultEntity result) {
         try {
+            AutoAgentTraceLogSupport.appendEvent(dynamicContext.getValue("traceLogPath"), result);
             ResponseBodyEmitter emitter = dynamicContext.getValue("emitter");
             if (emitter != null) {
-                // 发送SSE格式的数据
                 String sseData = "data: " + JSON.toJSONString(result) + "\n\n";
                 emitter.send(sseData);
             }
         } catch (IOException e) {
-            log.error("发送SSE结果失败：{}", e.getMessage(), e);
+            log.error("发送 SSE 结果失败：{}", e.getMessage(), e);
         }
     }
 
+    protected void appendRoundArchive(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                      int round,
+                                      Consumer<RoundArchiveVO> updater) {
+        RoundArchiveVO archive = dynamicContext.getRoundArchive().computeIfAbsent(
+                round,
+                key -> RoundArchiveVO.builder().round(round).build()
+        );
+        updater.accept(archive);
+    }
 }

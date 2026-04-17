@@ -1,7 +1,6 @@
 package cn.bugstack.ai.domain.agent.service.execute.auto.step;
 
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
-import cn.bugstack.ai.domain.agent.model.entity.StepExecutionPlanVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
@@ -9,7 +8,6 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -34,15 +32,12 @@ public class RootNode extends AbstractExecuteSupport {
                 repository.queryAiAgentClientFlowConfig(requestParameter.getAiAgentId());
 
         dynamicContext.setAiAgentClientFlowConfigVOMap(flowConfigMap);
-        dynamicContext.setExecutionHistory(new StringBuilder());
-        dynamicContext.setPlanHistory(new HashMap<Integer, StepExecutionPlanVO>());
-        dynamicContext.setCurrentTask(requestParameter.getMessage());
-
-        // 原始输入仅用于审计，不作为后续节点的推理输入。
-        dynamicContext.setRawUserGoal(requestParameter.getMessage());
-        dynamicContext.setMaxStep(requestParameter.getMaxStep());
-        dynamicContext.setCompleted(false);
-        dynamicContext.setStep(1);
+        if (dynamicContext.getSessionGoal() == null) {
+            dynamicContext.initSession(
+                    requestParameter.getMessage(),
+                    requestParameter.getMaxStep() != null ? requestParameter.getMaxStep() : 3
+            );
+        }
 
         return router(requestParameter, dynamicContext);
     }
@@ -54,4 +49,3 @@ public class RootNode extends AbstractExecuteSupport {
         return step1AnalyzerNode;
     }
 }
-

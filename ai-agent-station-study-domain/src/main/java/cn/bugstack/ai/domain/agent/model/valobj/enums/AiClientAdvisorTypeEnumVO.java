@@ -34,7 +34,7 @@ public enum AiClientAdvisorTypeEnumVO {
                                      VectorStore vectorStore,
                                      Function<String, OpenAiChatModel> chatModelProvider) {
             AiClientAdvisorVO.ChatMemory chatMemory = aiClientAdvisorVO.getChatMemory();
-            int maxMessages = chatMemory == null ? 20 : chatMemory.getMaxMessages();
+            int maxMessages = chatMemory == null ? 5 : chatMemory.getMaxMessages();
             return PromptChatMemoryAdvisor.builder(
                     MessageWindowChatMemory.builder()
                             .maxMessages(maxMessages)

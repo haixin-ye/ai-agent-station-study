@@ -60,8 +60,15 @@ public class RagAnswerAdvisor implements BaseAdvisor {
         Map<String, Object> advisedUserParams = new HashMap(chatClientRequest.context());
         advisedUserParams.put("question_answer_context", documentContext);
 
-        return ChatClientRequest.builder()
-                .prompt(Prompt.builder().messages(new UserMessage(advisedUserText), new AssistantMessage(JSON.toJSONString(advisedUserParams))).build())
+        Prompt advisedPrompt = Prompt.builder()
+                .messages(new UserMessage(advisedUserText), new AssistantMessage(JSON.toJSONString(advisedUserParams)))
+                .build();
+        if (chatClientRequest.prompt() != null && chatClientRequest.prompt().getOptions() != null) {
+            advisedPrompt = new Prompt(advisedPrompt.getInstructions(), chatClientRequest.prompt().getOptions());
+        }
+
+        return chatClientRequest.mutate()
+                .prompt(advisedPrompt)
                 .context(advisedUserParams)
                 .build();
     }

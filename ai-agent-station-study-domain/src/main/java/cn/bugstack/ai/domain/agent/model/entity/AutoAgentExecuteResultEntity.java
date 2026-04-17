@@ -148,7 +148,7 @@ public class AutoAgentExecuteResultEntity {
         return AutoAgentExecuteResultEntity.builder()
                 .type("summary")
                 .subType(subType)
-                .step(4)
+                .step(null)
                 .content(content)
                 .completed(false)
                 .timestamp(System.currentTimeMillis())
