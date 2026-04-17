@@ -4,11 +4,14 @@ import cn.bugstack.ai.domain.agent.model.entity.ArmoryCommandEntity;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiAgentEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiClientApiVO;
 import cn.bugstack.ai.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
+import cn.bugstack.ai.domain.agent.service.armory.support.OpenAiHttpTraceInterceptor;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.http.client.BufferingClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -44,6 +47,9 @@ public class AiClientApiNode extends AbstractArmorySupport {
                     .apiKey(aiClientApiVO.getApiKey())
                     .completionsPath(aiClientApiVO.getCompletionsPath())
                     .embeddingsPath(aiClientApiVO.getEmbeddingsPath())
+                    .restClientBuilder(org.springframework.web.client.RestClient.builder()
+                            .requestFactory(new BufferingClientHttpRequestFactory(new SimpleClientHttpRequestFactory()))
+                            .requestInterceptor(new OpenAiHttpTraceInterceptor()))
                     .build();
 
             // 注册 OpenAiApi Bean 对象

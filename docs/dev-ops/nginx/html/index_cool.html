@@ -202,6 +202,8 @@
             border: 1px solid rgba(15, 23, 42, 0.08);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow-xl);
+            min-width: 0;
+            max-width: 100%;
         }
 
         .stage-card-shell::before {
@@ -333,6 +335,8 @@
             border-radius: var(--radius-lg);
             padding: 14px 16px;
             box-shadow: none;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .stage-subcard-title {
@@ -559,6 +563,10 @@
             margin-top: 4px;
             line-height: 1.8;
             color: var(--ink-soft);
+            min-width: 0;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .markdown-content p {
@@ -579,6 +587,8 @@
             border-radius: 14px;
             padding: 16px;
             overflow-x: auto;
+            max-width: 100%;
+            white-space: pre-wrap;
             margin: 12px 0;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
@@ -594,6 +604,9 @@
         .markdown-content pre code {
             background: transparent;
             padding: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
         }
 
         .markdown-content ul, .markdown-content ol {
@@ -694,6 +707,80 @@
             .stage-card-chipline {
                 width: 100%;
             }
+
+            .thinking-nav {
+                width: 150px;
+                min-width: 150px;
+                max-width: 150px;
+            }
+        }
+
+        .thinking-nav {
+            width: 190px;
+            min-width: 190px;
+            max-width: 190px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 12px 10px;
+            border-right: 1px solid rgba(15, 23, 42, 0.06);
+            background: #fafcff;
+        }
+
+        .thinking-nav-group {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .thinking-nav-q {
+            font-size: 11px;
+            font-weight: 700;
+            color: #4b5563;
+            background: #eef2ff;
+            border: 1px solid #e0e7ff;
+            border-radius: 999px;
+            padding: 4px 10px;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .thinking-nav-item {
+            font-size: 11px;
+            font-weight: 600;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 6px 10px;
+            white-space: normal;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .thinking-nav-item:hover {
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #94a3b8;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .stage-time {
+            margin-left: auto;
+            font-size: 11px;
+            color: #94a3b8;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -774,7 +861,9 @@
                         </div>
                     </div>
                 </div>
-                <div id="thinkingMessages" class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
+                <div class="flex-1 flex overflow-hidden">
+                    <div id="thinkingNav" class="thinking-nav custom-scrollbar"></div>
+                    <div id="thinkingMessages" class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar"></div>
                 </div>
             </div>
 
@@ -943,6 +1032,7 @@
     let sessions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
     let currentSessionId = null;
     let currentRunId = 0;
+    let currentRunMeta = {};
     let stageCardRuntime = {
         cardMap: {},
         latestByStep: {},
@@ -990,11 +1080,14 @@
 
     function createNewSession() {
         currentSessionId = generateSessionId();
+        currentRunMeta = {};
         sessions[currentSessionId] = {
             id: currentSessionId,
             title: 'New Chat',
             leftHtml: DEFAULT_LEFT_HTML,
+            leftNavHtml: '',
             rightHtml: DEFAULT_RIGHT_HTML,
+            runMeta: {},
             updatedAt: Date.now()
         };
         syncToStorage();
@@ -1005,9 +1098,13 @@
         if (!sessions[id]) return;
         currentSessionId = id;
         resetStageCardRuntime();
+        currentRunMeta = sessions[id].runMeta || {};
         document.getElementById('thinkingMessages').innerHTML = sessions[id].leftHtml;
+        document.getElementById('thinkingNav').innerHTML = sessions[id].leftNavHtml || '';
         document.getElementById('resultMessages').innerHTML = sessions[id].rightHtml;
         document.getElementById('sessionIdDisplay').textContent = 'Session ID: ' + id;
+        rebuildRunCounterFromDom();
+        refreshThinkingNav();
         renderSidebar();
         scrollToBottom('thinkingMessages');
         scrollToBottom('resultMessages');
@@ -1016,7 +1113,9 @@
     function syncDOMToSession() {
         if (!currentSessionId || !sessions[currentSessionId]) return;
         sessions[currentSessionId].leftHtml = document.getElementById('thinkingMessages').innerHTML;
+        sessions[currentSessionId].leftNavHtml = document.getElementById('thinkingNav').innerHTML;
         sessions[currentSessionId].rightHtml = document.getElementById('resultMessages').innerHTML;
+        sessions[currentSessionId].runMeta = currentRunMeta || {};
         sessions[currentSessionId].updatedAt = Date.now();
         syncToStorage();
     }
@@ -1148,9 +1247,10 @@
         if (!message) return;
         if (isConnected) return alert('Agent 执行中，请稍候...');
         resetStageCardRuntime();
+        currentRunMeta[currentRunId] = {question: message, ts: Date.now()};
 
         // 1. 打印用户问题到右侧聊天框 (纯净UI)
-        addRightChatMessage(message, 'user');
+        addRightChatMessage(message, 'user', Date.now());
 
         // 2. 左侧仅附加一条小日志，不清空原有思考过程
         appendLeftLog(`【指令】触发新任务拆解执行`);
@@ -1207,20 +1307,20 @@
     }
 
     function handleSSEMessage(jsonData) {
-        const {type, subType, step, content} = jsonData;
+        const {type, subType, step, content, timestamp} = jsonData;
         if (!content || content.trim() === '') return;
 
         // 【右侧纯净逻辑】：只有最终的完整 summary 才打印在右侧
         if (type === 'summary' && !subType) {
             hideChatLoading(); // 隐藏等待动画
-            addRightChatMessage(content, 'ai');
+            addRightChatMessage(content, 'ai', timestamp);
         } else if (type === 'error') {
             hideChatLoading();
-            addRightChatMessage(`**系统提示:** 执行出现异常\n${content}`, 'ai');
-            addLeftStageMessage(type, subType, content, step);
+            addRightChatMessage(`**系统提示:** 执行出现异常\n${content}`, 'ai', timestamp);
+            addLeftStageMessage(type, subType, content, step, timestamp);
         } else if (type !== 'complete') {
             // 所有其它的思考过程、子结果，都在左边日志流中展示
-            addLeftStageMessage(type, subType, content, step);
+            addLeftStageMessage(type, subType, content, step, timestamp);
         }
     }
 
@@ -1228,7 +1328,7 @@
         isConnected = false;
         document.getElementById('sendBtn').disabled = false;
         hideChatLoading();
-        if (err) addLeftStageMessage('error', null, '连接失败: ' + err, null);
+        if (err) addLeftStageMessage('error', null, '连接失败: ' + err, null, Date.now());
         syncDOMToSession(); // 数据流结束，保存当前完整DOM
     }
 
@@ -1285,6 +1385,7 @@
         analysis_last_execution: 'Last Execution',
         analysis_sanitized_goal: 'Sanitized Goal',
         analysis_step_plan: 'Step Plan',
+        analysis_todo_list: 'TODO List',
         analysis_strategy: 'Strategy',
         execution_plan_read: 'Plan Read',
         execution_understanding: 'Understanding',
@@ -1328,6 +1429,27 @@
         };
     }
 
+    function rebuildRunCounterFromDom() {
+        const nodes = document.querySelectorAll('#thinkingMessages .message[data-run]');
+        let maxRun = 0;
+        nodes.forEach(n => {
+            const run = parseInt(n.getAttribute('data-run') || '0', 10);
+            if (!Number.isNaN(run) && run > maxRun) maxRun = run;
+        });
+        currentRunId = maxRun;
+    }
+
+    function formatTime(ts) {
+        const d = ts ? new Date(ts) : new Date();
+        return d.toLocaleTimeString('zh-CN', {hour12: false});
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
     function getStageCardKey(type, step) {
         return `${currentRunId}::${type || 'unknown'}::${step || 'NA'}`;
     }
@@ -1345,7 +1467,7 @@
             <span class="token-item token-total"><span class="token-label">TOTAL</span><span class="token-value">${totalTokens}</span></span>`;
     }
 
-    function ensureStageCard(type, step) {
+    function ensureStageCard(type, step, timestamp) {
         const key = getStageCardKey(type, step);
         if (stageCardRuntime.cardMap[key]) return stageCardRuntime.cardMap[key];
 
@@ -1362,12 +1484,18 @@
 
         const wrapper = document.createElement('div');
         wrapper.className = 'flex items-start gap-3 message w-full';
+        wrapper.setAttribute('data-nav-item', '1');
+        wrapper.setAttribute('data-run', String(currentRunId));
+        wrapper.setAttribute('data-step', String(step || 0));
+        wrapper.setAttribute('data-type', String(type || 'unknown'));
+        wrapper.id = `trace_${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
         wrapper.innerHTML = `
             <div class="stage-avatar ${stage.avatarClass}"><span>${stage.icon}</span></div>
             <div class="stage-card-shell ${stage.shellClass} flex-1 rounded-xl rounded-tl-none p-4 max-w-[90%]">
                 <div class="stage-card-topbar">
                     <div class="stage-card-meta">
                         <div class="stage-card-chipline">${indicators}</div>
+                        <div class="stage-time">${formatTime(timestamp)}</div>
                         <div class="token-usage-indicator hidden"></div>
                     </div>
                 </div>
@@ -1379,7 +1507,9 @@
             key,
             subCardMap: {},
             subCardsEl: wrapper.querySelector('.stage-subcards'),
-            tokenEl: wrapper.querySelector('.token-usage-indicator')
+            tokenEl: wrapper.querySelector('.token-usage-indicator'),
+            timeEl: wrapper.querySelector('.stage-time'),
+            wrapperEl: wrapper
         };
         stageCardRuntime.cardMap[key] = record;
         if (step) stageCardRuntime.latestByStep[step] = key;
@@ -1483,9 +1613,10 @@
     }
 
     // 右侧纯净聊天气泡渲染
-    function addRightChatMessage(text, role) {
+    function addRightChatMessage(text, role, timestamp) {
         const container = document.getElementById('resultMessages');
         const isUser = role === 'user';
+        const timeLabel = formatTime(timestamp);
         const html = `
             <div class="flex items-start gap-4 message w-full ${isUser ? 'flex-row-reverse' : ''}">
                 <div class="w-10 h-10 bg-gradient-to-br ${isUser ? 'from-gray-700 to-gray-900' : 'from-green-400 to-green-600'} rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
@@ -1493,6 +1624,7 @@
                 </div>
                 <div class="flex-1 ${isUser ? 'bg-primary-50 border border-primary-100' : 'bg-white border border-gray-100'} rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} p-5 shadow-sm max-w-[85%]">
                     <div class="${isUser ? 'text-sm text-gray-800 font-medium user-message-text' : 'markdown-content'}">${isUser ? text.replace(/\n/g, '<br>') : marked.parse(text)}</div>
+                    <div class="message-time mt-2 text-right">${timeLabel}</div>
                 </div>
             </div>`;
         container.insertAdjacentHTML('beforeend', html);
@@ -1502,22 +1634,64 @@
     }
 
     // 左侧日志气泡渲染
-    function addLeftStageMessage(type, subType, content, step) {
+    function addLeftStageMessage(type, subType, content, step, timestamp) {
         if (type === 'token') {
             applyTokenToStageCard(content, step, subType);
-            scrollToBottom('thinkingMessages');
             return;
         }
 
-        const record = ensureStageCard(type, step);
+        const record = ensureStageCard(type, step, timestamp);
+        if (record.timeEl && timestamp) {
+            record.timeEl.textContent = formatTime(timestamp);
+        }
         upsertStageSubCard(record, subType, content);
-        scrollToBottom('thinkingMessages');
+        refreshThinkingNav();
+        syncDOMToSession();
     }
 
     // 左侧极简文本分割线
     function appendLeftLog(text) {
         const html = `<div class="w-full text-center my-4"><span class="bg-gray-100 text-gray-400 text-xs px-3 py-1 rounded-full">${text}</span></div>`;
         document.getElementById('thinkingMessages').insertAdjacentHTML('beforeend', html);
+    }
+
+    function refreshThinkingNav() {
+        const nav = document.getElementById('thinkingNav');
+        const traces = Array.from(document.querySelectorAll('#thinkingMessages .message[data-nav-item="1"]'));
+        if (!traces.length) {
+            nav.innerHTML = '';
+            return;
+        }
+        const runMap = {};
+        traces.forEach(node => {
+            const run = parseInt(node.getAttribute('data-run') || '0', 10);
+            if (!runMap[run]) runMap[run] = [];
+            runMap[run].push(node);
+        });
+        const runs = Object.keys(runMap).map(v => parseInt(v, 10)).sort((a, b) => a - b);
+        const htmlParts = [];
+        runs.forEach(run => {
+            const meta = (currentRunMeta && currentRunMeta[run]) ? currentRunMeta[run] : {};
+            const q = meta.question || `问题${run}`;
+            const qTitle = q.length > 16 ? `${q.slice(0, 16)}...` : q;
+            htmlParts.push(`<div class="thinking-nav-group"><span class="thinking-nav-q" title="${escapeHtml(q)}">Q${run}: ${escapeHtml(qTitle)}</span>`);
+            runMap[run].forEach((node, idx) => {
+                const step = parseInt(node.getAttribute('data-step') || '0', 10);
+                const type = node.getAttribute('data-type') || 'node';
+                const label = step ? `Step${step}-${type}` : `${type}`;
+                htmlParts.push(`<button type="button" class="thinking-nav-item" data-target="${node.id}">${escapeHtml(label)}</button>`);
+            });
+            htmlParts.push(`</div>`);
+        });
+        nav.innerHTML = htmlParts.join('');
+        nav.querySelectorAll('.thinking-nav-item').forEach(btn => {
+            btn.onclick = () => {
+                const targetId = btn.getAttribute('data-target');
+                const target = document.getElementById(targetId);
+                if (!target) return;
+                target.scrollIntoView({behavior: 'smooth', block: 'center'});
+            };
+        });
     }
 
     // 右侧打字动画

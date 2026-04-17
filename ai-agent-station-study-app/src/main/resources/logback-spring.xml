@@ -98,9 +98,37 @@
     </appender>
 
     <!-- 开发环境：控制台打印 -->
+    <appender name="OPENAI_TRACE_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>./data/log/openai_http_trace.log</file>
+        <encoder>
+            <pattern>%d{yy-MM-dd.HH:mm:ss.SSS} [%-16t] %-5p %-22c{0} %m%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>./data/log/openai-http-trace-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="ASYNC_OPENAI_TRACE_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>2048</queueSize>
+        <neverBlock>true</neverBlock>
+        <includeCallerData>false</includeCallerData>
+        <appender-ref ref="OPENAI_TRACE_FILE"/>
+    </appender>
+
     <springProfile name="dev">
         <logger name="com.nmys.view" level="debug"/>
     </springProfile>
+
+    <logger name="OPENAI_HTTP_TRACE" level="info" additivity="false">
+        <appender-ref ref="ASYNC_OPENAI_TRACE_FILE"/>
+    </logger>
 
     <root level="info">
         <appender-ref ref="CONSOLE"/>

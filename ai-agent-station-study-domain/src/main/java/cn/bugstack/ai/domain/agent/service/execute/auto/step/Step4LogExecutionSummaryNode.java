@@ -1,91 +1,56 @@
 package cn.bugstack.ai.domain.agent.service.execute.auto.step;
 
+import cn.bugstack.ai.domain.agent.model.entity.AcceptedResultVO;
 import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
+import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
-/**
- * 执行总结节点
- *
- * @author yhx
- * 2025/7/27 16:45
- */
+import java.util.List;
+import java.util.Map;
+
 @Slf4j
 @Service
 public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
 
     @Override
-    protected String doApply(ExecuteCommandEntity requestParameter, DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("\n📊 === 执行第 {} 步 ===", dynamicContext.getStep());
-
-        // 第四阶段：执行总结
-        log.info("\n📊 阶段4: 执行总结分析");
-        
-        // 记录执行总结
+    protected String doApply(ExecuteCommandEntity requestParameter,
+                             DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) throws Exception {
+        log.info("\n=== Step4 Final Summary ===");
         logExecutionSummary(dynamicContext.getMaxStep(), dynamicContext.getExecutionHistory(), dynamicContext.isCompleted());
-        
-        // 生成最终总结报告（无论任务是否完成都需要生成）
         generateFinalReport(requestParameter, dynamicContext);
-        
-        log.info("\n🏁 === 动态多轮执行结束 ====");
-        
+        log.info("\n=== Auto Agent Finished ===");
         return "ai agent execution summary completed!";
     }
 
     @Override
-    public StrategyHandler<ExecuteCommandEntity, DefaultAutoAgentExecuteStrategyFactory.DynamicContext, String> get(ExecuteCommandEntity requestParameter, DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        // 总结节点是最后一个节点，返回null表示执行结束
+    public StrategyHandler<ExecuteCommandEntity, DefaultAutoAgentExecuteStrategyFactory.DynamicContext, String> get(
+            ExecuteCommandEntity requestParameter,
+            DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) {
         return defaultStrategyHandler;
     }
-    
-    /**
-     * 记录执行总结
-     */
+
     private void logExecutionSummary(int maxSteps, StringBuilder executionHistory, boolean isCompleted) {
-        log.info("\n📊 === 动态多轮执行总结 ====");
-        
-        int actualSteps = Math.min(maxSteps, executionHistory.toString().split("=== 第").length - 1);
-        log.info("📈 总执行步数: {} 步", actualSteps);
-        
-        if (isCompleted) {
-            log.info("✅ 任务完成状态: 已完成");
-        } else {
-            log.info("⏸️ 任务完成状态: 未完成（达到最大步数限制）");
-        }
-        
-        // 计算执行效率
-        double efficiency = isCompleted ? 100.0 : (double) actualSteps / maxSteps * 100;
-        log.info("📊 执行效率: {}%", efficiency);
+        String history = executionHistory == null ? "" : executionHistory.toString();
+        int actualSteps = Math.min(maxSteps, Math.max(0, history.split("=== ").length - 1));
+        log.info("summary.steps={} completed={} efficiency={}%%", actualSteps, isCompleted,
+                isCompleted ? 100.0 : (maxSteps <= 0 ? 0.0 : (double) actualSteps / maxSteps * 100));
     }
-    
-    /**
-     * 生成最终总结报告
-     */
-    private void generateFinalReport(ExecuteCommandEntity requestParameter, DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) {
+
+    private void generateFinalReport(ExecuteCommandEntity requestParameter,
+                                     DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) {
         try {
             boolean isCompleted = dynamicContext.isCompleted();
-            log.info("\n--- 生成{}任务的最终答案 ---", isCompleted ? "已完成" : "未完成");
-
-            String summaryPrompt = getSummaryPrompt(dynamicContext, isCompleted);
-
-            // 获取对话客户端 - 使用任务分析客户端进行总结
-            AiAgentClientFlowConfigVO aiAgentClientFlowConfigVO = dynamicContext.getAiAgentClientFlowConfigVOMap().get(AiClientTypeEnumVO.RESPONSE_ASSISTANT.getCode());
-            ChatClient chatClient = getChatClientByClientId(aiAgentClientFlowConfigVO.getClientId());
-
-//            String knowledgeName = dynamicContext.getValue("knowledgeName");
-//            String filterExpression;
-//            if (StringUtils.hasText(knowledgeName)) {
-//                filterExpression = String.format("knowledge == '%s'", knowledgeName);
-//            } else {
-//                filterExpression = "";
-//            }
+            AiAgentClientFlowConfigVO flowConfig = dynamicContext.getAiAgentClientFlowConfigVOMap()
+                    .get(AiClientTypeEnumVO.RESPONSE_ASSISTANT.getCode());
+            ChatClient chatClient = getChatClientByClientId(flowConfig.getClientId());
+            String summaryPrompt = buildSummaryInput(dynamicContext, isCompleted);
 
             String summaryResult = chatClient
                     .prompt(summaryPrompt)
@@ -94,178 +59,123 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
                                 .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 30);
                         applyTokenStatParams(
                                 a, dynamicContext, requestParameter,
-                                aiAgentClientFlowConfigVO.getClientId(),
+                                flowConfig.getClientId(),
                                 AiClientTypeEnumVO.RESPONSE_ASSISTANT.getCode()
                         );
                     })
-//                            .param("qa_filter_expression", filterExpression))
-                    .call().content();
+                    .call()
+                    .content();
 
-            assert summaryResult != null;
+            if (summaryResult == null) {
+                summaryResult = "";
+            }
             logFinalReport(dynamicContext, summaryResult, requestParameter.getSessionId());
-            
-            // 将总结结果保存到动态上下文中
             dynamicContext.setValue("finalSummary", summaryResult);
-            
         } catch (Exception e) {
-            log.error("生成最终总结报告时出现异常: {}", e.getMessage(), e);
+            log.error("generate final summary failed: {}", e.getMessage(), e);
         }
     }
 
-    private static String getSummaryPrompt(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, boolean isCompleted) {
-        String summaryPrompt;
-        String userGoal = dynamicContext.getSanitizedUserGoal();
-        if (!StringUtils.hasText(userGoal)) {
-            userGoal = dynamicContext.getRawUserGoal();
-        }
-        if (isCompleted) {
-            summaryPrompt = String.format("""
-                    基于以下执行过程，请直接回答用户的原始问题，提供最终的答案和结果：
-                    
-                    **用户原始问题:** %s
-                    
-                    **执行历史和过程:**
-                    %s
-                    
-                    **要求:**
-                    1. 直接回答用户的原始问题
-                    2. 基于执行过程中获得的信息和结果
-                    3. 提供具体、实用的最终答案
-                    4. 如果是要求制定计划、列表等，请直接给出完整的内容
-                    5. 避免只描述执行过程，重点是最终答案
-                    
-                    请直接给出用户问题的最终答案：
-                    """,
-                    userGoal,
-                    dynamicContext.getExecutionHistory().toString());
-        } else {
-            summaryPrompt = String.format("""
-                    虽然任务未完全执行完成，但请基于已有的执行过程，尽力回答用户的原始问题：
-                    
-                    **用户原始问题:** %s
-                    
-                    **已执行的过程和获得的信息:**
-                    %s
-                    
-                    **要求:**
-                    1. 基于已有信息，尽力回答用户的原始问题
-                    2. 如果信息不足，说明哪些部分无法完成并给出原因
-                    3. 提供已能确定的部分答案
-                    4. 给出完成剩余部分的具体建议
-                    
-                    请基于现有信息给出用户问题的答案：
-                    """,
-                    userGoal,
-                    dynamicContext.getExecutionHistory().toString());
-        }
-        return summaryPrompt;
-    }
-
-    /**
-     * 输出最终总结报告
-     */
-    private void logFinalReport(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, String summaryResult, String sessionId) {
-        boolean isCompleted = dynamicContext.isCompleted();
-        log.info("\n📋 === {}任务最终总结报告 ===", isCompleted ? "已完成" : "未完成");
-
-        String[] lines = summaryResult.split("\n");
+    private void logFinalReport(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                String summaryResult,
+                                String sessionId) {
+        String[] lines = summaryResult == null ? new String[0] : summaryResult.split("\n");
         String currentSection = "summary_overview";
         StringBuilder sectionContent = new StringBuilder();
-        
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty()) continue;
-            
-            // 检测是否开始新的总结部分
+
+        for (String rawLine : lines) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+
             String newSection = detectSummarySection(line);
             if (newSection != null && !newSection.equals(currentSection)) {
-                // 发送前一个部分的内容
                 if (!sectionContent.isEmpty()) {
                     sendSummarySubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
                 }
                 currentSection = newSection;
                 sectionContent.setLength(0);
             }
-            
-            // 收集当前部分的内容
+
             if (!sectionContent.isEmpty()) {
                 sectionContent.append("\n");
             }
             sectionContent.append(line);
-            
-            // 根据内容类型添加不同图标
-            if (line.contains("已完成") || line.contains("完成的工作")) {
-                log.info("✅ {}", line);
-            } else if (line.contains("未完成") || line.contains("原因")) {
-                log.info("❌ {}", line);
-            } else if (line.contains("建议") || line.contains("推荐")) {
-                log.info("💡 {}", line);
-            } else if (line.contains("评估") || line.contains("效果")) {
-                log.info("📊 {}", line);
-            } else {
-                log.info("📝 {}", line);
-            }
+            log.info("summary.line={}", line);
         }
-        
-        // 发送最后一个部分的内容
+
         if (!sectionContent.isEmpty()) {
             sendSummarySubResult(dynamicContext, currentSection, sectionContent.toString(), sessionId);
         }
-        
-        // 发送完整的总结结果
+
         sendSummaryResult(dynamicContext, summaryResult, sessionId);
-        
-        // 发送完成标识
         sendCompleteResult(dynamicContext, sessionId);
     }
-    
-    /**
-     * 发送总结结果到流式输出
-     */
-    private void sendSummaryResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, 
-                                 String summaryResult, String sessionId) {
-        AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createSummaryResult(
-                 summaryResult, sessionId);
+
+    private void sendSummaryResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                   String summaryResult,
+                                   String sessionId) {
+        AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createSummaryResult(summaryResult, sessionId);
         sendSseResult(dynamicContext, result);
     }
-    
-    /**
-     * 发送总结阶段细分结果到流式输出
-     */
-    private void sendSummarySubResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, 
-                                     String subType, String content, String sessionId) {
-        AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createSummarySubResult(
-                subType, content, sessionId);
+
+    private void sendSummarySubResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                      String subType,
+                                      String content,
+                                      String sessionId) {
+        AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createSummarySubResult(subType, content, sessionId);
         sendSseResult(dynamicContext, result);
     }
-    
-    /**
-     * 发送完成标识到流式输出
-     */
-    private void sendCompleteResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, String sessionId) {
+
+    private void sendCompleteResult(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                    String sessionId) {
         AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createCompleteResult(sessionId);
         sendSseResult(dynamicContext, result);
-        log.info("✅ 已发送完成标识");
+        log.info("summary.complete sent");
     }
-    
-    /**
-     * 检测总结部分标识
-     */
+
     private String detectSummarySection(String content) {
-        if (content.contains("已完成的工作") || content.contains("完成的工作") || content.contains("工作内容和成果")) {
+        if (content.contains("已完成") || content.contains("完成了") || content.contains("交付")) {
             return "completed_work";
-        } else if (content.contains("未完成的原因") || content.contains("未完成原因")) {
+        }
+        if (content.contains("未完成") || content.contains("失败") || content.contains("原因")) {
             return "incomplete_reasons";
-        } else if (content.contains("关键因素") || content.contains("完成的关键因素")) {
-            return "key_factors";
-        } else if (content.contains("执行效率") || content.contains("执行效率和质量")) {
-            return "efficiency_quality";
-        } else if (content.contains("完成剩余任务的建议") || content.contains("建议") || content.contains("优化建议") || content.contains("经验总结")) {
+        }
+        if (content.contains("建议") || content.contains("下一步") || content.contains("可继续")) {
             return "suggestions";
-        } else if (content.contains("整体执行效果") || content.contains("评估")) {
+        }
+        if (content.contains("评估") || content.contains("效果") || content.contains("结论")) {
             return "evaluation";
         }
         return null;
     }
 
+    static String buildSummaryInput(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext, boolean isCompleted) {
+        String rawUserInput = dynamicContext.getSessionGoal() != null
+                ? dynamicContext.getSessionGoal().getRawUserInput()
+                : dynamicContext.getRawUserGoal();
+        String sanitizedGoal = dynamicContext.getSessionGoal() != null
+                ? dynamicContext.getSessionGoal().getSanitizedGoal()
+                : dynamicContext.getSanitizedUserGoal();
+
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("rawUserInput", rawUserInput == null ? "" : rawUserInput);
+        payload.put("sanitizedGoal", sanitizedGoal == null ? "" : sanitizedGoal);
+        payload.put("acceptedResults", dynamicContext.getAcceptedResults() == null ? List.<AcceptedResultVO>of() : dynamicContext.getAcceptedResults());
+        payload.put("taskBoard", dynamicContext.getTaskBoard() == null ? Map.of() : dynamicContext.getTaskBoard());
+        payload.put("roundArchive", dynamicContext.getRoundArchive() == null ? Map.of() : dynamicContext.getRoundArchive());
+        payload.put("nextRoundDirective", dynamicContext.getNextRoundDirective() == null ? Map.of() : dynamicContext.getNextRoundDirective());
+        payload.put("overallStatus", dynamicContext.getOverallStatus() == null ? Map.of() : dynamicContext.getOverallStatus());
+        payload.put("answerPolicy", Map.of(
+                "primaryTruthSources", List.of("rawUserInput", "acceptedResults", "taskBoard", "roundArchive", "overallStatus", "nextRoundDirective"),
+                "mustRespectOverallStatus", true,
+                "mustSummarizeAcceptedResults", true,
+                "mustDescribePartialOrFailureClearly", true,
+                "mustNotUseExecutionHistoryAsTruthSource", true,
+                "mustBeUserFacing", true
+        ));
+        payload.put("completed", isCompleted);
+        return JSON.toJSONString(payload);
+    }
 }

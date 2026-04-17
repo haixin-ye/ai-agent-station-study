@@ -2,10 +2,10 @@ package cn.bugstack.ai.domain.agent.service.execute.auto;
 
 import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
-import cn.bugstack.ai.domain.agent.model.entity.StepExecutionPlanVO;
 import cn.bugstack.ai.domain.agent.model.entity.TokenUsageAccumulator;
 import cn.bugstack.ai.domain.agent.service.execute.IExecuteStrategy;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.AbstractExecuteSupport;
+import cn.bugstack.ai.domain.agent.service.execute.auto.support.AutoAgentTraceLogSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.LinkedHashMap;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,21 +35,22 @@ public class AutoAgentExecuteStrategy implements IExecuteStrategy {
         StrategyHandler<ExecuteCommandEntity, DefaultAutoAgentExecuteStrategyFactory.DynamicContext, String> executeHandler
                 = defaultAutoAgentExecuteStrategyFactory.armoryStrategyHandler();
 
-        // 创建动态上下文并初始化必要字段
         DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext = new DefaultAutoAgentExecuteStrategyFactory.DynamicContext();
-        dynamicContext.setMaxStep(executeCommandEntity.getMaxStep() != null ? executeCommandEntity.getMaxStep() : 3);
-        dynamicContext.setExecutionHistory(new StringBuilder());
-        dynamicContext.setPlanHistory(new HashMap<Integer, StepExecutionPlanVO>());
-        dynamicContext.setCurrentTask(executeCommandEntity.getMessage());
-        dynamicContext.setRawUserGoal(executeCommandEntity.getMessage());
+        dynamicContext.initSession(
+                executeCommandEntity.getMessage(),
+                executeCommandEntity.getMaxStep() != null ? executeCommandEntity.getMaxStep() : 3
+        );
         dynamicContext.setValue("knowledgeName", executeCommandEntity.getKnowledgeName());
         dynamicContext.setValue("emitter", emitter);
         dynamicContext.setValue(AbstractExecuteSupport.TOKEN_STAT_ACCUMULATOR_KEY, new TokenUsageAccumulator());
+        dynamicContext.setValue("traceLogPath", AutoAgentTraceLogSupport.initializeTraceLog(
+                executeCommandEntity.getSessionId(),
+                executeCommandEntity.getMessage()
+        ));
 
         String apply = executeHandler.apply(executeCommandEntity, dynamicContext);
         log.info("测试结果:{}", apply);
 
-        // 发送 token 总计与完成标识
         try {
             TokenUsageAccumulator accumulator = dynamicContext.getValue(AbstractExecuteSupport.TOKEN_STAT_ACCUMULATOR_KEY);
             if (accumulator != null) {
@@ -62,10 +62,12 @@ public class AutoAgentExecuteStrategy implements IExecuteStrategy {
 
                 AutoAgentExecuteResultEntity tokenTotalResult =
                         AutoAgentExecuteResultEntity.createTokenTotalUsageResult(JSON.toJSONString(usage), executeCommandEntity.getSessionId());
+                AutoAgentTraceLogSupport.appendEvent(dynamicContext.getValue("traceLogPath"), tokenTotalResult);
                 emitter.send("data: " + JSON.toJSONString(tokenTotalResult) + "\n\n");
             }
 
             AutoAgentExecuteResultEntity completeResult = AutoAgentExecuteResultEntity.createCompleteResult(executeCommandEntity.getSessionId());
+            AutoAgentTraceLogSupport.appendEvent(dynamicContext.getValue("traceLogPath"), completeResult);
             String sseData = "data: " + JSON.toJSONString(completeResult) + "\n\n";
             emitter.send(sseData);
         } catch (Exception e) {
