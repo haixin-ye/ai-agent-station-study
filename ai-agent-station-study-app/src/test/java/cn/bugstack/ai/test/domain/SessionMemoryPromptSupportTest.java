@@ -41,4 +41,22 @@ public class SessionMemoryPromptSupportTest {
     public void test_buildSessionHistoryPrompt_returnsEmptyWhenNoHistory() {
         Assert.assertEquals("", SessionMemoryPromptSupport.buildSessionHistoryPrompt(List.of()));
     }
+
+    @Test
+    public void test_extractLatestFinalAnswer_returnsNewestAnswerByRound() {
+        List<SessionMemoryEntity> history = List.of(
+                SessionMemoryEntity.builder()
+                        .sessionId("sess-1")
+                        .roundNo(2)
+                        .finalAnswer("第二轮结果")
+                        .build(),
+                SessionMemoryEntity.builder()
+                        .sessionId("sess-1")
+                        .roundNo(1)
+                        .finalAnswer("第一轮结果")
+                        .build()
+        );
+
+        Assert.assertEquals("第二轮结果", SessionMemoryPromptSupport.extractLatestFinalAnswer(history));
+    }
 }

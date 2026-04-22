@@ -87,6 +87,17 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 toolName,
                 dynamicContext.getCurrentRound() == null ? List.of() : dynamicContext.getCurrentRound().getSuggestedTools(),
                 toolPolicyMap.keySet());
+        String missingSourceResult = validateRequiredSourceContent(dynamicContext, plan);
+        if (StringUtils.hasText(missingSourceResult)) {
+            syncExecutionState(dynamicContext, missingSourceResult);
+            dynamicContext.setRoundExecutionSummary(buildRoundExecutionSummary(dynamicContext, missingSourceResult, plan));
+            ExecutionOutcomeVO executionOutcome = buildExecutionOutcome(dynamicContext, missingSourceResult, plan);
+            parseExecutionResult(dynamicContext, missingSourceResult, requestParameter.getSessionId(), executionOutcome);
+            dynamicContext.setValue("executionResult", missingSourceResult);
+            dynamicContext.setValue("executionOutcome", executionOutcome);
+            dynamicContext.setValue("lastToolError", missingSourceResult);
+            return router(requestParameter, dynamicContext);
+        }
         String executionResult = callExecutor(chatClient, executionPrompt, requestParameter, dynamicContext, flowConfig, plan, sanitizedGoal);
 
         if (resolveToolRequired(dynamicContext, plan)
@@ -192,6 +203,7 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
         payload.put("toolName", resolvePrimaryToolName(dynamicContext, plan));
         payload.put("toolPurpose", resolveToolPurpose(dynamicContext, plan));
         payload.put("expectedOutput", resolveExpectedOutput(dynamicContext, plan));
+        payload.put("sourceContent", resolveSourceContent(dynamicContext, plan));
         return JSON.toJSONString(payload);
     }
 
@@ -297,6 +309,9 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 CurrentRound:
                 %s
 
+                SourceContent:
+                %s
+
                 ExecutionIntent:
                 %s
 
@@ -310,6 +325,8 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 4. Use the real tool schema exposed by Spring AI; do not output a tool-call JSON for the user.
                 5. Never send undefined, null, or empty placeholders for required args.
                 6. Never invent ToolReceipt, side effects, file paths, URLs, or final success.
+                7. If the task depends on sourceContent and sourceContent is empty, stop and report MISSING_REQUIRED_SOURCE_CONTENT.
+                8. Never replace missing sourceContent with templates, placeholders, or guessed body text.
 
                 Response:
                 - Return a concise execution summary only.
@@ -319,12 +336,14 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 safe(dynamicContext == null ? "" : dynamicContext.getRawUserGoal()),
                 safe(sanitizedGoal),
                 JSON.toJSONString(dynamicContext == null || dynamicContext.getCurrentRound() == null ? Map.of() : dynamicContext.getCurrentRound()),
+                compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH),
                 JSON.toJSONString(Map.of(
                         "taskGoal", resolveTaskGoal(dynamicContext, plan),
                         "toolRequired", resolveToolRequired(dynamicContext, plan),
                         "toolName", resolvePrimaryToolName(dynamicContext, plan),
                         "toolPurpose", resolveToolPurpose(dynamicContext, plan),
-                        "expectedOutput", resolveExpectedOutput(dynamicContext, plan)
+                        "expectedOutput", resolveExpectedOutput(dynamicContext, plan),
+                        "sourceContent", compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH)
                 )),
                 policyJson
         );
@@ -351,6 +370,9 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 CurrentRound:
                 %s
 
+                SourceContent:
+                %s
+
                 ToolPolicy:
                 %s
 
@@ -363,10 +385,12 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 3. Make a real tool call before writing any conclusion.
                 4. Do not output a tool-intent JSON object.
                 5. Do not fabricate ToolReceipt or final success.
+                6. If sourceContent is required but empty, stop and report MISSING_REQUIRED_SOURCE_CONTENT.
                 """,
                 safe(dynamicContext == null ? "" : dynamicContext.getRawUserGoal()),
                 safe(sanitizedGoal),
                 JSON.toJSONString(dynamicContext == null || dynamicContext.getCurrentRound() == null ? Map.of() : dynamicContext.getCurrentRound()),
+                compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH),
                 policyJson,
                 safe(lastError)
         );
@@ -404,6 +428,7 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                             : safe(currentRound.getSuggestedTools().get(0)))
                     .toolPurpose(safe(currentRound.getPlannerNotes()))
                     .expectedOutput(safe(currentRound.getExpectedEvidence()))
+                    .sourceContent(safe(currentRound.getSourceContent()))
                     .build();
         }
         StepExecutionPlanVO legacyPlan = dynamicContext == null ? null : dynamicContext.getCurrentStepPlan();
@@ -425,6 +450,7 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                                                            StepExecutionPlanVO plan) {
         String raw = safe(executionResult);
         String lower = raw.toLowerCase(Locale.ROOT);
+        boolean missingSourceContent = lower.contains("missing_required_source_content");
         boolean blocked = lower.contains("blocked") || lower.contains("policy violation");
         boolean failed = lower.contains("failed") || lower.contains("璋冪敤澶辫触");
         boolean explicitMissingReceipt = lower.contains("no structured tool receipt")
@@ -432,6 +458,14 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 || lower.contains("鏈敹鍒扮粨鏋勫寲宸ュ叿鎵ц鍑瘉");
         boolean toolRequired = resolveToolRequired(dynamicContext, plan);
         RoundExecutionSummaryVO summary = dynamicContext == null ? null : dynamicContext.getRoundExecutionSummary();
+        if (missingSourceContent) {
+            return ExecutionOutcomeVO.builder()
+                    .status(ExecutionOutcomeVO.FAILED)
+                    .errorCode("MISSING_REQUIRED_SOURCE_CONTENT")
+                    .errorMessage("Missing required source content")
+                    .rawResult(raw)
+                    .build();
+        }
         if (toolRequired && summary != null) {
             if (!Boolean.TRUE.equals(summary.getToolInvoked())) {
                 return ExecutionOutcomeVO.builder()
@@ -785,6 +819,52 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
         return plan == null ? "" : safe(plan.getExpectedOutput());
     }
 
+    private static String resolveSourceContent(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                               StepExecutionPlanVO plan) {
+        CurrentRoundTaskVO currentRound = dynamicContext == null ? null : dynamicContext.getCurrentRound();
+        if (currentRound != null && StringUtils.hasText(currentRound.getSourceContent())) {
+            return currentRound.getSourceContent();
+        }
+        return plan == null ? "" : safe(plan.getSourceContent());
+    }
+
+    public static String validateRequiredSourceContent(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                                       StepExecutionPlanVO plan) {
+        if (!needsExplicitSourceContent(dynamicContext, plan)) {
+            return "";
+        }
+        if (StringUtils.hasText(resolveSourceContent(dynamicContext, plan))) {
+            return "";
+        }
+        return """
+                ExecutionResult: MISSING_REQUIRED_SOURCE_CONTENT
+                QualityCheck: missing required source content for a task that depends on previously generated text
+                """;
+    }
+
+    private static boolean needsExplicitSourceContent(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                                      StepExecutionPlanVO plan) {
+        String combined = (resolveTaskGoal(dynamicContext, plan) + "\n"
+                + safe(dynamicContext == null ? null : dynamicContext.getRawUserGoal()))
+                .toLowerCase(Locale.ROOT);
+        boolean referencesPriorContent = combined.contains("previous")
+                || combined.contains("上一篇")
+                || combined.contains("上一次")
+                || combined.contains("上一轮")
+                || combined.contains("刚才")
+                || combined.contains("刚刚")
+                || combined.contains("这篇")
+                || combined.contains("这段内容")
+                || combined.contains("这段");
+        boolean needsReuseAction = combined.contains("publish")
+                || combined.contains("发布")
+                || combined.contains("改写")
+                || combined.contains("润色")
+                || combined.contains("翻译")
+                || combined.contains("续写");
+        return referencesPriorContent && needsReuseAction;
+    }
+
     private static String extractToolReceipt(String executionResult) {
         String raw = safe(executionResult);
         int index = raw.indexOf("ToolReceipt:");
@@ -969,6 +1049,7 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
         String lower = safe(executionResult).toLowerCase(Locale.ROOT);
         return lower.contains("tool call failed")
                 || lower.contains("execution failed")
+                || lower.contains("missing_required_source_content")
                 || lower.contains("invalid arguments")
                 || lower.contains("error calling tool")
                 || lower.contains("blocked");

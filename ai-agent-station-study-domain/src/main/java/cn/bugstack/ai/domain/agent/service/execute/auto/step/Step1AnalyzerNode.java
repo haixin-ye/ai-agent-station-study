@@ -5,6 +5,7 @@ import cn.bugstack.ai.domain.agent.model.entity.CurrentRoundTaskVO;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
 import cn.bugstack.ai.domain.agent.model.entity.MasterPlanVO;
 import cn.bugstack.ai.domain.agent.model.entity.PlanStepVO;
+import cn.bugstack.ai.domain.agent.model.entity.SessionMemoryEntity;
 import cn.bugstack.ai.domain.agent.model.entity.StepExecutionPlanVO;
 import cn.bugstack.ai.domain.agent.model.entity.TaskBoardItemVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
@@ -12,6 +13,7 @@ import cn.bugstack.ai.domain.agent.model.valobj.AiClientToolMcpVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.NextRoundDirectiveTypeEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.StepStatusEnumVO;
+import cn.bugstack.ai.domain.agent.service.execute.auto.support.SessionMemoryPromptSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -101,6 +103,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         StepExecutionPlanVO plan = parsePlanOrFallback(planningResult, round, dynamicContext, allowedTools);
         normalizePlan(plan, round, dynamicContext);
         enforceToolNameWhitelist(plan, allowedTools);
+        enrichPlanWithSessionMemory(dynamicContext, plan);
 
         dynamicContext.setCurrentStepPlan(plan);
         dynamicContext.getPlanHistory().put(round, plan);
@@ -174,6 +177,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         example.put("toolPurpose", "");
         example.put("toolArgsHint", "");
         example.put("expectedOutput", "...");
+        example.put("sourceContent", "");
         example.put("completionHint", "...");
 
         Map<String, Object> planningContext = new LinkedHashMap<>();
@@ -212,6 +216,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
                 "toolPurpose",
                 "toolArgsHint",
                 "expectedOutput",
+                "sourceContent",
                 "completionHint"
         ));
         payload.put("constraints", List.of(
@@ -224,6 +229,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
                 "Only require a tool when external retrieval or side-effect operation is necessary.",
                 "If the request is a single-shot QA/RAG/explanation task and the current round already satisfies the user's raw input, do not invent a post-answer confirmation round; keep the current round as the deliverable.",
                 "If sessionHistory is present, use it only to preserve cross-session user intent continuity and not as proof that the current round is already completed.",
+                "If the current round depends on prior content that Node2 cannot obtain by itself, put the exact reusable content into sourceContent instead of assuming Node2 can recover it.",
                 "Use planningDigest, currentRound, masterPlan, taskBoard, roundArchive, nextRoundDirective, and overallStatus as the main planning state.",
                 "If toolName is baidu-search, toolArgsHint should include query=..."
         ));
@@ -542,6 +548,58 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         }
     }
 
+    public static void enrichPlanWithSessionMemory(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                                   StepExecutionPlanVO plan) {
+        if (dynamicContext == null || plan == null) {
+            return;
+        }
+        if (!shouldCarrySourceContent(dynamicContext, plan)) {
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<SessionMemoryEntity> sessionHistory = dynamicContext.getValue(SESSION_HISTORY_KEY);
+        String latestAnswer = SessionMemoryPromptSupport.extractLatestFinalAnswer(sessionHistory);
+        if (!StringUtils.hasText(latestAnswer)) {
+            return;
+        }
+
+        plan.setSourceContent(latestAnswer);
+        if (!safe(plan.getTaskGoal()).toLowerCase(Locale.ROOT).contains("sourcecontent")) {
+            plan.setTaskGoal(plan.getTaskGoal() + " Use sourceContent as the exact content payload.");
+        }
+        if (!StringUtils.hasText(plan.getExpectedOutput())) {
+            plan.setExpectedOutput("Use sourceContent exactly when the task requires prior generated content.");
+        }
+        if (!safe(plan.getCompletionHint()).toLowerCase(Locale.ROOT).contains("sourcecontent")) {
+            String prefix = StringUtils.hasText(plan.getCompletionHint()) ? plan.getCompletionHint() + " " : "";
+            plan.setCompletionHint(prefix + "Do not continue unless sourceContent is actually used.");
+        }
+    }
+
+    private static boolean shouldCarrySourceContent(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                                    StepExecutionPlanVO plan) {
+        String rawUserGoal = safe(dynamicContext.getRawUserGoal()).toLowerCase(Locale.ROOT);
+        String taskGoal = safe(plan.getTaskGoal()).toLowerCase(Locale.ROOT);
+        String combined = rawUserGoal + "\n" + taskGoal;
+        boolean referencesPriorContent = combined.contains("previous")
+                || combined.contains("上一次")
+                || combined.contains("上一轮")
+                || combined.contains("上一篇")
+                || combined.contains("刚才")
+                || combined.contains("刚刚")
+                || combined.contains("这篇")
+                || combined.contains("这段内容")
+                || combined.contains("这段");
+        boolean needsReuseAction = combined.contains("publish")
+                || combined.contains("发布")
+                || combined.contains("改写")
+                || combined.contains("润色")
+                || combined.contains("翻译")
+                || combined.contains("续写");
+        return referencesPriorContent && needsReuseAction;
+    }
+
     private void enforceToolNameWhitelist(StepExecutionPlanVO plan, Set<String> allowedTools) {
         if (!Boolean.TRUE.equals(plan.getToolRequired())) {
             return;
@@ -596,6 +654,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
                         ? java.util.List.of(plan.getToolName()) : new ArrayList<>())
                 .plannerNotes(plan.getToolPurpose())
                 .expectedEvidence(plan.getExpectedOutput())
+                .sourceContent(plan.getSourceContent())
                 .toolRequired(Boolean.TRUE.equals(plan.getToolRequired()))
                 .status(StepStatusEnumVO.PENDING)
                 .build();

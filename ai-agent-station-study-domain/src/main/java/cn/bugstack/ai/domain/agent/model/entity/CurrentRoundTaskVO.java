@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Task for the current round.
+ * Task contract for the current round.
  */
 @Data
 @Builder
@@ -22,6 +22,7 @@ public class CurrentRoundTaskVO {
     private java.util.List<String> suggestedTools = new java.util.ArrayList<>();
     private String plannerNotes;
     private String expectedEvidence;
+    private String sourceContent;
     private Boolean toolRequired;
     private StepStatusEnumVO status;
 }

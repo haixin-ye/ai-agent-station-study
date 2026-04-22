@@ -60,6 +60,21 @@ public final class SessionMemoryPromptSupport {
         return builder.toString().trim();
     }
 
+    public static String extractLatestFinalAnswer(List<SessionMemoryEntity> sessionMemories) {
+        List<SessionMemoryEntity> sorted = sortChronologically(sessionMemories);
+        if (sorted.isEmpty()) {
+            return "";
+        }
+
+        for (int i = sorted.size() - 1; i >= 0; i--) {
+            SessionMemoryEntity item = sorted.get(i);
+            if (item != null && StringUtils.hasText(item.getFinalAnswer())) {
+                return safe(item.getFinalAnswer());
+            }
+        }
+        return "";
+    }
+
     private static String safe(String value) {
         return value == null ? "" : value.trim();
     }
