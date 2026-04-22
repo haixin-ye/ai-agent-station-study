@@ -22,10 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 鑷姩鎵ц绛栫暐
+ * Auto-Agent 执行总入口。
  *
- * @author yhx
- * 2025/8/5 09:49
+ * <p>负责初始化 DynamicContext，启动节点链，并在链路结束后统一补发 token 汇总与 complete 事件。
  */
 @Slf4j
 @Service

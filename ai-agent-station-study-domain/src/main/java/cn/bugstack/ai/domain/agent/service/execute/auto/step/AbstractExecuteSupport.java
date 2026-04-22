@@ -23,8 +23,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
- * @author yhx
- * 2025/7/27 16:48
+ * execute 链公共基类。
+ *
+ * <p>封装各节点共用的能力，例如获取 ChatClient、发送 SSE、记录 token 消耗、维护 roundArchive 等。
  */
 public abstract class AbstractExecuteSupport extends AbstractMultiThreadStrategyRouter<ExecuteCommandEntity, DefaultAutoAgentExecuteStrategyFactory.DynamicContext, String> {
 

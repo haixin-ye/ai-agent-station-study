@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 
 /**
- * 执行入口节点，负责初始化本次自动执行的上下文。
+ * execute 链入口节点。
+ *
+ * <p>只负责把本轮请求初始化后送入 Node1，不承担规划、执行、验收职责。
  */
 @Slf4j
 @Service("executeRootNode")
