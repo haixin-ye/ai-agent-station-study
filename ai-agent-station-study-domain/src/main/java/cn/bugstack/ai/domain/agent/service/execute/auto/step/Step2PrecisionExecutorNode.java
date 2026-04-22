@@ -10,7 +10,11 @@ import cn.bugstack.ai.domain.agent.model.entity.ToolExecutionRecordVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiClientToolMcpVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AutoAgentParseModeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AutoAgentRecoveryLevelEnumVO;
 import cn.bugstack.ai.domain.agent.service.armory.support.ToolCallCaptureHolder;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentNodeContracts;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentPromptContractSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -46,6 +50,7 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
     private static final int MAX_TOOL_RESPONSE_PREVIEW_LENGTH = 280;
     private static final int MAX_RECEIPT_PREVIEW_LENGTH = 600;
     private static final int MAX_TOOL_RECORDS_IN_SUMMARY = 3;
+    private static final String NODE_ID = AutoAgentNodeContracts.STEP2.nodeId();
 
     @Override
     protected String doApply(ExecuteCommandEntity requestParameter,
@@ -98,6 +103,15 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
             dynamicContext.setValue("executionResult", missingSourceResult);
             dynamicContext.setValue("executionOutcome", executionOutcome);
             dynamicContext.setValue("lastToolError", missingSourceResult);
+            AutoAgentPromptContractSupport.recordTrace(
+                    dynamicContext,
+                    AutoAgentNodeContracts.STEP2,
+                    AutoAgentParseModeEnumVO.DIRECT.name(),
+                    AutoAgentRecoveryLevelEnumVO.CONTRACT_VIOLATION.name(),
+                    false,
+                    "MISSING_REQUIRED_SOURCE_CONTENT",
+                    AutoAgentNodeContracts.STEP2.primaryTruthSources()
+            );
             return router(requestParameter, dynamicContext);
         }
         String executionResult = callExecutor(chatClient, executionPrompt, requestParameter, dynamicContext, flowConfig, plan, sanitizedGoal);
@@ -130,6 +144,15 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
         dynamicContext.setValue("executionResult", executionResult);
         dynamicContext.setValue("executionOutcome", executionOutcome);
         dynamicContext.setValue("lastToolError", "");
+        AutoAgentPromptContractSupport.recordTrace(
+                dynamicContext,
+                AutoAgentNodeContracts.STEP2,
+                AutoAgentParseModeEnumVO.DIRECT.name(),
+                determineExecutionRecoveryLevel(dynamicContext.getRoundExecutionSummary(), executionOutcome),
+                false,
+                executionOutcome == null ? "" : executionOutcome.getErrorCode(),
+                AutoAgentNodeContracts.STEP2.primaryTruthSources()
+        );
 
         dynamicContext.getExecutionHistory().append(String.format("""
                 === 缂?d濠殿喗绺块崕鍙夋櫠閻ｅ本鍋樼€光偓閸愭儳鏁归悷?Node2) ===
@@ -296,59 +319,38 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                                               String sanitizedGoal,
                                               AiClientToolMcpVO.ToolPolicy toolPolicy) {
         String policyJson = toolPolicy == null ? "{}" : JSON.toJSONString(toolPolicy);
-        return String.format("""
-                TASK: execute_current_round_task
-
-                You are Node2. Actually complete the current round task.
-                Do not produce a fake execution report.
-
-                RawUserInput:
-                %s
-
-                SanitizedGoal:
-                %s
-
-                CurrentRound:
-                %s
-
-                SourceContent:
-                %s
-
-                ExecutionIntent:
-                %s
-
-                ToolPolicy:
-                %s
-
-                Rules:
-                1. Treat currentRound as the primary task contract.
-                2. If toolRequired is false, answer directly and briefly.
-                3. If toolRequired is true, make a real Spring AI tool call before writing any conclusion.
-                4. Use the real tool schema exposed by Spring AI; do not output a tool-call JSON for the user.
-                5. Never send undefined, null, or empty placeholders for required args.
-                6. Never invent ToolReceipt, side effects, file paths, URLs, or final success.
-                7. If the task depends on sourceContent and sourceContent is empty, stop and report MISSING_REQUIRED_SOURCE_CONTENT.
-                8. Never replace missing sourceContent with templates, placeholders, or guessed body text.
-
-                Response:
-                - Return a concise execution summary only.
-                - If blocked or failed, state the real blocking reason only.
-                - Do not output a standalone JSON object that merely describes a tool call.
-                """,
-                safe(dynamicContext == null ? "" : dynamicContext.getRawUserGoal()),
-                safe(sanitizedGoal),
-                JSON.toJSONString(dynamicContext == null || dynamicContext.getCurrentRound() == null ? Map.of() : dynamicContext.getCurrentRound()),
-                compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH),
-                JSON.toJSONString(Map.of(
-                        "taskGoal", resolveTaskGoal(dynamicContext, plan),
-                        "toolRequired", resolveToolRequired(dynamicContext, plan),
-                        "toolName", resolvePrimaryToolName(dynamicContext, plan),
-                        "toolPurpose", resolveToolPurpose(dynamicContext, plan),
-                        "expectedOutput", resolveExpectedOutput(dynamicContext, plan),
-                        "sourceContent", compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH)
-                )),
-                policyJson
-        );
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("task", "execute_current_round_task");
+        payload.put("nodeId", NODE_ID);
+        payload.put("rawUserInput", safe(dynamicContext == null ? "" : dynamicContext.getRawUserGoal()));
+        payload.put("sanitizedGoal", safe(sanitizedGoal));
+        payload.put("currentRound", dynamicContext == null || dynamicContext.getCurrentRound() == null ? Map.of() : dynamicContext.getCurrentRound());
+        payload.put("sourceContent", compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH));
+        payload.put("executionIntent", Map.of(
+                "taskGoal", resolveTaskGoal(dynamicContext, plan),
+                "toolRequired", resolveToolRequired(dynamicContext, plan),
+                "toolName", resolvePrimaryToolName(dynamicContext, plan),
+                "toolPurpose", resolveToolPurpose(dynamicContext, plan),
+                "expectedOutput", resolveExpectedOutput(dynamicContext, plan),
+                "sourceContent", compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH)
+        ));
+        payload.put("toolPolicy", JSON.parseObject(policyJson));
+        payload.put("rules", List.of(
+                "Treat currentRound as the primary task contract.",
+                "If toolRequired is false, answer directly and briefly.",
+                "If toolRequired is true, make a real Spring AI tool call before writing any conclusion.",
+                "Use the real tool schema exposed by Spring AI; do not output a tool-call JSON for the user.",
+                "Never send undefined, null, or empty placeholders for required args.",
+                "Never invent ToolReceipt, side effects, file paths, URLs, or final success.",
+                "If the task depends on sourceContent and sourceContent is empty, stop and report MISSING_REQUIRED_SOURCE_CONTENT.",
+                "Never replace missing sourceContent with templates, placeholders, or guessed body text."
+        ));
+        payload.put("responseContract", List.of(
+                "Return a concise execution summary only.",
+                "If blocked or failed, state the real blocking reason only.",
+                "Do not output a standalone JSON object that merely describes a tool call."
+        ));
+        return JSON.toJSONString(AutoAgentPromptContractSupport.wrapPromptPayload(AutoAgentNodeContracts.STEP2, payload));
     }
 
     private static String buildRetryPrompt(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
@@ -357,45 +359,24 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                                            AiClientToolMcpVO.ToolPolicy toolPolicy,
                                            String lastError) {
         String policyJson = toolPolicy == null ? "{}" : JSON.toJSONString(toolPolicy);
-        return String.format("""
-                TASK: retry_execute_current_round_task
-
-                Retry the same current round task.
-                Your previous attempt failed or returned invalid output.
-
-                RawUserInput:
-                %s
-
-                SanitizedGoal:
-                %s
-
-                CurrentRound:
-                %s
-
-                SourceContent:
-                %s
-
-                ToolPolicy:
-                %s
-
-                LastError:
-                %s
-
-                Rules:
-                1. Only repair the tool invocation or execution details.
-                2. Do not change the task goal.
-                3. Make a real tool call before writing any conclusion.
-                4. Do not output a tool-intent JSON object.
-                5. Do not fabricate ToolReceipt or final success.
-                6. If sourceContent is required but empty, stop and report MISSING_REQUIRED_SOURCE_CONTENT.
-                """,
-                safe(dynamicContext == null ? "" : dynamicContext.getRawUserGoal()),
-                safe(sanitizedGoal),
-                JSON.toJSONString(dynamicContext == null || dynamicContext.getCurrentRound() == null ? Map.of() : dynamicContext.getCurrentRound()),
-                compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH),
-                policyJson,
-                safe(lastError)
-        );
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("task", "retry_execute_current_round_task");
+        payload.put("nodeId", NODE_ID);
+        payload.put("rawUserInput", safe(dynamicContext == null ? "" : dynamicContext.getRawUserGoal()));
+        payload.put("sanitizedGoal", safe(sanitizedGoal));
+        payload.put("currentRound", dynamicContext == null || dynamicContext.getCurrentRound() == null ? Map.of() : dynamicContext.getCurrentRound());
+        payload.put("sourceContent", compactForContext(resolveSourceContent(dynamicContext, plan), MAX_EXECUTION_SNAPSHOT_LENGTH));
+        payload.put("toolPolicy", JSON.parseObject(policyJson));
+        payload.put("lastError", safe(lastError));
+        payload.put("rules", List.of(
+                "Only repair the tool invocation or execution details.",
+                "Do not change the task goal.",
+                "Make a real tool call before writing any conclusion.",
+                "Do not output a tool-intent JSON object.",
+                "Do not fabricate ToolReceipt or final success.",
+                "If sourceContent is required but empty, stop and report MISSING_REQUIRED_SOURCE_CONTENT."
+        ));
+        return JSON.toJSONString(AutoAgentPromptContractSupport.wrapPromptPayload(AutoAgentNodeContracts.STEP2, payload));
     }
 
     private boolean isInvalidArgsError(String executionResult) {
@@ -668,6 +649,18 @@ public class Step2PrecisionExecutorNode extends AbstractExecuteSupport {
                 .timestamp(LocalDateTime.now().toString())
                 .build());
         dynamicContext.setValue("postconditionReceipt", syntheticReceipt.contains("postcondition") ? syntheticReceipt : null);
+    }
+
+    private static String determineExecutionRecoveryLevel(RoundExecutionSummaryVO summary,
+                                                          ExecutionOutcomeVO executionOutcome) {
+        if (executionOutcome != null && !ExecutionOutcomeVO.SUCCESS.equals(executionOutcome.getStatus())) {
+            return AutoAgentRecoveryLevelEnumVO.EXECUTION_UNVERIFIED.name();
+        }
+        if (summary != null && Boolean.TRUE.equals(summary.getToolRequired())
+                && !Boolean.TRUE.equals(summary.getEvidenceAvailable())) {
+            return AutoAgentRecoveryLevelEnumVO.EXECUTION_UNVERIFIED.name();
+        }
+        return "";
     }
 
     @Override

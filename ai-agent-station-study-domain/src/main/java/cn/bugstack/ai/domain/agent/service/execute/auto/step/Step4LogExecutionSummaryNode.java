@@ -7,6 +7,9 @@ import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
 import cn.bugstack.ai.domain.agent.model.entity.SessionMemoryEntity;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AutoAgentParseModeEnumVO;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentNodeContracts;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentPromptContractSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -24,6 +27,8 @@ import java.util.Map;
 @Slf4j
 @Service
 public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
+
+    private static final String NODE_ID = AutoAgentNodeContracts.STEP4.nodeId();
 
     @Resource
     private ISessionMemoryRepository sessionMemoryRepository;
@@ -80,6 +85,15 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
             }
             logFinalReport(dynamicContext, summaryResult, requestParameter.getSessionId());
             dynamicContext.setValue("finalSummary", summaryResult);
+            AutoAgentPromptContractSupport.recordTrace(
+                    dynamicContext,
+                    AutoAgentNodeContracts.STEP4,
+                    AutoAgentParseModeEnumVO.DIRECT.name(),
+                    "",
+                    false,
+                    "",
+                    AutoAgentNodeContracts.STEP4.primaryTruthSources()
+            );
             persistSessionMemory(requestParameter, summaryResult);
         } catch (Exception e) {
             log.error("generate final summary failed: {}", e.getMessage(), e);
@@ -205,6 +219,7 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
                 : dynamicContext.getSanitizedUserGoal();
 
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("nodeId", NODE_ID);
         payload.put("rawUserInput", rawUserInput == null ? "" : rawUserInput);
         payload.put("sanitizedGoal", sanitizedGoal == null ? "" : sanitizedGoal);
         payload.put("acceptedResults", dynamicContext.getAcceptedResults() == null ? List.<AcceptedResultVO>of() : dynamicContext.getAcceptedResults());
@@ -221,6 +236,6 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
                 "mustBeUserFacing", true
         ));
         payload.put("completed", isCompleted);
-        return JSON.toJSONString(payload);
+        return JSON.toJSONString(AutoAgentPromptContractSupport.wrapPromptPayload(AutoAgentNodeContracts.STEP4, payload));
     }
 }

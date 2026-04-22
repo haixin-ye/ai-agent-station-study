@@ -39,4 +39,24 @@ public class StepExecutionPlanVO {
     private String sourceContent;
 
     private String completionHint;
+
+    /**
+     * Marks plans recovered through legacy/fallback/high-risk repair paths.
+     */
+    private Boolean lowConfidence;
+
+    /**
+     * Unified recovery level used by downstream guardrails.
+     */
+    private String recoveryLevel;
+
+    /**
+     * Unified parse mode used for trace/debug.
+     */
+    private String parseMode;
+
+    /**
+     * Contract version used to build and recover this plan.
+     */
+    private String contractVersion;
 }

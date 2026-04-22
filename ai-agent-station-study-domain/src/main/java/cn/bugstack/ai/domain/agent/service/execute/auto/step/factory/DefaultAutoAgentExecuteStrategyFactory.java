@@ -1,6 +1,7 @@
 package cn.bugstack.ai.domain.agent.service.execute.auto.step.factory;
 
 import cn.bugstack.ai.domain.agent.model.entity.AcceptedResultVO;
+import cn.bugstack.ai.domain.agent.model.entity.AutoAgentNodeTraceVO;
 import cn.bugstack.ai.domain.agent.model.entity.CurrentRoundTaskVO;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
 import cn.bugstack.ai.domain.agent.model.entity.MasterPlanVO;
@@ -109,6 +110,9 @@ public class DefaultAutoAgentExecuteStrategyFactory {
 
         @Builder.Default
         private Map<String, Object> structuredState = new LinkedHashMap<>();
+
+        @Builder.Default
+        private Map<String, AutoAgentNodeTraceVO> nodeTrace = new LinkedHashMap<>();
 
         private Map<String, Object> dataObjects = new HashMap<>();
 

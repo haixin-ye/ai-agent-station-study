@@ -12,9 +12,13 @@ import cn.bugstack.ai.domain.agent.model.entity.SupervisionDecisionVO;
 import cn.bugstack.ai.domain.agent.model.entity.TaskBoardItemVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AutoAgentParseModeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AutoAgentRecoveryLevelEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.NextRoundDirectiveTypeEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.OverallStateEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.StepStatusEnumVO;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentNodeContracts;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentPromptContractSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -43,6 +47,7 @@ public class Step3QualitySupervisorNode extends AbstractExecuteSupport {
     private static final int MAX_PROMPT_EXECUTION_LENGTH = 1200;
     private static final int MAX_PROMPT_ROUNDS = 4;
     private static final int MAX_PROMPT_ACCEPTED_RESULTS = 6;
+    private static final String NODE_ID = AutoAgentNodeContracts.STEP3.nodeId();
 
     @Override
     protected String doApply(ExecuteCommandEntity requestParameter,
@@ -99,6 +104,15 @@ public class Step3QualitySupervisorNode extends AbstractExecuteSupport {
         int supervisionStep = dynamicContext.getStep();
         SupervisionDecisionVO decision = resolveDecision(supervisionResult, executionOutcome, dynamicContext);
         applyDecisionToContext(dynamicContext, decision, executionResult);
+        AutoAgentPromptContractSupport.recordTrace(
+                dynamicContext,
+                AutoAgentNodeContracts.STEP3,
+                AutoAgentParseModeEnumVO.DIRECT.name(),
+                resolveDecisionRecoveryLevel(dynamicContext, decision),
+                dynamicContext.getCurrentStepPlan() != null && Boolean.TRUE.equals(dynamicContext.getCurrentStepPlan().getLowConfidence()),
+                safe(decision == null ? null : decision.getIssues()),
+                AutoAgentNodeContracts.STEP3.primaryTruthSources()
+        );
 
         int currentRound = supervisionStep;
         dynamicContext.getExecutionHistory().append(String.format("""
@@ -184,6 +198,7 @@ public class Step3QualitySupervisorNode extends AbstractExecuteSupport {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("task", "verify_current_round_and_overall_progress");
+        payload.put("nodeId", NODE_ID);
         payload.put("context", context);
         payload.put("requirements", List.of(
                 "Judge the current round and the overall task separately.",
@@ -210,7 +225,7 @@ public class Step3QualitySupervisorNode extends AbstractExecuteSupport {
                 "suggestions",
                 "score"
         ));
-        return JSON.toJSONString(payload);
+        return JSON.toJSONString(AutoAgentPromptContractSupport.wrapPromptPayload(AutoAgentNodeContracts.STEP3, payload));
     }
 
     private static String buildSupervisionPrompt(String sanitizedGoal,
@@ -264,6 +279,20 @@ public class Step3QualitySupervisorNode extends AbstractExecuteSupport {
     public static SupervisionDecisionVO resolveDecision(String supervisionResult,
                                                         ExecutionOutcomeVO executionOutcome,
                                                         DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) {
+        StepExecutionPlanVO currentPlan = dynamicContext == null ? null : dynamicContext.getCurrentStepPlan();
+        if (currentPlan != null
+                && Boolean.TRUE.equals(currentPlan.getLowConfidence())
+                && isSemanticUncertain(currentPlan)) {
+            return SupervisionDecisionVO.builder()
+                    .decision(SupervisionDecisionVO.REPLAN)
+                    .roundDecision(SupervisionDecisionVO.ROUND_RETRY)
+                    .overallDecision(SupervisionDecisionVO.OVERALL_CONTINUE)
+                    .nextAction("NEXT_ROUND_REPLAN")
+                    .assessment("Current round plan came from a low-confidence recovery path and must be re-planned conservatively")
+                    .issues("LOW_CONFIDENCE_PLAN")
+                    .raw(supervisionResult)
+                    .build();
+        }
         RoundExecutionSummaryVO roundExecutionSummary = dynamicContext == null ? null : dynamicContext.getRoundExecutionSummary();
         if (requiresToolEvidence(dynamicContext, roundExecutionSummary) && !hasSufficientToolEvidence(roundExecutionSummary, dynamicContext)) {
             return SupervisionDecisionVO.builder()
@@ -409,6 +438,23 @@ public class Step3QualitySupervisorNode extends AbstractExecuteSupport {
                 .anyMatch(record -> Boolean.TRUE.equals(record.getSuccess())
                         && ((record.getRoundIndex() != null && record.getRoundIndex().intValue() == round)
                         || (StringUtils.hasText(currentStepId) && currentStepId.equals(record.getStepId()))));
+    }
+
+    private static boolean isSemanticUncertain(StepExecutionPlanVO currentPlan) {
+        return AutoAgentRecoveryLevelEnumVO.SEMANTIC_UNCERTAIN.name().equalsIgnoreCase(safe(currentPlan.getRecoveryLevel()))
+                || AutoAgentRecoveryLevelEnumVO.CONTRACT_VIOLATION.name().equalsIgnoreCase(safe(currentPlan.getRecoveryLevel()));
+    }
+
+    private static String resolveDecisionRecoveryLevel(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
+                                                       SupervisionDecisionVO decision) {
+        StepExecutionPlanVO currentPlan = dynamicContext == null ? null : dynamicContext.getCurrentStepPlan();
+        if (currentPlan != null && Boolean.TRUE.equals(currentPlan.getLowConfidence())) {
+            return safe(currentPlan.getRecoveryLevel());
+        }
+        if (decision != null && SupervisionDecisionVO.REPLAN.equalsIgnoreCase(decision.getDecision())) {
+            return AutoAgentRecoveryLevelEnumVO.EXECUTION_UNVERIFIED.name();
+        }
+        return "";
     }
 
     private static String safe(String value) {

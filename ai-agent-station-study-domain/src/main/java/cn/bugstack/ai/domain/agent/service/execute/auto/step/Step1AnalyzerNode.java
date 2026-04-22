@@ -11,8 +11,12 @@ import cn.bugstack.ai.domain.agent.model.entity.TaskBoardItemVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
 import cn.bugstack.ai.domain.agent.model.valobj.AiClientToolMcpVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AutoAgentParseModeEnumVO;
+import cn.bugstack.ai.domain.agent.model.valobj.enums.AutoAgentRecoveryLevelEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.NextRoundDirectiveTypeEnumVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.StepStatusEnumVO;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentNodeContracts;
+import cn.bugstack.ai.domain.agent.service.execute.auto.contract.AutoAgentPromptContractSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.support.SessionMemoryPromptSupport;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
@@ -45,6 +49,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class Step1AnalyzerNode extends AbstractExecuteSupport {
+
+    private static final String NODE_ID = AutoAgentNodeContracts.STEP1.nodeId();
 
     private static final Pattern LEGACY_NEXT_STEP_PATTERN =
             Pattern.compile("(?is)(?:next\\s*step|taskgoal|task goal|下一步|当前任务|本轮任务|任务目标)\\s*[:：]\\s*(.+?)(?:\\n\\s*\\n|$)");
@@ -109,6 +115,15 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         dynamicContext.getPlanHistory().put(round, plan);
         dynamicContext.setCurrentTask(plan.getTaskGoal());
         syncStructuredPlanningState(dynamicContext, plan);
+        AutoAgentPromptContractSupport.recordTrace(
+                dynamicContext,
+                AutoAgentNodeContracts.STEP1,
+                safe(plan.getParseMode()),
+                safe(plan.getRecoveryLevel()),
+                Boolean.TRUE.equals(plan.getLowConfidence()),
+                safe(plan.getCompletionHint()),
+                AutoAgentNodeContracts.STEP1.primaryTruthSources()
+        );
 
         String planJson = JSON.toJSONString(plan);
         dynamicContext.getExecutionHistory().append(String.format("""
@@ -206,6 +221,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("task", "generate_current_round_plan");
+        payload.put("nodeId", NODE_ID);
         payload.put("outputSchema", List.of(
                 "planId",
                 "round",
@@ -235,7 +251,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         ));
         payload.put("example", example);
         payload.put("context", planningContext);
-        return JSON.toJSONString(payload);
+        return JSON.toJSONString(AutoAgentPromptContractSupport.wrapPromptPayload(AutoAgentNodeContracts.STEP1, payload));
     }
 
     static Map<String, Object> buildPlanningDigest(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
@@ -425,6 +441,16 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
             if (plan == null) {
                 return parseLegacyTextPlan(text, round, dynamicContext, allowedTools);
             }
+            plan.setContractVersion(AutoAgentNodeContracts.STEP1.contractVersion());
+            plan.setParseMode(text.trim().equals(jsonText.trim())
+                    ? AutoAgentParseModeEnumVO.JSON.name()
+                    : AutoAgentParseModeEnumVO.EXTRACTED_JSON.name());
+            if (!text.trim().equals(jsonText.trim())) {
+                plan.setRecoveryLevel(AutoAgentRecoveryLevelEnumVO.FORMAT_NOISE.name());
+            }
+            if (plan.getLowConfidence() == null) {
+                plan.setLowConfidence(false);
+            }
             return plan;
         } catch (Exception e) {
             log.warn("Node1 JSON parse failed, fallback to legacy parser. raw={}", text);
@@ -481,6 +507,10 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
                 .toolArgsHint("")
                 .expectedOutput("provide a concise and accurate answer")
                 .completionHint(completionHint)
+                .lowConfidence(true)
+                .recoveryLevel(AutoAgentRecoveryLevelEnumVO.SEMANTIC_UNCERTAIN.name())
+                .parseMode(AutoAgentParseModeEnumVO.LEGACY.name())
+                .contractVersion(AutoAgentNodeContracts.STEP1.contractVersion())
                 .build();
     }
 
@@ -503,6 +533,10 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
                 .toolArgsHint("")
                 .expectedOutput("provide a concise and accurate answer")
                 .completionHint(reason)
+                .lowConfidence(true)
+                .recoveryLevel(AutoAgentRecoveryLevelEnumVO.CONTRACT_VIOLATION.name())
+                .parseMode(AutoAgentParseModeEnumVO.FALLBACK.name())
+                .contractVersion(AutoAgentNodeContracts.STEP1.contractVersion())
                 .build();
     }
 
@@ -512,6 +546,15 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         if (!StringUtils.hasText(plan.getPlanId())) {
             plan.setPlanId("plan-" + round + "-" + UUID.randomUUID());
         }
+        if (!StringUtils.hasText(plan.getContractVersion())) {
+            plan.setContractVersion(AutoAgentNodeContracts.STEP1.contractVersion());
+        }
+        if (!StringUtils.hasText(plan.getParseMode())) {
+            plan.setParseMode(AutoAgentParseModeEnumVO.JSON.name());
+        }
+        if (plan.getLowConfidence() == null) {
+            plan.setLowConfidence(false);
+        }
         if (plan.getRound() == null) {
             plan.setRound(round);
         }
@@ -519,6 +562,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         if (!StringUtils.hasText(plan.getSanitizedUserGoal())) {
             String existing = dynamicContext.getSanitizedUserGoal();
             plan.setSanitizedUserGoal(StringUtils.hasText(existing) ? existing : dynamicContext.getRawUserGoal());
+            markStructuredRecovery(plan);
         }
 
         if (!StringUtils.hasText(dynamicContext.getSanitizedUserGoal())) {
@@ -527,9 +571,11 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
 
         if (!StringUtils.hasText(plan.getTaskGoal())) {
             plan.setTaskGoal("complete the current round task");
+            markStructuredRecovery(plan);
         }
         if (plan.getToolRequired() == null) {
             plan.setToolRequired(false);
+            markStructuredRecovery(plan);
         }
         if (!Boolean.TRUE.equals(plan.getToolRequired())) {
             plan.setToolName("");
@@ -609,6 +655,17 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
             plan.setToolName("");
             plan.setToolPurpose("tool name not in whitelist, downgrade to direct answer");
             plan.setToolArgsHint("");
+            markStructuredRecovery(plan);
+        }
+    }
+
+    private void markStructuredRecovery(StepExecutionPlanVO plan) {
+        if (plan == null) {
+            return;
+        }
+        plan.setLowConfidence(true);
+        if (!StringUtils.hasText(plan.getRecoveryLevel())) {
+            plan.setRecoveryLevel(AutoAgentRecoveryLevelEnumVO.STRUCTURE_RECOVERABLE.name());
         }
     }
 

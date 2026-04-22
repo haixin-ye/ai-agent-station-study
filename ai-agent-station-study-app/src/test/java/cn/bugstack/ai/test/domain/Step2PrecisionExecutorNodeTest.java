@@ -34,6 +34,9 @@ public class Step2PrecisionExecutorNodeTest {
         Assert.assertTrue(prompt.contains("ai-agent-station-study"));
         Assert.assertTrue(prompt.contains("filesystem"));
         Assert.assertTrue(prompt.contains("full source body"));
+        Assert.assertTrue(prompt.contains("contractMeta"));
+        Assert.assertTrue(prompt.contains("\"nodeId\":\"node2\""));
+        Assert.assertTrue(prompt.contains("\"contractVersion\":\"v1\""));
     }
 
     @Test

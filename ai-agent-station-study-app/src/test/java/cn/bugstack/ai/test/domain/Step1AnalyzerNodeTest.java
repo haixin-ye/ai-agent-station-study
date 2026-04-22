@@ -60,6 +60,9 @@ public class Step1AnalyzerNodeTest {
         Assert.assertTrue(prompt.contains("Session History:"));
         Assert.assertTrue(prompt.contains("previous question"));
         Assert.assertTrue(prompt.contains("previous answer"));
+        Assert.assertTrue(prompt.contains("contractMeta"));
+        Assert.assertTrue(prompt.contains("\"nodeId\":\"node1\""));
+        Assert.assertTrue(prompt.contains("\"contractVersion\":\"v1\""));
     }
 
     @Test
@@ -85,6 +88,50 @@ public class Step1AnalyzerNodeTest {
 
         Assert.assertEquals("This is the full article body", plan.getSourceContent());
         Assert.assertTrue(plan.getTaskGoal().contains("sourceContent"));
+    }
+
+    @Test
+    public void test_parsePlanOrFallback_marksLegacyAndFallbackPlansAsLowConfidence() throws Exception {
+        DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext =
+                new DefaultAutoAgentExecuteStrategyFactory.DynamicContext();
+        dynamicContext.initSession("publish the previous article to CSDN", 3);
+
+        Method method = Step1AnalyzerNode.class.getDeclaredMethod(
+                "parsePlanOrFallback",
+                String.class,
+                int.class,
+                DefaultAutoAgentExecuteStrategyFactory.DynamicContext.class,
+                Set.class
+        );
+        method.setAccessible(true);
+
+        Step1AnalyzerNode node = new Step1AnalyzerNode();
+        StepExecutionPlanVO legacyPlan = (StepExecutionPlanVO) method.invoke(
+                node,
+                """
+                TaskGoal: publish the previous article to CSDN
+                Status: continue with real tool execution
+                """,
+                2,
+                dynamicContext,
+                Set.of("mcp-csdn")
+        );
+
+        Assert.assertTrue(Boolean.TRUE.equals(legacyPlan.getLowConfidence()));
+        Assert.assertEquals("SEMANTIC_UNCERTAIN", legacyPlan.getRecoveryLevel());
+        Assert.assertEquals("LEGACY", legacyPlan.getParseMode());
+
+        StepExecutionPlanVO fallbackPlan = (StepExecutionPlanVO) method.invoke(
+                node,
+                "",
+                2,
+                dynamicContext,
+                Set.of("mcp-csdn")
+        );
+
+        Assert.assertTrue(Boolean.TRUE.equals(fallbackPlan.getLowConfidence()));
+        Assert.assertEquals("CONTRACT_VIOLATION", fallbackPlan.getRecoveryLevel());
+        Assert.assertEquals("FALLBACK", fallbackPlan.getParseMode());
     }
 
 }
