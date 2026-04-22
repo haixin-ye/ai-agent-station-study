@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.bugstack.ai.infrastructure.dao.IAgentSessionMemoryDao">
+
+    <resultMap id="AgentSessionMemoryMap" type="cn.bugstack.ai.infrastructure.dao.po.AgentSessionMemory">
+        <id column="id" property="id"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="round_no" property="roundNo"/>
+        <result column="user_message" property="userMessage"/>
+        <result column="final_answer" property="finalAnswer"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="cn.bugstack.ai.infrastructure.dao.po.AgentSessionMemory" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_session_memory (
+            session_id, round_no, user_message, final_answer, create_time, update_time
+        ) VALUES (
+            #{sessionId}, #{roundNo}, #{userMessage}, #{finalAnswer}, #{createTime}, #{updateTime}
+        )
+    </insert>
+
+    <select id="queryMaxRoundNo" parameterType="java.lang.String" resultType="java.lang.Integer">
+        SELECT MAX(round_no)
+        FROM agent_session_memory
+        WHERE session_id = #{sessionId}
+    </select>
+
+    <select id="queryLatestBySessionId" resultMap="AgentSessionMemoryMap">
+        SELECT id, session_id, round_no, user_message, final_answer, create_time, update_time
+        FROM agent_session_memory
+        WHERE session_id = #{sessionId}
+        ORDER BY round_no DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

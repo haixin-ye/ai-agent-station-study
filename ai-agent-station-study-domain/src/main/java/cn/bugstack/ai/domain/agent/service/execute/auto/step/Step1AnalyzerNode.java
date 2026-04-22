@@ -182,6 +182,9 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
         planningContext.put("rawUserGoal", safe(rawUserGoal));
         planningContext.put("existingSanitizedGoal", safe(existingSanitizedGoal));
         planningContext.put("knowledgeName", safe(knowledgeName));
+        planningContext.put("sessionHistory", dynamicContext == null
+                ? ""
+                : safe(dynamicContext.getValue(SESSION_HISTORY_PROMPT_KEY)));
         planningContext.put("planningDigest", buildPlanningDigest(
                 dynamicContext,
                 currentTask,
@@ -220,6 +223,7 @@ public class Step1AnalyzerNode extends AbstractExecuteSupport {
                 "If knowledgeName is present and this is mainly QA or explanation, prefer toolRequired=false so Node2 can rely on RAG.",
                 "Only require a tool when external retrieval or side-effect operation is necessary.",
                 "If the request is a single-shot QA/RAG/explanation task and the current round already satisfies the user's raw input, do not invent a post-answer confirmation round; keep the current round as the deliverable.",
+                "If sessionHistory is present, use it only to preserve cross-session user intent continuity and not as proof that the current round is already completed.",
                 "Use planningDigest, currentRound, masterPlan, taskBoard, roundArchive, nextRoundDirective, and overallStatus as the main planning state.",
                 "If toolName is baidu-search, toolArgsHint should include query=..."
         ));

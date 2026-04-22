@@ -1,23 +1,32 @@
 package cn.bugstack.ai.domain.agent.service.execute.auto.step;
 
+import cn.bugstack.ai.domain.agent.adapter.repository.ISessionMemoryRepository;
 import cn.bugstack.ai.domain.agent.model.entity.AcceptedResultVO;
 import cn.bugstack.ai.domain.agent.model.entity.AutoAgentExecuteResultEntity;
 import cn.bugstack.ai.domain.agent.model.entity.ExecuteCommandEntity;
+import cn.bugstack.ai.domain.agent.model.entity.SessionMemoryEntity;
 import cn.bugstack.ai.domain.agent.model.valobj.AiAgentClientFlowConfigVO;
 import cn.bugstack.ai.domain.agent.model.valobj.enums.AiClientTypeEnumVO;
 import cn.bugstack.ai.domain.agent.service.execute.auto.step.factory.DefaultAutoAgentExecuteStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
 @Service
 public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
+
+    @Resource
+    private ISessionMemoryRepository sessionMemoryRepository;
 
     @Override
     protected String doApply(ExecuteCommandEntity requestParameter,
@@ -71,9 +80,31 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
             }
             logFinalReport(dynamicContext, summaryResult, requestParameter.getSessionId());
             dynamicContext.setValue("finalSummary", summaryResult);
+            persistSessionMemory(requestParameter, summaryResult);
         } catch (Exception e) {
             log.error("generate final summary failed: {}", e.getMessage(), e);
         }
+    }
+
+    private void persistSessionMemory(ExecuteCommandEntity requestParameter, String summaryResult) {
+        if (requestParameter == null
+                || !StringUtils.hasText(requestParameter.getSessionId())
+                || !StringUtils.hasText(requestParameter.getMessage())
+                || !StringUtils.hasText(summaryResult)) {
+            return;
+        }
+
+        Integer maxRoundNo = sessionMemoryRepository.queryMaxRoundNo(requestParameter.getSessionId());
+        int nextRoundNo = maxRoundNo == null ? 1 : maxRoundNo + 1;
+
+        sessionMemoryRepository.save(SessionMemoryEntity.builder()
+                .sessionId(requestParameter.getSessionId())
+                .roundNo(nextRoundNo)
+                .userMessage(requestParameter.getMessage())
+                .finalAnswer(summaryResult)
+                .createTime(LocalDateTime.now())
+                .updateTime(LocalDateTime.now())
+                .build());
     }
 
     private void logFinalReport(DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext,
@@ -136,16 +167,30 @@ public class Step4LogExecutionSummaryNode extends AbstractExecuteSupport {
     }
 
     private String detectSummarySection(String content) {
-        if (content.contains("已完成") || content.contains("完成了") || content.contains("交付")) {
+        if (!StringUtils.hasText(content)) {
+            return null;
+        }
+
+        String normalized = content.toLowerCase(Locale.ROOT);
+        if (normalized.contains("completed")
+                || normalized.contains("deliver")
+                || normalized.contains("finished")) {
             return "completed_work";
         }
-        if (content.contains("未完成") || content.contains("失败") || content.contains("原因")) {
+        if (normalized.contains("incomplete")
+                || normalized.contains("failed")
+                || normalized.contains("blocked")
+                || normalized.contains("reason")) {
             return "incomplete_reasons";
         }
-        if (content.contains("建议") || content.contains("下一步") || content.contains("可继续")) {
+        if (normalized.contains("suggest")
+                || normalized.contains("next step")
+                || normalized.contains("recommend")) {
             return "suggestions";
         }
-        if (content.contains("评估") || content.contains("效果") || content.contains("结论")) {
+        if (normalized.contains("evaluation")
+                || normalized.contains("result")
+                || normalized.contains("conclusion")) {
             return "evaluation";
         }
         return null;

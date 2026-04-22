@@ -384,6 +384,25 @@ VALUES
 UNLOCK TABLES;
 
 
+# 鏉烆剙鍋嶇悰?agent_session_memory
+# ------------------------------------------------------------
+
+DROP TABLE IF EXISTS `agent_session_memory`;
+
+CREATE TABLE `agent_session_memory` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '娑撳鏁璉D',
+  `session_id` varchar(64) NOT NULL COMMENT '浼氳瘽ID',
+  `round_no` int NOT NULL COMMENT '浼氳瘽鍐呰疆娆?',
+  `user_message` text COMMENT '鐢ㄦ埛鍘熷杈撳叆',
+  `final_answer` text COMMENT 'Node4 鏈€缁堝洖绛?',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '鍒涘缓鏃堕棿',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '鏇存柊鏃堕棿',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_session_round` (`session_id`,`round_no`),
+  KEY `idx_session_id` (`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AutoAgent浼氳瘽Q/A璁板繂琛?;
+
+
 
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

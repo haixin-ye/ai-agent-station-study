@@ -44,6 +44,8 @@ public abstract class AbstractExecuteSupport extends AbstractMultiThreadStrategy
     public static final String TOKEN_STAT_CLIENT_TYPE_KEY = "token_stat_client_type";
     public static final String TOKEN_STAT_STEP_KEY = "token_stat_step";
     public static final String TOKEN_STAT_ACCUMULATOR_KEY = "token_stat_accumulator";
+    public static final String SESSION_HISTORY_KEY = "sessionHistory";
+    public static final String SESSION_HISTORY_PROMPT_KEY = "sessionHistoryPrompt";
 
     @Override
     protected void multiThread(ExecuteCommandEntity requestParameter, DefaultAutoAgentExecuteStrategyFactory.DynamicContext dynamicContext) throws ExecutionException, InterruptedException, TimeoutException {
