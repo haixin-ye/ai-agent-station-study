@@ -1,9 +1,15 @@
 package yhx.com.domain.agent.service.armory.business.data.impl;
 
 import yhx.com.domain.agent.adapter.repository.IAgentRepository;
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.*;
-import yhx.com.domain.agent.model.valobj.enums.AiAgentEnumVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.armory.AiAgentClientFlowConfigVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientAdvisorVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientApiVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientModelVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientSystemPromptVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientToolMcpVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientVO;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
 import yhx.com.domain.agent.service.armory.business.data.ILoadDataStrategy;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import jakarta.annotation.Resource;
@@ -16,8 +22,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 以客户端串联，加载数据策略
- *
+ * 浠ュ鎴风涓茶仈锛屽姞杞芥暟鎹瓥鐣? *
  * @author yhx
  * 2025/6/27 17:20
  */
@@ -36,32 +41,32 @@ public class AiClientLoadDataStrategy implements ILoadDataStrategy {
         List<String> clientIdList = armoryCommandEntity.getCommandIdList();
 
         CompletableFuture<List<AiClientApiVO>> aiClientApiListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client_api) {}", clientIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_api) {}", clientIdList);
             return repository.queryAiClientApiVOListByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientModelVO>> aiClientModelListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client_model) {}", clientIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_model) {}", clientIdList);
             return repository.AiClientModelVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientToolMcpVO>> aiClientToolMcpListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client_tool_mcp) {}", clientIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_tool_mcp) {}", clientIdList);
             return repository.AiClientToolMcpVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<Map<String, AiClientSystemPromptVO>> aiClientSystemPromptListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client_system_prompt) {}", clientIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_system_prompt) {}", clientIdList);
             return repository.queryAiClientSystemPromptMapByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientAdvisorVO>> aiClientAdvisorListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client_advisor) {}", clientIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_advisor) {}", clientIdList);
             return repository.AiClientAdvisorVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientVO>> aiClientListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client) {}", clientIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client) {}", clientIdList);
             return repository.AiClientVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
@@ -78,3 +83,4 @@ public class AiClientLoadDataStrategy implements ILoadDataStrategy {
     }
 
 }
+

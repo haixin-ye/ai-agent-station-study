@@ -1,8 +1,8 @@
 package yhx.com.domain.agent.service.rag;
 
 import yhx.com.domain.agent.adapter.repository.IRagRepository;
-import yhx.com.domain.agent.model.entity.RagFileIngestCommandEntity;
-import yhx.com.domain.agent.model.entity.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -14,7 +14,7 @@ import java.util.Set;
  * @author yhx
  */
 @Service
-public class RagService implements IRagService {
+public class RagService implements IRagDomainService {
 
     @Resource
     private IRagRepository ragRepository;
@@ -34,10 +34,10 @@ public class RagService implements IRagService {
     @Override
     public void ingestFiles(RagFileIngestCommandEntity commandEntity) {
         if (commandEntity == null || commandEntity.getKnowledgeTag() == null || commandEntity.getKnowledgeTag().trim().isEmpty()) {
-            throw new IllegalArgumentException("知识库标签 不能为空.");
+            throw new IllegalArgumentException("鐭ヨ瘑搴撴爣绛?涓嶈兘涓虹┖.");
         }
         if (commandEntity.getFiles() == null || commandEntity.getFiles().isEmpty()) {
-            throw new IllegalArgumentException("文件 不能为空.");
+            throw new IllegalArgumentException("鏂囦欢 涓嶈兘涓虹┖.");
         }
         ragRepository.ingestFiles(commandEntity);
     }
@@ -45,9 +45,10 @@ public class RagService implements IRagService {
     @Override
     public void analyzeGitRepository(RagGitIngestCommandEntity commandEntity) throws Exception {
         if (commandEntity == null || commandEntity.getRepoUrl() == null || commandEntity.getRepoUrl().trim().isEmpty()) {
-            throw new IllegalArgumentException("GitHub地址链接不能为空.");
+            throw new IllegalArgumentException("GitHub鍦板潃閾炬帴涓嶈兘涓虹┖.");
         }
         ragRepository.ingestGitRepository(commandEntity);
     }
 
 }
+

@@ -1,7 +1,7 @@
 package yhx.com.infrastructure.adapter.repository;
 
 import yhx.com.domain.agent.adapter.repository.ISessionMemoryRepository;
-import yhx.com.domain.agent.model.entity.SessionMemoryEntity;
+import yhx.com.domain.agent.model.entity.memory.SessionMemoryEntity;
 import yhx.com.infrastructure.dao.IAgentSessionMemoryDao;
 import yhx.com.infrastructure.dao.po.AgentSessionMemory;
 import jakarta.annotation.Resource;
@@ -60,3 +60,4 @@ public class SessionMemoryRepository implements ISessionMemoryRepository {
                 .build();
     }
 }
+

@@ -1,6 +1,6 @@
 package yhx.com.test.infrastructure.rag;
 
-import yhx.com.domain.agent.model.entity.RagFileIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
 import yhx.com.infrastructure.adapter.repository.RagRepository;
 import org.junit.Assert;
 import org.junit.Test;
@@ -89,3 +89,4 @@ public class RagRepositoryTest {
         verify(tagSet, times(1)).addAll(new java.util.LinkedHashSet<>(Arrays.asList("tag-a", "tag-b")));
     }
 }
+

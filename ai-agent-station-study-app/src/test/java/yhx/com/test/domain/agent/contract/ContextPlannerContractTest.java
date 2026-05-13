@@ -4,9 +4,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.model.valobj.contract.AgentNodeContract;
 import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
-import yhx.com.domain.agent.model.valobj.enums.AgentComponentCodeEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.ContextLevelEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.ContextPlannerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
 import yhx.com.domain.agent.service.contract.ContractRegistry;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 
@@ -58,3 +58,4 @@ public class ContextPlannerContractTest {
         Assert.assertEquals("INVALID_CONTEXT_LEVEL", result.getViolations().get(0).getCode());
     }
 }
+

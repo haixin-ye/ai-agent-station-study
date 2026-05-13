@@ -1,7 +1,7 @@
 package yhx.com.domain.agent.service.contract;
 
-import yhx.com.domain.agent.model.valobj.enums.MainAgentActionTypeEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.StateDeltaFieldEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.StateDeltaFieldEnumVO;
 
 import java.util.Collections;
 import java.util.EnumMap;
@@ -63,3 +63,4 @@ public class StateDeltaScopeRules {
         ALLOWED_FIELDS.put(action, Collections.unmodifiableSet(codes));
     }
 }
+

@@ -1,12 +1,12 @@
 package yhx.com.trigger.http;
 
-import yhx.com.api.IRAGService;
+import yhx.com.api.IRagApi;
 import yhx.com.api.dto.RagGitAnalyzeRequestDTO;
 import yhx.com.api.response.Response;
-import yhx.com.domain.agent.model.entity.RagFileIngestCommandEntity;
-import yhx.com.domain.agent.model.entity.RagFilePayloadEntity;
-import yhx.com.domain.agent.model.entity.RagGitIngestCommandEntity;
-import yhx.com.domain.agent.service.rag.IRagService;
+import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
+import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.service.rag.IRagDomainService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -25,17 +25,17 @@ import java.util.Set;
 @RestController
 @CrossOrigin("*")
 @RequestMapping("/api/v1/rag")
-public class RAGController implements IRAGService {
+public class RAGController implements IRagApi {
 
     @Resource
-    private IRagService ragService;
+    private IRagDomainService ragService;
 
     @RequestMapping(value = "/tags", method = RequestMethod.GET)
     @Override
     public Response<Set<String>> queryRagTagList() {
         return Response.<Set<String>>builder()
                 .code("0000")
-                .info("调用成功")
+                .info("璋冪敤鎴愬姛")
                 .data(ragService.queryRagTagList())
                 .build();
     }
@@ -59,13 +59,13 @@ public class RAGController implements IRAGService {
 
             return Response.<String>builder()
                     .code("0000")
-                    .info("调用成功")
+                    .info("璋冪敤鎴愬姛")
                     .build();
         } catch (Exception e) {
             log.error("upload rag file failed, knowledgeTag: {}", knowledgeTag, e);
             return Response.<String>builder()
                     .code("0001")
-                    .info("调用失败")
+                    .info("璋冪敤澶辫触")
                     .data(e.getMessage())
                     .build();
         }
@@ -83,16 +83,17 @@ public class RAGController implements IRAGService {
 
             return Response.<String>builder()
                     .code("0000")
-                    .info("调用成功")
+                    .info("璋冪敤鎴愬姛")
                     .build();
         } catch (Exception e) {
             log.error("analyze git repository failed, repo: {}", requestDTO.getRepoUrl(), e);
             return Response.<String>builder()
                     .code("0001")
-                    .info("调用失败")
+                    .info("璋冪敤澶辫触")
                     .data(e.getMessage())
                     .build();
         }
     }
 
 }
+

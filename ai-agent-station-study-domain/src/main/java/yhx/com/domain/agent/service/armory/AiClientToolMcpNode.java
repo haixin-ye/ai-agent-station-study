@@ -1,8 +1,8 @@
 package yhx.com.domain.agent.service.armory;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.enums.AiAgentEnumVO;
-import yhx.com.domain.agent.model.valobj.AiClientToolMcpVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientToolMcpVO;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -21,8 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * MCP客户端配置节点
- * 2025/7/5 12:48
+ * MCP瀹㈡埛绔厤缃妭鐐? * 2025/7/5 12:48
  */
 @Slf4j
 @Service
@@ -33,20 +32,20 @@ public class AiClientToolMcpNode extends AbstractArmorySupport {
 
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 构建节点，Tool MCP 工具配置{}", JSON.toJSONString(requestParameter));
+        log.info("Ai Agent 鏋勫缓鑺傜偣锛孴ool MCP 宸ュ叿閰嶇疆{}", JSON.toJSONString(requestParameter));
 
         List<AiClientToolMcpVO> aiClientToolMcpList = dynamicContext.getValue(dataName());
 
         if (aiClientToolMcpList == null || aiClientToolMcpList.isEmpty()) {
-            log.warn("没有需要被初始化的 ai client tool mcp");
+            log.warn("娌℃湁闇€瑕佽鍒濆鍖栫殑 ai client tool mcp");
             return router(requestParameter, dynamicContext);
         }
 
         for (AiClientToolMcpVO mcpVO : aiClientToolMcpList) {
-            // 创建 MCP 服务
+            // 鍒涘缓 MCP 鏈嶅姟
             McpSyncClient mcpSyncClient = createMcpSyncClient(mcpVO);
 
-            // 注册 MCP 对象
+            // 娉ㄥ唽 MCP 瀵硅薄
             registerBean(beanName(mcpVO.getMcpId()), McpSyncClient.class, mcpSyncClient);
         }
 
@@ -91,8 +90,8 @@ public class AiClientToolMcpNode extends AbstractArmorySupport {
                 sseEndpoint = StringUtils.isBlank(sseEndpoint) ? "/sse" : sseEndpoint;
 
                 HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport
-                        .builder(baseUri) // 使用截取后的 baseUri
-                        .sseEndpoint(sseEndpoint) // 使用截取或默认的 sseEndpoint
+                        .builder(baseUri) // 浣跨敤鎴彇鍚庣殑 baseUri
+                        .sseEndpoint(sseEndpoint) // 浣跨敤鎴彇鎴栭粯璁ょ殑 sseEndpoint
                         .build();
 
                 McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(aiClientToolMcpVO.getRequestTimeout())).build();
@@ -125,3 +124,4 @@ public class AiClientToolMcpNode extends AbstractArmorySupport {
     }
 
 }
+

@@ -1,7 +1,7 @@
 package yhx.com.test.domain;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.enums.AiAgentEnumVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -46,7 +46,7 @@ public class AgentTest {
 
         OpenAiApi openAiApi = (OpenAiApi) applicationContext.getBean(AiAgentEnumVO.AI_CLIENT_API.getBeanName("1001"));
 
-        log.info("测试结果：{}", openAiApi);
+        log.info("娴嬭瘯缁撴灉锛歿}", openAiApi);
     }
 
     @Test
@@ -63,20 +63,18 @@ public class AgentTest {
 
         OpenAiChatModel openAiChatModel = (OpenAiChatModel) applicationContext.getBean(AiAgentEnumVO.AI_CLIENT_MODEL.getBeanName("2001"));
 
-        log.info("模型构建:{}", openAiChatModel);
+        log.info("妯″瀷鏋勫缓:{}", openAiChatModel);
 
-        // 1. 有哪些工具可以使用
-        // 2. 在 /Users/fuzhengwei/Desktop 创建 txt.md 文件
+        // 1. 鏈夊摢浜涘伐鍏峰彲浠ヤ娇鐢?        // 2. 鍦?/Users/fuzhengwei/Desktop 鍒涘缓 txt.md 鏂囦欢
         Prompt prompt = Prompt.builder()
                 .messages(new UserMessage(
                         """
-                                有哪些工具可以使用
-                                """))
+                                鏈夊摢浜涘伐鍏峰彲浠ヤ娇鐢?                                """))
                 .build();
 
         ChatResponse chatResponse = openAiChatModel.call(prompt);
 
-        log.info("测试结果(call):{}", JSON.toJSONString(chatResponse));
+        log.info("娴嬭瘯缁撴灉(call):{}", JSON.toJSONString(chatResponse));
     }
 
     @Test
@@ -92,16 +90,16 @@ public class AgentTest {
                 new DefaultArmoryStrategyFactory.DynamicContext());
 
         ChatClient chatClient = (ChatClient) applicationContext.getBean(AiAgentEnumVO.AI_CLIENT.getBeanName("3001"));
-        log.info("客户端构建:{}", chatClient);
+        log.info("瀹㈡埛绔瀯寤?{}", chatClient);
 
         String content = chatClient.prompt(Prompt.builder()
                 .messages(new UserMessage(
                         """
-                                有哪些工具可以使用
-                                """))
+                                鏈夊摢浜涘伐鍏峰彲浠ヤ娇鐢?                                """))
                 .build()).call().content();
 
-        log.info("测试结果(call):{}", content);
+        log.info("娴嬭瘯缁撴灉(call):{}", content);
     }
 
 }
+

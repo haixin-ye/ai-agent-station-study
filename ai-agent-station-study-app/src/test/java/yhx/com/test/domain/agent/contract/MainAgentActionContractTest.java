@@ -5,8 +5,8 @@ import org.junit.Test;
 import yhx.com.domain.agent.model.valobj.contract.AgentNodeContract;
 import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
-import yhx.com.domain.agent.model.valobj.enums.AgentComponentCodeEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 import yhx.com.domain.agent.service.contract.ContractRegistry;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 import yhx.com.domain.agent.service.contract.RawOutputParser;
@@ -76,3 +76,4 @@ public class MainAgentActionContractTest {
         Assert.assertEquals("FORBIDDEN_RUNTIME_FIELD", result.getViolations().get(0).getCode());
     }
 }
+

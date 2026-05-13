@@ -1,9 +1,9 @@
 package yhx.com.domain.agent.service.armory;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.AiClientSystemPromptVO;
-import yhx.com.domain.agent.model.valobj.AiClientVO;
-import yhx.com.domain.agent.model.valobj.enums.AiAgentEnumVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.armory.AiClientSystemPromptVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientVO;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import yhx.com.domain.agent.service.armory.support.RecordingToolCallback;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
@@ -43,7 +43,7 @@ public class AiClientNode extends AbstractArmorySupport {
                 dynamicContext.getValue(AiAgentEnumVO.AI_CLIENT_SYSTEM_PROMPT.getDataName());
 
         for (AiClientVO aiClientVO : aiClientList) {
-            StringBuilder defaultSystem = new StringBuilder("Ai 鏅鸿兘浣揬r\n");
+            StringBuilder defaultSystem = new StringBuilder("Ai 閺呴缚鍏樻担鎻瑀\n");
             for (String promptId : aiClientVO.getPromptIdList()) {
                 AiClientSystemPromptVO prompt = systemPromptMap.get(promptId);
                 if (prompt != null) {
@@ -100,3 +100,4 @@ public class AiClientNode extends AbstractArmorySupport {
         return AiAgentEnumVO.AI_CLIENT.getDataName();
     }
 }
+

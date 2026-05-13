@@ -1,10 +1,10 @@
 package yhx.com.test.domain.rag;
 
 import yhx.com.domain.agent.adapter.repository.IRagRepository;
-import yhx.com.domain.agent.model.entity.RagFileIngestCommandEntity;
-import yhx.com.domain.agent.model.entity.RagFilePayloadEntity;
-import yhx.com.domain.agent.model.entity.RagGitIngestCommandEntity;
-import yhx.com.domain.agent.service.rag.IRagService;
+import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
+import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.service.rag.IRagDomainService;
 import yhx.com.domain.agent.service.rag.RagService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -19,7 +19,7 @@ public class RagServiceTest {
     public void test_queryRagTagList() {
         FakeRagRepository fakeRagRepository = new FakeRagRepository();
         fakeRagRepository.tags = Set.of("java", "spring");
-        IRagService ragService = new RagService(fakeRagRepository);
+        IRagDomainService ragService = new RagService(fakeRagRepository);
 
         Set<String> result = ragService.queryRagTagList();
 
@@ -30,7 +30,7 @@ public class RagServiceTest {
     @Test
     public void test_ingestFiles() {
         FakeRagRepository fakeRagRepository = new FakeRagRepository();
-        IRagService ragService = new RagService(fakeRagRepository);
+        IRagDomainService ragService = new RagService(fakeRagRepository);
 
         RagFileIngestCommandEntity commandEntity = RagFileIngestCommandEntity.builder()
                 .knowledgeTag("agent-docs")
@@ -48,7 +48,7 @@ public class RagServiceTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void test_ingestFiles_emptyTag() {
-        IRagService ragService = new RagService(new FakeRagRepository());
+        IRagDomainService ragService = new RagService(new FakeRagRepository());
 
         ragService.ingestFiles(RagFileIngestCommandEntity.builder()
                 .knowledgeTag(" ")
@@ -59,7 +59,7 @@ public class RagServiceTest {
     @Test
     public void test_analyzeGitRepository() throws Exception {
         FakeRagRepository fakeRagRepository = new FakeRagRepository();
-        IRagService ragService = new RagService(fakeRagRepository);
+        IRagDomainService ragService = new RagService(fakeRagRepository);
 
         RagGitIngestCommandEntity commandEntity = RagGitIngestCommandEntity.builder()
                 .repoUrl("https://github.com/example/demo.git")
@@ -95,3 +95,4 @@ public class RagServiceTest {
     }
 
 }
+

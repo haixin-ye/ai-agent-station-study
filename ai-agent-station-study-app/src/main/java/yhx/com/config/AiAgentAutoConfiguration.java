@@ -1,8 +1,8 @@
 package yhx.com.config;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.AiClientApiVO;
-import yhx.com.domain.agent.model.valobj.enums.AiAgentEnumVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.armory.AiClientApiVO;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import yhx.com.types.common.Constants;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
@@ -32,10 +32,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * AI Agent 自动装配与向量库装配配置。
- * 说明：
- * 1. 客户端装配在 ApplicationReady 阶段执行；
- * 2. pgVectorStore 改为启动期 @Bean 创建，避免 RAG 侧拿到默认自动配置的 VectorStore。
+ * AI Agent 鑷姩瑁呴厤涓庡悜閲忓簱瑁呴厤閰嶇疆銆?
+ * 璇存槑锛?
+ * 1. 瀹㈡埛绔閰嶅湪 ApplicationReady 闃舵鎵ц锛?
+ * 2. pgVectorStore 鏀逛负鍚姩鏈?@Bean 鍒涘缓锛岄伩鍏?RAG 渚ф嬁鍒伴粯璁よ嚜鍔ㄩ厤缃殑 VectorStore銆?
  */
 @Slf4j
 @Configuration
@@ -50,22 +50,22 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
     private DefaultArmoryStrategyFactory defaultArmoryStrategyFactory;
 
     /**
-     * 显式注册 pgVectorStore，并作为主 VectorStore。
-     * 这样 RAG 上传与 Advisor 检索会统一使用 DB 中 ragApiId 指定的 API 凭证。
+     * 鏄惧紡娉ㄥ唽 pgVectorStore锛屽苟浣滀负涓?VectorStore銆?
+     * 杩欐牱 RAG 涓婁紶涓?Advisor 妫€绱細缁熶竴浣跨敤 DB 涓?ragApiId 鎸囧畾鐨?API 鍑瘉銆?
      */
     @Bean("pgVectorStore")
     @Primary
     public PgVectorStore pgVectorStore(@Qualifier("pgVectorJdbcTemplate") JdbcTemplate jdbcTemplate) {
         String ragApiId = aiAgentAutoConfigProperties.getRagApiId();
         if (ragApiId == null || ragApiId.isBlank()) {
-            throw new IllegalStateException("RAG 初始化失败：未配置 spring.ai.agent.auto-config.rag-api-id");
+            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細鏈厤缃?spring.ai.agent.auto-config.rag-api-id");
         }
 
         List<AiClientApiVO> apiList = loadAiClientApiFromArmory();
         AiClientApiVO ragApi = apiList.stream()
                 .filter(api -> ragApiId.equals(api.getApiId()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("RAG 初始化失败：未找到 ragApiId 对应的 API 配置，ragApiId=" + ragApiId));
+                .orElseThrow(() -> new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細鏈壘鍒?ragApiId 瀵瑰簲鐨?API 閰嶇疆锛宺agApiId=" + ragApiId));
 
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .baseUrl(ragApi.getBaseUrl())
@@ -90,10 +90,10 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
         try {
             store.afterPropertiesSet();
         } catch (Exception e) {
-            throw new IllegalStateException("PgVectorStore 初始化失败，请检查 pgvector 扩展、表权限、embedding 配置", e);
+            throw new IllegalStateException("PgVectorStore 鍒濆鍖栧け璐ワ紝璇锋鏌?pgvector 鎵╁睍銆佽〃鏉冮檺銆乪mbedding 閰嶇疆", e);
         }
 
-        log.info("PgVectorStore 已初始化: ragApiId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}, table={}",
+        log.info("PgVectorStore 宸插垵濮嬪寲: ragApiId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}, table={}",
                 ragApiId,
                 ragApi.getBaseUrl(),
                 ragApi.getEmbeddingsPath(),
@@ -107,11 +107,11 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
         try {
-            log.info("AI Agent 自动装配开始，配置: {}", aiAgentAutoConfigProperties);
+            log.info("AI Agent 鑷姩瑁呴厤寮€濮嬶紝閰嶇疆: {}", aiAgentAutoConfigProperties);
 
             List<String> commandIdList = parseClientIds(aiAgentAutoConfigProperties.getClientIds());
             if (CollectionUtils.isEmpty(commandIdList)) {
-                log.warn("AI Agent 自动装配跳过：client-ids 为空");
+                log.warn("AI Agent 鑷姩瑁呴厤璺宠繃锛歝lient-ids 涓虹┖");
                 return;
             }
 
@@ -125,20 +125,20 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
                             .build(),
                     new DefaultArmoryStrategyFactory.DynamicContext());
 
-            log.info("AI Agent 自动装配完成，结果: {}", result);
+            log.info("AI Agent 鑷姩瑁呴厤瀹屾垚锛岀粨鏋? {}", result);
 
             ApplicationContext applicationContext = event.getApplicationContext();
             Map<String, VectorStore> vectorStoreMap = applicationContext.getBeansOfType(VectorStore.class);
-            log.info("VectorStore Bean 列表: {}", vectorStoreMap.keySet());
+            log.info("VectorStore Bean 鍒楄〃: {}", vectorStoreMap.keySet());
         } catch (Exception e) {
-            log.error("AI Agent 自动装配失败", e);
+            log.error("AI Agent 鑷姩瑁呴厤澶辫触", e);
         }
     }
 
     private List<AiClientApiVO> loadAiClientApiFromArmory() {
         List<String> commandIdList = parseClientIds(aiAgentAutoConfigProperties.getClientIds());
         if (CollectionUtils.isEmpty(commandIdList)) {
-            throw new IllegalStateException("RAG 初始化失败：client-ids 为空，无法加载 API 配置");
+            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細client-ids 涓虹┖锛屾棤娉曞姞杞?API 閰嶇疆");
         }
 
         DefaultArmoryStrategyFactory.DynamicContext dynamicContext = new DefaultArmoryStrategyFactory.DynamicContext();
@@ -153,12 +153,12 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
                             .build(),
                     dynamicContext);
         } catch (Exception e) {
-            throw new IllegalStateException("RAG 初始化失败：装配链路执行异常", e);
+            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細瑁呴厤閾捐矾鎵ц寮傚父", e);
         }
 
         List<AiClientApiVO> apiList = dynamicContext.getValue(AiAgentEnumVO.AI_CLIENT_API.getDataName());
         if (CollectionUtils.isEmpty(apiList)) {
-            throw new IllegalStateException("RAG 初始化失败：未从 DynamicContext 加载到 ai_client_api");
+            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細鏈粠 DynamicContext 鍔犺浇鍒?ai_client_api");
         }
         return apiList;
     }
@@ -176,3 +176,4 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
         return clientIds;
     }
 }
+

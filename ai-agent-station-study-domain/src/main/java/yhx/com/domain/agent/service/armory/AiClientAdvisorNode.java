@@ -1,9 +1,9 @@
 package yhx.com.domain.agent.service.armory;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.enums.AiAgentEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.AiClientAdvisorTypeEnumVO;
-import yhx.com.domain.agent.model.valobj.AiClientAdvisorVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiClientAdvisorTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientAdvisorVO;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import com.alibaba.fastjson.JSON;
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 顾问角色节点
+ * 椤鹃棶瑙掕壊鑺傜偣
  *
  * @author yhx
  * 2025/7/19 08:51
@@ -37,19 +37,19 @@ public class AiClientAdvisorNode extends AbstractArmorySupport {
 
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 构建节点，Advisor 顾问角色{}", JSON.toJSONString(requestParameter));
+        log.info("Ai Agent 鏋勫缓鑺傜偣锛孉dvisor 椤鹃棶瑙掕壊{}", JSON.toJSONString(requestParameter));
 
         List<AiClientAdvisorVO> aiClientAdvisorList = dynamicContext.getValue(dataName());
 
         if (aiClientAdvisorList == null || aiClientAdvisorList.isEmpty()) {
-            log.warn("没有需要被初始化的 ai client advisor");
+            log.warn("娌℃湁闇€瑕佽鍒濆鍖栫殑 ai client advisor");
             return router(requestParameter, dynamicContext);
         }
 
         for (AiClientAdvisorVO aiClientAdvisorVO : aiClientAdvisorList) {
-            // 构建顾问访问对象
+            // 鏋勫缓椤鹃棶璁块棶瀵硅薄
             Advisor advisor = createAdvisor(aiClientAdvisorVO);
-            // 注册Bean对象
+            // 娉ㄥ唽Bean瀵硅薄
             registerBean(beanName(aiClientAdvisorVO.getAdvisorId()), Advisor.class, advisor);
         }
 
@@ -73,13 +73,14 @@ public class AiClientAdvisorNode extends AbstractArmorySupport {
     private Advisor createAdvisor(AiClientAdvisorVO aiClientAdvisorVO) {
         String advisorType = aiClientAdvisorVO.getAdvisorType();
         AiClientAdvisorTypeEnumVO advisorTypeEnum = AiClientAdvisorTypeEnumVO.getByCode(advisorType);
-        // 透传模型提供器，供需要额外模型的 Advisor（如 PromptInjectionSanitizer）使用
+        // 閫忎紶妯″瀷鎻愪緵鍣紝渚涢渶瑕侀澶栨ā鍨嬬殑 Advisor锛堝 PromptInjectionSanitizer锛変娇鐢?
         return advisorTypeEnum.createAdvisor(aiClientAdvisorVO, pgVectorStore, this::resolveChatModelBean);
     }
 
     private OpenAiChatModel resolveChatModelBean(String beanName) {
-        // 按 BeanName 动态获取轻量清洗模型
+        // 鎸?BeanName 鍔ㄦ€佽幏鍙栬交閲忔竻娲楁ā鍨?
         return getBean(beanName);
     }
 
 }
+

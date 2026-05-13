@@ -1,6 +1,6 @@
 package yhx.com.domain.agent.service.armory;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
 import yhx.com.domain.agent.service.armory.business.data.ILoadDataStrategy;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
@@ -14,7 +14,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * 根节点，数据加载
+ * 鏍硅妭鐐癸紝鏁版嵁鍔犺浇
  * @author yhx
  * 2025/6/27 16:47
  */
@@ -33,14 +33,14 @@ public class RootNode extends AbstractArmorySupport {
 
     @Override
     protected void multiThread(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws ExecutionException, InterruptedException, TimeoutException {
-        // 加载数据
+        // 鍔犺浇鏁版嵁
         ILoadDataStrategy loadDataStrategy = loadDataStrategyMap.get(requestParameter.getLoadDataStrategy());
         loadDataStrategy.loadData(requestParameter, dynamicContext);
     }
 
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 构建，数据加载节点{}", JSON.toJSONString(requestParameter));
+        log.info("Ai Agent 鏋勫缓锛屾暟鎹姞杞借妭鐐箋}", JSON.toJSONString(requestParameter));
         return router(requestParameter, dynamicContext);
     }
 
@@ -50,3 +50,4 @@ public class RootNode extends AbstractArmorySupport {
     }
 
 }
+

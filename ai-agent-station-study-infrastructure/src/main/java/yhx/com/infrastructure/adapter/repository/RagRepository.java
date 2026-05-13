@@ -1,9 +1,9 @@
 package yhx.com.infrastructure.adapter.repository;
 
 import yhx.com.domain.agent.adapter.repository.IRagRepository;
-import yhx.com.domain.agent.model.entity.RagFileIngestCommandEntity;
-import yhx.com.domain.agent.model.entity.RagFilePayloadEntity;
-import yhx.com.domain.agent.model.entity.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
+import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
 import yhx.com.infrastructure.rag.MyTokenTextSplitter;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -278,3 +278,4 @@ public class RagRepository implements IRagRepository {
     }
 
 }
+

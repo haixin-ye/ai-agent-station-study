@@ -4,9 +4,9 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
-import yhx.com.domain.agent.model.valobj.enums.ContextLevelEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.ContextPlannerStatusEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 
 import java.util.Map;
 
@@ -108,3 +108,4 @@ public class ContractValidator {
         return ContractValidationResult.passed();
     }
 }
+

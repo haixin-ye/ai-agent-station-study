@@ -1,8 +1,8 @@
 package yhx.com.domain.agent.service.armory;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.enums.AiAgentEnumVO;
-import yhx.com.domain.agent.model.valobj.AiClientApiVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientApiVO;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import yhx.com.domain.agent.service.armory.support.OpenAiHttpTraceInterceptor;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * OpenAI API配置节点
+ * OpenAI API閰嶇疆鑺傜偣
  *
  * @author yhx
  * 2025/7/1 07:09
@@ -31,17 +31,17 @@ public class AiClientApiNode extends AbstractArmorySupport {
 
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 构建节点，API 接口请求{}", JSON.toJSONString(requestParameter));
+        log.info("Ai Agent 鏋勫缓鑺傜偣锛孉PI 鎺ュ彛璇锋眰{}", JSON.toJSONString(requestParameter));
 
         List<AiClientApiVO> aiClientApiList = dynamicContext.getValue(dataName());
 
         if (aiClientApiList == null || aiClientApiList.isEmpty()) {
-            log.warn("没有需要被初始化的 ai client api");
+            log.warn("娌℃湁闇€瑕佽鍒濆鍖栫殑 ai client api");
             return router(requestParameter, dynamicContext);
         }
 
         for (AiClientApiVO aiClientApiVO : aiClientApiList) {
-            // 构建 OpenAiApi
+            // 鏋勫缓 OpenAiApi
             OpenAiApi openAiApi = OpenAiApi.builder()
                     .baseUrl(aiClientApiVO.getBaseUrl())
                     .apiKey(aiClientApiVO.getApiKey())
@@ -52,7 +52,7 @@ public class AiClientApiNode extends AbstractArmorySupport {
                             .requestInterceptor(new OpenAiHttpTraceInterceptor()))
                     .build();
 
-            // 注册 OpenAiApi Bean 对象
+            // 娉ㄥ唽 OpenAiApi Bean 瀵硅薄
             registerBean(beanName(aiClientApiVO.getApiId()), OpenAiApi.class, openAiApi);
         }
 
@@ -75,3 +75,4 @@ public class AiClientApiNode extends AbstractArmorySupport {
     }
 
 }
+

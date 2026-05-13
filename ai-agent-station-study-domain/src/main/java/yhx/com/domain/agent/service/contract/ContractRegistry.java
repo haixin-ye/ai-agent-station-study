@@ -1,7 +1,7 @@
 package yhx.com.domain.agent.service.contract;
 
 import yhx.com.domain.agent.model.valobj.contract.AgentNodeContract;
-import yhx.com.domain.agent.model.valobj.enums.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -49,3 +49,4 @@ public class ContractRegistry {
                 .build());
     }
 }
+

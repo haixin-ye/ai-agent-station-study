@@ -52,6 +52,10 @@ Before continuing design or implementation, read this file and the canonical wor
 - Treat Phase 0-12 as the full backlog and verification map, not as a rigid coding order.
 - Implement by vertical slices: foundation skeleton, minimal end-to-end direct-answer flow, persistence, prompt/context, runtime actions, RAG/tool capabilities, final/API/debug, old-harness isolation, MVP verification.
 - When a later-phase module is needed early, create a stable interface and fake/stub implementation first, then fill the production implementation later.
+- Keep DDD package names explicit and subdomain-aligned:
+  - external API contracts use `*Api`;
+  - domain service contracts use `*DomainService`;
+  - `domain/agent/model/entity`, `domain/agent/model/valobj`, and `domain/agent/model/valobj/enums` must use subdomain folders matching service domains where practical, such as `armory`, `rag`, `runtime`, `contract`, `tool`, `token`, and `memory`.
 
 ## Implementation Status
 
@@ -62,3 +66,4 @@ Before continuing design or implementation, read this file and the canonical wor
 - [x] Second Git checkpoint commit recorded in `progress.md`: `4261ab6` (`agent: add direct runtime slice`).
 - [x] Third cleanup/DDD alignment slice implemented: old Node1-4 execute chain, old controller/API DTOs, old tests, and old Node1-4-only state objects removed; reusable contract/tool/token objects moved to `model/valobj`.
 - [x] Third Git checkpoint commit recorded in `progress.md`: `8f8a49b` (`agent: remove legacy execute harness`).
+- [x] Fourth DDD package normalization slice implemented locally: RAG API/domain naming separated and model entity/valobj/enums moved into subdomain folders.

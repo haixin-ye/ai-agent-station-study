@@ -2,12 +2,12 @@ package yhx.com.test.domain.agent.runtime;
 
 import org.junit.Assert;
 import org.junit.Test;
-import yhx.com.domain.agent.model.valobj.enums.RunStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.DefaultAutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.MainAgentNodePort;
-import yhx.com.domain.agent.service.runtime.RuntimeResult;
-import yhx.com.domain.agent.service.runtime.RuntimeStartCommand;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeResult;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeStartCommand;
 
 public class AutoAgentDirectRuntimeSliceTest {
 
@@ -52,3 +52,4 @@ public class AutoAgentDirectRuntimeSliceTest {
         Assert.assertEquals("The answer could not be safely delivered.", result.getFinalAnswer());
     }
 }
+

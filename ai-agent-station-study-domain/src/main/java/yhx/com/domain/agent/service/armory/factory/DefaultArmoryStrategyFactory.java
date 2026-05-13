@@ -1,6 +1,6 @@
 package yhx.com.domain.agent.service.armory.factory;
 
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
 import yhx.com.domain.agent.service.armory.RootNode;
 import cn.bugstack.wrench.design.framework.tree.StrategyHandler;
 import lombok.AllArgsConstructor;
@@ -13,8 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 工厂类
- *
+ * 宸ュ巶绫? *
  * @author yhx
  * 2025/6/27 07:14
  */
@@ -49,3 +48,4 @@ public class DefaultArmoryStrategyFactory {
     }
 
 }
+

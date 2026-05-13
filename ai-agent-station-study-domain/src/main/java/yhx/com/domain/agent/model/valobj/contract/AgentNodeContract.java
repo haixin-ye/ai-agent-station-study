@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import yhx.com.domain.agent.model.valobj.enums.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 
 @Data
 @Builder
@@ -17,3 +17,4 @@ public class AgentNodeContract {
     private String version;
     private String description;
 }
+

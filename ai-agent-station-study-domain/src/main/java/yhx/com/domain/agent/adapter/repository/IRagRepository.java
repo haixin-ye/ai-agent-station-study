@@ -1,7 +1,7 @@
 package yhx.com.domain.agent.adapter.repository;
 
-import yhx.com.domain.agent.model.entity.RagFileIngestCommandEntity;
-import yhx.com.domain.agent.model.entity.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
 
 import java.util.Set;
 
@@ -19,3 +19,4 @@ public interface IRagRepository {
     void ingestGitRepository(RagGitIngestCommandEntity commandEntity) throws Exception;
 
 }
+

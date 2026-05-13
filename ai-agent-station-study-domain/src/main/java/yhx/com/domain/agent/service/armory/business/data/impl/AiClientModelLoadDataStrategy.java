@@ -1,9 +1,9 @@
 package yhx.com.domain.agent.service.armory.business.data.impl;
 
 import yhx.com.domain.agent.adapter.repository.IAgentRepository;
-import yhx.com.domain.agent.model.entity.ArmoryCommandEntity;
-import yhx.com.domain.agent.model.valobj.AiClientApiVO;
-import yhx.com.domain.agent.model.valobj.AiClientModelVO;
+import yhx.com.domain.agent.model.entity.armory.ArmoryCommandEntity;
+import yhx.com.domain.agent.model.valobj.armory.AiClientApiVO;
+import yhx.com.domain.agent.model.valobj.armory.AiClientModelVO;
 import yhx.com.domain.agent.service.armory.business.data.ILoadDataStrategy;
 import yhx.com.domain.agent.service.armory.factory.DefaultArmoryStrategyFactory;
 import jakarta.annotation.Resource;
@@ -15,8 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 以客户端对话模型，加载数据策略
- * @author yhx
+ * 浠ュ鎴风瀵硅瘽妯″瀷锛屽姞杞芥暟鎹瓥鐣? * @author yhx
  * 2025/6/28 20:12
  */
 @Slf4j
@@ -34,15 +33,16 @@ public class AiClientModelLoadDataStrategy implements ILoadDataStrategy {
         List<String> modelIdList = armoryCommandEntity.getCommandIdList();
 
         CompletableFuture<List<AiClientApiVO>> aiClientApiListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client_api) {}", modelIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_api) {}", modelIdList);
             return repository.queryAiClientApiVOListByModelIds(modelIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientModelVO>> aiClientModelListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("查询配置数据(ai_client_model) {}", modelIdList);
+            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_model) {}", modelIdList);
             return repository.AiClientModelVOByModelIds(modelIdList);
         }, threadPoolExecutor);
 
     }
 
 }
+
