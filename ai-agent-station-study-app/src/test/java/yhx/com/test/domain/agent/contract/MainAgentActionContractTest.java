@@ -1,0 +1,78 @@
+package yhx.com.test.domain.agent.contract;
+
+import org.junit.Assert;
+import org.junit.Test;
+import yhx.com.domain.agent.model.valobj.enums.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.service.contract.AgentComponentCode;
+import yhx.com.domain.agent.service.contract.AgentNodeContract;
+import yhx.com.domain.agent.service.contract.ContractRegistry;
+import yhx.com.domain.agent.service.contract.ContractValidationResult;
+import yhx.com.domain.agent.service.contract.ContractValidator;
+import yhx.com.domain.agent.service.contract.RawOutputParseResult;
+import yhx.com.domain.agent.service.contract.RawOutputParser;
+import yhx.com.domain.agent.service.contract.StateDeltaScopeRules;
+
+public class MainAgentActionContractTest {
+
+    @Test
+    public void test_mainAgentActionEnum_canResolveByCode() {
+        Assert.assertEquals(MainAgentActionTypeEnumVO.FINAL, MainAgentActionTypeEnumVO.ofCode("FINAL").orElse(null));
+        Assert.assertFalse(MainAgentActionTypeEnumVO.ofCode("UNKNOWN").isPresent());
+    }
+
+    @Test
+    public void test_contractRegistry_hasMainAgentContract() {
+        AgentNodeContract contract = ContractRegistry.defaultRegistry()
+                .getRequired(AgentComponentCode.MAIN_AGENT);
+
+        Assert.assertEquals("MainAgentActionContract", contract.getName());
+        Assert.assertEquals("main-agent-action-v1", contract.getVersion());
+    }
+
+    @Test
+    public void test_stateDeltaScopeRules_rejectUnexpectedFields() {
+        Assert.assertTrue(StateDeltaScopeRules.isAllowed("FINAL", "finalAnswerCandidate"));
+        Assert.assertFalse(StateDeltaScopeRules.isAllowed("FINAL", "artifactDraft"));
+        Assert.assertFalse(StateDeltaScopeRules.isAllowed("FINAL", "runStatus"));
+        Assert.assertTrue(StateDeltaScopeRules.isRuntimeOwnedField("runStatus"));
+    }
+
+    @Test
+    public void test_rawOutputParser_extractsSingleJsonObjectFromCodeFence() {
+        RawOutputParseResult result = RawOutputParser.defaultParser()
+                .parse("```json\n{\"action\":\"FINAL\"}\n```");
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals("FINAL", result.getJsonObject().getString("action"));
+    }
+
+    @Test
+    public void test_contractValidator_acceptsValidFinalAction() {
+        String raw = "{"
+                + "\"action\":\"FINAL\","
+                + "\"content\":{\"text\":\"hello\"},"
+                + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"hello\"}}"
+                + "}";
+
+        ContractValidationResult result = ContractValidator.defaultValidator()
+                .validateMainAgentAction(raw);
+
+        Assert.assertTrue(result.isPassed());
+        Assert.assertTrue(result.getViolations().isEmpty());
+    }
+
+    @Test
+    public void test_contractValidator_rejectsLifecycleFieldInNodeOutput() {
+        String raw = "{"
+                + "\"action\":\"FINAL\","
+                + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"hello\"}},"
+                + "\"runStatus\":\"COMPLETED\""
+                + "}";
+
+        ContractValidationResult result = ContractValidator.defaultValidator()
+                .validateMainAgentAction(raw);
+
+        Assert.assertFalse(result.isPassed());
+        Assert.assertEquals("FORBIDDEN_RUNTIME_FIELD", result.getViolations().get(0).getCode());
+    }
+}

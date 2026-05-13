@@ -62,7 +62,7 @@ spring:
       auto-config:
         enabled: true
         client-ids: 3101,3102,3103,3104
-        rag-api-id: "1001"
+        rag-api-id: "1002"
         vector_name: "vector_store"
         embedding-model-name: text-embedding-3-large
         dimensions: 1536

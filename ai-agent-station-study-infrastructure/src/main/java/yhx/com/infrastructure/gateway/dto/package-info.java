@@ -1,0 +1,1 @@
+package yhx.com.infrastructure.gateway.dto;

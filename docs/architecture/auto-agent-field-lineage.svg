@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="980" viewBox="0 0 1900 980">
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .title { font: 700 30px Arial, sans-serif; fill: #0f172a; }
+      .sub { font: 500 15px Arial, sans-serif; fill: #334155; }
+      .head { fill: #f8fafc; stroke: #64748b; stroke-width: 1.2; rx: 8; }
+      .headText { font: 700 15px Arial, sans-serif; fill: #0f172a; }
+      .grid { stroke: #cbd5e1; stroke-width: 1; }
+      .laneLabel { font: 700 13px Arial, sans-serif; fill: #0f172a; }
+      .laneDesc { font: 12px Arial, sans-serif; fill: #334155; }
+      .note { font: 12px Arial, sans-serif; fill: #475569; }
+      .arrow { stroke: #1f2937; stroke-width: 2.2; fill: none; marker-end: url(#ah); }
+      .arrowBlue { stroke: #0f766e; stroke-width: 2.2; fill: none; marker-end: url(#ahb); }
+      .arrowRed { stroke: #dc2626; stroke-width: 2.2; fill: none; marker-end: url(#ahr); }
+    </style>
+    <marker id="ah" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0 0, 10 4, 0 8" fill="#1f2937"/>
+    </marker>
+    <marker id="ahb" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0 0, 10 4, 0 8" fill="#0f766e"/>
+    </marker>
+    <marker id="ahr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0 0, 10 4, 0 8" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1900" height="980"/>
+  <text x="30" y="45" class="title">Auto-Agent Harness: Field Producer → Consumer Matrix</text>
+  <text x="30" y="72" class="sub">Each row = one field contract. Arrows show exactly who writes it and who reads it.</text>
+
+  <!-- column headers -->
+  <rect class="head" x="30" y="100" width="260" height="44"/>
+  <text class="headText" x="45" y="128">Field (name + meaning)</text>
+
+  <rect class="head" x="300" y="100" width="170" height="44"/>
+  <text class="headText" x="340" y="128">Root/Init</text>
+
+  <rect class="head" x="480" y="100" width="170" height="44"/>
+  <text class="headText" x="520" y="128">Node1</text>
+
+  <rect class="head" x="660" y="100" width="170" height="44"/>
+  <text class="headText" x="700" y="128">Node2</text>
+
+  <rect class="head" x="840" y="100" width="170" height="44"/>
+  <text class="headText" x="880" y="128">Node3</text>
+
+  <rect class="head" x="1020" y="100" width="170" height="44"/>
+  <text class="headText" x="1060" y="128">Router</text>
+
+  <rect class="head" x="1200" y="100" width="170" height="44"/>
+  <text class="headText" x="1240" y="128">Node4</text>
+
+  <rect class="head" x="1380" y="100" width="170" height="44"/>
+  <text class="headText" x="1440" y="128">UI</text>
+
+  <!-- grid vertical lines -->
+  <line class="grid" x1="30" y1="150" x2="1550" y2="150"/>
+  <line class="grid" x1="30" y1="220" x2="1550" y2="220"/>
+  <line class="grid" x1="30" y1="290" x2="1550" y2="290"/>
+  <line class="grid" x1="30" y1="360" x2="1550" y2="360"/>
+  <line class="grid" x1="30" y1="430" x2="1550" y2="430"/>
+  <line class="grid" x1="30" y1="500" x2="1550" y2="500"/>
+  <line class="grid" x1="30" y1="570" x2="1550" y2="570"/>
+  <line class="grid" x1="30" y1="640" x2="1550" y2="640"/>
+  <line class="grid" x1="30" y1="710" x2="1550" y2="710"/>
+  <line class="grid" x1="30" y1="780" x2="1550" y2="780"/>
+  <line class="grid" x1="30" y1="850" x2="1550" y2="850"/>
+
+  <line class="grid" x1="30" y1="150" x2="30" y2="850"/>
+  <line class="grid" x1="290" y1="150" x2="290" y2="850"/>
+  <line class="grid" x1="470" y1="150" x2="470" y2="850"/>
+  <line class="grid" x1="650" y1="150" x2="650" y2="850"/>
+  <line class="grid" x1="830" y1="150" x2="830" y2="850"/>
+  <line class="grid" x1="1010" y1="150" x2="1010" y2="850"/>
+  <line class="grid" x1="1190" y1="150" x2="1190" y2="850"/>
+  <line class="grid" x1="1370" y1="150" x2="1370" y2="850"/>
+  <line class="grid" x1="1550" y1="150" x2="1550" y2="850"/>
+
+  <!-- row 1 -->
+  <text class="laneLabel" x="42" y="178">rawUserGoal</text>
+  <text class="laneDesc" x="42" y="198">original user request</text>
+  <path class="arrow" d="M385 185 L560 185"/>
+
+  <!-- row 2 -->
+  <text class="laneLabel" x="42" y="248">currentStepPlan</text>
+  <text class="laneDesc" x="42" y="268">round executable plan</text>
+  <path class="arrow" d="M565 255 L740 255"/>
+  <path class="arrow" d="M565 265 L920 265"/>
+
+  <!-- row 3 -->
+  <text class="laneLabel" x="42" y="318">sanitizedUserGoal</text>
+  <text class="laneDesc" x="42" y="338">stable cleaned objective</text>
+  <path class="arrow" d="M565 325 L740 325"/>
+  <path class="arrow" d="M565 335 L920 335"/>
+  <path class="arrow" d="M565 345 L1280 345"/>
+
+  <!-- row 4 -->
+  <text class="laneLabel" x="42" y="388">currentTask</text>
+  <text class="laneDesc" x="42" y="408">current round task focus</text>
+  <path class="arrow" d="M565 395 L740 395"/>
+  <path class="arrowRed" d="M925 405 L560 405"/>
+  <text class="note" x="600" y="423">REPLAN updates this field</text>
+
+  <!-- row 5 -->
+  <text class="laneLabel" x="42" y="458">executionResult</text>
+  <text class="laneDesc" x="42" y="478">raw execution output</text>
+  <path class="arrowBlue" d="M745 465 L920 465"/>
+  <path class="arrowBlue" d="M745 475 L560 475"/>
+
+  <!-- row 6 -->
+  <text class="laneLabel" x="42" y="528">executionOutcome</text>
+  <text class="laneDesc" x="42" y="548">structured status/error</text>
+  <path class="arrowBlue" d="M745 535 L920 535"/>
+
+  <!-- row 7 -->
+  <text class="laneLabel" x="42" y="598">lastToolError</text>
+  <text class="laneDesc" x="42" y="618">latest actionable failure</text>
+  <path class="arrowBlue" d="M745 605 L920 605"/>
+
+  <!-- row 8 -->
+  <text class="laneLabel" x="42" y="668">supervisionDecision</text>
+  <text class="laneDesc" x="42" y="688">PASS / REPLAN</text>
+  <path class="arrow" d="M925 675 L1100 675"/>
+  <path class="arrowRed" d="M1105 685 L560 685"/>
+  <path class="arrow" d="M1105 665 L1280 665"/>
+
+  <!-- row 9 -->
+  <text class="laneLabel" x="42" y="738">supervisionResult</text>
+  <text class="laneDesc" x="42" y="758">supervisor notes</text>
+  <path class="arrow" d="M925 745 L560 745"/>
+
+  <!-- row 10 -->
+  <text class="laneLabel" x="42" y="808">finalSummary</text>
+  <text class="laneDesc" x="42" y="828">final user answer</text>
+  <path class="arrow" d="M1285 815 L1460 815"/>
+
+  <!-- footer -->
+  <text class="note" x="30" y="900">Shared control fields: step / maxStep / isCompleted / executionHistory (Root initializes, Node3 updates, Router uses).</text>
+  <text class="note" x="30" y="922">Infra fields: knowledgeName / emitter / tokenUsageAccumulator (Strategy writes, all nodes may read).</text>
+  <text class="note" x="30" y="944">Extension cache: dataObjects['tool_policy_cache_*'] (Node2 local cache usage).</text>
+</svg>
