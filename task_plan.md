@@ -61,4 +61,4 @@ Before continuing design or implementation, read this file and the canonical wor
 - [x] Second vertical slice implemented: minimal fake-node direct-answer Runtime path with final guard and 16 passing targeted tests.
 - [x] Second Git checkpoint commit recorded in `progress.md`: `4261ab6` (`agent: add direct runtime slice`).
 - [x] Third cleanup/DDD alignment slice implemented: old Node1-4 execute chain, old controller/API DTOs, old tests, and old Node1-4-only state objects removed; reusable contract/tool/token objects moved to `model/valobj`.
-- [ ] Third Git checkpoint commit recorded in `progress.md`.
+- [x] Third Git checkpoint commit recorded in `progress.md`: `8f8a49b` (`agent: remove legacy execute harness`).
