@@ -58,3 +58,5 @@ Before continuing design or implementation, read this file and the canonical wor
 - [x] Dedicated branch created: `feature/auto-agent-main-loop-harness`.
 - [x] First foundation slice implemented locally: core contract registry, parser, validator, StateDelta scope rules, core enums, typed AutoAgent properties, and targeted tests.
 - [x] First Git checkpoint commit recorded in `progress.md`: `e4094f3` (`agent: checkpoint foundation contracts`).
+- [x] Second vertical slice implemented locally: minimal fake-node direct-answer Runtime path with final guard and 16 passing targeted tests.
+- [ ] Second Git checkpoint commit recorded in `progress.md`.
