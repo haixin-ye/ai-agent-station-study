@@ -2,12 +2,12 @@ package yhx.com.test.domain.agent.contract;
 
 import org.junit.Assert;
 import org.junit.Test;
+import yhx.com.domain.agent.model.valobj.contract.AgentNodeContract;
+import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
+import yhx.com.domain.agent.model.valobj.enums.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.ContextLevelEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.ContextPlannerStatusEnumVO;
-import yhx.com.domain.agent.service.contract.AgentComponentCode;
-import yhx.com.domain.agent.service.contract.AgentNodeContract;
 import yhx.com.domain.agent.service.contract.ContractRegistry;
-import yhx.com.domain.agent.service.contract.ContractValidationResult;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 
 public class ContextPlannerContractTest {
@@ -23,7 +23,7 @@ public class ContextPlannerContractTest {
     @Test
     public void test_contractRegistry_hasContextPlannerContract() {
         AgentNodeContract contract = ContractRegistry.defaultRegistry()
-                .getRequired(AgentComponentCode.CONTEXT_PLANNER);
+                .getRequired(AgentComponentCodeEnumVO.CONTEXT_PLANNER);
 
         Assert.assertEquals("ContextPlannerOutputContract", contract.getName());
         Assert.assertEquals("context-planner-output-v1", contract.getVersion());

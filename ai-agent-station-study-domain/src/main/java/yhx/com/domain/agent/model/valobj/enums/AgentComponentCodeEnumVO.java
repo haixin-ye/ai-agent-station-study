@@ -1,6 +1,6 @@
-package yhx.com.domain.agent.service.contract;
+package yhx.com.domain.agent.model.valobj.enums;
 
-public enum AgentComponentCode {
+public enum AgentComponentCodeEnumVO {
     CONTEXT_PLANNER,
     MAIN_AGENT,
     TOOL_RUNTIME,

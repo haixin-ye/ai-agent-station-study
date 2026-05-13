@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.model.entity;
+package yhx.com.domain.agent.model.valobj.tool;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Tool execution record.
+ * Tool execution record captured from real tool callbacks.
  */
 @Data
 @Builder

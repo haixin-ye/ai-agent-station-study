@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.model.entity;
+package yhx.com.domain.agent.model.valobj.token;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

@@ -1,10 +1,10 @@
 package yhx.com.domain.agent.service.runtime;
 
 import com.alibaba.fastjson.JSONObject;
+import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
+import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
 import yhx.com.domain.agent.model.valobj.enums.RunStatusEnumVO;
-import yhx.com.domain.agent.service.contract.ContractValidationResult;
 import yhx.com.domain.agent.service.contract.ContractValidator;
-import yhx.com.domain.agent.service.contract.RawOutputParseResult;
 import yhx.com.domain.agent.service.contract.RawOutputParser;
 
 public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {

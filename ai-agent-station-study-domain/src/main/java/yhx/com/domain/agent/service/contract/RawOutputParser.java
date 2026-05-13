@@ -2,6 +2,7 @@ package yhx.com.domain.agent.service.contract;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
 
 public class RawOutputParser {
 

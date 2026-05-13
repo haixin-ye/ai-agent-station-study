@@ -2,6 +2,8 @@ package yhx.com.domain.agent.service.contract;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
+import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
 import yhx.com.domain.agent.model.valobj.enums.ContextLevelEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.ContextPlannerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.MainAgentActionTypeEnumVO;

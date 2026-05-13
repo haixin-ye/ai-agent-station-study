@@ -1,6 +1,6 @@
 package yhx.com.domain.agent.service.armory.support;
 
-import yhx.com.domain.agent.model.entity.ToolExecutionRecordVO;
+import yhx.com.domain.agent.model.valobj.tool.ToolExecutionRecordVO;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

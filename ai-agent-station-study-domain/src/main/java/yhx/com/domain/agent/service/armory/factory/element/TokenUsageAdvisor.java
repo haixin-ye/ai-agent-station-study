@@ -1,7 +1,6 @@
 package yhx.com.domain.agent.service.armory.factory.element;
 
-import yhx.com.domain.agent.model.entity.AutoAgentExecuteResultEntity;
-import yhx.com.domain.agent.model.entity.TokenUsageAccumulator;
+import yhx.com.domain.agent.model.valobj.token.TokenUsageAccumulator;
 import com.alibaba.fastjson.JSON;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,10 +95,13 @@ public class TokenUsageAdvisor implements BaseAdvisor {
             payload.put("totalTokens", usage.totalTokens);
             payload.put("usageMissing", usage.usageMissing);
 
-            AutoAgentExecuteResultEntity result = AutoAgentExecuteResultEntity.createTokenClientUsageResult(
-                    step, JSON.toJSONString(payload), sessionId
-            );
-            emitter.send("data: " + JSON.toJSONString(result) + "\n\n");
+            Map<String, Object> event = new LinkedHashMap<>();
+            event.put("type", "token");
+            event.put("subType", "client_usage");
+            event.put("step", step);
+            event.put("sessionId", sessionId);
+            event.put("content", JSON.toJSONString(payload));
+            emitter.send("data: " + JSON.toJSONString(event) + "\n\n");
         } catch (IOException e) {
             log.warn("emit token usage SSE failed: {}", e.getMessage());
         } catch (Exception e) {

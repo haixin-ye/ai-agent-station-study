@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.contract;
+package yhx.com.domain.agent.model.valobj.contract;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
