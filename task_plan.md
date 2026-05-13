@@ -66,4 +66,5 @@ Before continuing design or implementation, read this file and the canonical wor
 - [x] Second Git checkpoint commit recorded in `progress.md`: `4261ab6` (`agent: add direct runtime slice`).
 - [x] Third cleanup/DDD alignment slice implemented: old Node1-4 execute chain, old controller/API DTOs, old tests, and old Node1-4-only state objects removed; reusable contract/tool/token objects moved to `model/valobj`.
 - [x] Third Git checkpoint commit recorded in `progress.md`: `8f8a49b` (`agent: remove legacy execute harness`).
-- [x] Fourth DDD package normalization slice implemented locally: RAG API/domain naming separated and model entity/valobj/enums moved into subdomain folders.
+- [x] Fourth DDD package normalization slice implemented: RAG API/domain naming separated and model entity/valobj/enums moved into subdomain folders.
+- [x] Fourth Git checkpoint commit recorded in `progress.md`: `09beb99` (`agent: normalize ddd package layout`).
