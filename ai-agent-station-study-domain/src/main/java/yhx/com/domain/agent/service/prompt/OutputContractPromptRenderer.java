@@ -1,0 +1,110 @@
+package yhx.com.domain.agent.service.prompt;
+
+import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.service.contract.StateDeltaScopeRules;
+
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
+public class OutputContractPromptRenderer {
+
+    public String renderFor(String componentCode, String contractVersion) {
+        return switch (componentCode) {
+            case "MAIN_AGENT", "FINAL_REPAIR" -> renderMainAgentActionContract();
+            case "CONTEXT_PLANNER" -> renderContextPlannerOutputContract();
+            case "RAG_VERIFIER", "TOOL_VERIFIER" -> renderVerificationResultContract();
+            case "FINAL_RESPONSE_GUARD" -> renderFinalResponseGuardResultContract();
+            case "CONTRACT_REPAIR" -> renderRepairContract(componentCode, contractVersion);
+            default -> "Return one JSON object that satisfies component contract version " + contractVersion + ".";
+        };
+    }
+
+    public String renderMainAgentActionContract() {
+        return """
+                Required top-level fields:
+                - action: one of %s
+                - stateDelta: object
+                Forbidden top-level fields:
+                - runId, sessionId, runStatus, runtimePhase, loopIndex, nextPhase, trace, audit, toolReceipt, ragWasUsed
+
+                StateDelta allowed fields by action:
+                %s
+
+                Valid examples:
+                {"action":"FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Answer text for the user."}}}
+                {"action":"CREATE_ARTIFACT","stateDelta":{"artifactDraft":{"artifactType":"ARTICLE","title":"RAG 八股文","content":"..."},"finalAnswerCandidate":{"content":"已生成文章。"}}}
+                {"action":"UPDATE_ARTIFACT","stateDelta":{"artifactPatch":{"artifactId":"artifact-1","patchType":"REPLACE_CONTENT","content":"..."}}}
+                {"action":"RETRIEVE_RAG","stateDelta":{"ragRequest":{"query":"RAG 核心概念","topK":5}}}
+                {"action":"CALL_TOOL","stateDelta":{"toolIntent":{"toolName":"csdn.publish","intent":"Publish selected artifact.","arguments":{"artifactId":"artifact-1"}}}}
+                {"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"请选择要发布的文章","inputMode":"SINGLE_CHOICE","options":[{"label":"最新文章","value":{"artifactId":"artifact-1"}}]}}}
+                {"action":"PLAN","stateDelta":{"planDraft":{"steps":["retrieve evidence","write answer"]}}}
+                {"action":"CONTINUE","stateDelta":{"nextActionHint":{"reason":"Need another loop after context update."}}}
+                {"action":"REPAIR_FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Repaired clean answer."}}}
+                {"action":"FAIL","stateDelta":{"failure":{"message":"当前无法完成该请求。"}}}
+                """.formatted(actionCodes(), stateDeltaScopeTable());
+    }
+
+    public String renderContextPlannerOutputContract() {
+        return """
+                Required top-level fields:
+                - status: one of %s
+                - selectedContext: array, required when status is READY
+
+                Context level values:
+                - METADATA_ONLY
+                - SUMMARY_PLUS_SNIPPET
+                - FULL_TEXT
+                - CHUNKED_CONTEXT
+
+                Valid examples:
+                {"status":"READY","selectedContext":[{"sourceType":"ARTIFACT","artifactId":"artifact-1","useLevel":"FULL_TEXT","reason":"User asked to rewrite the article."}]}
+                {"status":"NEEDS_USER_CLARIFICATION","clarificationRequest":{"question":"你想处理哪一篇文章？","inputMode":"SINGLE_CHOICE_OR_FREE_TEXT","options":[{"label":"最新文章","value":{"artifactId":"artifact-1"}}]}}
+                """.formatted(contextStatusCodes());
+    }
+
+    public String renderVerificationResultContract() {
+        return """
+                Required top-level fields:
+                - status: PASSED, FAILED, or SKIPPED
+                - failureCode: nullable string
+                - detail: short diagnostic text for Runtime, not for final user display
+
+                Valid examples:
+                {"status":"PASSED","failureCode":null,"detail":"Answer is grounded in retrieved evidence."}
+                {"status":"FAILED","failureCode":"RAG_UNGROUNDED","detail":"The answer asserts facts that do not appear in evidence."}
+                """;
+    }
+
+    public String renderFinalResponseGuardResultContract() {
+        return """
+                Required top-level fields:
+                - status: PASSED or FAILED
+                - finalContent: clean user-facing content when passed
+                - failureCode: nullable string
+                - detail: diagnostic text for Runtime
+                """;
+    }
+
+    public String renderRepairContract(String originalComponentCode, String contractVersion) {
+        return """
+                Repair the invalid output for component %s and contract %s.
+                Required output is the same JSON object expected from the original component.
+                Do not add repair explanations.
+                """.formatted(originalComponentCode, contractVersion);
+    }
+
+    private String actionCodes() {
+        return Arrays.stream(MainAgentActionTypeEnumVO.values()).map(MainAgentActionTypeEnumVO::code).collect(Collectors.joining(", "));
+    }
+
+    private String contextStatusCodes() {
+        return Arrays.stream(ContextPlannerStatusEnumVO.values()).map(ContextPlannerStatusEnumVO::code).collect(Collectors.joining(", "));
+    }
+
+    private String stateDeltaScopeTable() {
+        return Arrays.stream(MainAgentActionTypeEnumVO.values())
+                .map(action -> "- " + action.code() + ": " + StateDeltaScopeRules.allowedFields(action.code()))
+                .collect(Collectors.joining("\n"));
+    }
+}

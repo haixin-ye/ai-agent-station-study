@@ -16,6 +16,9 @@ public class RawOutputParser {
         }
 
         String normalized = normalize(rawOutput);
+        if (!normalized.startsWith("{") || !normalized.endsWith("}")) {
+            return failed("INVALID_JSON", "Model output must be exactly one JSON object.");
+        }
         try {
             JSONObject jsonObject = JSON.parseObject(normalized);
             return RawOutputParseResult.builder()
@@ -43,13 +46,6 @@ public class RawOutputParser {
                 text = text.substring(0, fence);
             }
             text = text.trim();
-        }
-        if (!text.startsWith("{")) {
-            int first = text.indexOf('{');
-            int last = text.lastIndexOf('}');
-            if (first >= 0 && last > first) {
-                text = text.substring(first, last + 1).trim();
-            }
         }
         return text;
     }
