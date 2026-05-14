@@ -68,3 +68,5 @@ Before continuing design or implementation, read this file and the canonical wor
 - [x] Third Git checkpoint commit recorded in `progress.md`: `8f8a49b` (`agent: remove legacy execute harness`).
 - [x] Fourth DDD package normalization slice implemented: RAG API/domain naming separated and model entity/valobj/enums moved into subdomain folders.
 - [x] Fourth Git checkpoint commit recorded in `progress.md`: `09beb99` (`agent: normalize ddd package layout`).
+- [x] Source mojibake cleanup checkpoint implemented and recorded: `5d09538` (`agent: clean source mojibake`), with historical SQL seed files intentionally left untouched.
+- [ ] Fifth checkpoint in progress: `checkpoint-03-persistence-boundary`, starting with domain persistence entities, persistence enums, repository interfaces, and boundary tests before full DAO/mapper/DDL implementation.
