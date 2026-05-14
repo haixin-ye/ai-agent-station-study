@@ -11,14 +11,12 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RuntimeStartCommand {
+public class RuntimeResumeCommand {
 
     private String runId;
-    private String sessionId;
-    private String userId;
-    private String agentId;
-    private String userInput;
-    private String inputType;
+    private String pendingId;
+    private String selectedOptionId;
+    private String freeText;
+    private Boolean cancelled;
     private Map<String, Object> requestMetadata;
 }
-

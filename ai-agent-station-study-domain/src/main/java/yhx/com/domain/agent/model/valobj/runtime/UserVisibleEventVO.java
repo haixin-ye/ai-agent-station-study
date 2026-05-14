@@ -4,19 +4,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RuntimeResult {
+public class UserVisibleEventVO {
 
     private String runId;
-    private String sessionId;
-    private RunStatusEnumVO runStatus;
-    private String finalAnswer;
-    private String failureCode;
+    private String eventType;
+    private String title;
+    private String summary;
+    private String pendingInputId;
+    private String finalMessageId;
 }
-
-

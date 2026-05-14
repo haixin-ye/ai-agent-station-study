@@ -40,9 +40,29 @@
         LIMIT 1
     </select>
 
+    <select id="queryByPendingId" parameterType="java.lang.String" resultMap="AgentPendingInputMap">
+        SELECT id, pending_id, run_id, source_component, pending_type, input_mode, status, question,
+               options_ref, answer_schema_ref, continuation_ref, user_answer_ref, created_at, answered_at, expires_at
+        FROM agent_pending_input
+        WHERE pending_id = #{pendingId}
+        LIMIT 1
+    </select>
+
     <update id="markAnswered">
         UPDATE agent_pending_input
         SET status = 'ANSWERED', user_answer_ref = #{userAnswerRef}, answered_at = NOW()
+        WHERE pending_id = #{pendingId}
+    </update>
+
+    <update id="markCancelled" parameterType="java.lang.String">
+        UPDATE agent_pending_input
+        SET status = 'CANCELLED', answered_at = NOW()
+        WHERE pending_id = #{pendingId}
+    </update>
+
+    <update id="markExpired" parameterType="java.lang.String">
+        UPDATE agent_pending_input
+        SET status = 'EXPIRED'
         WHERE pending_id = #{pendingId}
     </update>
 

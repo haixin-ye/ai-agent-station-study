@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.model.valobj.runtime;
+package yhx.com.domain.agent.model.valobj.interaction;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,14 +11,12 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RuntimeStartCommand {
+public class UserInputResolveCommand {
 
     private String runId;
-    private String sessionId;
-    private String userId;
-    private String agentId;
-    private String userInput;
-    private String inputType;
+    private String pendingId;
+    private String selectedOptionId;
+    private String freeText;
+    private Boolean cancelled;
     private Map<String, Object> requestMetadata;
 }
-

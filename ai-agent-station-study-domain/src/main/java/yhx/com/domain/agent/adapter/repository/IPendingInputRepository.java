@@ -11,4 +11,10 @@ public interface IPendingInputRepository {
     void markAnswered(String pendingId, String userAnswerRef);
 
     Optional<AgentPendingInputEntity> findActivePendingInput(String runId);
+
+    Optional<AgentPendingInputEntity> findByPendingId(String pendingId);
+
+    void markCancelled(String pendingId);
+
+    void markExpired(String pendingId);
 }

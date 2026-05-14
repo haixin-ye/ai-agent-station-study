@@ -39,6 +39,21 @@ public class PendingInputRepository implements IPendingInputRepository {
         return Optional.ofNullable(agentPendingInputDao.queryActiveByRunId(runId)).map(this::toEntity);
     }
 
+    @Override
+    public Optional<AgentPendingInputEntity> findByPendingId(String pendingId) {
+        return Optional.ofNullable(agentPendingInputDao.queryByPendingId(pendingId)).map(this::toEntity);
+    }
+
+    @Override
+    public void markCancelled(String pendingId) {
+        agentPendingInputDao.markCancelled(pendingId);
+    }
+
+    @Override
+    public void markExpired(String pendingId) {
+        agentPendingInputDao.markExpired(pendingId);
+    }
+
     private AgentPendingInputPO toPO(AgentPendingInputEntity entity) {
         return AgentPendingInputPO.builder()
                 .pendingId(entity.getPendingId())
@@ -49,10 +64,12 @@ public class PendingInputRepository implements IPendingInputRepository {
                 .status(entity.getStatus())
                 .question(entity.getQuestion())
                 .optionsRef(entity.getOptionsRef())
+                .answerSchemaRef(entity.getAnswerSchemaRef())
                 .continuationRef(entity.getContinuationRef())
                 .userAnswerRef(entity.getUserAnswerRef())
                 .createdAt(entity.getCreatedAt())
                 .answeredAt(entity.getAnsweredAt())
+                .expiresAt(entity.getExpiresAt())
                 .build();
     }
 
@@ -66,10 +83,12 @@ public class PendingInputRepository implements IPendingInputRepository {
                 .status(po.getStatus())
                 .question(po.getQuestion())
                 .optionsRef(po.getOptionsRef())
+                .answerSchemaRef(po.getAnswerSchemaRef())
                 .continuationRef(po.getContinuationRef())
                 .userAnswerRef(po.getUserAnswerRef())
                 .createdAt(po.getCreatedAt())
                 .answeredAt(po.getAnsweredAt())
+                .expiresAt(po.getExpiresAt())
                 .build();
     }
 }

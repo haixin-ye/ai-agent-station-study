@@ -1,9 +1,12 @@
 package yhx.com.domain.agent.service.runtime;
 
-import yhx.com.domain.agent.model.valobj.runtime.RuntimeResult;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeResumeCommand;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStartCommand;
 
 public interface AutoAgentRuntimeService {
 
-    RuntimeResult start(RuntimeStartCommand command);
+    RuntimeStepResult start(RuntimeStartCommand command);
+
+    RuntimeStepResult resume(RuntimeResumeCommand command);
 }

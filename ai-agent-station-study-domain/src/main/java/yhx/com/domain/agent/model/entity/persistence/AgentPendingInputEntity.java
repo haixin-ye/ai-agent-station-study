@@ -21,8 +21,10 @@ public class AgentPendingInputEntity {
     private String status;
     private String question;
     private String optionsRef;
+    private String answerSchemaRef;
     private String continuationRef;
     private String userAnswerRef;
     private LocalDateTime createdAt;
     private LocalDateTime answeredAt;
+    private LocalDateTime expiresAt;
 }
