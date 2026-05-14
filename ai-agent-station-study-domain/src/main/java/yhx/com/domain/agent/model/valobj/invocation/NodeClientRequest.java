@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.invocation;
+package yhx.com.domain.agent.model.valobj.invocation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,17 +11,13 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class NodeInvocationCommand {
+public class NodeClientRequest {
 
     private String runId;
-    private String agentId;
     private String componentCode;
-    private String contractVersion;
-    private String promptVersion;
     private String modelCode;
+    private String prompt;
     private Double temperature;
     private Integer maxOutputTokens;
-    private Object inputView;
-    private Integer maxRepairAttempts;
-    private Map<String, Object> invocationMetadata;
+    private Map<String, Object> metadata;
 }

@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.invocation;
+package yhx.com.domain.agent.model.valobj.invocation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

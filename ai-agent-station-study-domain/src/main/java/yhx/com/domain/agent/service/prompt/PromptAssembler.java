@@ -1,7 +1,12 @@
 package yhx.com.domain.agent.service.prompt;
 
 import com.alibaba.fastjson.JSON;
+import yhx.com.domain.agent.model.valobj.enums.prompt.PromptLayerTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.prompt.PromptAssemblyCommand;
+import yhx.com.domain.agent.model.valobj.prompt.PromptAssemblyResult;
+import yhx.com.domain.agent.model.valobj.prompt.PromptEnvelope;
+import yhx.com.domain.agent.model.valobj.prompt.PromptLayer;
 
 import java.util.ArrayList;
 import java.util.Comparator;

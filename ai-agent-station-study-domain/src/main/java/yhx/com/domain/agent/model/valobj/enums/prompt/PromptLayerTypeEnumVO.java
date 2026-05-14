@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.prompt;
+package yhx.com.domain.agent.model.valobj.enums.prompt;
 
 import java.util.Arrays;
 import java.util.Optional;

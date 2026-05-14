@@ -1,9 +1,10 @@
-package yhx.com.domain.agent.service.prompt;
+package yhx.com.domain.agent.model.valobj.prompt;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import yhx.com.domain.agent.model.valobj.enums.prompt.PromptLayerTypeEnumVO;
 
 @Data
 @Builder

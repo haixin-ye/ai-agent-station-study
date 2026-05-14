@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.invocation;
+package yhx.com.domain.agent.model.valobj.invocation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,10 +9,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FinalResponseGuardResultVO {
+public class VerificationResultVO {
 
     private String status;
-    private String finalContent;
     private String failureCode;
     private String detail;
 }

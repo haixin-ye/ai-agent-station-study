@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.invocation;
+package yhx.com.domain.agent.model.valobj.invocation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,20 +6,24 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
+import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEnumVO;
+
+import java.util.List;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class NodeInvocationAttempt {
+public class NodeInvocationResult {
 
-    private Integer attemptNo;
+    private NodeInvocationStatusEnumVO status;
     private String componentCode;
-    private String prompt;
+    private String contractVersion;
+    private Object typedOutput;
     private String rawOutput;
     private RawOutputParseResult parseResult;
     private ContractValidationResult validationResult;
-    private NodeInvocationFailureTypeEnumVO failureType;
+    private List<NodeInvocationAttempt> attempts;
+    private String failureCode;
     private String failureMessage;
-    private Boolean repairAttempt;
 }

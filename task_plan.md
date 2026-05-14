@@ -56,6 +56,7 @@ Before continuing design or implementation, read this file and the canonical wor
   - external API contracts use `*Api`;
   - domain service contracts use `*DomainService`;
   - `domain/agent/model/entity`, `domain/agent/model/valobj`, and `domain/agent/model/valobj/enums` must use subdomain folders matching service domains where practical, such as `armory`, `rag`, `runtime`, `contract`, `tool`, `token`, and `memory`.
+  - `domain/agent/service/**` must contain behavior-oriented services, strategies, builders, pipelines, validators, and policies only. Data carrier classes such as `*VO`, `*Command`, `*Result`, `*Request`, `*Response`, and enums must live under `domain/agent/model/valobj/**` or `domain/agent/model/valobj/enums/**` with matching subdomain folders.
 
 ## Implementation Status
 

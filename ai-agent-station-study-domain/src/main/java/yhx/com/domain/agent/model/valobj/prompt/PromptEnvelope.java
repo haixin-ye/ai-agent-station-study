@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.prompt;
+package yhx.com.domain.agent.model.valobj.prompt;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

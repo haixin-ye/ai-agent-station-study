@@ -4,6 +4,10 @@ import com.alibaba.fastjson.JSONObject;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
+import yhx.com.domain.agent.model.valobj.invocation.FinalResponseGuardResultVO;
+import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
+import yhx.com.domain.agent.model.valobj.invocation.VerificationResultVO;
 
 public class NodeOutputMapper {
 

@@ -3,10 +3,10 @@ package yhx.com.test.domain.agent.invocation;
 import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.prompt.PromptLayerTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.prompt.PromptAssemblyCommand;
+import yhx.com.domain.agent.model.valobj.prompt.PromptEnvelope;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
-import yhx.com.domain.agent.service.prompt.PromptAssemblyCommand;
-import yhx.com.domain.agent.service.prompt.PromptEnvelope;
-import yhx.com.domain.agent.service.prompt.PromptLayerTypeEnumVO;
 import yhx.com.test.domain.agent.invocation.support.InMemoryPromptContentProvider;
 
 public class PromptAssemblerTest {

@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.invocation;
+package yhx.com.domain.agent.model.valobj.prompt;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,13 +11,13 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class NodeClientRequest {
+public class PromptAssemblyCommand {
 
     private String runId;
+    private String agentId;
     private String componentCode;
-    private String modelCode;
-    private String prompt;
-    private Double temperature;
-    private Integer maxOutputTokens;
+    private String contractVersion;
+    private String promptVersion;
+    private Object inputView;
     private Map<String, Object> metadata;
 }

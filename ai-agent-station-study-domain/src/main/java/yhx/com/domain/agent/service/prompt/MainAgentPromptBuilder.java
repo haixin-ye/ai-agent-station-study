@@ -1,5 +1,8 @@
 package yhx.com.domain.agent.service.prompt;
 
+import yhx.com.domain.agent.model.valobj.enums.prompt.PromptLayerTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.prompt.PromptLayer;
+
 import java.util.List;
 
 public class MainAgentPromptBuilder {

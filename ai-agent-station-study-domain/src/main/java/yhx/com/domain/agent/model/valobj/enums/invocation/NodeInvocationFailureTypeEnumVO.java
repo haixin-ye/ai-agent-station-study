@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.invocation;
+package yhx.com.domain.agent.model.valobj.enums.invocation;
 
 import java.util.Arrays;
 import java.util.Optional;
