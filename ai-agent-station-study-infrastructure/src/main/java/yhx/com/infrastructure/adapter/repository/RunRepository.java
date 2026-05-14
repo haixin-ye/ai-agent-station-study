@@ -51,6 +51,11 @@ public class RunRepository implements IRunRepository {
     }
 
     @Override
+    public void markRagWasUsed(String runId) {
+        agentRunDao.markRagWasUsed(runId);
+    }
+
+    @Override
     public Optional<AgentRunEntity> findRun(String runId) {
         return Optional.ofNullable(agentRunDao.queryByRunId(runId)).map(this::toEntity);
     }

@@ -16,5 +16,7 @@ public interface IRunRepository {
 
     void updateFinalAnswerRef(String runId, String finalAnswerRef);
 
+    void markRagWasUsed(String runId);
+
     Optional<AgentRunEntity> findRun(String runId);
 }

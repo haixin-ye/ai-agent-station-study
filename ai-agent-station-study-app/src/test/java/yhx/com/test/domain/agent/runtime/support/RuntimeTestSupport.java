@@ -200,6 +200,11 @@ public class RuntimeTestSupport {
         }
 
         @Override
+        public void markRagWasUsed(String runId) {
+            runs.get(runId).setRagWasUsed(true);
+        }
+
+        @Override
         public Optional<AgentRunEntity> findRun(String runId) {
             return Optional.ofNullable(runs.get(runId));
         }

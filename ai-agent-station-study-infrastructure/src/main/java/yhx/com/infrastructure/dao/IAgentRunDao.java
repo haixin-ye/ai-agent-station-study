@@ -15,5 +15,7 @@ public interface IAgentRunDao {
 
     int updateFinalAnswerRef(@Param("runId") String runId, @Param("finalAnswerRef") String finalAnswerRef);
 
+    int markRagWasUsed(String runId);
+
     AgentRunPO queryByRunId(String runId);
 }

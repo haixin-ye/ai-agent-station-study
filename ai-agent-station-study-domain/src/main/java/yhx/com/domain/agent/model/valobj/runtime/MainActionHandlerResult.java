@@ -19,7 +19,10 @@ public class MainActionHandlerResult {
     private MainActionHandlerStatusEnumVO status;
     private RuntimePhaseEnumVO nextPhase;
     private AskUserRequestVO askUserRequest;
+    private String pendingInputId;
     private FinalAnswerCandidateVO finalAnswerCandidate;
+    private String finalMessageId;
+    private String finalAnswerRef;
     private RuntimeSafeFailureVO safeFailure;
     private List<String> createdEvidenceIds;
     private List<String> createdArtifactIds;

@@ -47,6 +47,12 @@
         WHERE run_id = #{runId}
     </update>
 
+    <update id="markRagWasUsed" parameterType="java.lang.String">
+        UPDATE agent_run
+        SET rag_was_used = 1, updated_at = NOW()
+        WHERE run_id = #{runId}
+    </update>
+
     <select id="queryByRunId" parameterType="java.lang.String" resultMap="AgentRunMap">
         SELECT id, run_id, session_id, user_id, agent_id, status, phase, rag_was_used,
                final_message_id, final_answer_ref, failure_code, failure_message, created_at, updated_at

@@ -269,6 +269,20 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, failureFactory.actionHandlerUnavailable(action == null ? null : action.getAction()));
         }
         if (actionResult.getStatus() == MainActionHandlerStatusEnumVO.WAITING_USER) {
+            if (actionResult.getPendingInputId() != null && !actionResult.getPendingInputId().isBlank()) {
+                return RuntimeStepResult.builder()
+                        .runId(context.getRunId())
+                        .sessionId(context.getSessionId())
+                        .status(RuntimeStepStatusEnumVO.WAITING_USER)
+                        .nextRunStatus(RunStatusEnumVO.WAITING_USER)
+                        .nextPhase(RuntimePhaseEnumVO.WAITING_USER)
+                        .askUserRequest(actionResult.getAskUserRequest())
+                        .pendingInputId(actionResult.getPendingInputId())
+                        .action(action)
+                        .actionResult(actionResult)
+                        .message(actionResult.getMessage())
+                        .build();
+            }
             return pauseForUser(context, actionResult.getAskUserRequest(), MainAgentPendingInputHandler.HANDLER_CODE,
                     PendingInputTypeEnumVO.MAIN_AGENT_QUESTION.code(), actionResult.getMessage());
         }
@@ -290,6 +304,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                     .action(action)
                     .actionResult(actionResult)
                     .finalAnswer(actionResult.getFinalAnswerCandidate() == null ? null : actionResult.getFinalAnswerCandidate().getContent())
+                    .finalMessageId(actionResult.getFinalMessageId())
                     .message(actionResult.getMessage())
                     .build();
         }
