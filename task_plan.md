@@ -52,6 +52,7 @@ Before continuing design or implementation, read this file and the canonical wor
 - Treat Phase 0-12 as the full backlog and verification map, not as a rigid coding order.
 - Implement by vertical slices: foundation skeleton, minimal end-to-end direct-answer flow, persistence, prompt/context, runtime actions, RAG/tool capabilities, final/API/debug, old-harness isolation, MVP verification.
 - When a later-phase module is needed early, create a stable interface and fake/stub implementation first, then fill the production implementation later.
+- Build to production standard rather than quick demos: if a missing prior interface, adapter, mapper, repository method, or contract is discovered during a later phase, stop and implement the correct root-cause fix before continuing. Do not use shortcut code that hides an architectural gap.
 - Keep DDD package names explicit and subdomain-aligned:
   - external API contracts use `*Api`;
   - domain service contracts use `*DomainService`;
