@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRunEventDao">
+
+    <resultMap id="AgentRunEventMap" type="yhx.com.infrastructure.dao.po.AgentRunEventPO">
+        <id column="id" property="id"/>
+        <result column="event_id" property="eventId"/>
+        <result column="run_id" property="runId"/>
+        <result column="seq" property="seq"/>
+        <result column="event_type" property="eventType"/>
+        <result column="payload_ref" property="payloadRef"/>
+        <result column="user_visible" property="userVisible"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRunEventPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_run_event (event_id, run_id, seq, event_type, payload_ref, user_visible, created_at)
+        VALUES (#{eventId}, #{runId}, #{seq}, #{eventType}, #{payloadRef}, #{userVisible}, #{createdAt})
+    </insert>
+
+    <select id="listUserVisibleByRunId" resultMap="AgentRunEventMap">
+        SELECT id, event_id, run_id, seq, event_type, payload_ref, user_visible, created_at
+        FROM agent_run_event
+        WHERE run_id = #{runId}
+          AND user_visible = 1
+        ORDER BY seq ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

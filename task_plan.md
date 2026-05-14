@@ -70,3 +70,4 @@ Before continuing design or implementation, read this file and the canonical wor
 - [x] Fourth Git checkpoint commit recorded in `progress.md`: `09beb99` (`agent: normalize ddd package layout`).
 - [x] Source mojibake cleanup checkpoint implemented and recorded: `5d09538` (`agent: clean source mojibake`), with historical SQL seed files intentionally left untouched.
 - [x] Fifth checkpoint started and first persistence boundary slice committed: `4cd3252` (`agent: add persistence boundary contracts`), covering domain persistence entities, persistence enums, repository interfaces, and boundary tests before full DAO/mapper/DDL implementation.
+- [ ] Sixth checkpoint in progress: core infrastructure persistence slice, including full new harness DDL plus core PO/DAO/MyBatis mapper/repository adapters for payload, conversation, run, artifact, evidence, pending input, and event/trace/audit.

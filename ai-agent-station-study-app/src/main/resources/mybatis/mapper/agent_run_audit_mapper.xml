@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRunAuditDao">
+
+    <resultMap id="AgentRunAuditMap" type="yhx.com.infrastructure.dao.po.AgentRunAuditPO">
+        <id column="id" property="id"/>
+        <result column="audit_id" property="auditId"/>
+        <result column="run_id" property="runId"/>
+        <result column="audit_type" property="auditType"/>
+        <result column="payload_ref" property="payloadRef"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRunAuditPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_run_audit (audit_id, run_id, audit_type, payload_ref, created_at)
+        VALUES (#{auditId}, #{runId}, #{auditType}, #{payloadRef}, #{createdAt})
+    </insert>
+
+</mapper>

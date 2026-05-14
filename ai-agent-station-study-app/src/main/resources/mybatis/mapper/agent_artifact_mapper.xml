@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentArtifactDao">
+
+    <resultMap id="AgentArtifactMap" type="yhx.com.infrastructure.dao.po.AgentArtifactPO">
+        <id column="id" property="id"/>
+        <result column="artifact_id" property="artifactId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="run_id" property="runId"/>
+        <result column="artifact_type" property="artifactType"/>
+        <result column="title" property="title"/>
+        <result column="summary" property="summary"/>
+        <result column="content_ref" property="contentRef"/>
+        <result column="version" property="version"/>
+        <result column="last_mentioned_at" property="lastMentionedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentArtifactPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_artifact (
+            artifact_id, session_id, run_id, artifact_type, title, summary, content_ref,
+            version, last_mentioned_at, created_at, updated_at
+        ) VALUES (
+            #{artifactId}, #{sessionId}, #{runId}, #{artifactType}, #{title}, #{summary}, #{contentRef},
+            #{version}, #{lastMentionedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="queryByArtifactId" parameterType="java.lang.String" resultMap="AgentArtifactMap">
+        SELECT id, artifact_id, session_id, run_id, artifact_type, title, summary, content_ref,
+               version, last_mentioned_at, created_at, updated_at
+        FROM agent_artifact
+        WHERE artifact_id = #{artifactId}
+    </select>
+
+</mapper>

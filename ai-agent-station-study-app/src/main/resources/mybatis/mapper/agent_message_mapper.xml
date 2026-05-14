@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentMessageDao">
+
+    <resultMap id="AgentMessageMap" type="yhx.com.infrastructure.dao.po.AgentMessagePO">
+        <id column="id" property="id"/>
+        <result column="message_id" property="messageId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="run_id" property="runId"/>
+        <result column="role" property="role"/>
+        <result column="content_ref" property="contentRef"/>
+        <result column="metadata_ref" property="metadataRef"/>
+        <result column="visible_to_user" property="visibleToUser"/>
+        <result column="seq" property="seq"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentMessagePO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_message (
+            message_id, session_id, run_id, role, content_ref, metadata_ref,
+            visible_to_user, seq, created_at
+        ) VALUES (
+            #{messageId}, #{sessionId}, #{runId}, #{role}, #{contentRef}, #{metadataRef},
+            #{visibleToUser}, #{seq}, #{createdAt}
+        )
+    </insert>
+
+    <select id="listRecentVisibleBySessionId" resultMap="AgentMessageMap">
+        SELECT id, message_id, session_id, run_id, role, content_ref, metadata_ref,
+               visible_to_user, seq, created_at
+        FROM agent_message
+        WHERE session_id = #{sessionId}
+          AND visible_to_user = 1
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
