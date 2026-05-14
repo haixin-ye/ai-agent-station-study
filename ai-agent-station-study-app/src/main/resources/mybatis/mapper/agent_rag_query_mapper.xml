@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRagQueryDao">
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRagQueryPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_rag_query (
+            rag_query_id, run_id, query_text, knowledge_tag, filters_ref, top_k, created_at
+        ) VALUES (
+            #{ragQueryId}, #{runId}, #{queryText}, #{knowledgeTag}, #{filtersRef}, #{topK}, #{createdAt}
+        )
+    </insert>
+
+</mapper>

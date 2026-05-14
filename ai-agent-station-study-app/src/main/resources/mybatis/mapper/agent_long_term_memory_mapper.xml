@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentLongTermMemoryDao">
+
+    <resultMap id="AgentLongTermMemoryMap" type="yhx.com.infrastructure.dao.po.AgentLongTermMemoryPO">
+        <id column="id" property="id"/>
+        <result column="memory_id" property="memoryId"/>
+        <result column="user_id" property="userId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="memory_type" property="memoryType"/>
+        <result column="summary" property="summary"/>
+        <result column="content_ref" property="contentRef"/>
+        <result column="score" property="score"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentLongTermMemoryPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_long_term_memory (
+            memory_id, user_id, session_id, memory_type, summary, content_ref, score, created_at, updated_at
+        ) VALUES (
+            #{memoryId}, #{userId}, #{sessionId}, #{memoryType}, #{summary}, #{contentRef}, #{score}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="listCandidates" resultMap="AgentLongTermMemoryMap">
+        SELECT id, memory_id, user_id, session_id, memory_type, summary, content_ref, score, created_at, updated_at
+        FROM agent_long_term_memory
+        WHERE user_id = #{userId}
+          AND (session_id = #{sessionId} OR session_id IS NULL OR session_id = '')
+        ORDER BY score DESC, updated_at DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

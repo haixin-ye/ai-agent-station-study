@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRagHitDao">
+
+    <resultMap id="AgentRagHitMap" type="yhx.com.infrastructure.dao.po.AgentRagHitPO">
+        <id column="id" property="id"/>
+        <result column="rag_hit_id" property="ragHitId"/>
+        <result column="rag_query_id" property="ragQueryId"/>
+        <result column="run_id" property="runId"/>
+        <result column="chunk_ref" property="chunkRef"/>
+        <result column="score" property="score"/>
+        <result column="source_title" property="sourceTitle"/>
+        <result column="source_uri" property="sourceUri"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRagHitPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_rag_hit (
+            rag_hit_id, rag_query_id, run_id, chunk_ref, score, source_title, source_uri, created_at
+        ) VALUES (
+            #{ragHitId}, #{ragQueryId}, #{runId}, #{chunkRef}, #{score}, #{sourceTitle}, #{sourceUri}, #{createdAt}
+        )
+    </insert>
+
+    <select id="listByRunId" parameterType="java.lang.String" resultMap="AgentRagHitMap">
+        SELECT id, rag_hit_id, rag_query_id, run_id, chunk_ref, score, source_title, source_uri, created_at
+        FROM agent_rag_hit
+        WHERE run_id = #{runId}
+        ORDER BY score DESC, created_at ASC
+    </select>
+
+</mapper>

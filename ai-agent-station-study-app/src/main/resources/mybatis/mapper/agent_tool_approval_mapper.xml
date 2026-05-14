@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentToolApprovalDao">
+
+    <resultMap id="AgentToolApprovalMap" type="yhx.com.infrastructure.dao.po.AgentToolApprovalPO">
+        <id column="id" property="id"/>
+        <result column="approval_id" property="approvalId"/>
+        <result column="approval_key" property="approvalKey"/>
+        <result column="run_id" property="runId"/>
+        <result column="tool_call_id" property="toolCallId"/>
+        <result column="status" property="status"/>
+        <result column="permission_mode" property="permissionMode"/>
+        <result column="arguments_hash" property="argumentsHash"/>
+        <result column="options_ref" property="optionsRef"/>
+        <result column="user_answer_ref" property="userAnswerRef"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="decided_at" property="decidedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentToolApprovalPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_tool_approval (
+            approval_id, approval_key, run_id, tool_call_id, status, permission_mode, arguments_hash,
+            options_ref, user_answer_ref, created_at, decided_at
+        ) VALUES (
+            #{approvalId}, #{approvalKey}, #{runId}, #{toolCallId}, #{status}, #{permissionMode}, #{argumentsHash},
+            #{optionsRef}, #{userAnswerRef}, #{createdAt}, #{decidedAt}
+        )
+    </insert>
+
+    <select id="queryPendingByRunId" parameterType="java.lang.String" resultMap="AgentToolApprovalMap">
+        SELECT id, approval_id, approval_key, run_id, tool_call_id, status, permission_mode, arguments_hash,
+               options_ref, user_answer_ref, created_at, decided_at
+        FROM agent_tool_approval
+        WHERE run_id = #{runId}
+          AND status = 'PENDING'
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="queryByApprovalKey" parameterType="java.lang.String" resultMap="AgentToolApprovalMap">
+        SELECT id, approval_id, approval_key, run_id, tool_call_id, status, permission_mode, arguments_hash,
+               options_ref, user_answer_ref, created_at, decided_at
+        FROM agent_tool_approval
+        WHERE approval_key = #{approvalKey}
+        LIMIT 1
+    </select>
+
+    <update id="markDecision">
+        UPDATE agent_tool_approval
+        SET status = #{status}, user_answer_ref = #{userAnswerRef}, decided_at = #{decidedAt}
+        WHERE approval_id = #{approvalId}
+    </update>
+
+</mapper>

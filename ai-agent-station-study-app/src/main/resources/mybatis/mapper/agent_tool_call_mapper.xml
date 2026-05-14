@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentToolCallDao">
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentToolCallPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_tool_call (
+            tool_call_id, tool_invocation_id, run_id, tool_name, mcp_server_name, mcp_transport_type,
+            status, input_schema_ref, intent_ref, arguments_ref, receipt_ref, failure_code, created_at, updated_at
+        ) VALUES (
+            #{toolCallId}, #{toolInvocationId}, #{runId}, #{toolName}, #{mcpServerName}, #{mcpTransportType},
+            #{status}, #{inputSchemaRef}, #{intentRef}, #{argumentsRef}, #{receiptRef}, #{failureCode}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE agent_tool_call
+        SET status = #{status}, updated_at = NOW()
+        WHERE tool_call_id = #{toolCallId}
+    </update>
+
+    <update id="saveReceipt">
+        UPDATE agent_tool_call
+        SET arguments_ref = #{argumentsRef}, receipt_ref = #{receiptRef}, status = 'SUCCEEDED', updated_at = NOW()
+        WHERE tool_call_id = #{toolCallId}
+    </update>
+
+</mapper>
