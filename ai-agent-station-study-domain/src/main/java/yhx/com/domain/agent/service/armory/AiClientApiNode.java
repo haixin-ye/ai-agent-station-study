@@ -17,10 +17,9 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * OpenAI API閰嶇疆鑺傜偣
+ * OpenAI API configuration node.
  *
  * @author yhx
- * 2025/7/1 07:09
  */
 @Slf4j
 @Service
@@ -31,17 +30,16 @@ public class AiClientApiNode extends AbstractArmorySupport {
 
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 鏋勫缓鑺傜偣锛孉PI 鎺ュ彛璇锋眰{}", JSON.toJSONString(requestParameter));
+        log.info("AI Agent assembly node: API config request {}", JSON.toJSONString(requestParameter));
 
         List<AiClientApiVO> aiClientApiList = dynamicContext.getValue(dataName());
 
         if (aiClientApiList == null || aiClientApiList.isEmpty()) {
-            log.warn("娌℃湁闇€瑕佽鍒濆鍖栫殑 ai client api");
+            log.warn("No ai client api needs initialization");
             return router(requestParameter, dynamicContext);
         }
 
         for (AiClientApiVO aiClientApiVO : aiClientApiList) {
-            // 鏋勫缓 OpenAiApi
             OpenAiApi openAiApi = OpenAiApi.builder()
                     .baseUrl(aiClientApiVO.getBaseUrl())
                     .apiKey(aiClientApiVO.getApiKey())
@@ -52,7 +50,6 @@ public class AiClientApiNode extends AbstractArmorySupport {
                             .requestInterceptor(new OpenAiHttpTraceInterceptor()))
                     .build();
 
-            // 娉ㄥ唽 OpenAiApi Bean 瀵硅薄
             registerBean(beanName(aiClientApiVO.getApiId()), OpenAiApi.class, openAiApi);
         }
 
@@ -75,4 +72,3 @@ public class AiClientApiNode extends AbstractArmorySupport {
     }
 
 }
-

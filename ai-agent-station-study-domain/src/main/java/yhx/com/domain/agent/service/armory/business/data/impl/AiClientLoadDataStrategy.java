@@ -22,9 +22,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 浠ュ鎴风涓茶仈锛屽姞杞芥暟鎹瓥鐣? *
+ * Load all client-related armory data.
+ *
  * @author yhx
- * 2025/6/27 17:20
  */
 @Slf4j
 @Service("aiClientLoadDataStrategy")
@@ -41,32 +41,32 @@ public class AiClientLoadDataStrategy implements ILoadDataStrategy {
         List<String> clientIdList = armoryCommandEntity.getCommandIdList();
 
         CompletableFuture<List<AiClientApiVO>> aiClientApiListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_api) {}", clientIdList);
+            log.info("Query config data (ai_client_api) {}", clientIdList);
             return repository.queryAiClientApiVOListByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientModelVO>> aiClientModelListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_model) {}", clientIdList);
+            log.info("Query config data (ai_client_model) {}", clientIdList);
             return repository.AiClientModelVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientToolMcpVO>> aiClientToolMcpListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_tool_mcp) {}", clientIdList);
+            log.info("Query config data (ai_client_tool_mcp) {}", clientIdList);
             return repository.AiClientToolMcpVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<Map<String, AiClientSystemPromptVO>> aiClientSystemPromptListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_system_prompt) {}", clientIdList);
+            log.info("Query config data (ai_client_system_prompt) {}", clientIdList);
             return repository.queryAiClientSystemPromptMapByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientAdvisorVO>> aiClientAdvisorListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client_advisor) {}", clientIdList);
+            log.info("Query config data (ai_client_advisor) {}", clientIdList);
             return repository.AiClientAdvisorVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
         CompletableFuture<List<AiClientVO>> aiClientListFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("鏌ヨ閰嶇疆鏁版嵁(ai_client) {}", clientIdList);
+            log.info("Query config data (ai_client) {}", clientIdList);
             return repository.AiClientVOByClientIds(clientIdList);
         }, threadPoolExecutor);
 
@@ -77,10 +77,7 @@ public class AiClientLoadDataStrategy implements ILoadDataStrategy {
             dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_TOOL_MCP.getDataName(), aiClientToolMcpListFuture.join());
             dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT_ADVISOR.getDataName(), aiClientAdvisorListFuture.join());
             dynamicContext.setValue(AiAgentEnumVO.AI_CLIENT.getDataName(), aiClientListFuture.join());
-
         }).join();
-
     }
 
 }
-

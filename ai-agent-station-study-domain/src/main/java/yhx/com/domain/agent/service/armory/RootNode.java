@@ -14,9 +14,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * 鏍硅妭鐐癸紝鏁版嵁鍔犺浇
+ * Root node for armory data loading.
+ *
  * @author yhx
- * 2025/6/27 16:47
  */
 @Slf4j
 @Service
@@ -33,14 +33,13 @@ public class RootNode extends AbstractArmorySupport {
 
     @Override
     protected void multiThread(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws ExecutionException, InterruptedException, TimeoutException {
-        // 鍔犺浇鏁版嵁
         ILoadDataStrategy loadDataStrategy = loadDataStrategyMap.get(requestParameter.getLoadDataStrategy());
         loadDataStrategy.loadData(requestParameter, dynamicContext);
     }
 
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 鏋勫缓锛屾暟鎹姞杞借妭鐐箋}", JSON.toJSONString(requestParameter));
+        log.info("AI Agent assembly data loading node: {}", JSON.toJSONString(requestParameter));
         return router(requestParameter, dynamicContext);
     }
 
@@ -50,4 +49,3 @@ public class RootNode extends AbstractArmorySupport {
     }
 
 }
-

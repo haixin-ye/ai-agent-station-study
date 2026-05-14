@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * MCP瀹㈡埛绔厤缃妭鐐? * 2025/7/5 12:48
+ * MCP client configuration node.
+ *
+ * @author yhx
  */
 @Slf4j
 @Service
@@ -32,20 +34,17 @@ public class AiClientToolMcpNode extends AbstractArmorySupport {
 
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter, DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent 鏋勫缓鑺傜偣锛孴ool MCP 宸ュ叿閰嶇疆{}", JSON.toJSONString(requestParameter));
+        log.info("AI Agent assembly node: tool MCP config {}", JSON.toJSONString(requestParameter));
 
         List<AiClientToolMcpVO> aiClientToolMcpList = dynamicContext.getValue(dataName());
 
         if (aiClientToolMcpList == null || aiClientToolMcpList.isEmpty()) {
-            log.warn("娌℃湁闇€瑕佽鍒濆鍖栫殑 ai client tool mcp");
+            log.warn("No ai client tool mcp needs initialization");
             return router(requestParameter, dynamicContext);
         }
 
         for (AiClientToolMcpVO mcpVO : aiClientToolMcpList) {
-            // 鍒涘缓 MCP 鏈嶅姟
             McpSyncClient mcpSyncClient = createMcpSyncClient(mcpVO);
-
-            // 娉ㄥ唽 MCP 瀵硅薄
             registerBean(beanName(mcpVO.getMcpId()), McpSyncClient.class, mcpSyncClient);
         }
 
@@ -73,7 +72,6 @@ public class AiClientToolMcpNode extends AbstractArmorySupport {
         switch (transportType) {
             case "sse" -> {
                 AiClientToolMcpVO.TransportConfigSse transportConfigSse = aiClientToolMcpVO.getTransportConfigSse();
-                // http://127.0.0.1:9999/sse?apikey=DElk89iu8Ehhnbu
                 String originalBaseUri = transportConfigSse.getBaseUri();
                 String baseUri;
                 String sseEndpoint;
@@ -90,14 +88,16 @@ public class AiClientToolMcpNode extends AbstractArmorySupport {
                 sseEndpoint = StringUtils.isBlank(sseEndpoint) ? "/sse" : sseEndpoint;
 
                 HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport
-                        .builder(baseUri) // 浣跨敤鎴彇鍚庣殑 baseUri
-                        .sseEndpoint(sseEndpoint) // 浣跨敤鎴彇鎴栭粯璁ょ殑 sseEndpoint
+                        .builder(baseUri)
+                        .sseEndpoint(sseEndpoint)
                         .build();
 
-                McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(aiClientToolMcpVO.getRequestTimeout())).build();
-                var init_sse = mcpSyncClient.initialize();
+                McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport)
+                        .requestTimeout(Duration.ofMinutes(aiClientToolMcpVO.getRequestTimeout()))
+                        .build();
+                var initSse = mcpSyncClient.initialize();
 
-                log.info("Tool SSE MCP Initialized {}", init_sse);
+                log.info("Tool SSE MCP initialized {}", initSse);
                 return mcpSyncClient;
             }
             case "stdio" -> {
@@ -105,23 +105,22 @@ public class AiClientToolMcpNode extends AbstractArmorySupport {
                 Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdioMap = transportConfigStdio.getStdio();
                 AiClientToolMcpVO.TransportConfigStdio.Stdio stdio = stdioMap.get(aiClientToolMcpVO.getMcpName());
 
-                // https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem
                 var stdioParams = ServerParameters.builder(stdio.getCommand())
                         .args(stdio.getArgs())
                         .env(stdio.getEnv())
                         .build();
 
                 var mcpClient = McpClient.sync(new StdioClientTransport(stdioParams))
-                        .requestTimeout(Duration.ofSeconds(aiClientToolMcpVO.getRequestTimeout())).build();
-                var init_stdio = mcpClient.initialize();
+                        .requestTimeout(Duration.ofSeconds(aiClientToolMcpVO.getRequestTimeout()))
+                        .build();
+                var initStdio = mcpClient.initialize();
 
-                log.info("Tool Stdio MCP Initialized {}", init_stdio);
+                log.info("Tool Stdio MCP initialized {}", initStdio);
                 return mcpClient;
             }
         }
 
-        throw new RuntimeException("err! transportType " + transportType + " not exist!");
+        throw new RuntimeException("transportType does not exist: " + transportType);
     }
 
 }
-

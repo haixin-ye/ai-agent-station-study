@@ -32,10 +32,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * AI Agent 鑷姩瑁呴厤涓庡悜閲忓簱瑁呴厤閰嶇疆銆?
- * 璇存槑锛?
- * 1. 瀹㈡埛绔閰嶅湪 ApplicationReady 闃舵鎵ц锛?
- * 2. pgVectorStore 鏀逛负鍚姩鏈?@Bean 鍒涘缓锛岄伩鍏?RAG 渚ф嬁鍒伴粯璁よ嚜鍔ㄩ厤缃殑 VectorStore銆?
+ * AI Agent auto-configuration for client assembly and vector store setup.
+ *
+ * @author yhx
  */
 @Slf4j
 @Configuration
@@ -50,22 +49,21 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
     private DefaultArmoryStrategyFactory defaultArmoryStrategyFactory;
 
     /**
-     * 鏄惧紡娉ㄥ唽 pgVectorStore锛屽苟浣滀负涓?VectorStore銆?
-     * 杩欐牱 RAG 涓婁紶涓?Advisor 妫€绱細缁熶竴浣跨敤 DB 涓?ragApiId 鎸囧畾鐨?API 鍑瘉銆?
+     * Register the primary PgVectorStore used by RAG ingestion and advisors.
      */
     @Bean("pgVectorStore")
     @Primary
     public PgVectorStore pgVectorStore(@Qualifier("pgVectorJdbcTemplate") JdbcTemplate jdbcTemplate) {
         String ragApiId = aiAgentAutoConfigProperties.getRagApiId();
         if (ragApiId == null || ragApiId.isBlank()) {
-            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細鏈厤缃?spring.ai.agent.auto-config.rag-api-id");
+            throw new IllegalStateException("RAG initialization failed: spring.ai.agent.auto-config.rag-api-id is not configured");
         }
 
         List<AiClientApiVO> apiList = loadAiClientApiFromArmory();
         AiClientApiVO ragApi = apiList.stream()
                 .filter(api -> ragApiId.equals(api.getApiId()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細鏈壘鍒?ragApiId 瀵瑰簲鐨?API 閰嶇疆锛宺agApiId=" + ragApiId));
+                .orElseThrow(() -> new IllegalStateException("RAG initialization failed: API configuration not found for ragApiId=" + ragApiId));
 
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .baseUrl(ragApi.getBaseUrl())
@@ -90,10 +88,10 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
         try {
             store.afterPropertiesSet();
         } catch (Exception e) {
-            throw new IllegalStateException("PgVectorStore 鍒濆鍖栧け璐ワ紝璇锋鏌?pgvector 鎵╁睍銆佽〃鏉冮檺銆乪mbedding 閰嶇疆", e);
+            throw new IllegalStateException("PgVectorStore initialization failed. Check pgvector extension, table permissions, and embedding configuration.", e);
         }
 
-        log.info("PgVectorStore 宸插垵濮嬪寲: ragApiId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}, table={}",
+        log.info("PgVectorStore initialized: ragApiId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}, table={}",
                 ragApiId,
                 ragApi.getBaseUrl(),
                 ragApi.getEmbeddingsPath(),
@@ -107,11 +105,11 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
         try {
-            log.info("AI Agent 鑷姩瑁呴厤寮€濮嬶紝閰嶇疆: {}", aiAgentAutoConfigProperties);
+            log.info("AI Agent auto assembly started, config: {}", aiAgentAutoConfigProperties);
 
             List<String> commandIdList = parseClientIds(aiAgentAutoConfigProperties.getClientIds());
             if (CollectionUtils.isEmpty(commandIdList)) {
-                log.warn("AI Agent 鑷姩瑁呴厤璺宠繃锛歝lient-ids 涓虹┖");
+                log.warn("AI Agent auto assembly skipped: client-ids is empty");
                 return;
             }
 
@@ -125,20 +123,20 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
                             .build(),
                     new DefaultArmoryStrategyFactory.DynamicContext());
 
-            log.info("AI Agent 鑷姩瑁呴厤瀹屾垚锛岀粨鏋? {}", result);
+            log.info("AI Agent auto assembly completed, result: {}", result);
 
             ApplicationContext applicationContext = event.getApplicationContext();
             Map<String, VectorStore> vectorStoreMap = applicationContext.getBeansOfType(VectorStore.class);
-            log.info("VectorStore Bean 鍒楄〃: {}", vectorStoreMap.keySet());
+            log.info("VectorStore beans: {}", vectorStoreMap.keySet());
         } catch (Exception e) {
-            log.error("AI Agent 鑷姩瑁呴厤澶辫触", e);
+            log.error("AI Agent auto assembly failed", e);
         }
     }
 
     private List<AiClientApiVO> loadAiClientApiFromArmory() {
         List<String> commandIdList = parseClientIds(aiAgentAutoConfigProperties.getClientIds());
         if (CollectionUtils.isEmpty(commandIdList)) {
-            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細client-ids 涓虹┖锛屾棤娉曞姞杞?API 閰嶇疆");
+            throw new IllegalStateException("RAG initialization failed: client-ids is empty, cannot load API configuration");
         }
 
         DefaultArmoryStrategyFactory.DynamicContext dynamicContext = new DefaultArmoryStrategyFactory.DynamicContext();
@@ -153,12 +151,12 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
                             .build(),
                     dynamicContext);
         } catch (Exception e) {
-            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細瑁呴厤閾捐矾鎵ц寮傚父", e);
+            throw new IllegalStateException("RAG initialization failed: armory chain execution failed", e);
         }
 
         List<AiClientApiVO> apiList = dynamicContext.getValue(AiAgentEnumVO.AI_CLIENT_API.getDataName());
         if (CollectionUtils.isEmpty(apiList)) {
-            throw new IllegalStateException("RAG 鍒濆鍖栧け璐ワ細鏈粠 DynamicContext 鍔犺浇鍒?ai_client_api");
+            throw new IllegalStateException("RAG initialization failed: ai_client_api was not loaded into DynamicContext");
         }
         return apiList;
     }
@@ -176,4 +174,3 @@ public class AiAgentAutoConfiguration implements ApplicationListener<Application
         return clientIds;
     }
 }
-

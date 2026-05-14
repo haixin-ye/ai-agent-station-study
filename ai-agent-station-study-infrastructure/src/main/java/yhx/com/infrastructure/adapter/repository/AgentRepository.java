@@ -23,10 +23,9 @@ import java.util.stream.Collectors;
 import static yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO.*;
 
 /**
- * AiAgent 浠撳偍鏈嶅姟
+ * Agent repository adapter.
  *
  * @author yhx
- * 2025/6/28 18:09
  */
 @Slf4j
 @Repository
@@ -74,35 +73,15 @@ public class AgentRepository implements IAgentRepository {
         List<AiClientApiVO> result = new ArrayList<>();
 
         for (String clientId : clientIdList) {
-            // 1. 閫氳繃clientId鏌ヨ鍏宠仈鐨刴odelId
             List<AiClientConfig> configs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT.getCode(), clientId);
 
             for (AiClientConfig config : configs) {
                 if (AI_CLIENT_MODEL.getCode().equals(config.getTargetType()) && config.getStatus() == 1) {
                     String modelId = config.getTargetId();
-
-                    // 2. 閫氳繃modelId鏌ヨ妯″瀷閰嶇疆锛岃幏鍙朼piId
                     AiClientModel model = aiClientModelDao.queryByModelId(modelId);
                     if (model != null && model.getStatus() == 1) {
-                        String apiId = model.getApiId();
-
-                        // 3. 閫氳繃apiId鏌ヨAPI閰嶇疆淇℃伅
-                        AiClientApi apiConfig = aiClientApiDao.queryByApiId(apiId);
-                        if (apiConfig != null && apiConfig.getStatus() == 1) {
-                            // 4. 杞崲涓篤O瀵硅薄
-                            AiClientApiVO apiVO = AiClientApiVO.builder()
-                                    .apiId(apiConfig.getApiId())
-                                    .baseUrl(apiConfig.getBaseUrl())
-                                    .apiKey(apiConfig.getApiKey())
-                                    .completionsPath(apiConfig.getCompletionsPath())
-                                    .embeddingsPath(apiConfig.getEmbeddingsPath())
-                                    .build();
-
-                            // 閬垮厤閲嶅娣诲姞鐩稿悓鐨凙PI閰嶇疆
-                            if (result.stream().noneMatch(vo -> vo.getApiId().equals(apiVO.getApiId()))) {
-                                result.add(apiVO);
-                            }
-                        }
+                        AiClientApi apiConfig = aiClientApiDao.queryByApiId(model.getApiId());
+                        addApiVOIfActiveAndAbsent(result, apiConfig);
                     }
                 }
             }
@@ -120,28 +99,14 @@ public class AgentRepository implements IAgentRepository {
         List<AiClientModelVO> result = new ArrayList<>();
 
         for (String clientId : clientIdList) {
-            // 1. 閫氳繃clientId鏌ヨ鍏宠仈鐨刴odelId
             List<AiClientConfig> configs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT.getCode(), clientId);
 
             for (AiClientConfig config : configs) {
                 if (AI_CLIENT_MODEL.getCode().equals(config.getTargetType()) && config.getStatus() == 1) {
                     String modelId = config.getTargetId();
-
-                    // 2. 閫氳繃modelId鏌ヨ妯″瀷閰嶇疆
                     AiClientModel model = aiClientModelDao.queryByModelId(modelId);
                     if (model != null && model.getStatus() == 1) {
-
-                        // 3. 鏌ヨ璇ユā鍨嬪叧鑱旂殑tool_mcp閰嶇疆
-                        List<AiClientConfig> toolMcpConfigs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT_MODEL.getCode(), modelId);
-                        List<String> toolMcpIds = new ArrayList<>();
-
-                        for (AiClientConfig toolMcpConfig : toolMcpConfigs) {
-                            if (AI_CLIENT_TOOL_MCP.getCode().equals(toolMcpConfig.getTargetType()) && toolMcpConfig.getStatus() == 1) {
-                                toolMcpIds.add(toolMcpConfig.getTargetId());
-                            }
-                        }
-
-                        // 4. 杞崲涓篤O瀵硅薄
+                        List<String> toolMcpIds = queryModelToolMcpIds(modelId);
                         AiClientModelVO modelVO = AiClientModelVO.builder()
                                 .modelId(model.getModelId())
                                 .apiId(model.getApiId())
@@ -150,7 +115,6 @@ public class AgentRepository implements IAgentRepository {
                                 .toolMcpIds(toolMcpIds)
                                 .build();
 
-                        // 閬垮厤閲嶅娣诲姞鐩稿悓鐨勬ā鍨嬮厤缃?
                         if (result.stream().noneMatch(vo -> vo.getModelId().equals(modelVO.getModelId()))) {
                             result.add(modelVO);
                         }
@@ -172,138 +136,9 @@ public class AgentRepository implements IAgentRepository {
         Set<String> processedMcpIds = new HashSet<>();
 
         for (String clientId : clientIdList) {
-            // 1. 閫氳繃clientId鏌ヨ鍏宠仈鐨刴odel閰嶇疆
             List<AiClientConfig> clientConfigs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT.getCode(), clientId);
-
-            // 鍏堝姞杞?client -> tool_mcp锛坈lient 缁村害鎸傝浇锛?
-            for (AiClientConfig clientConfig : clientConfigs) {
-                if (AI_CLIENT_TOOL_MCP.getCode().equals(clientConfig.getTargetType()) && clientConfig.getStatus() == 1) {
-                    String mcpId = clientConfig.getTargetId();
-
-                    if (processedMcpIds.contains(mcpId)) {
-                        continue;
-                    }
-                    processedMcpIds.add(mcpId);
-
-                    AiClientToolMcp toolMcp = aiClientToolMcpDao.queryByMcpId(mcpId);
-                    if (toolMcp != null && toolMcp.getStatus() == 1) {
-                        AiClientToolMcpVO mcpVO = AiClientToolMcpVO.builder()
-                                .mcpId(toolMcp.getMcpId())
-                                .mcpName(toolMcp.getMcpName())
-                                .transportType(toolMcp.getTransportType())
-                                .transportConfig(toolMcp.getTransportConfig())
-                                .requestTimeout(toolMcp.getRequestTimeout())
-                                .build();
-
-                        String transportConfig = toolMcp.getTransportConfig();
-                        String transportType = toolMcp.getTransportType();
-
-                        try {
-                            JSONObject transportConfigJson = JSON.parseObject(transportConfig);
-                            AiClientToolMcpVO.ToolPolicy toolPolicy = transportConfigJson == null
-                                    ? null
-                                    : transportConfigJson.getObject("policy", AiClientToolMcpVO.ToolPolicy.class);
-                            mcpVO.setToolPolicy(toolPolicy);
-                            if ("sse".equals(transportType)) {
-                                if (transportConfigJson != null) {
-                                    transportConfigJson.remove("policy");
-                                }
-                                AiClientToolMcpVO.TransportConfigSse transportConfigSse = JSON.parseObject(
-                                        transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
-                                        AiClientToolMcpVO.TransportConfigSse.class);
-                                mcpVO.setTransportConfigSse(transportConfigSse);
-                            } else if ("stdio".equals(transportType)) {
-                                if (transportConfigJson != null) {
-                                    transportConfigJson.remove("policy");
-                                }
-                                Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdio = JSON.parseObject(
-                                        transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
-                                        new TypeReference<>() {
-                                        });
-
-                                AiClientToolMcpVO.TransportConfigStdio transportConfigStdio = new AiClientToolMcpVO.TransportConfigStdio();
-                                transportConfigStdio.setStdio(stdio);
-                                mcpVO.setTransportConfigStdio(transportConfigStdio);
-                            }
-                        } catch (Exception e) {
-                            log.error("瑙ｆ瀽浼犺緭閰嶇疆澶辫触: {}", e.getMessage(), e);
-                        }
-                        result.add(mcpVO);
-                    }
-                }
-            }
-
-            for (AiClientConfig clientConfig : clientConfigs) {
-                if (AI_CLIENT_MODEL.getCode().equals(clientConfig.getTargetType()) && clientConfig.getStatus() == 1) {
-                    String modelId = clientConfig.getTargetId();
-
-                    // 2. 閫氳繃modelId鏌ヨ鍏宠仈鐨則ool_mcp閰嶇疆
-                    List<AiClientConfig> modelConfigs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT_MODEL.getCode(), modelId);
-
-                    for (AiClientConfig modelConfig : modelConfigs) {
-                        if (AI_CLIENT_TOOL_MCP.getCode().equals(modelConfig.getTargetType()) && modelConfig.getStatus() == 1) {
-                            String mcpId = modelConfig.getTargetId();
-
-                            // 閬垮厤閲嶅澶勭悊鐩稿悓鐨刴cpId
-                            if (processedMcpIds.contains(mcpId)) {
-                                continue;
-                            }
-                            processedMcpIds.add(mcpId);
-
-                            // 3. 閫氳繃mcpId鏌ヨai_client_tool_mcp琛ㄨ幏鍙朚CP宸ュ叿閰嶇疆
-                            AiClientToolMcp toolMcp = aiClientToolMcpDao.queryByMcpId(mcpId);
-                            if (toolMcp != null && toolMcp.getStatus() == 1) {
-                                // 4. 杞崲涓篤O瀵硅薄
-                                AiClientToolMcpVO mcpVO = AiClientToolMcpVO.builder()
-                                        .mcpId(toolMcp.getMcpId())
-                                        .mcpName(toolMcp.getMcpName())
-                                        .transportType(toolMcp.getTransportType())
-                                        .transportConfig(toolMcp.getTransportConfig())
-                                        .requestTimeout(toolMcp.getRequestTimeout())
-                                        .build();
-
-                                String transportConfig = toolMcp.getTransportConfig();
-                                String transportType = toolMcp.getTransportType();
-
-                                try {
-                                    JSONObject transportConfigJson = JSON.parseObject(transportConfig);
-                                    AiClientToolMcpVO.ToolPolicy toolPolicy = transportConfigJson == null
-                                            ? null
-                                            : transportConfigJson.getObject("policy", AiClientToolMcpVO.ToolPolicy.class);
-                                    mcpVO.setToolPolicy(toolPolicy);
-                                    if ("sse".equals(transportType)) {
-                                        // 瑙ｆ瀽SSE閰嶇疆
-                                        if (transportConfigJson != null) {
-                                            transportConfigJson.remove("policy");
-                                        }
-                                        AiClientToolMcpVO.TransportConfigSse transportConfigSse = JSON.parseObject(
-                                                transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
-                                                AiClientToolMcpVO.TransportConfigSse.class);
-                                        mcpVO.setTransportConfigSse(transportConfigSse);
-                                    } else if ("stdio".equals(transportType)) {
-                                        // 瑙ｆ瀽STDIO閰嶇疆
-                                        if (transportConfigJson != null) {
-                                            transportConfigJson.remove("policy");
-                                        }
-                                        Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdio = JSON.parseObject(
-                                                transportConfigJson == null ? "{}" : transportConfigJson.toJSONString(),
-                                                new TypeReference<>() {
-                                                });
-
-                                        AiClientToolMcpVO.TransportConfigStdio transportConfigStdio = new AiClientToolMcpVO.TransportConfigStdio();
-                                        transportConfigStdio.setStdio(stdio);
-
-                                        mcpVO.setTransportConfigStdio(transportConfigStdio);
-                                    }
-                                } catch (Exception e) {
-                                    log.error("瑙ｆ瀽浼犺緭閰嶇疆澶辫触: {}", e.getMessage(), e);
-                                }
-                                result.add(mcpVO);
-                            }
-                        }
-                    }
-                }
-            }
+            loadDirectClientMcp(result, processedMcpIds, clientConfigs);
+            loadModelMcp(result, processedMcpIds, clientConfigs);
         }
 
         return result;
@@ -319,31 +154,23 @@ public class AgentRepository implements IAgentRepository {
         Set<String> processedPromptIds = new HashSet<>();
 
         for (String clientId : clientIdList) {
-            // 1. 閫氳繃clientId鏌ヨ鍏宠仈鐨刾rompt閰嶇疆
             List<AiClientConfig> configs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT.getCode(), clientId);
 
             for (AiClientConfig config : configs) {
                 if ("prompt".equals(config.getTargetType()) && config.getStatus() == 1) {
                     String promptId = config.getTargetId();
-
-                    // 閬垮厤閲嶅澶勭悊鐩稿悓鐨刾romptId
-                    if (processedPromptIds.contains(promptId)) {
+                    if (!processedPromptIds.add(promptId)) {
                         continue;
                     }
-                    processedPromptIds.add(promptId);
 
-                    // 2. 閫氳繃promptId鏌ヨai_client_system_prompt琛ㄨ幏鍙栫郴缁熸彁绀鸿瘝閰嶇疆
                     AiClientSystemPrompt systemPrompt = aiClientSystemPromptDao.queryByPromptId(promptId);
                     if (systemPrompt != null && systemPrompt.getStatus() == 1) {
-                        // 3. 杞崲涓篤O瀵硅薄
-                        AiClientSystemPromptVO promptVO = AiClientSystemPromptVO.builder()
+                        result.add(AiClientSystemPromptVO.builder()
                                 .promptId(systemPrompt.getPromptId())
                                 .promptName(systemPrompt.getPromptName())
                                 .promptContent(systemPrompt.getPromptContent())
                                 .description(systemPrompt.getDescription())
-                                .build();
-
-                        result.add(promptVO);
+                                .build());
                     }
                 }
             }
@@ -356,20 +183,19 @@ public class AgentRepository implements IAgentRepository {
     public Map<String, AiClientSystemPromptVO> queryAiClientSystemPromptMapByClientIds(List<String> clientIdList) {
         List<AiClientSystemPromptVO> aiClientSystemPrompts = AiClientSystemPromptVOByClientIds(clientIdList);
 
-        if (null == aiClientSystemPrompts || aiClientSystemPrompts.isEmpty()) {
+        if (aiClientSystemPrompts == null || aiClientSystemPrompts.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        // 灏哖O瀵硅薄杞崲涓篤O瀵硅薄锛屽苟鏋勫缓Map缁撴瀯
         return aiClientSystemPrompts.stream()
                 .map(prompt -> AiClientSystemPromptVO.builder()
                         .promptId(prompt.getPromptId())
                         .promptContent(prompt.getPromptContent())
                         .build())
                 .collect(Collectors.toMap(
-                        AiClientSystemPromptVO::getPromptId,  // key: id
-                        prompt -> prompt,               // value: AiClientSystemPromptVO瀵硅薄
-                        (existing, replacement) -> existing  // 濡傛灉鏈夐噸澶峩ey锛屼繚鐣欑涓€涓?
+                        AiClientSystemPromptVO::getPromptId,
+                        prompt -> prompt,
+                        (existing, replacement) -> existing
                 ));
     }
 
@@ -383,7 +209,6 @@ public class AgentRepository implements IAgentRepository {
         Set<String> processedAdvisorIds = new HashSet<>();
 
         for (String clientId : clientIdList) {
-            // 1. 鏌ヨ瀹㈡埛绔浉鍏崇殑advisor閰嶇疆
             List<AiClientConfig> configs = aiClientConfigDao.queryBySourceTypeAndId("client", clientId);
 
             for (AiClientConfig config : configs) {
@@ -392,52 +217,16 @@ public class AgentRepository implements IAgentRepository {
                 }
 
                 String advisorId = config.getTargetId();
-                if (processedAdvisorIds.contains(advisorId)) {
+                if (!processedAdvisorIds.add(advisorId)) {
                     continue;
                 }
-                processedAdvisorIds.add(advisorId);
 
-                // 2. 鏌ヨadvisor璇︾粏淇℃伅
                 AiClientAdvisor aiClientAdvisor = aiClientAdvisorDao.queryByAdvisorId(advisorId);
                 if (aiClientAdvisor == null || aiClientAdvisor.getStatus() != 1) {
                     continue;
                 }
 
-                // 3. 瑙ｆ瀽extParam涓殑閰嶇疆
-                AiClientAdvisorVO.ChatMemory chatMemory = null;
-                AiClientAdvisorVO.RagAnswer ragAnswer = null;
-                AiClientAdvisorVO.PromptInjectionSanitizer promptInjectionSanitizer = null;
-
-                String extParam = aiClientAdvisor.getExtParam();
-                if (extParam != null && !extParam.trim().isEmpty()) {
-                    try {
-                        if ("ChatMemory".equals(aiClientAdvisor.getAdvisorType())) {
-                            // 瑙ｆ瀽chatMemory閰嶇疆
-                            chatMemory = JSON.parseObject(extParam, AiClientAdvisorVO.ChatMemory.class);
-                        } else if ("RagAnswer".equals(aiClientAdvisor.getAdvisorType())) {
-                            // 瑙ｆ瀽ragAnswer閰嶇疆
-                            ragAnswer = JSON.parseObject(extParam, AiClientAdvisorVO.RagAnswer.class);
-                        } else if ("PromptInjectionSanitizer".equals(aiClientAdvisor.getAdvisorType())) {
-                            // 瑙ｆ瀽 Prompt 娉ㄥ叆鎶ゆ爮閰嶇疆
-                            promptInjectionSanitizer = JSON.parseObject(extParam, AiClientAdvisorVO.PromptInjectionSanitizer.class);
-                        }
-                    } catch (Exception e) {
-                        // 瑙ｆ瀽澶辫触鏃跺拷鐣ワ紝浣跨敤榛樿鍊糿ull
-                    }
-                }
-
-                // 4. 鏋勫缓AiClientAdvisorVO瀵硅薄
-                AiClientAdvisorVO advisorVO = AiClientAdvisorVO.builder()
-                        .advisorId(aiClientAdvisor.getAdvisorId())
-                        .advisorName(aiClientAdvisor.getAdvisorName())
-                        .advisorType(aiClientAdvisor.getAdvisorType())
-                        .orderNum(aiClientAdvisor.getOrderNum())
-                        .chatMemory(chatMemory)
-                        .ragAnswer(ragAnswer)
-                        .promptInjectionSanitizer(promptInjectionSanitizer)
-                        .build();
-
-                result.add(advisorVO);
+                result.add(buildAdvisorVO(aiClientAdvisor));
             }
         }
 
@@ -454,18 +243,15 @@ public class AgentRepository implements IAgentRepository {
         Set<String> processedClientIds = new HashSet<>();
 
         for (String clientId : clientIdList) {
-            if (processedClientIds.contains(clientId)) {
+            if (!processedClientIds.add(clientId)) {
                 continue;
             }
-            processedClientIds.add(clientId);
 
-            // 1. 鏌ヨ瀹㈡埛绔熀鏈俊鎭?
             AiClient aiClient = aiClientDao.queryByClientId(clientId);
             if (aiClient == null || aiClient.getStatus() != 1) {
                 continue;
             }
 
-            // 2. 鏌ヨ瀹㈡埛绔浉鍏抽厤缃?
             List<AiClientConfig> configs = aiClientConfigDao.queryBySourceTypeAndId("client", clientId);
 
             String modelId = null;
@@ -491,11 +277,12 @@ public class AgentRepository implements IAgentRepository {
                     case "advisor":
                         advisorIdList.add(config.getTargetId());
                         break;
+                    default:
+                        break;
                 }
             }
 
-            // 3. 鏋勫缓AiClientVO瀵硅薄
-            AiClientVO aiClientVO = AiClientVO.builder()
+            result.add(AiClientVO.builder()
                     .clientId(aiClient.getClientId())
                     .clientName(aiClient.getClientName())
                     .description(aiClient.getDescription())
@@ -503,9 +290,7 @@ public class AgentRepository implements IAgentRepository {
                     .promptIdList(promptIdList)
                     .mcpIdList(mcpIdList)
                     .advisorIdList(advisorIdList)
-                    .build();
-
-            result.add(aiClientVO);
+                    .build());
         }
 
         return result;
@@ -520,28 +305,10 @@ public class AgentRepository implements IAgentRepository {
         List<AiClientApiVO> result = new ArrayList<>();
 
         for (String modelId : modelIdList) {
-            // 1. 閫氳繃modelId鏌ヨ妯″瀷閰嶇疆锛岃幏鍙朼piId
             AiClientModel model = aiClientModelDao.queryByModelId(modelId);
             if (model != null && model.getStatus() == 1) {
-                String apiId = model.getApiId();
-
-                // 2. 閫氳繃apiId鏌ヨAPI閰嶇疆淇℃伅
-                AiClientApi apiConfig = aiClientApiDao.queryByApiId(apiId);
-                if (apiConfig != null && apiConfig.getStatus() == 1) {
-                    // 3. 杞崲涓篤O瀵硅薄
-                    AiClientApiVO apiVO = AiClientApiVO.builder()
-                            .apiId(apiConfig.getApiId())
-                            .baseUrl(apiConfig.getBaseUrl())
-                            .apiKey(apiConfig.getApiKey())
-                            .completionsPath(apiConfig.getCompletionsPath())
-                            .embeddingsPath(apiConfig.getEmbeddingsPath())
-                            .build();
-
-                    // 閬垮厤閲嶅娣诲姞鐩稿悓鐨凙PI閰嶇疆
-                    if (result.stream().noneMatch(vo -> vo.getApiId().equals(apiVO.getApiId()))) {
-                        result.add(apiVO);
-                    }
-                }
+                AiClientApi apiConfig = aiClientApiDao.queryByApiId(model.getApiId());
+                addApiVOIfActiveAndAbsent(result, apiConfig);
             }
         }
 
@@ -557,10 +324,8 @@ public class AgentRepository implements IAgentRepository {
         List<AiClientModelVO> result = new ArrayList<>();
 
         for (String modelId : modelIdList) {
-            // 閫氳繃modelId鏌ヨ妯″瀷閰嶇疆
             AiClientModel model = aiClientModelDao.queryByModelId(modelId);
             if (model != null && model.getStatus() == 1) {
-                // 杞崲涓篤O瀵硅薄
                 AiClientModelVO modelVO = AiClientModelVO.builder()
                         .modelId(model.getModelId())
                         .apiId(model.getApiId())
@@ -568,7 +333,6 @@ public class AgentRepository implements IAgentRepository {
                         .modelType(model.getModelType())
                         .build();
 
-                // 閬垮厤閲嶅娣诲姞鐩稿悓鐨勬ā鍨嬮厤缃?
                 if (result.stream().noneMatch(vo -> vo.getModelId().equals(modelVO.getModelId()))) {
                     result.add(modelVO);
                 }
@@ -585,16 +349,12 @@ public class AgentRepository implements IAgentRepository {
         }
 
         try {
-            // 鏍规嵁鏅鸿兘浣揑D鏌ヨ娴佺▼閰嶇疆鍒楄〃
             List<AiAgentFlowConfig> flowConfigs = aiAgentFlowConfigDao.queryByAgentId(aiAgentId);
-            
             if (flowConfigs == null || flowConfigs.isEmpty()) {
                 return Map.of();
             }
-            
-            // 杞崲涓篗ap缁撴瀯锛宬ey涓篶lientId锛寁alue涓篈iAgentClientFlowConfigVO
+
             Map<String, AiAgentClientFlowConfigVO> result = new HashMap<>();
-            
             for (AiAgentFlowConfig flowConfig : flowConfigs) {
                 AiAgentClientFlowConfigVO configVO = AiAgentClientFlowConfigVO.builder()
                         .clientId(flowConfig.getClientId())
@@ -602,10 +362,10 @@ public class AgentRepository implements IAgentRepository {
                         .clientType(flowConfig.getClientType())
                         .sequence(flowConfig.getSequence())
                         .build();
-                
+
                 result.put(flowConfig.getClientType(), configVO);
             }
-            
+
             return result;
         } catch (NumberFormatException e) {
             log.error("Invalid aiAgentId format: {}", aiAgentId, e);
@@ -616,5 +376,148 @@ public class AgentRepository implements IAgentRepository {
         }
     }
 
-}
+    private void addApiVOIfActiveAndAbsent(List<AiClientApiVO> result, AiClientApi apiConfig) {
+        if (apiConfig == null || apiConfig.getStatus() != 1) {
+            return;
+        }
 
+        AiClientApiVO apiVO = AiClientApiVO.builder()
+                .apiId(apiConfig.getApiId())
+                .baseUrl(apiConfig.getBaseUrl())
+                .apiKey(apiConfig.getApiKey())
+                .completionsPath(apiConfig.getCompletionsPath())
+                .embeddingsPath(apiConfig.getEmbeddingsPath())
+                .build();
+
+        if (result.stream().noneMatch(vo -> vo.getApiId().equals(apiVO.getApiId()))) {
+            result.add(apiVO);
+        }
+    }
+
+    private List<String> queryModelToolMcpIds(String modelId) {
+        List<AiClientConfig> toolMcpConfigs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT_MODEL.getCode(), modelId);
+        List<String> toolMcpIds = new ArrayList<>();
+        for (AiClientConfig toolMcpConfig : toolMcpConfigs) {
+            if (AI_CLIENT_TOOL_MCP.getCode().equals(toolMcpConfig.getTargetType()) && toolMcpConfig.getStatus() == 1) {
+                toolMcpIds.add(toolMcpConfig.getTargetId());
+            }
+        }
+        return toolMcpIds;
+    }
+
+    private void loadDirectClientMcp(List<AiClientToolMcpVO> result,
+                                     Set<String> processedMcpIds,
+                                     List<AiClientConfig> clientConfigs) {
+        for (AiClientConfig clientConfig : clientConfigs) {
+            if (AI_CLIENT_TOOL_MCP.getCode().equals(clientConfig.getTargetType()) && clientConfig.getStatus() == 1) {
+                addMcpVOIfActiveAndAbsent(result, processedMcpIds, clientConfig.getTargetId());
+            }
+        }
+    }
+
+    private void loadModelMcp(List<AiClientToolMcpVO> result,
+                              Set<String> processedMcpIds,
+                              List<AiClientConfig> clientConfigs) {
+        for (AiClientConfig clientConfig : clientConfigs) {
+            if (AI_CLIENT_MODEL.getCode().equals(clientConfig.getTargetType()) && clientConfig.getStatus() == 1) {
+                String modelId = clientConfig.getTargetId();
+                List<AiClientConfig> modelConfigs = aiClientConfigDao.queryBySourceTypeAndId(AI_CLIENT_MODEL.getCode(), modelId);
+
+                for (AiClientConfig modelConfig : modelConfigs) {
+                    if (AI_CLIENT_TOOL_MCP.getCode().equals(modelConfig.getTargetType()) && modelConfig.getStatus() == 1) {
+                        addMcpVOIfActiveAndAbsent(result, processedMcpIds, modelConfig.getTargetId());
+                    }
+                }
+            }
+        }
+    }
+
+    private void addMcpVOIfActiveAndAbsent(List<AiClientToolMcpVO> result,
+                                           Set<String> processedMcpIds,
+                                           String mcpId) {
+        if (!processedMcpIds.add(mcpId)) {
+            return;
+        }
+
+        AiClientToolMcp toolMcp = aiClientToolMcpDao.queryByMcpId(mcpId);
+        if (toolMcp == null || toolMcp.getStatus() != 1) {
+            return;
+        }
+
+        AiClientToolMcpVO mcpVO = AiClientToolMcpVO.builder()
+                .mcpId(toolMcp.getMcpId())
+                .mcpName(toolMcp.getMcpName())
+                .transportType(toolMcp.getTransportType())
+                .transportConfig(toolMcp.getTransportConfig())
+                .requestTimeout(toolMcp.getRequestTimeout())
+                .build();
+
+        parseTransportConfig(mcpVO, toolMcp.getTransportConfig(), toolMcp.getTransportType());
+        result.add(mcpVO);
+    }
+
+    private void parseTransportConfig(AiClientToolMcpVO mcpVO, String transportConfig, String transportType) {
+        try {
+            JSONObject transportConfigJson = JSON.parseObject(transportConfig);
+            AiClientToolMcpVO.ToolPolicy toolPolicy = transportConfigJson == null
+                    ? null
+                    : transportConfigJson.getObject("policy", AiClientToolMcpVO.ToolPolicy.class);
+            mcpVO.setToolPolicy(toolPolicy);
+
+            if (transportConfigJson != null) {
+                transportConfigJson.remove("policy");
+            }
+
+            String transportConfigWithoutPolicy = transportConfigJson == null ? "{}" : transportConfigJson.toJSONString();
+            if ("sse".equals(transportType)) {
+                AiClientToolMcpVO.TransportConfigSse transportConfigSse = JSON.parseObject(
+                        transportConfigWithoutPolicy,
+                        AiClientToolMcpVO.TransportConfigSse.class);
+                mcpVO.setTransportConfigSse(transportConfigSse);
+            } else if ("stdio".equals(transportType)) {
+                Map<String, AiClientToolMcpVO.TransportConfigStdio.Stdio> stdio = JSON.parseObject(
+                        transportConfigWithoutPolicy,
+                        new TypeReference<>() {
+                        });
+
+                AiClientToolMcpVO.TransportConfigStdio transportConfigStdio = new AiClientToolMcpVO.TransportConfigStdio();
+                transportConfigStdio.setStdio(stdio);
+                mcpVO.setTransportConfigStdio(transportConfigStdio);
+            }
+        } catch (Exception e) {
+            log.error("Parse transport configuration failed: {}", e.getMessage(), e);
+        }
+    }
+
+    private AiClientAdvisorVO buildAdvisorVO(AiClientAdvisor aiClientAdvisor) {
+        AiClientAdvisorVO.ChatMemory chatMemory = null;
+        AiClientAdvisorVO.RagAnswer ragAnswer = null;
+        AiClientAdvisorVO.PromptInjectionSanitizer promptInjectionSanitizer = null;
+
+        String extParam = aiClientAdvisor.getExtParam();
+        if (extParam != null && !extParam.trim().isEmpty()) {
+            try {
+                if ("ChatMemory".equals(aiClientAdvisor.getAdvisorType())) {
+                    chatMemory = JSON.parseObject(extParam, AiClientAdvisorVO.ChatMemory.class);
+                } else if ("RagAnswer".equals(aiClientAdvisor.getAdvisorType())) {
+                    ragAnswer = JSON.parseObject(extParam, AiClientAdvisorVO.RagAnswer.class);
+                } else if ("PromptInjectionSanitizer".equals(aiClientAdvisor.getAdvisorType())) {
+                    promptInjectionSanitizer = JSON.parseObject(extParam, AiClientAdvisorVO.PromptInjectionSanitizer.class);
+                }
+            } catch (Exception ignored) {
+                // Keep default null extension config when ext_param cannot be parsed.
+            }
+        }
+
+        return AiClientAdvisorVO.builder()
+                .advisorId(aiClientAdvisor.getAdvisorId())
+                .advisorName(aiClientAdvisor.getAdvisorName())
+                .advisorType(aiClientAdvisor.getAdvisorType())
+                .orderNum(aiClientAdvisor.getOrderNum())
+                .chatMemory(chatMemory)
+                .ragAnswer(ragAnswer)
+                .promptInjectionSanitizer(promptInjectionSanitizer)
+                .build();
+    }
+
+}

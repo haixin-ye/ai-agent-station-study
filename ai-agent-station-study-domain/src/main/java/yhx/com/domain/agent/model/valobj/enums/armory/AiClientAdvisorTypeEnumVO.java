@@ -19,9 +19,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Advisor 绫诲瀷绛栫暐鏋氫妇銆?
- * 璇存槑锛氭柊澧?chatModelProvider 鍙傛暟鏄负浜嗚闇€瑕佲€滈澶栨ā鍨嬧€濈殑 Advisor
- * 锛堝 PromptInjectionSanitizer锛夊湪鍒涘缓鏃舵寜 BeanName 鍔ㄦ€佽幏鍙栨ā鍨嬪疄渚嬨€?
+ * Advisor type strategy enum.
  */
 @Getter
 @AllArgsConstructor
@@ -74,12 +72,12 @@ public enum AiClientAdvisorTypeEnumVO {
                                      Function<String, OpenAiChatModel> chatModelProvider) {
             AiClientAdvisorVO.PromptInjectionSanitizer config = aiClientAdvisorVO.getPromptInjectionSanitizer();
             if (config == null || isBlank(config.getSanitizeModelBeanName())) {
-                throw new RuntimeException("Prompt娉ㄥ叆妫€娴嬮渶瑕佹彁渚沵odel鍚嶇О");
+                throw new RuntimeException("Prompt injection sanitizer requires sanitizeModelBeanName");
             }
 
             OpenAiChatModel sanitizeModel = chatModelProvider.apply(config.getSanitizeModelBeanName());
             if (sanitizeModel == null) {
-                throw new RuntimeException("Prompt娉ㄥ叆妫€娴?model bean not found: " + config.getSanitizeModelBeanName());
+                throw new RuntimeException("Prompt injection sanitizer model bean not found: " + config.getSanitizeModelBeanName());
             }
 
             int order = aiClientAdvisorVO.getOrderNum() == null ? 0 : aiClientAdvisorVO.getOrderNum();
@@ -114,7 +112,7 @@ public enum AiClientAdvisorTypeEnumVO {
     public static AiClientAdvisorTypeEnumVO getByCode(String code) {
         AiClientAdvisorTypeEnumVO enumVO = CODE_MAP.get(code);
         if (enumVO == null) {
-            throw new RuntimeException("err! advisorType " + code + " not exist!");
+            throw new RuntimeException("advisorType does not exist: " + code);
         }
         return enumVO;
     }
@@ -123,5 +121,3 @@ public enum AiClientAdvisorTypeEnumVO {
         return value == null || value.trim().isEmpty();
     }
 }
-
-

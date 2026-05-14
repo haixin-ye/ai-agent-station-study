@@ -32,7 +32,7 @@ public class AiClientNode extends AbstractArmorySupport {
     @Override
     protected String doApply(ArmoryCommandEntity requestParameter,
                              DefaultArmoryStrategyFactory.DynamicContext dynamicContext) throws Exception {
-        log.info("Ai Agent build client node: {}", JSON.toJSONString(requestParameter));
+        log.info("AI Agent build client node: {}", JSON.toJSONString(requestParameter));
 
         List<AiClientVO> aiClientList = dynamicContext.getValue(dataName());
         if (aiClientList == null || aiClientList.isEmpty()) {
@@ -43,7 +43,7 @@ public class AiClientNode extends AbstractArmorySupport {
                 dynamicContext.getValue(AiAgentEnumVO.AI_CLIENT_SYSTEM_PROMPT.getDataName());
 
         for (AiClientVO aiClientVO : aiClientList) {
-            StringBuilder defaultSystem = new StringBuilder("Ai 閺呴缚鍏樻担鎻瑀\n");
+            StringBuilder defaultSystem = new StringBuilder("You are an AI assistant.\n");
             for (String promptId : aiClientVO.getPromptIdList()) {
                 AiClientSystemPromptVO prompt = systemPromptMap.get(promptId);
                 if (prompt != null) {
@@ -100,4 +100,3 @@ public class AiClientNode extends AbstractArmorySupport {
         return AiAgentEnumVO.AI_CLIENT.getDataName();
     }
 }
-

@@ -34,10 +34,10 @@ public class RagService implements IRagDomainService {
     @Override
     public void ingestFiles(RagFileIngestCommandEntity commandEntity) {
         if (commandEntity == null || commandEntity.getKnowledgeTag() == null || commandEntity.getKnowledgeTag().trim().isEmpty()) {
-            throw new IllegalArgumentException("鐭ヨ瘑搴撴爣绛?涓嶈兘涓虹┖.");
+            throw new IllegalArgumentException("knowledgeTag must not be blank.");
         }
         if (commandEntity.getFiles() == null || commandEntity.getFiles().isEmpty()) {
-            throw new IllegalArgumentException("鏂囦欢 涓嶈兘涓虹┖.");
+            throw new IllegalArgumentException("files must not be empty.");
         }
         ragRepository.ingestFiles(commandEntity);
     }
@@ -45,10 +45,9 @@ public class RagService implements IRagDomainService {
     @Override
     public void analyzeGitRepository(RagGitIngestCommandEntity commandEntity) throws Exception {
         if (commandEntity == null || commandEntity.getRepoUrl() == null || commandEntity.getRepoUrl().trim().isEmpty()) {
-            throw new IllegalArgumentException("GitHub鍦板潃閾炬帴涓嶈兘涓虹┖.");
+            throw new IllegalArgumentException("repoUrl must not be blank.");
         }
         ragRepository.ingestGitRepository(commandEntity);
     }
 
 }
-

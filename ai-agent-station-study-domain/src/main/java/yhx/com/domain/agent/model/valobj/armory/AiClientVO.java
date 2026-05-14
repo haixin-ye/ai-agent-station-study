@@ -10,9 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * AI瀹㈡埛绔厤缃紝鍊煎璞? *
+ * AI client configuration value object.
+ *
  * @author yhx
- * 2025/6/27 18:51
  */
 @Data
 @Builder
@@ -20,38 +20,18 @@ import java.util.List;
 @NoArgsConstructor
 public class AiClientVO {
 
-    /**
-     * 瀹㈡埛绔疘D
-     */
     private String clientId;
 
-    /**
-     * 瀹㈡埛绔悕绉?     */
     private String clientName;
 
-    /**
-     * 鎻忚堪
-     */
     private String description;
 
-    /**
-     * 鍏ㄥ眬鍞竴妯″瀷ID
-     */
     private String modelId;
 
-    /**
-     * Prompt ID List
-     */
     private List<String> promptIdList;
 
-    /**
-     * MCP ID List
-     */
     private List<String> mcpIdList;
 
-    /**
-     * 椤鹃棶ID List
-     */
     private List<String> advisorIdList;
 
     public String getModelBeanName() {
@@ -75,5 +55,3 @@ public class AiClientVO {
     }
 
 }
-
-

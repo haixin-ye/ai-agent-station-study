@@ -35,7 +35,7 @@ public class RAGController implements IRagApi {
     public Response<Set<String>> queryRagTagList() {
         return Response.<Set<String>>builder()
                 .code("0000")
-                .info("璋冪敤鎴愬姛")
+                .info("success")
                 .data(ragService.queryRagTagList())
                 .build();
     }
@@ -59,13 +59,13 @@ public class RAGController implements IRagApi {
 
             return Response.<String>builder()
                     .code("0000")
-                    .info("璋冪敤鎴愬姛")
+                    .info("success")
                     .build();
         } catch (Exception e) {
             log.error("upload rag file failed, knowledgeTag: {}", knowledgeTag, e);
             return Response.<String>builder()
                     .code("0001")
-                    .info("璋冪敤澶辫触")
+                    .info("failed")
                     .data(e.getMessage())
                     .build();
         }
@@ -83,17 +83,16 @@ public class RAGController implements IRagApi {
 
             return Response.<String>builder()
                     .code("0000")
-                    .info("璋冪敤鎴愬姛")
+                    .info("success")
                     .build();
         } catch (Exception e) {
             log.error("analyze git repository failed, repo: {}", requestDTO.getRepoUrl(), e);
             return Response.<String>builder()
                     .code("0001")
-                    .info("璋冪敤澶辫触")
+                    .info("failed")
                     .data(e.getMessage())
                     .build();
         }
     }
 
 }
-
