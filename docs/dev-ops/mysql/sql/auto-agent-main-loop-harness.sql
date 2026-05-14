@@ -1,4 +1,4 @@
--- AutoAgent main-loop harness runtime persistence schema.
+`-- AutoAgent main-loop harness runtime persistence schema.
 -- Execute this file after the base database has been created.
 -- Historical ai-agent-station-study.sql remains untouched because the new harness uses a new table set.
 
@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS `agent_evidence` (
   `evidence_type` varchar(64) NOT NULL,
   `source_ref` varchar(64) DEFAULT NULL,
   `summary` varchar(512) DEFAULT NULL,
+  `confidence` decimal(10,6) DEFAULT NULL,
   `used_by_final` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -288,7 +289,11 @@ CREATE TABLE IF NOT EXISTS `agent_rag_query` (
   `knowledge_tag` varchar(128) DEFAULT NULL,
   `filters_ref` varchar(64) DEFAULT NULL,
   `top_k` int DEFAULT NULL,
+  `status` varchar(32) NOT NULL DEFAULT 'REQUESTED',
+  `failure_code` varchar(64) DEFAULT NULL,
+  `failure_message` varchar(512) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_agent_rag_query_id` (`rag_query_id`),
   KEY `idx_agent_rag_query_run` (`run_id`)
@@ -367,3 +372,4 @@ CREATE TABLE IF NOT EXISTS `agent_node_prompt` (
   KEY `idx_agent_node_prompt_lookup` (`agent_id`, `node_code`, `enabled`),
   KEY `idx_agent_node_prompt_version` (`agent_id`, `node_code`, `prompt_version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent editable node prompt';
+`

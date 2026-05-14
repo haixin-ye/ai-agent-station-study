@@ -9,20 +9,21 @@
         <result column="evidence_type" property="evidenceType"/>
         <result column="source_ref" property="sourceRef"/>
         <result column="summary" property="summary"/>
+        <result column="confidence" property="confidence"/>
         <result column="used_by_final" property="usedByFinal"/>
         <result column="created_at" property="createdAt"/>
     </resultMap>
 
     <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentEvidencePO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO agent_evidence (
-            evidence_id, run_id, evidence_type, source_ref, summary, used_by_final, created_at
+            evidence_id, run_id, evidence_type, source_ref, summary, confidence, used_by_final, created_at
         ) VALUES (
-            #{evidenceId}, #{runId}, #{evidenceType}, #{sourceRef}, #{summary}, #{usedByFinal}, #{createdAt}
+            #{evidenceId}, #{runId}, #{evidenceType}, #{sourceRef}, #{summary}, #{confidence}, #{usedByFinal}, #{createdAt}
         )
     </insert>
 
     <select id="listByRunId" parameterType="java.lang.String" resultMap="AgentEvidenceMap">
-        SELECT id, evidence_id, run_id, evidence_type, source_ref, summary, used_by_final, created_at
+        SELECT id, evidence_id, run_id, evidence_type, source_ref, summary, confidence, used_by_final, created_at
         FROM agent_evidence
         WHERE run_id = #{runId}
         ORDER BY created_at ASC, id ASC

@@ -2,12 +2,46 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="yhx.com.infrastructure.dao.IAgentRagQueryDao">
 
+    <resultMap id="AgentRagQueryMap" type="yhx.com.infrastructure.dao.po.AgentRagQueryPO">
+        <id column="id" property="id"/>
+        <result column="rag_query_id" property="ragQueryId"/>
+        <result column="run_id" property="runId"/>
+        <result column="query_text" property="queryText"/>
+        <result column="knowledge_tag" property="knowledgeTag"/>
+        <result column="filters_ref" property="filtersRef"/>
+        <result column="top_k" property="topK"/>
+        <result column="status" property="status"/>
+        <result column="failure_code" property="failureCode"/>
+        <result column="failure_message" property="failureMessage"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="completed_at" property="completedAt"/>
+    </resultMap>
+
     <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRagQueryPO" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO agent_rag_query (
-            rag_query_id, run_id, query_text, knowledge_tag, filters_ref, top_k, created_at
+            rag_query_id, run_id, query_text, knowledge_tag, filters_ref, top_k,
+            status, failure_code, failure_message, created_at, completed_at
         ) VALUES (
-            #{ragQueryId}, #{runId}, #{queryText}, #{knowledgeTag}, #{filtersRef}, #{topK}, #{createdAt}
+            #{ragQueryId}, #{runId}, #{queryText}, #{knowledgeTag}, #{filtersRef}, #{topK},
+            #{status}, #{failureCode}, #{failureMessage}, #{createdAt}, #{completedAt}
         )
     </insert>
+
+    <update id="updateStatus">
+        UPDATE agent_rag_query
+        SET status = #{status},
+            failure_code = #{failureCode},
+            failure_message = #{failureMessage},
+            completed_at = CURRENT_TIMESTAMP
+        WHERE rag_query_id = #{ragQueryId}
+    </update>
+
+    <select id="listByRunId" parameterType="java.lang.String" resultMap="AgentRagQueryMap">
+        SELECT id, rag_query_id, run_id, query_text, knowledge_tag, filters_ref, top_k,
+               status, failure_code, failure_message, created_at, completed_at
+        FROM agent_rag_query
+        WHERE run_id = #{runId}
+        ORDER BY created_at ASC, id ASC
+    </select>
 
 </mapper>

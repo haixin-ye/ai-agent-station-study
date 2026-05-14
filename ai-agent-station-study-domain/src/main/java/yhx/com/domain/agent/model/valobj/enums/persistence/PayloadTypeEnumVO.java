@@ -9,6 +9,7 @@ public enum PayloadTypeEnumVO {
     STATE_SNAPSHOT("STATE_SNAPSHOT", "Runtime state snapshot payload."),
     TRANSCRIPT_BLOCK("TRANSCRIPT_BLOCK", "Typed transcript block payload."),
     ARTIFACT_CONTENT("ARTIFACT_CONTENT", "Artifact content payload."),
+    RAG_CHUNK("RAG_CHUNK", "Raw bounded RAG chunk payload."),
     RAG_EVIDENCE("RAG_EVIDENCE", "RAG evidence payload."),
     TOOL_RECEIPT("TOOL_RECEIPT", "Raw or normalized tool receipt payload."),
     DEBUG_TRACE("DEBUG_TRACE", "Developer-only debug trace payload."),

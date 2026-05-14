@@ -19,5 +19,9 @@ public class AgentRagQueryPO {
     private String knowledgeTag;
     private String filtersRef;
     private Integer topK;
+    private String status;
+    private String failureCode;
+    private String failureMessage;
     private LocalDateTime createdAt;
+    private LocalDateTime completedAt;
 }

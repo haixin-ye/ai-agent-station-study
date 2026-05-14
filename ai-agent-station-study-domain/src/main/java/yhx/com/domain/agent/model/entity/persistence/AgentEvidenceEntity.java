@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -18,5 +19,7 @@ public class AgentEvidenceEntity {
     private String evidenceType;
     private String sourceRef;
     private String summary;
+    private BigDecimal confidence;
+    private Boolean usedByFinal;
     private LocalDateTime createdAt;
 }

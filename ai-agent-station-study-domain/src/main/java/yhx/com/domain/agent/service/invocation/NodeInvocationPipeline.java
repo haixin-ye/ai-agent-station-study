@@ -168,6 +168,10 @@ public class NodeInvocationPipeline {
         if (AgentComponentCodeEnumVO.CONTEXT_PLANNER.name().equals(componentCode)) {
             return contractValidator.validateContextPlannerOutput(normalizedJson);
         }
+        if (AgentComponentCodeEnumVO.RAG_VERIFIER.name().equals(componentCode)
+                || AgentComponentCodeEnumVO.TOOL_VERIFIER.name().equals(componentCode)) {
+            return contractValidator.validateVerificationResult(normalizedJson);
+        }
         return ContractValidationResult.passed();
     }
 

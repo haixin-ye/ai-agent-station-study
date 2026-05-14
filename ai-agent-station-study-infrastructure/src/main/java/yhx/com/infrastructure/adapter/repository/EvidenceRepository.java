@@ -42,7 +42,8 @@ public class EvidenceRepository implements IEvidenceRepository {
                 .evidenceType(entity.getEvidenceType())
                 .sourceRef(entity.getSourceRef())
                 .summary(entity.getSummary())
-                .usedByFinal(0)
+                .confidence(entity.getConfidence())
+                .usedByFinal(Boolean.TRUE.equals(entity.getUsedByFinal()) ? 1 : 0)
                 .createdAt(entity.getCreatedAt())
                 .build();
     }
@@ -54,6 +55,8 @@ public class EvidenceRepository implements IEvidenceRepository {
                 .evidenceType(po.getEvidenceType())
                 .sourceRef(po.getSourceRef())
                 .summary(po.getSummary())
+                .confidence(po.getConfidence())
+                .usedByFinal(po.getUsedByFinal() != null && po.getUsedByFinal() == 1)
                 .createdAt(po.getCreatedAt())
                 .build();
     }

@@ -12,6 +12,8 @@ public enum RuntimeFailureCodeEnumVO {
     INVALID_PENDING_ANSWER("INVALID_PENDING_ANSWER", "User answer cannot resolve the pending input."),
     CONTRACT_REPAIR_EXHAUSTED("CONTRACT_REPAIR_EXHAUSTED", "Contract repair attempts were exhausted."),
     CONTEXT_PREPARATION_FAILED("CONTEXT_PREPARATION_FAILED", "Context preparation failed without fallback."),
+    RAG_RETRIEVAL_FAILED("RAG_RETRIEVAL_FAILED", "RAG retrieval failed."),
+    RAG_VERIFICATION_FAILED("RAG_VERIFICATION_FAILED", "RAG grounding verification failed."),
     ACTION_HANDLER_UNAVAILABLE("ACTION_HANDLER_UNAVAILABLE", "No action handler is available."),
     MAIN_ACTION_CONTRACT_FAILED("MAIN_ACTION_CONTRACT_FAILED", "Main agent action failed contract validation."),
     MAIN_ACTION_PARSE_FAILED("MAIN_ACTION_PARSE_FAILED", "Main agent action could not be parsed."),

@@ -76,6 +76,25 @@ public class ContractValidator {
         return ContractValidationResult.passed();
     }
 
+    public ContractValidationResult validateVerificationResult(String rawOutput) {
+        RawOutputParseResult parseResult = rawOutputParser.parse(rawOutput);
+        if (!parseResult.isSuccess()) {
+            return ContractValidationResult.failed(parseResult.getErrorCode(), "$", parseResult.getErrorMessage());
+        }
+        JSONObject root = parseResult.getJsonObject();
+        String status = root.getString("status");
+        if (!"PASSED".equals(status) && !"FAILED".equals(status) && !"SKIPPED".equals(status)) {
+            return ContractValidationResult.failed("INVALID_VERIFICATION_STATUS", "status", "Verification status must be PASSED, FAILED, or SKIPPED.");
+        }
+        if ("FAILED".equals(status)) {
+            String failureCode = root.getString("failureCode");
+            if (failureCode == null || failureCode.isBlank()) {
+                return ContractValidationResult.failed("MISSING_FAILURE_CODE", "failureCode", "Failed verification requires failureCode.");
+            }
+        }
+        return ContractValidationResult.passed();
+    }
+
     private ContractValidationResult validateContextLevels(JSONObject root) {
         for (Map.Entry<String, Object> entry : root.entrySet()) {
             Object value = entry.getValue();

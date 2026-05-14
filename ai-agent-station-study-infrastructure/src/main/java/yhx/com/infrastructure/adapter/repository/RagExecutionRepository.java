@@ -36,6 +36,11 @@ public class RagExecutionRepository implements IRagExecutionRepository {
     }
 
     @Override
+    public void updateRagQueryStatus(String ragQueryId, String status, String failureCode, String failureMessage) {
+        agentRagQueryDao.updateStatus(ragQueryId, status, failureCode, failureMessage);
+    }
+
+    @Override
     public void saveRagHits(List<RagHitEntity> hits) {
         if (hits == null || hits.isEmpty()) {
             return;
@@ -57,6 +62,11 @@ public class RagExecutionRepository implements IRagExecutionRepository {
         return agentRagHitDao.listByRunId(runId).stream().map(this::toEntity).toList();
     }
 
+    @Override
+    public List<RagQueryEntity> listRagQueries(String runId) {
+        return agentRagQueryDao.listByRunId(runId).stream().map(this::toQueryEntity).toList();
+    }
+
     private AgentRagQueryPO toPO(RagQueryEntity entity) {
         return AgentRagQueryPO.builder()
                 .ragQueryId(entity.getRagQueryId())
@@ -65,7 +75,27 @@ public class RagExecutionRepository implements IRagExecutionRepository {
                 .knowledgeTag(entity.getKnowledgeTag())
                 .filtersRef(entity.getFiltersRef())
                 .topK(entity.getTopK())
+                .status(entity.getStatus())
+                .failureCode(entity.getFailureCode())
+                .failureMessage(entity.getFailureMessage())
                 .createdAt(entity.getCreatedAt())
+                .completedAt(entity.getCompletedAt())
+                .build();
+    }
+
+    private RagQueryEntity toQueryEntity(AgentRagQueryPO po) {
+        return RagQueryEntity.builder()
+                .ragQueryId(po.getRagQueryId())
+                .runId(po.getRunId())
+                .queryText(po.getQueryText())
+                .knowledgeTag(po.getKnowledgeTag())
+                .filtersRef(po.getFiltersRef())
+                .topK(po.getTopK())
+                .status(po.getStatus())
+                .failureCode(po.getFailureCode())
+                .failureMessage(po.getFailureMessage())
+                .createdAt(po.getCreatedAt())
+                .completedAt(po.getCompletedAt())
                 .build();
     }
 
