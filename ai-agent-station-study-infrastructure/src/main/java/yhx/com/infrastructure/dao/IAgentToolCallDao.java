@@ -7,6 +7,12 @@ import yhx.com.infrastructure.dao.po.AgentToolCallPO;
 @Mapper
 public interface IAgentToolCallDao {
     int insert(AgentToolCallPO toolCall);
+    AgentToolCallPO queryByToolCallId(String toolCallId);
     int updateStatus(@Param("toolCallId") String toolCallId, @Param("status") String status);
     int saveReceipt(@Param("toolCallId") String toolCallId, @Param("argumentsRef") String argumentsRef, @Param("receiptRef") String receiptRef);
+    int saveReceiptWithStatus(@Param("toolCallId") String toolCallId,
+                              @Param("argumentsRef") String argumentsRef,
+                              @Param("receiptRef") String receiptRef,
+                              @Param("status") String status,
+                              @Param("failureCode") String failureCode);
 }

@@ -52,6 +52,11 @@ public class ToolRepository implements IToolRepository {
     }
 
     @Override
+    public Optional<ToolCallEntity> findToolCall(String toolCallId) {
+        return Optional.ofNullable(agentToolCallDao.queryByToolCallId(toolCallId)).map(this::toToolCallEntity);
+    }
+
+    @Override
     public void updateToolCallStatus(String toolCallId, ToolCallStatusEnumVO status) {
         agentToolCallDao.updateStatus(toolCallId, status.code());
     }
@@ -59,6 +64,11 @@ public class ToolRepository implements IToolRepository {
     @Override
     public void saveToolReceipt(String toolCallId, String argumentsRef, String receiptRef) {
         agentToolCallDao.saveReceipt(toolCallId, argumentsRef, receiptRef);
+    }
+
+    @Override
+    public void saveToolReceipt(String toolCallId, String argumentsRef, String receiptRef, ToolCallStatusEnumVO status, String failureCode) {
+        agentToolCallDao.saveReceiptWithStatus(toolCallId, argumentsRef, receiptRef, status.code(), failureCode);
     }
 
     @Override
@@ -87,6 +97,11 @@ public class ToolRepository implements IToolRepository {
     @Override
     public Optional<ToolApprovalEntity> findApprovalByApprovalKey(String approvalKey) {
         return Optional.ofNullable(agentToolApprovalDao.queryByApprovalKey(approvalKey)).map(this::toEntity);
+    }
+
+    @Override
+    public Optional<ToolApprovalEntity> findApprovalByToolCallId(String toolCallId) {
+        return Optional.ofNullable(agentToolApprovalDao.queryByToolCallId(toolCallId)).map(this::toEntity);
     }
 
     @Override
@@ -184,6 +199,25 @@ public class ToolRepository implements IToolRepository {
                 .userAnswerRef(po.getUserAnswerRef())
                 .createdAt(po.getCreatedAt())
                 .decidedAt(po.getDecidedAt())
+                .build();
+    }
+
+    private ToolCallEntity toToolCallEntity(AgentToolCallPO po) {
+        return ToolCallEntity.builder()
+                .toolCallId(po.getToolCallId())
+                .toolInvocationId(po.getToolInvocationId())
+                .runId(po.getRunId())
+                .toolName(po.getToolName())
+                .mcpServerName(po.getMcpServerName())
+                .mcpTransportType(po.getMcpTransportType())
+                .status(ToolCallStatusEnumVO.ofCode(po.getStatus()).orElse(ToolCallStatusEnumVO.CREATED))
+                .inputSchemaRef(po.getInputSchemaRef())
+                .intentRef(po.getIntentRef())
+                .argumentsRef(po.getArgumentsRef())
+                .receiptRef(po.getReceiptRef())
+                .failureCode(po.getFailureCode())
+                .createdAt(po.getCreatedAt())
+                .updatedAt(po.getUpdatedAt())
                 .build();
     }
 }

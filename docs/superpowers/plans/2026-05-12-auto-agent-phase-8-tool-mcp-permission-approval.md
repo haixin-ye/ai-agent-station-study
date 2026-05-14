@@ -558,9 +558,9 @@ Required cases:
 
 - Create `CapabilityRegistry`, `CapabilitySpec`, `McpClientRegistry`, `McpToolRegistry`, `McpToolSpec`.
 
-- [ ] Implement yml-backed capability lookup.
-- [ ] Implement fail-closed missing/disabled behavior.
-- [ ] Run:
+- [x] Implement yml-backed capability lookup.
+- [x] Implement fail-closed missing/disabled behavior.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -580,10 +580,10 @@ BUILD SUCCESS
 - `ToolApprovalService.java`
 - `ToolApprovalKeyGenerator.java`
 
-- [ ] Implement permission decisions.
-- [ ] Implement approval idempotency.
-- [ ] Implement explicit approve/reject pending input creation.
-- [ ] Run:
+- [x] Implement permission decisions.
+- [x] Implement approval idempotency.
+- [x] Implement explicit approve/reject pending input creation.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -602,10 +602,10 @@ BUILD SUCCESS
 - `ToolArgumentMaterializer.java`
 - `ToolInvocationRequestBuilder.java`
 
-- [ ] Resolve artifact and evidence references.
-- [ ] Store arguments payload.
-- [ ] Build invocation request.
-- [ ] Run:
+- [x] Resolve artifact and evidence references.
+- [x] Store arguments payload.
+- [x] Build invocation request.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -625,10 +625,10 @@ BUILD SUCCESS
 - `SpringAiMcpToolDiscoveryAdapter.java`
 - `AutoAgentMcpClientConfig.java`
 
-- [ ] Implement port interfaces.
-- [ ] Use Spring AI MCP client if current dependency wiring is stable.
-- [ ] Otherwise provide compile-safe skeleton with structured unavailable result.
-- [ ] Run:
+- [x] Implement port interfaces.
+- [x] Use Spring AI MCP client if current dependency wiring is stable.
+- [x] Otherwise provide compile-safe skeleton with structured unavailable result.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-infrastructure -am -DskipTests compile
@@ -649,10 +649,10 @@ BUILD SUCCESS
 - `ToolVerifier.java`
 - `ToolFailureMapper.java`
 
-- [ ] Invoke MCP through `McpToolInvokerPort`.
-- [ ] Capture real receipt payload.
-- [ ] Verify execution proof only.
-- [ ] Run:
+- [x] Invoke MCP through `McpToolInvokerPort`.
+- [x] Capture real receipt payload.
+- [x] Verify execution proof only.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -672,10 +672,10 @@ BUILD SUCCESS
 - `ToolEvidenceConverter.java`
 - `ToolTranscriptRecorder.java`
 
-- [ ] Wire Phase 6 `ToolActionOrchestratorPort`.
-- [ ] Create evidence for success, denial, cancellation, and failure.
-- [ ] Append transcript blocks.
-- [ ] Run:
+- [x] Wire Phase 6 `ToolActionOrchestratorPort`.
+- [x] Create evidence for success, denial, cancellation, and failure.
+- [x] Append transcript blocks.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -693,10 +693,10 @@ BUILD SUCCESS
 
 - Create all tests listed in Section 13.
 
-- [ ] Use fake MCP invoker.
-- [ ] Use fake repositories.
-- [ ] Use fake user interaction manager for approval creation.
-- [ ] Run:
+- [x] Use fake MCP invoker.
+- [x] Use fake repositories.
+- [x] Use fake user interaction manager for approval creation.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-app -am "-Dtest=CapabilityRegistryTest,PermissionEnforcerTest,ToolApprovalServiceTest,ToolArgumentMaterializerTest,ToolRuntimeTest,ToolVerifierTest,ToolActionOrchestratorTest" test
@@ -710,7 +710,7 @@ BUILD SUCCESS
 
 ### Task 8: Cross-Spec Consistency Scan
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "ChatClient|MainAgentNode|createPendingInput|agent_pending_input|agent_tool_approval" ai-agent-station-study-domain\src\main\java\yhx\com\domain\agent\service\tool
@@ -722,7 +722,7 @@ Expected:
 No ChatClient or MainAgentNode references. Pending input and approval writes are allowed only in ToolApprovalService, not ToolRuntime.
 ```
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "FREE_TEXT|allowFreeText|SINGLE_CHOICE|APPROVED|REJECTED" ai-agent-station-study-domain\src\main\java\yhx\com\domain\agent\service\tool
@@ -736,20 +736,20 @@ TOOL_APPROVAL uses SINGLE_CHOICE with allowFreeText=false; free text cannot appr
 
 ## 15. Acceptance Checklist
 
-- [ ] MainAgentNode has no MCP tools mounted.
-- [ ] Capability resolution fails closed.
-- [ ] MCP server/tool resolution fails closed.
-- [ ] PermissionEnforcer returns deterministic `ALLOW`, `ASK_USER`, or `DENY`.
-- [ ] Approval key and arguments hash are stable.
-- [ ] Existing pending approval is reused.
-- [ ] High-risk approval uses explicit options only.
-- [ ] Free text cannot authorize tool execution.
-- [ ] ToolRuntime cannot create pending input or approval records.
-- [ ] ToolRuntime invokes real MCP adapter or structured unavailable result.
-- [ ] Tool success requires real receipt.
-- [ ] ToolVerifier checks execution proof only.
-- [ ] Tool results become evidence for the next MainAgentNode loop.
-- [ ] Tests pass.
+- [x] MainAgentNode has no MCP tools mounted.
+- [x] Capability resolution fails closed.
+- [x] MCP server/tool resolution fails closed.
+- [x] PermissionEnforcer returns deterministic `ALLOW`, `ASK_USER`, or `DENY`.
+- [x] Approval key and arguments hash are stable.
+- [x] Existing pending approval is reused.
+- [x] High-risk approval uses explicit options only.
+- [x] Free text cannot authorize tool execution.
+- [x] ToolRuntime cannot create pending input or approval records.
+- [x] ToolRuntime invokes real MCP adapter or structured unavailable result.
+- [x] Tool success requires real receipt.
+- [x] ToolVerifier checks execution proof only.
+- [x] Tool results become evidence for the next MainAgentNode loop.
+- [x] Tests pass.
 
 ## 16. Worker Split Guidance
 
@@ -764,4 +764,3 @@ If using subagents, split work by non-overlapping file ownership:
 - Worker G: tool tests and fake MCP invoker.
 
 The integrator must verify that `ToolRuntime` has no dependency on `UserInteractionManager` and no code path treats free text as approval.
-

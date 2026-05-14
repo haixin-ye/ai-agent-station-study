@@ -12,15 +12,21 @@ public interface IToolRepository {
 
     String createToolCall(ToolCallEntity toolCall);
 
+    Optional<ToolCallEntity> findToolCall(String toolCallId);
+
     void updateToolCallStatus(String toolCallId, ToolCallStatusEnumVO status);
 
     void saveToolReceipt(String toolCallId, String argumentsRef, String receiptRef);
+
+    void saveToolReceipt(String toolCallId, String argumentsRef, String receiptRef, ToolCallStatusEnumVO status, String failureCode);
 
     String saveApproval(ToolApprovalEntity approval);
 
     Optional<ToolApprovalEntity> findPendingApproval(String runId);
 
     Optional<ToolApprovalEntity> findApprovalByApprovalKey(String approvalKey);
+
+    Optional<ToolApprovalEntity> findApprovalByToolCallId(String toolCallId);
 
     void markApprovalApproved(String approvalId, String userAnswerRef, LocalDateTime decidedAt);
 

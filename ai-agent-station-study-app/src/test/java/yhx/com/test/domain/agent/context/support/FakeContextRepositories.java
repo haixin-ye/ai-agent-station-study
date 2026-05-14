@@ -74,6 +74,11 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
     }
 
     @Override
+    public Optional<AgentEvidenceEntity> findEvidence(String evidenceId) {
+        return evidence.stream().filter(item -> evidenceId.equals(item.getEvidenceId())).findFirst();
+    }
+
+    @Override
     public List<AgentEvidenceEntity> listRunEvidence(String runId) {
         return evidence.stream().filter(item -> runId.equals(item.getRunId())).toList();
     }

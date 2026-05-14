@@ -7,6 +7,8 @@ public enum TranscriptBlockTypeEnumVO {
     USER_MESSAGE("USER_MESSAGE", "User message block."),
     ASSISTANT_MESSAGE("ASSISTANT_MESSAGE", "Assistant message block."),
     RUNTIME_EVENT("RUNTIME_EVENT", "Runtime event block."),
+    TOOL_CALL_REQUEST("TOOL_CALL_REQUEST", "Tool call request block."),
+    TOOL_RESULT("TOOL_RESULT", "Tool result block."),
     TOOL_RECEIPT("TOOL_RECEIPT", "Tool receipt block."),
     RAG_EVIDENCE("RAG_EVIDENCE", "RAG evidence block."),
     COMPACTION_SUMMARY("COMPACTION_SUMMARY", "Compaction summary block.");

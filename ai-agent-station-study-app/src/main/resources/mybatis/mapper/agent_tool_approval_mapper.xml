@@ -45,6 +45,15 @@
         LIMIT 1
     </select>
 
+    <select id="queryByToolCallId" parameterType="java.lang.String" resultMap="AgentToolApprovalMap">
+        SELECT id, approval_id, approval_key, run_id, tool_call_id, status, permission_mode, arguments_hash,
+               options_ref, user_answer_ref, created_at, decided_at
+        FROM agent_tool_approval
+        WHERE tool_call_id = #{toolCallId}
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
     <update id="markDecision">
         UPDATE agent_tool_approval
         SET status = #{status}, user_answer_ref = #{userAnswerRef}, decided_at = #{decidedAt}

@@ -1,0 +1,126 @@
+package yhx.com.test.domain.agent.tool;
+
+import org.junit.Assert;
+import org.junit.Test;
+import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.ApprovalPolicyEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.McpTransportTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.PermissionModeEnumVO;
+import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
+import yhx.com.domain.agent.model.valobj.runtime.ToolActionResultVO;
+import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
+import yhx.com.domain.agent.model.valobj.tool.McpToolInvokeResultVO;
+import yhx.com.domain.agent.model.valobj.tool.McpToolSpecVO;
+import yhx.com.domain.agent.service.tool.CapabilityRegistry;
+import yhx.com.domain.agent.service.tool.McpToolRegistry;
+import yhx.com.domain.agent.service.tool.PermissionEnforcer;
+import yhx.com.domain.agent.service.tool.ToolActionOrchestrator;
+import yhx.com.domain.agent.service.tool.ToolApprovalKeyGenerator;
+import yhx.com.domain.agent.service.tool.ToolApprovalService;
+import yhx.com.domain.agent.service.tool.ToolArgumentMaterializer;
+import yhx.com.domain.agent.service.tool.ToolEvidenceConverter;
+import yhx.com.domain.agent.service.tool.ToolFailureMapper;
+import yhx.com.domain.agent.service.tool.ToolInvocationRequestBuilder;
+import yhx.com.domain.agent.service.tool.ToolReceiptCapture;
+import yhx.com.domain.agent.service.tool.ToolRuntime;
+import yhx.com.domain.agent.service.tool.ToolTranscriptRecorder;
+import yhx.com.domain.agent.service.tool.ToolVerifier;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class ToolActionOrchestratorTest {
+
+    @Test
+    public void approval_required_returns_waiting_user() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ASK_USER, command -> {
+            throw new AssertionError("tool must not be invoked before approval");
+        });
+
+        ToolActionResultVO result = orchestrator.handleToolAction(command());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.WAITING_USER, result.getStatus());
+        Assert.assertEquals("pending-tool-1", result.getPendingInputId());
+    }
+
+    @Test
+    public void approved_tool_invokes_tool_runtime() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        AtomicInteger calls = new AtomicInteger();
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ALLOW, command -> {
+            calls.incrementAndGet();
+            return McpToolInvokeResultVO.builder().called(true).success(true).receipt(Map.of("id", "ok")).build();
+        });
+
+        ToolActionResultVO result = orchestrator.handleToolAction(command());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertEquals(1, calls.get());
+    }
+
+    @Test
+    public void permission_denial_creates_denial_evidence_without_invocation() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.DENY, command -> {
+            throw new AssertionError("denied tool must not be invoked");
+        });
+
+        ToolActionResultVO result = orchestrator.handleToolAction(command());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertEquals(1, repository.evidence.size());
+    }
+
+    @Test
+    public void successful_tool_creates_evidence_and_continues_loop() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ALLOW,
+                command -> McpToolInvokeResultVO.builder().called(true).success(true).receipt(Map.of("url", "https://example.com")).build());
+
+        ToolActionResultVO result = orchestrator.handleToolAction(command());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertFalse(result.getEvidenceIds().isEmpty());
+        Assert.assertEquals(2, repository.transcripts.size());
+    }
+
+    private ToolActionOrchestrator orchestrator(ToolTestSupport.Repository repository,
+                                                PermissionModeEnumVO permissionMode,
+                                                yhx.com.domain.agent.service.tool.port.McpToolInvokerPort invoker) {
+        CapabilityRegistry capabilityRegistry = new CapabilityRegistry(List.of(CapabilitySpecVO.builder()
+                .capabilityCode("publish")
+                .mcpServerCode("server")
+                .toolName("tool")
+                .permissionMode(permissionMode)
+                .approvalPolicy(ApprovalPolicyEnumVO.NEVER)
+                .enabled(true)
+                .build()));
+        McpToolRegistry mcpToolRegistry = new McpToolRegistry(List.of(McpToolSpecVO.builder()
+                .mcpServerCode("server")
+                .toolName("tool")
+                .transportType(McpTransportTypeEnumVO.UNKNOWN)
+                .inputSchema(Map.of())
+                .build()));
+        ToolArgumentMaterializer materializer = new ToolArgumentMaterializer(repository, repository, repository);
+        ToolApprovalService approvalService = new ToolApprovalService(repository, repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolInvocationRequestBuilder requestBuilder = new ToolInvocationRequestBuilder(capabilityRegistry, mcpToolRegistry,
+                materializer, new PermissionEnforcer(), approvalService, new ToolApprovalKeyGenerator(), repository, repository);
+        ToolRuntime runtime = new ToolRuntime(invoker, new ToolReceiptCapture(repository), new ToolFailureMapper(), repository);
+        return new ToolActionOrchestrator(requestBuilder, runtime, new ToolVerifier(repository, repository),
+                new ToolEvidenceConverter(repository), new ToolTranscriptRecorder(repository, repository));
+    }
+
+    private ToolActionCommandVO command() {
+        return ToolActionCommandVO.builder()
+                .runId("run-001")
+                .sessionId("sess-001")
+                .loopIndex(1)
+                .capabilityCode("publish")
+                .toolName("tool")
+                .goal("publish content")
+                .arguments(Map.of("title", "Hello"))
+                .build();
+    }
+}

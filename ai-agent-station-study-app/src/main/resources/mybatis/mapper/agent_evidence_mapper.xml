@@ -22,6 +22,13 @@
         )
     </insert>
 
+    <select id="queryByEvidenceId" parameterType="java.lang.String" resultMap="AgentEvidenceMap">
+        SELECT id, evidence_id, run_id, evidence_type, source_ref, summary, confidence, used_by_final, created_at
+        FROM agent_evidence
+        WHERE evidence_id = #{evidenceId}
+        LIMIT 1
+    </select>
+
     <select id="listByRunId" parameterType="java.lang.String" resultMap="AgentEvidenceMap">
         SELECT id, evidence_id, run_id, evidence_type, source_ref, summary, confidence, used_by_final, created_at
         FROM agent_evidence

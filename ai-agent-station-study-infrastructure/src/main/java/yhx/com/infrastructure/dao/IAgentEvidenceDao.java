@@ -11,6 +11,8 @@ public interface IAgentEvidenceDao {
 
     int insert(AgentEvidencePO evidence);
 
+    AgentEvidencePO queryByEvidenceId(String evidenceId);
+
     List<AgentEvidencePO> listByRunId(String runId);
 
     int markUsedByFinal(@Param("evidenceId") String evidenceId);

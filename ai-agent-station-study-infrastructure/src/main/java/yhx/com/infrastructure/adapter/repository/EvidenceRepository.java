@@ -9,6 +9,7 @@ import yhx.com.infrastructure.dao.po.AgentEvidencePO;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -28,6 +29,11 @@ public class EvidenceRepository implements IEvidenceRepository {
         }
         agentEvidenceDao.insert(toPO(evidence));
         return evidence.getEvidenceId();
+    }
+
+    @Override
+    public Optional<AgentEvidenceEntity> findEvidence(String evidenceId) {
+        return Optional.ofNullable(agentEvidenceDao.queryByEvidenceId(evidenceId)).map(this::toEntity);
     }
 
     @Override
