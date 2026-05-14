@@ -3,6 +3,7 @@
 ## 2026-05-14 Phase 8 Tool MCP Permission Approval
 
 - Branch: `feature/auto-agent-main-loop-harness`
+- Checkpoint commit: `b0d9919 agent: add tool mcp runtime approval flow`
 - Status: implemented and verified
 - Scope: capability registry, MCP client/tool registries, permission enforcement, tool approval lifecycle, argument materialization, request builder, Spring AI MCP invoker/discovery adapters, ToolRuntime, receipt capture, ToolVerifier, tool evidence, tool transcript recorder, ToolActionOrchestrator, app bean wiring, targeted tests.
 - Verification:
