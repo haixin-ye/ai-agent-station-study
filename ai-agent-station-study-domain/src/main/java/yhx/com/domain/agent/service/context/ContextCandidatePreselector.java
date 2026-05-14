@@ -1,9 +1,11 @@
 package yhx.com.domain.agent.service.context;
 
+import yhx.com.domain.agent.adapter.repository.IArtifactRepository;
 import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
@@ -15,7 +17,10 @@ import yhx.com.domain.agent.service.artifact.ArtifactCandidateRanker;
 import yhx.com.domain.agent.service.evidence.EvidenceCandidatePreselector;
 import yhx.com.domain.agent.service.memory.MemoryCandidatePreselector;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ContextCandidatePreselector {
 
@@ -25,6 +30,7 @@ public class ContextCandidatePreselector {
     private static final int DEFAULT_EVIDENCE_LIMIT = 5;
 
     private final IConversationRepository conversationRepository;
+    private final IArtifactRepository artifactRepository;
     private final IMemoryRepository memoryRepository;
     private final IEvidenceRepository evidenceRepository;
     private final IPayloadRepository payloadRepository;
@@ -37,7 +43,16 @@ public class ContextCandidatePreselector {
                                        IMemoryRepository memoryRepository,
                                        IEvidenceRepository evidenceRepository,
                                        IPayloadRepository payloadRepository) {
+        this(conversationRepository, null, memoryRepository, evidenceRepository, payloadRepository);
+    }
+
+    public ContextCandidatePreselector(IConversationRepository conversationRepository,
+                                       IArtifactRepository artifactRepository,
+                                       IMemoryRepository memoryRepository,
+                                       IEvidenceRepository evidenceRepository,
+                                       IPayloadRepository payloadRepository) {
         this.conversationRepository = conversationRepository;
+        this.artifactRepository = artifactRepository;
         this.memoryRepository = memoryRepository;
         this.evidenceRepository = evidenceRepository;
         this.payloadRepository = payloadRepository;
@@ -72,7 +87,7 @@ public class ContextCandidatePreselector {
                         .build())
                 .recentMessages(messages)
                 .sessionSummaries(List.of())
-                .artifactCandidates(artifactCandidateRanker.rank(command.getUserInput(), command.getArtifactSeeds(), artifactLimit))
+                .artifactCandidates(artifactCandidateRanker.rank(command.getUserInput(), artifactCandidates(command, artifactLimit), artifactLimit))
                 .memoryCandidates(memoryCandidatePreselector.select(command.getUserInput(),
                         memoryRepository.findMemoryCandidates(command.getUserId(), command.getSessionId(), command.getUserInput(), memoryLimit), memoryLimit))
                 .evidenceCandidates(evidenceCandidatePreselector.select(command.getUserInput(),
@@ -82,6 +97,18 @@ public class ContextCandidatePreselector {
                 .build();
         bundle.getTokenBudget().setCurrentCandidateTokens(tokenEstimator.estimateObjectTokens(bundle));
         return bundle;
+    }
+
+    private List<AgentArtifactEntity> artifactCandidates(ContextPreparationCommand command, int artifactLimit) {
+        Map<String, AgentArtifactEntity> merged = new LinkedHashMap<>();
+        if (artifactRepository != null) {
+            artifactRepository.findArtifactCandidates(command.getSessionId(), command.getUserInput(), artifactLimit)
+                    .forEach(artifact -> merged.put(artifact.getArtifactId(), artifact));
+        }
+        if (command.getArtifactSeeds() != null) {
+            command.getArtifactSeeds().forEach(artifact -> merged.putIfAbsent(artifact.getArtifactId(), artifact));
+        }
+        return new ArrayList<>(merged.values());
     }
 
     private MessageCandidateVO toMessageCandidate(AgentMessageEntity message) {

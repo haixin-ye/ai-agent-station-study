@@ -60,6 +60,14 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
     }
 
     @Override
+    public List<AgentArtifactEntity> findArtifactCandidates(String sessionId, String userInput, int limit) {
+        return artifacts.values().stream()
+                .filter(artifact -> sessionId == null || sessionId.equals(artifact.getSessionId()))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public String saveEvidence(AgentEvidenceEntity item) {
         evidence.add(item);
         return item.getEvidenceId();

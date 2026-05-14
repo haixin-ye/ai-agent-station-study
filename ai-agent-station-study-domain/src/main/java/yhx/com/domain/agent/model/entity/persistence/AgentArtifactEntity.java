@@ -21,6 +21,7 @@ public class AgentArtifactEntity {
     private String summary;
     private String contentRef;
     private Integer version;
+    private LocalDateTime lastMentionedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

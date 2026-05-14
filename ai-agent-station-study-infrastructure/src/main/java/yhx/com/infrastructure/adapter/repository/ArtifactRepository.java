@@ -8,6 +8,7 @@ import yhx.com.infrastructure.dao.IAgentArtifactDao;
 import yhx.com.infrastructure.dao.po.AgentArtifactPO;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,6 +42,11 @@ public class ArtifactRepository implements IArtifactRepository {
         return Optional.ofNullable(agentArtifactDao.queryByArtifactId(artifactId)).map(this::toEntity);
     }
 
+    @Override
+    public List<AgentArtifactEntity> findArtifactCandidates(String sessionId, String userInput, int limit) {
+        return agentArtifactDao.listCandidates(sessionId, userInput, limit).stream().map(this::toEntity).toList();
+    }
+
     private AgentArtifactPO toPO(AgentArtifactEntity entity) {
         return AgentArtifactPO.builder()
                 .artifactId(entity.getArtifactId())
@@ -51,6 +57,7 @@ public class ArtifactRepository implements IArtifactRepository {
                 .summary(entity.getSummary())
                 .contentRef(entity.getContentRef())
                 .version(entity.getVersion())
+                .lastMentionedAt(entity.getLastMentionedAt())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -66,6 +73,7 @@ public class ArtifactRepository implements IArtifactRepository {
                 .summary(po.getSummary())
                 .contentRef(po.getContentRef())
                 .version(po.getVersion())
+                .lastMentionedAt(po.getLastMentionedAt())
                 .createdAt(po.getCreatedAt())
                 .updatedAt(po.getUpdatedAt())
                 .build();

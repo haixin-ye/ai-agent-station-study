@@ -44,6 +44,17 @@ public class ContextCandidatePreselectorTest {
     }
 
     @Test
+    public void artifact_candidates_can_load_from_repository() {
+        FakeContextRepositories repos = fixture();
+        repos.artifacts.put("artifact-1", article("artifact-1", "RAG Article", "payload-artifact"));
+
+        ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos)
+                .buildCandidates(command(List.of()));
+
+        Assert.assertEquals("artifact-1", bundle.getArtifactCandidates().get(0).getArtifactId());
+    }
+
+    @Test
     public void candidate_bundle_does_not_include_full_artifact_body() {
         FakeContextRepositories repos = fixture();
 
@@ -85,6 +96,7 @@ public class ContextCandidatePreselectorTest {
     private AgentArtifactEntity article(String artifactId, String title, String contentRef) {
         return AgentArtifactEntity.builder()
                 .artifactId(artifactId)
+                .sessionId("session-1")
                 .artifactType("ARTICLE")
                 .title(title)
                 .summary("article summary")
