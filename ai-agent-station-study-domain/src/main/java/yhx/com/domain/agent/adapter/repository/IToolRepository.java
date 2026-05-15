@@ -6,6 +6,7 @@ import yhx.com.domain.agent.model.entity.persistence.ToolVerificationEntity;
 import yhx.com.domain.agent.model.valobj.enums.persistence.ToolCallStatusEnumVO;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface IToolRepository {
@@ -27,6 +28,10 @@ public interface IToolRepository {
     Optional<ToolApprovalEntity> findApprovalByApprovalKey(String approvalKey);
 
     Optional<ToolApprovalEntity> findApprovalByToolCallId(String toolCallId);
+
+    default List<ToolCallEntity> listRunToolCalls(String runId, int limit) {
+        return List.of();
+    }
 
     void markApprovalApproved(String approvalId, String userAnswerRef, LocalDateTime decidedAt);
 
