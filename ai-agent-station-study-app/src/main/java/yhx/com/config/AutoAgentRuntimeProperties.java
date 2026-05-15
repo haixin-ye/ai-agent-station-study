@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "auto-agent.runtime")
 public class AutoAgentRuntimeProperties {
 
+    private boolean enabled = true;
     private int maxLoopCount = 8;
     private int maxContractRepairAttempts = 1;
     private int maxFinalRepairAttempts = 1;

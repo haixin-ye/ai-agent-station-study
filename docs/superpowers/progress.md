@@ -50,3 +50,18 @@
   - Normal API scan for `rawOutput|rawPrompt|toolReceipt|StateView|StateDelta|verifier|guardDetail|tracePayload` returned no matches.
   - SSE scan confirms normal stream uses `normal:{runId}` and debug stream uses `debug:{runId}`.
 - Next: continue Phase 11 old harness isolation cleanup.
+
+## 2026-05-15 Phase 11 Old Harness Isolation Cleanup
+
+- Branch: `feature/auto-agent-main-loop-harness`
+- Status: implemented and verified, pending checkpoint commit
+- Scope: old Node1-4 caller audit, legacy default-off configuration, runtime enabled flag, old normal frontend field cleanup, and migration isolation tests.
+- Audit result: no old Node1-4 harness references remain in normal Java source. Remaining matches are historical docs/logs or Phase 11 plan text.
+- Boundary decision: no legacy compare API was added because no normal old harness caller remains.
+- Verification:
+  - `mvn -q -pl ai-agent-station-study-app -am -DskipTests compile` passed.
+  - `mvn -q -pl ai-agent-station-study-app -am "-Dtest=OldHarnessRoutingIsolationTest,OldTraceOutputIsolationTest,LegacySwitchTest,NormalApiNoOldTraceTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` passed: 12 tests, 0 failures.
+- Consistency checks:
+  - Old Node1-4 scan across trigger/api/app main source and canonical spec returned no matches.
+  - Normal frontend/API scan for `stepPlan|todoList|understanding|rawResult` returned no matches after removing the old `execution_understanding` static UI mapping.
+- Next: commit Phase 11 checkpoint, then continue Phase 12 MVP verification review.

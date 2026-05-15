@@ -24,7 +24,7 @@ import yhx.com.domain.agent.service.debug.DebugPayloadPreviewPolicy;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
 
 @Configuration
-@EnableConfigurationProperties(AutoAgentDebugProperties.class)
+@EnableConfigurationProperties({AutoAgentDebugProperties.class, AutoAgentLegacyProperties.class})
 public class AutoAgentApiConfig {
 
     @Bean
@@ -95,4 +95,3 @@ public class AutoAgentApiConfig {
         return new AgentMockScenarioService();
     }
 }
-

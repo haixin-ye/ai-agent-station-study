@@ -277,7 +277,7 @@ Required cases:
 
 ### Task 1: Run Caller Audit
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "AutoAgentExecuteStrategy|DefaultAutoAgentExecuteStrategyFactory|Step1AnalyzerNode|Step2PrecisionExecutorNode|Step3QualitySupervisorNode|Step4LogExecutionSummaryNode|AutoAgentTraceLogSupport|AutoAgentNodeContracts" ai-agent-station-study-domain ai-agent-station-study-trigger ai-agent-station-study-app ai-agent-station-study-api docs
@@ -296,9 +296,9 @@ All old harness references are classified as normal path, debug path, test path,
 - Create or modify app configuration classes for `auto-agent.legacy`.
 - Modify yml only if project config requires defaults.
 
-- [ ] Add `legacy.enabled=false`.
-- [ ] Add `legacy.compare-api-enabled=false`.
-- [ ] Run:
+- [x] Add `legacy.enabled=false`.
+- [x] Add `legacy.compare-api-enabled=false`.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-app -am -DskipTests compile
@@ -316,10 +316,10 @@ BUILD SUCCESS
 
 - Trigger/controller/facade files identified by Task 1.
 
-- [ ] Route normal chat execution to `AgentRuntimeFacade`.
-- [ ] Ensure old `AutoAgentExecuteStrategy` is not called.
-- [ ] Preserve public response DTO shape where required.
-- [ ] Run:
+- [x] Route normal chat execution to `AgentRuntimeFacade`.
+- [x] Ensure old `AutoAgentExecuteStrategy` is not called.
+- [x] Preserve public response DTO shape where required.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-trigger -am -DskipTests compile
@@ -337,10 +337,10 @@ BUILD SUCCESS
 
 - DTO/controller/frontend files identified by Task 1.
 
-- [ ] Remove old `stepPlan`, `todoList`, `understanding`, raw node result, and old result summary from normal DTOs.
-- [ ] Ensure normal SSE uses `UserVisibleEvent`.
-- [ ] Ensure debug data uses debug API only.
-- [ ] Run:
+- [x] Remove old `stepPlan`, `todoList`, `understanding`, raw node result, and old result summary from normal DTOs.
+- [x] Ensure normal SSE uses `UserVisibleEvent`.
+- [x] Ensure debug data uses debug API only.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-trigger -am -DskipTests compile
@@ -359,10 +359,10 @@ BUILD SUCCESS
 - `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/service/execute/auto/contract/**`
 - old prompt/parser callers identified by Task 1
 
-- [ ] If no references remain, delete old contract/parser classes.
-- [ ] If legacy compare is kept, move usage behind `auto-agent.legacy.enabled`.
-- [ ] Ensure new `ContractRegistry` remains the only normal contract source.
-- [ ] Run:
+- [x] If no references remain, delete old contract/parser classes.
+- [x] If legacy compare is kept, move usage behind `auto-agent.legacy.enabled`.
+- [x] Ensure new `ContractRegistry` remains the only normal contract source.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -380,8 +380,8 @@ BUILD SUCCESS
 
 - Create tests listed in Section 8.
 
-- [ ] Implement all Section 8 cases.
-- [ ] Run:
+- [x] Implement all Section 8 cases.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-app -am "-Dtest=OldHarnessRoutingIsolationTest,OldTraceOutputIsolationTest,LegacySwitchTest,NormalApiNoOldTraceTest" test
@@ -395,7 +395,7 @@ BUILD SUCCESS
 
 ### Task 7: Cross-Spec Consistency Scan
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "Step1AnalyzerNode|Step2PrecisionExecutorNode|Step3QualitySupervisorNode|Step4LogExecutionSummaryNode|node-trace|AutoAgentNodeContracts" ai-agent-station-study-trigger ai-agent-station-study-api ai-agent-station-study-app docs\architecture\auto-agent-main-loop-harness-redesign-spec.md
@@ -407,7 +407,7 @@ Expected:
 No old harness references in normal API/app path or canonical spec, except historical problem descriptions if explicitly marked historical.
 ```
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "stepPlan|todoList|understanding|rawResult" ai-agent-station-study-api ai-agent-station-study-trigger docs\dev-ops\nginx\html\index_cool.html
@@ -421,16 +421,24 @@ No normal frontend/API dependency on old node trace display fields.
 
 ## 10. Acceptance Checklist
 
-- [ ] Normal chat route calls new Runtime.
-- [ ] Normal chat route cannot call old Node1-4 flow.
-- [ ] Old trace output cannot become final answer.
-- [ ] Normal API/SSE contains no old step/node trace fields.
-- [ ] Debug API remains the only internal trace path.
-- [ ] Legacy harness is disabled by default.
-- [ ] Legacy comparison route is absent or dev-only.
-- [ ] Old prompt/parser contracts do not conflict with new `ContractRegistry`.
-- [ ] Compile passes.
-- [ ] Isolation tests pass.
+- [x] Normal chat route calls new Runtime.
+- [x] Normal chat route cannot call old Node1-4 flow.
+- [x] Old trace output cannot become final answer.
+- [x] Normal API/SSE contains no old step/node trace fields.
+- [x] Debug API remains the only internal trace path.
+- [x] Legacy harness is disabled by default.
+- [x] Legacy comparison route is absent or dev-only.
+- [x] Old prompt/parser contracts do not conflict with new `ContractRegistry`.
+- [x] Compile passes.
+- [x] Isolation tests pass.
+
+## 12. Implementation Notes
+
+- Caller audit found no old Node1-4 harness references in normal Java source. Remaining matches are historical docs, historical logs, or this cleanup plan.
+- The `execute/auto` package no longer exists under the current `yhx.com` Java source tree, so no old contract/parser classes needed deletion in this phase.
+- Added `auto-agent.runtime.enabled=true` and `auto-agent.legacy.enabled=false`, `auto-agent.legacy.compare-api-enabled=false` defaults.
+- Removed the remaining old `execution_understanding` display mapping from `docs/dev-ops/nginx/html/index_cool.html`.
+- Added migration isolation tests to lock normal route, DTO, final response, and legacy switch boundaries.
 
 ## 11. Worker Split Guidance
 
@@ -443,4 +451,3 @@ If using subagents, split work by non-overlapping file ownership:
 - Worker E: isolation tests.
 
 The integrator must verify routing and normal output boundaries before deleting old code.
-
