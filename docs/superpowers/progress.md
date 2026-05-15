@@ -29,4 +29,5 @@
 - Consistency checks:
   - Normal assistant message creation appears in `FinalResponsePersistenceService`; the other service-layer `appendMessage` usage is the runtime user-message append path.
   - Internal terms in final response code are limited to guard blocked terms, repair instruction, enum/import names, and debug trace persistence.
-- Next: commit Phase 9 checkpoint, then continue Phase 10 API/SSE/debug/mock.
+- Checkpoint commit: `d1f38be agent: add final response guard delivery`
+- Next: continue Phase 10 API/SSE/debug/mock.
