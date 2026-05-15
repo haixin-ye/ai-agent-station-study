@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import yhx.com.domain.agent.model.valobj.enums.runtime.FinalDeliveryStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.finalresponse.FinalResponseVO;
+import yhx.com.domain.agent.model.valobj.invocation.FinalResponseGuardResultVO;
 
 @Data
 @Builder
@@ -13,6 +15,12 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.FinalDeliveryStatusEnumVO
 public class FinalDeliveryResultVO {
 
     private FinalDeliveryStatusEnumVO status;
+    private boolean completed;
+    private boolean repairRequested;
+    private boolean failed;
+    private FinalResponseVO finalResponse;
+    private FinalResponseGuardResultVO guardResult;
+    private String failureCode;
     private String finalMessageId;
     private String finalAnswerRef;
     private String deliveredContent;

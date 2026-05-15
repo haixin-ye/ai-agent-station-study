@@ -52,9 +52,14 @@ public class FinalActionHandler extends MainActionHandlerSupport implements Main
         FinalDeliveryResultVO result = finalDeliveryPort.deliver(FinalDeliveryCommandVO.builder()
                 .runId(context.getRunId())
                 .sessionId(context.getSessionId())
+                .userId(context.getUserId())
+                .agentId(context.getAgentId())
+                .userMessageId(context.getUserMessageId())
+                .userInput(context.getUserInput())
                 .loopIndex(context.getLoopIndex())
                 .sourceAction(sourceAction)
                 .finalAnswerCandidate(candidate)
+                .finalRepairCount(context.countersOrInitial().finalRepairCountValue())
                 .build());
         if (result == null || result.getStatus() == null) {
             return safeFailure(context, RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,

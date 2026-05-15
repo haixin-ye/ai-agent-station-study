@@ -49,10 +49,15 @@ public class FailActionHandler extends MainActionHandlerSupport implements MainA
             FinalDeliveryResultVO delivery = finalDeliveryPort.deliver(FinalDeliveryCommandVO.builder()
                     .runId(context.getRunId())
                     .sessionId(context.getSessionId())
+                    .userId(context.getUserId())
+                    .agentId(context.getAgentId())
+                    .userMessageId(context.getUserMessageId())
+                    .userInput(context.getUserInput())
                     .loopIndex(context.getLoopIndex())
                     .sourceAction(MainAgentActionTypeEnumVO.FAIL)
                     .finalAnswerCandidate(candidate)
                     .failure(failure)
+                    .finalRepairCount(context.countersOrInitial().finalRepairCountValue())
                     .build());
             if (delivery != null && delivery.getStatus() == FinalDeliveryStatusEnumVO.DELIVERED) {
                 return MainActionHandlerResult.builder()

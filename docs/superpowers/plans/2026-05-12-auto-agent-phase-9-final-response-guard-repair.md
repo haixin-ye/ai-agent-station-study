@@ -387,9 +387,9 @@ Required cases:
 
 - Create files listed in Section 3.
 
-- [ ] Implement command/result/context classes.
-- [ ] Implement `FinalDeliveryService` skeleton.
-- [ ] Run:
+- [x] Implement command/result/context classes.
+- [x] Implement `FinalDeliveryService` skeleton.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -407,10 +407,10 @@ BUILD SUCCESS
 
 - Guard files listed in Section 3.
 
-- [ ] Implement guard interface.
-- [ ] Implement all six guards.
-- [ ] Implement first-blocking-failure chain.
-- [ ] Run:
+- [x] Implement guard interface.
+- [x] Implement all six guards.
+- [x] Implement first-blocking-failure chain.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -431,11 +431,11 @@ BUILD SUCCESS
 - `FinalResponseBuilder.java`
 - `FinalResponsePersistenceService.java`
 
-- [ ] Integrate optional RAG verification.
-- [ ] Run guard.
-- [ ] Persist final response only after guard pass.
-- [ ] Append assistant message only through final delivery.
-- [ ] Run:
+- [x] Integrate optional RAG verification.
+- [x] Run guard.
+- [x] Persist final response only after guard pass.
+- [x] Append assistant message only through final delivery.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -455,10 +455,10 @@ BUILD SUCCESS
 - `FinalRepairPromptContext.java`
 - `FixedSafeFallbackFactory.java`
 
-- [ ] Invoke `FINAL_REPAIR` through `NodeInvocationPipeline`.
-- [ ] Enforce repair budget.
-- [ ] Use fixed fallback when exhausted.
-- [ ] Run:
+- [x] Invoke `FINAL_REPAIR` through `NodeInvocationPipeline`.
+- [x] Enforce repair budget.
+- [x] Use fixed fallback when exhausted.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -480,9 +480,9 @@ BUILD SUCCESS
 - `RepairFinalActionHandler.java`
 - `FailActionHandler.java`
 
-- [ ] Replace fake `FinalDeliveryPort` with `FinalDeliveryService` adapter.
-- [ ] Ensure all user-visible text routes through final delivery.
-- [ ] Run:
+- [x] Replace fake `FinalDeliveryPort` with `FinalDeliveryService` adapter.
+- [x] Ensure all user-visible text routes through final delivery.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-domain -am -DskipTests compile
@@ -500,10 +500,10 @@ BUILD SUCCESS
 
 - Create tests listed in Section 10.
 
-- [ ] Use fake repositories.
-- [ ] Use fake `RagVerificationRouter`.
-- [ ] Use fake `NodeInvocationPipeline` for repair.
-- [ ] Run:
+- [x] Use fake repositories.
+- [x] Use fake `RagVerificationRouter`.
+- [x] Use fake `NodeInvocationPipeline` for repair.
+- [x] Run:
 
 ```powershell
 mvn -q -pl ai-agent-station-study-app -am "-Dtest=FinalResponseGuardTest,FinalDeliveryServiceTest,FinalRepairServiceTest,FinalResponsePersistenceBoundaryTest" test
@@ -517,7 +517,7 @@ BUILD SUCCESS
 
 ### Task 7: Cross-Spec Consistency Scan
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "saveMessage|ASSISTANT|append assistant|FinalDeliveryService" ai-agent-station-study-domain\src\main\java\yhx\com\domain\agent\service
@@ -529,7 +529,7 @@ Expected:
 Normal assistant final message creation appears only in FinalDeliveryService or its persistence helper.
 ```
 
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 rg -n "Runtime|node|verifier|trace|contract|prompt|StateView|StateDelta|tool receipt|raw output" ai-agent-station-study-domain\src\main\java\yhx\com\domain\agent\service\finalresponse
@@ -543,19 +543,19 @@ Matches are allowed in InternalLeakGuard blocked terms, repair instructions, and
 
 ## 12. Acceptance Checklist
 
-- [ ] Final delivery is the only normal assistant message creation path.
-- [ ] RAG verification runs before guard only when `ragWasUsed=true`.
-- [ ] Empty answer is blocked.
-- [ ] Internal process leakage is blocked.
-- [ ] Raw JSON leakage is blocked.
-- [ ] Invalid citation is blocked.
-- [ ] False tool success claim is blocked.
-- [ ] Overlong answer is blocked.
-- [ ] Repair uses `REPAIR_FINAL` only.
-- [ ] Repair budget is bounded.
-- [ ] Fixed fallback exists.
-- [ ] Guard details are stored as debug trace, not normal output.
-- [ ] Tests pass.
+- [x] Final delivery is the only normal assistant message creation path.
+- [x] RAG verification runs before guard only when `ragWasUsed=true`.
+- [x] Empty answer is blocked.
+- [x] Internal process leakage is blocked.
+- [x] Raw JSON leakage is blocked.
+- [x] Invalid citation is blocked.
+- [x] False tool success claim is blocked.
+- [x] Overlong answer is blocked.
+- [x] Repair uses `REPAIR_FINAL` only.
+- [x] Repair budget is bounded.
+- [x] Fixed fallback exists.
+- [x] Guard details are stored as debug trace, not normal output.
+- [x] Tests pass.
 
 ## 13. Worker Split Guidance
 
@@ -569,4 +569,3 @@ If using subagents, split work by non-overlapping file ownership:
 - Worker F: final response tests.
 
 The integrator must verify that normal assistant messages cannot be created from raw output, verifier result, trace, tool receipt, or runtime summary.
-
