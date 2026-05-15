@@ -54,7 +54,8 @@
 ## 2026-05-15 Phase 11 Old Harness Isolation Cleanup
 
 - Branch: `feature/auto-agent-main-loop-harness`
-- Status: implemented and verified, pending checkpoint commit
+- Status: implemented and verified
+- Checkpoint commit: `961a421 agent: isolate legacy auto harness`
 - Scope: old Node1-4 caller audit, legacy default-off configuration, runtime enabled flag, old normal frontend field cleanup, and migration isolation tests.
 - Audit result: no old Node1-4 harness references remain in normal Java source. Remaining matches are historical docs/logs or Phase 11 plan text.
 - Boundary decision: no legacy compare API was added because no normal old harness caller remains.
@@ -64,4 +65,4 @@
 - Consistency checks:
   - Old Node1-4 scan across trigger/api/app main source and canonical spec returned no matches.
   - Normal frontend/API scan for `stepPlan|todoList|understanding|rawResult` returned no matches after removing the old `execution_understanding` static UI mapping.
-- Next: commit Phase 11 checkpoint, then continue Phase 12 MVP verification review.
+- Next: continue Phase 12 MVP verification review.
