@@ -35,7 +35,8 @@
 ## 2026-05-15 Phase 10 API SSE Debug Mock
 
 - Branch: `feature/auto-agent-main-loop-harness`
-- Status: implemented and verified, pending checkpoint commit
+- Status: implemented and verified
+- Checkpoint commit: `b9d9f6e agent: expose api sse debug mock endpoints`
 - Scope: safe frontend DTOs, chat/run/message/final/event/pending-input/artifact controllers, debug endpoints, mock scenario endpoints, trigger-layer `SseEmitterRegistry`, domain API facades, debug data access policy, debug payload preview policy, and focused Phase 10 tests.
 - Boundary decision: `SseEmitterRegistry` lives in trigger because `SseEmitter` is a Spring MVC web type. Domain exposes framework-free event replay bridges.
 - Current SSE behavior: normal/debug streams replay persisted events on connect and use separate stream keys; mock streams emit scenario events immediately. Runtime append-to-live-emitter bridging remains a later enhancement.
@@ -48,4 +49,4 @@
 - Consistency checks:
   - Normal API scan for `rawOutput|rawPrompt|toolReceipt|StateView|StateDelta|verifier|guardDetail|tracePayload` returned no matches.
   - SSE scan confirms normal stream uses `normal:{runId}` and debug stream uses `debug:{runId}`.
-- Next: commit Phase 10 checkpoint, then continue Phase 11 old harness isolation cleanup.
+- Next: continue Phase 11 old harness isolation cleanup.
