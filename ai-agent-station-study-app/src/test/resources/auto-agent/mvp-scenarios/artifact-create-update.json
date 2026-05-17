@@ -1,0 +1,47 @@
+{
+  "scenarioId": "artifact-create-update",
+  "description": "Create an artifact and then update the selected artifact content.",
+  "userMessage": "Draft an article and then improve its structure.",
+  "given": {
+    "historyMessages": [],
+    "artifacts": [],
+    "memories": [],
+    "ragHits": [],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "CREATE_ARTIFACT",
+        "stateDelta": {
+          "artifact": {
+            "artifactType": "ARTICLE",
+            "title": "RAG Interview Notes",
+            "content": "Initial article content."
+          }
+        }
+      }
+    },
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "UPDATE_ARTIFACT",
+        "stateDelta": {
+          "artifactId": "artifact-001",
+          "content": "Updated article content."
+        }
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "COMPLETED",
+    "requiredEvents": ["RUN_STARTED", "STATUS_CHANGED", "FINAL_READY"],
+    "forbiddenNormalPayloadFragments": ["payloadRef", "rawResult", "trace"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": false,
+    "toolWasInvoked": false,
+    "pendingInputCreated": false
+  }
+}
+

@@ -1,0 +1,43 @@
+{
+  "scenarioId": "direct-answer",
+  "description": "Simple user request that needs no RAG, no MCP tool, and no pending input.",
+  "userMessage": "Explain RAG in one sentence.",
+  "given": {
+    "historyMessages": [],
+    "artifacts": [],
+    "memories": [],
+    "ragHits": [],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "CONTEXT_PLANNER",
+      "response": {
+        "status": "READY",
+        "selectedContextRefs": [],
+        "reason": "No external context required."
+      }
+    },
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "FINAL",
+        "stateDelta": {
+          "finalAnswerCandidate": {
+            "content": "RAG combines retrieval with generation."
+          }
+        }
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "COMPLETED",
+    "requiredEvents": ["RUN_STARTED", "FINAL_READY"],
+    "forbiddenNormalPayloadFragments": ["rawResult", "trace", "node1", "node2", "node3", "node4"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": false,
+    "toolWasInvoked": false,
+    "pendingInputCreated": false
+  }
+}
+

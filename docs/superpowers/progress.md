@@ -66,3 +66,25 @@
   - Old Node1-4 scan across trigger/api/app main source and canonical spec returned no matches.
   - Normal frontend/API scan for `stepPlan|todoList|understanding|rawResult` returned no matches after removing the old `execution_understanding` static UI mapping.
 - Next: continue Phase 12 MVP verification review.
+
+## 2026-05-17 Phase 12 MVP Verification Review
+
+- Branch: `feature/auto-agent-main-loop-harness`
+- Status: implemented and verified, pending checkpoint commit
+- Scope: MVP scenario fixtures, scenario/safety property tests, targeted verification matrix, normal/debug/legacy boundary scans, verification report, and known gaps backlog.
+- MVP decision: PASS with accepted non-blocking gaps documented in `docs/superpowers/reviews/2026-05-12-auto-agent-known-gaps-backlog.md`.
+- Verification:
+  - `mvn -q -pl ai-agent-station-study-app -am "-Dtest=AutoAgentMvpScenarioTest,AutoAgentSafetyPropertyTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` passed: 8 tests, 0 failures.
+  - Contract/prompt/context matrix passed: 50 tests, 0 failures.
+  - Runtime/action handler matrix passed: 58 tests, 0 failures.
+  - RAG/tool/final matrix passed: 71 tests, 0 failures.
+  - API/SSE/debug/legacy/MVP matrix passed: 26 tests, 0 failures.
+  - `mvn -q -pl ai-agent-station-study-app -am -DskipTests compile` passed.
+- Consistency checks:
+  - Normal API leak scan for raw/internal fields returned no matches.
+  - Old Node1-4 normal path scan returned no matches.
+  - Old frontend/API field scan for `stepPlan|todoList|understanding|rawResult` returned no matches.
+- Notes:
+  - Direct answer and artifact clarification scenarios run through Runtime.
+  - Other scenario fixtures are covered by focused module tests; richer monolithic scenario runner is recorded as GAP-001.
+- Next: commit Phase 12 checkpoint and prepare final development summary.

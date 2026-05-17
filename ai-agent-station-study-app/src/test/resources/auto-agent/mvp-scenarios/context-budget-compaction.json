@@ -1,0 +1,54 @@
+{
+  "scenarioId": "context-budget-compaction",
+  "description": "Large context is compacted into summaries and stable references.",
+  "userMessage": "Use the previous article, conversation history, and knowledge evidence to revise the answer.",
+  "given": {
+    "historyMessages": [
+      {
+        "messageId": "msg-history-001",
+        "summary": "Prior discussion about RAG."
+      }
+    ],
+    "artifacts": [
+      {
+        "artifactId": "artifact-large-001",
+        "title": "Long RAG Article",
+        "contentRef": "payload-large-artifact"
+      }
+    ],
+    "memories": [
+      {
+        "memoryId": "memory-001",
+        "summary": "User prefers interview-style answers."
+      }
+    ],
+    "ragHits": [
+      {
+        "hitId": "rag-hit-001",
+        "payloadRef": "payload-rag-001"
+      }
+    ],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "CONTEXT_PLANNER",
+      "response": {
+        "status": "READY",
+        "selectedContextRefs": ["artifact-large-001", "memory-001", "rag-hit-001"],
+        "budgetMode": "SUMMARY_AND_REFS"
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "COMPLETED",
+    "requiredEvents": ["RUN_STARTED", "STATUS_CHANGED", "FINAL_READY"],
+    "forbiddenNormalPayloadFragments": ["rawResult", "full StateView", "tracePayload"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": true,
+    "toolWasInvoked": false,
+    "pendingInputCreated": false,
+    "contextBudgetEnforced": true
+  }
+}
+
