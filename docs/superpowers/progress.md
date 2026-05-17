@@ -89,3 +89,22 @@
   - Direct answer and artifact clarification scenarios run through Runtime.
   - Other scenario fixtures are covered by focused module tests; richer monolithic scenario runner is recorded as GAP-001.
 - Next: prepare final development summary.
+
+## 2026-05-17 Phase 13 Frontend Runtime Chat MVP
+
+- Branch: `feature/auto-agent-main-loop-harness`
+- Status: first frontend slice implemented and locally checked
+- Scope: added a new static runtime chat page at `docs/dev-ops/nginx/html/agent_runtime.html`.
+- Design direction: Claude-style clean conversation surface plus Codex-style concise run progress. Cursor/Linear-style dense panels are avoided in normal mode.
+- Behavior:
+  - Left sidebar contains sessions and mock scenarios.
+  - Center area contains normal chat, user-visible progress events, pending-input cards, artifact cards, and the composer.
+  - Right debug drawer is hidden by default and opens only through the explicit Debug button.
+  - Mock mode can run without backend availability by falling back to local mock events.
+  - Real mode is wired to `/agent/chat`, `/agent/runs/{runId}/events/stream`, `/agent/runs/{runId}/user-input`, and `/agent/artifacts/{artifactId}`.
+- Verification:
+  - Extracted inline JavaScript from `agent_runtime.html` and ran `node --check`; command exited successfully.
+  - Static scan for old normal-output fields `stepPlan|todoList|understanding|rawResult|StateView|StateDelta|trace payload|思考链路|节点调用|节点` returned no matches.
+- Notes:
+  - This is a frontend MVP page, not a replacement of the old `index_cool.html`.
+  - Real `/agent/chat` still depends on complete Spring runtime bean wiring; mock mode is ready for frontend review.

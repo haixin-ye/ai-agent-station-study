@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoAgent Runtime</title>
+    <script src="js/marked.min.js"></script>
+    <script src="js/purify.min.js"></script>
+    <script src="js/highlight.min.js"></script>
+    <link rel="stylesheet" href="css/github.min.css">
+    <style>
+        :root {
+            --canvas: #faf8f2;
+            --paper: #fffefa;
+            --paper-soft: #f4efe7;
+            --paper-strong: #ece4d8;
+            --ink: #181715;
+            --ink-soft: #4b4842;
+            --ink-muted: #7c766c;
+            --line: #e5dccf;
+            --line-strong: #d3c6b6;
+            --accent: #bd6f53;
+            --accent-deep: #98553e;
+            --accent-soft: #f0d9cd;
+            --green: #4f8f73;
+            --amber: #a9782f;
+            --red: #b64c44;
+            --dark: #1c1b18;
+            --dark-soft: #2a2823;
+            --dark-ink: #f7f2ea;
+            --radius: 8px;
+            --sidebar-width: 286px;
+            --drawer-width: 390px;
+            --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+            --sans: "Avenir Next", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+            --serif: "Iowan Old Style", "Songti SC", Georgia, serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            color: var(--ink);
+            background: var(--canvas);
+            font-family: var(--sans);
+            letter-spacing: 0;
+            overflow: hidden;
+        }
+
+        button,
+        input,
+        textarea,
+        select {
+            font: inherit;
+        }
+
+        button {
+            border: 0;
+            cursor: pointer;
+        }
+
+        .app-shell {
+            display: grid;
+            grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+            height: 100vh;
+            min-height: 0;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: #f2ece2;
+            border-right: 1px solid var(--line);
+        }
+
+        .brand {
+            padding: 22px 22px 18px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .brand-mark {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .mark {
+            width: 28px;
+            height: 28px;
+            display: grid;
+            place-items: center;
+            color: var(--dark-ink);
+            background: var(--dark);
+            border-radius: 6px;
+            font-family: var(--serif);
+            font-size: 17px;
+        }
+
+        .brand-title {
+            font-family: var(--serif);
+            font-size: 20px;
+            line-height: 1.1;
+        }
+
+        .brand-subtitle {
+            color: var(--ink-muted);
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .mode-switch {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            padding: 4px;
+            background: var(--paper-strong);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+        }
+
+        .mode-button {
+            height: 32px;
+            border-radius: 6px;
+            color: var(--ink-muted);
+            background: transparent;
+            font-size: 13px;
+        }
+
+        .mode-button.active {
+            color: var(--ink);
+            background: var(--paper);
+            box-shadow: 0 1px 0 rgba(24, 23, 21, 0.05);
+        }
+
+        .sidebar-section {
+            padding: 18px 14px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .section-label {
+            margin: 0 8px 10px;
+            color: var(--ink-muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .scenario-list,
+        .session-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .scenario-button,
+        .session-button {
+            width: 100%;
+            padding: 11px 12px;
+            color: var(--ink);
+            background: transparent;
+            border-radius: var(--radius);
+            text-align: left;
+        }
+
+        .scenario-button:hover,
+        .session-button:hover,
+        .scenario-button.active,
+        .session-button.active {
+            background: rgba(255, 254, 250, 0.78);
+        }
+
+        .scenario-title,
+        .session-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .scenario-desc,
+        .session-meta {
+            margin-top: 4px;
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .debug-dot {
+            width: 7px;
+            height: 7px;
+            flex: 0 0 auto;
+            border-radius: 999px;
+            background: var(--amber);
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 14px 22px 18px;
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.5;
+            border-top: 1px solid var(--line);
+        }
+
+        .main {
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            background: var(--paper);
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            height: 62px;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 254, 250, 0.9);
+        }
+
+        .run-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .run-name {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .run-id {
+            margin-top: 2px;
+            color: var(--ink-muted);
+            font-family: var(--mono);
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 46vw;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            height: 28px;
+            padding: 0 10px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--ink-soft);
+            background: var(--canvas);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .status-pill::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--ink-muted);
+        }
+
+        .status-pill.running::before {
+            background: var(--amber);
+        }
+
+        .status-pill.completed::before {
+            background: var(--green);
+        }
+
+        .status-pill.failed::before {
+            background: var(--red);
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ghost-button,
+        .primary-button,
+        .danger-button {
+            height: 34px;
+            padding: 0 13px;
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .ghost-button {
+            color: var(--ink-soft);
+            background: transparent;
+            border: 1px solid var(--line);
+        }
+
+        .ghost-button:hover {
+            border-color: var(--line-strong);
+            background: var(--canvas);
+        }
+
+        .primary-button {
+            color: #fff;
+            background: var(--dark);
+        }
+
+        .primary-button:hover {
+            background: var(--dark-soft);
+        }
+
+        .danger-button {
+            color: #fff;
+            background: var(--red);
+        }
+
+        .chat-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            padding: 28px 20px 22px;
+        }
+
+        .chat-inner {
+            width: min(860px, 100%);
+            margin: 0 auto;
+        }
+
+        .empty-state {
+            display: grid;
+            gap: 20px;
+            padding: 52px 0 28px;
+        }
+
+        .empty-heading {
+            max-width: 680px;
+            font-family: var(--serif);
+            font-size: 42px;
+            line-height: 1.12;
+            font-weight: 400;
+        }
+
+        .empty-copy {
+            max-width: 640px;
+            color: var(--ink-soft);
+            font-size: 15px;
+            line-height: 1.65;
+        }
+
+        .starter-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .starter-button {
+            min-height: 76px;
+            padding: 14px;
+            color: var(--ink);
+            background: var(--canvas);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            text-align: left;
+        }
+
+        .starter-button:hover {
+            border-color: var(--line-strong);
+            background: #fffaf1;
+        }
+
+        .starter-button strong {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+
+        .starter-button span {
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .message-stack {
+            display: grid;
+            gap: 22px;
+        }
+
+        .message {
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            gap: 13px;
+            align-items: start;
+        }
+
+        .avatar {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            color: var(--dark-ink);
+            background: var(--dark);
+            font-family: var(--serif);
+            font-size: 15px;
+        }
+
+        .message.user .avatar {
+            color: var(--ink);
+            background: var(--paper-strong);
+        }
+
+        .bubble {
+            max-width: 100%;
+            padding-top: 5px;
+            color: var(--ink);
+            font-size: 15px;
+            line-height: 1.72;
+        }
+
+        .message.user .bubble {
+            width: fit-content;
+            max-width: min(720px, 100%);
+            padding: 12px 15px;
+            background: var(--canvas);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+        }
+
+        .bubble p {
+            margin: 0 0 12px;
+        }
+
+        .bubble p:last-child {
+            margin-bottom: 0;
+        }
+
+        .bubble pre {
+            overflow: auto;
+            padding: 14px;
+            background: #f6f3ed;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+        }
+
+        .event-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 0 8px 47px;
+            color: var(--ink-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .event-marker {
+            width: 8px;
+            height: 8px;
+            margin-top: 6px;
+            border-radius: 999px;
+            background: var(--line-strong);
+        }
+
+        .event-line.running .event-marker {
+            background: var(--amber);
+        }
+
+        .event-line.completed .event-marker {
+            background: var(--green);
+        }
+
+        .event-line.failed .event-marker {
+            background: var(--red);
+        }
+
+        .event-title {
+            color: var(--ink-soft);
+            font-weight: 650;
+        }
+
+        .pending-card,
+        .artifact-card {
+            margin-left: 47px;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--canvas);
+        }
+
+        .pending-title,
+        .artifact-title {
+            margin: 0 0 8px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .pending-question,
+        .artifact-summary {
+            margin: 0 0 14px;
+            color: var(--ink-soft);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .pending-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .option-button {
+            min-height: 34px;
+            padding: 7px 11px;
+            border: 1px solid var(--line-strong);
+            border-radius: var(--radius);
+            color: var(--ink);
+            background: var(--paper);
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .option-button:hover {
+            border-color: var(--accent);
+            color: var(--accent-deep);
+        }
+
+        .free-answer {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .free-answer input {
+            height: 34px;
+            padding: 0 10px;
+            color: var(--ink);
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            outline: none;
+        }
+
+        .free-answer input:focus {
+            border-color: var(--accent);
+        }
+
+        .composer-wrap {
+            padding: 14px 20px 20px;
+            border-top: 1px solid var(--line);
+            background: rgba(255, 254, 250, 0.94);
+        }
+
+        .composer {
+            width: min(860px, 100%);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .composer textarea {
+            min-height: 52px;
+            max-height: 180px;
+            resize: none;
+            padding: 14px 15px;
+            color: var(--ink);
+            background: var(--canvas);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            outline: none;
+            line-height: 1.5;
+        }
+
+        .composer textarea:focus {
+            border-color: var(--accent);
+            background: var(--paper);
+        }
+
+        .send-button {
+            width: 46px;
+            height: 46px;
+            border-radius: var(--radius);
+            color: #fff;
+            background: var(--dark);
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .send-button:disabled {
+            cursor: not-allowed;
+            color: var(--ink-muted);
+            background: var(--paper-strong);
+        }
+
+        .drawer-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 30;
+            background: rgba(24, 23, 21, 0.18);
+        }
+
+        .drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 40;
+            width: min(var(--drawer-width), 100vw);
+            height: 100vh;
+            transform: translateX(100%);
+            transition: transform 180ms ease;
+            background: var(--dark);
+            color: var(--dark-ink);
+            border-left: 1px solid #3a372f;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .drawer.open {
+            transform: translateX(0);
+        }
+
+        .drawer-backdrop.open {
+            display: block;
+        }
+
+        .drawer-header {
+            height: 62px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 18px;
+            border-bottom: 1px solid #333027;
+        }
+
+        .drawer-title {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .drawer-content {
+            min-height: 0;
+            overflow: auto;
+            padding: 16px;
+        }
+
+        .debug-section {
+            padding: 14px 0;
+            border-bottom: 1px solid #333027;
+        }
+
+        .debug-section h3 {
+            margin: 0 0 10px;
+            color: #cfc5b8;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .debug-kv {
+            display: grid;
+            grid-template-columns: 94px minmax(0, 1fr);
+            gap: 8px;
+            padding: 5px 0;
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+
+        .debug-kv span:first-child {
+            color: #8e8578;
+        }
+
+        .debug-kv span:last-child {
+            overflow-wrap: anywhere;
+        }
+
+        .debug-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .debug-event {
+            padding: 9px 10px;
+            border: 1px solid #39362e;
+            border-radius: 6px;
+            background: #23211d;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .debug-event code {
+            color: #e7d4c6;
+            font-family: var(--mono);
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            z-index: 60;
+            transform: translateX(-50%) translateY(18px);
+            opacity: 0;
+            pointer-events: none;
+            padding: 10px 13px;
+            color: var(--dark-ink);
+            background: var(--dark);
+            border-radius: var(--radius);
+            font-size: 13px;
+            transition: opacity 160ms ease, transform 160ms ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 920px) {
+            .app-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .topbar {
+                padding: 0 14px;
+            }
+
+            .empty-heading {
+                font-size: 34px;
+            }
+
+            .starter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .top-actions .ghost-button:first-child {
+                display: none;
+            }
+
+            .run-id {
+                max-width: 42vw;
+            }
+
+            .composer {
+                grid-template-columns: 1fr;
+            }
+
+            .send-button {
+                width: 100%;
+            }
+
+            .message {
+                grid-template-columns: 28px minmax(0, 1fr);
+                gap: 10px;
+            }
+
+            .avatar {
+                width: 28px;
+                height: 28px;
+            }
+
+            .event-line,
+            .pending-card,
+            .artifact-card {
+                margin-left: 38px;
+                padding-left: 0;
+            }
+
+            .pending-card,
+            .artifact-card {
+                padding: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">
+                <div class="mark">A</div>
+                <div>
+                    <div class="brand-title">AutoAgent</div>
+                    <div class="brand-subtitle">Runtime Chat</div>
+                </div>
+            </div>
+            <div class="mode-switch" aria-label="mode switch">
+                <button id="mockModeBtn" class="mode-button active" type="button">Mock</button>
+                <button id="realModeBtn" class="mode-button" type="button">Real</button>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <p class="section-label">会话</p>
+            <div id="sessionList" class="session-list"></div>
+        </div>
+
+        <div class="sidebar-section" style="min-height:0; overflow:auto;">
+            <p class="section-label">场景</p>
+            <div id="scenarioList" class="scenario-list"></div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div id="connectionText">Mock mode</div>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div class="run-title">
+                <span id="statusPill" class="status-pill">idle</span>
+                <div>
+                    <div id="activeTitle" class="run-name">新会话</div>
+                    <div id="activeRunId" class="run-id">no active run</div>
+                </div>
+            </div>
+            <div class="top-actions">
+                <button id="newChatBtn" class="ghost-button" type="button">New</button>
+                <button id="debugBtn" class="ghost-button" type="button">Debug</button>
+            </div>
+        </header>
+
+        <section id="chatScroll" class="chat-scroll">
+            <div class="chat-inner">
+                <div id="emptyState" class="empty-state">
+                    <div>
+                        <div class="empty-heading">把问题交给智能体，过程保持安静，结果保持干净。</div>
+                        <p class="empty-copy">普通视图只呈现会话、必要进度、用户确认和最终回答。调试信息被收进独立抽屉，避免把内部流程误当成回答。</p>
+                    </div>
+                    <div class="starter-grid">
+                        <button class="starter-button" data-starter="帮我生成一篇 RAG 相关的八股文，200 字左右">
+                            <strong>生成短文</strong>
+                            <span>适合检查最终回答是否干净。</span>
+                        </button>
+                        <button class="starter-button" data-starter="把上一篇文章发布到 CSDN，发布前请让我确认">
+                            <strong>工具确认</strong>
+                            <span>适合检查等待用户确认的交互。</span>
+                        </button>
+                        <button class="starter-button" data-starter="根据知识库解释 RAG 和 MCP 的区别">
+                            <strong>知识检索</strong>
+                            <span>适合检查检索过程的展示。</span>
+                        </button>
+                        <button class="starter-button" data-starter="把刚才的文章结构重新整理一下">
+                            <strong>引用产物</strong>
+                            <span>适合检查上下文与产物选择。</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="messageStack" class="message-stack"></div>
+            </div>
+        </section>
+
+        <footer class="composer-wrap">
+            <div class="composer">
+                <textarea id="messageInput" placeholder="输入消息" rows="2"></textarea>
+                <button id="sendBtn" class="send-button" type="button" aria-label="发送">↑</button>
+            </div>
+        </footer>
+    </main>
+</div>
+
+<div id="drawerBackdrop" class="drawer-backdrop"></div>
+<aside id="debugDrawer" class="drawer" aria-hidden="true">
+    <div class="drawer-header">
+        <div class="drawer-title">Debug</div>
+        <button id="closeDebugBtn" class="ghost-button" type="button">Close</button>
+    </div>
+    <div class="drawer-content">
+        <section class="debug-section">
+            <h3>Run</h3>
+            <div class="debug-kv"><span>session</span><span id="debugSessionId">-</span></div>
+            <div class="debug-kv"><span>run</span><span id="debugRunId">-</span></div>
+            <div class="debug-kv"><span>status</span><span id="debugStatus">idle</span></div>
+            <div class="debug-kv"><span>mode</span><span id="debugMode">mock</span></div>
+        </section>
+        <section class="debug-section">
+            <h3>Events</h3>
+            <div id="debugEvents" class="debug-list"></div>
+        </section>
+        <section class="debug-section">
+            <h3>Artifacts</h3>
+            <div id="debugArtifacts" class="debug-list"></div>
+        </section>
+    </div>
+</aside>
+<div id="toast" class="toast"></div>
+
+<script>
+    const API_BASE = "";
+    const STORE_KEY = "autoAgentRuntimeUi:v1";
+
+    const fallbackScenarios = [
+        {scenario: "simple_final", title: "Simple final", description: "A short direct answer flow.", debugScenario: false},
+        {scenario: "rag_progress", title: "RAG progress", description: "Knowledge retrieval progress followed by a final response.", debugScenario: false},
+        {scenario: "tool_publish_progress", title: "Tool publish progress", description: "Tool approval and publishing progress.", debugScenario: false},
+        {scenario: "ask_user_confirm", title: "Ask user confirm", description: "A high-risk confirmation pending input.", debugScenario: false},
+        {scenario: "ask_user_choose_artifact", title: "Choose artifact", description: "A context clarification choice for existing artifacts.", debugScenario: false},
+        {scenario: "artifact_created", title: "Artifact created", description: "Artifact creation progress and completion.", debugScenario: false},
+        {scenario: "tool_failed", title: "Tool failed", description: "A tool failure surfaced as a safe frontend event.", debugScenario: false},
+        {scenario: "final_guard_repair", title: "Final guard repair", description: "Final answer repair progress before completion.", debugScenario: false},
+        {scenario: "context_over_budget", title: "Context over budget", description: "Context planning detects too much material.", debugScenario: false}
+    ];
+
+    const mockPendingInputs = {
+        "pending-mock-approve": {
+            pendingId: "pending-mock-approve",
+            pendingType: "TOOL_APPROVAL",
+            inputMode: "CONFIRM",
+            allowFreeText: false,
+            question: "确认发布这篇文章？",
+            options: [
+                {optionId: "approve", label: "确认发布", description: "允许继续调用发布工具。"},
+                {optionId: "reject", label: "取消", description: "停止本次工具执行。"}
+            ]
+        },
+        "pending-mock-confirm": {
+            pendingId: "pending-mock-confirm",
+            pendingType: "CONFIRMATION",
+            inputMode: "CONFIRM",
+            allowFreeText: false,
+            question: "确认继续这个操作？",
+            options: [
+                {optionId: "confirm", label: "继续", description: "继续当前流程。"},
+                {optionId: "cancel", label: "取消", description: "结束本次流程。"}
+            ]
+        },
+        "pending-mock-artifact": {
+            pendingId: "pending-mock-artifact",
+            pendingType: "CLARIFICATION",
+            inputMode: "SINGLE_CHOICE",
+            allowFreeText: true,
+            question: "要使用哪一个历史产物？",
+            options: [
+                {optionId: "latest", label: "最新一篇", description: "使用最近创建的文章。"},
+                {optionId: "summary", label: "摘要版本", description: "只加载摘要内容。"},
+                {optionId: "all", label: "全部候选", description: "保留多个候选供后续判断。"}
+            ]
+        },
+        "pending-mock-context": {
+            pendingId: "pending-mock-context",
+            pendingType: "CLARIFICATION",
+            inputMode: "SINGLE_CHOICE",
+            allowFreeText: true,
+            question: "上下文过大，请选择要加载的材料范围。",
+            options: [
+                {optionId: "latest", label: "最新内容", description: "只使用最近的产物。"},
+                {optionId: "summaries", label: "摘要", description: "使用压缩摘要。"},
+                {optionId: "manual", label: "我来指定", description: "通过文字指定范围。"}
+            ]
+        }
+    };
+
+    const finalMessages = {
+        simple_final: "RAG 是把知识检索和大模型生成结合起来的技术。它先根据用户问题从知识库中找出相关内容，再把这些内容作为上下文交给大模型生成答案。相比只依赖模型参数，RAG 能减少幻觉、提升事实准确性，并支持知识动态更新。",
+        rag_progress: "RAG 的核心价值是让模型回答建立在外部知识之上。流程通常包括问题理解、向量检索、候选片段筛选、上下文拼接和答案生成。面试时可重点说明它解决了模型知识滞后、事实不准和私域知识不可访问的问题。",
+        tool_publish_progress: "发布流程已完成。文章已通过配置工具提交，当前会话保留了本次发布记录。",
+        artifact_created: "已创建文章产物。你可以继续要求我修改结构、压缩字数，或者基于这个版本执行后续发布。",
+        final_guard_repair: "RAG 是一种把检索系统和大模型结合的问答方案。它会先找到与问题相关的知识片段，再让模型基于这些片段组织答案，从而提升准确性、可追溯性和知识更新能力。",
+        ask_user_confirm: "已等待你的确认。确认后我会继续处理，取消则结束本次流程。",
+        ask_user_choose_artifact: "已等待你选择要使用的产物。选择后我会基于对应内容继续生成。",
+        context_over_budget: "已等待你选择上下文范围。选择后我会只加载必要材料，避免上下文过大。",
+        tool_failed: "工具执行失败，当前流程已安全停止。你可以调整目标后重新发起。"
+    };
+
+    const state = {
+        mode: "mock",
+        sessions: [],
+        activeSessionId: null,
+        activeRunId: null,
+        activeScenario: null,
+        status: "idle",
+        events: [],
+        artifacts: [],
+        answeredPendingIds: new Set(),
+        eventSource: null
+    };
+
+    const els = {
+        mockModeBtn: document.getElementById("mockModeBtn"),
+        realModeBtn: document.getElementById("realModeBtn"),
+        scenarioList: document.getElementById("scenarioList"),
+        sessionList: document.getElementById("sessionList"),
+        connectionText: document.getElementById("connectionText"),
+        statusPill: document.getElementById("statusPill"),
+        activeTitle: document.getElementById("activeTitle"),
+        activeRunId: document.getElementById("activeRunId"),
+        messageInput: document.getElementById("messageInput"),
+        sendBtn: document.getElementById("sendBtn"),
+        newChatBtn: document.getElementById("newChatBtn"),
+        debugBtn: document.getElementById("debugBtn"),
+        closeDebugBtn: document.getElementById("closeDebugBtn"),
+        drawerBackdrop: document.getElementById("drawerBackdrop"),
+        debugDrawer: document.getElementById("debugDrawer"),
+        emptyState: document.getElementById("emptyState"),
+        messageStack: document.getElementById("messageStack"),
+        chatScroll: document.getElementById("chatScroll"),
+        toast: document.getElementById("toast"),
+        debugSessionId: document.getElementById("debugSessionId"),
+        debugRunId: document.getElementById("debugRunId"),
+        debugStatus: document.getElementById("debugStatus"),
+        debugMode: document.getElementById("debugMode"),
+        debugEvents: document.getElementById("debugEvents"),
+        debugArtifacts: document.getElementById("debugArtifacts")
+    };
+
+    function unwrap(response) {
+        if (!response) return null;
+        if (Object.prototype.hasOwnProperty.call(response, "code")) {
+            if (response.code !== "0000") {
+                throw new Error(response.info || "request failed");
+            }
+            return response.data;
+        }
+        return response;
+    }
+
+    async function requestJson(url, options = {}) {
+        const response = await fetch(API_BASE + url, {
+            headers: {"Content-Type": "application/json", ...(options.headers || {})},
+            ...options
+        });
+        if (!response.ok) {
+            throw new Error(`${response.status} ${response.statusText}`);
+        }
+        return unwrap(await response.json());
+    }
+
+    function loadState() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+            state.mode = saved.mode || "mock";
+            state.sessions = Array.isArray(saved.sessions) ? saved.sessions : [];
+            state.activeSessionId = saved.activeSessionId || null;
+        } catch (error) {
+            state.sessions = [];
+        }
+        if (!state.sessions.length) {
+            createSession("默认会话", false);
+        }
+        if (!state.activeSessionId) {
+            state.activeSessionId = state.sessions[0].sessionId;
+        }
+    }
+
+    function persistState() {
+        localStorage.setItem(STORE_KEY, JSON.stringify({
+            mode: state.mode,
+            sessions: state.sessions,
+            activeSessionId: state.activeSessionId
+        }));
+    }
+
+    function createSession(title = "新会话", activate = true) {
+        const session = {
+            sessionId: `sess-ui-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            title,
+            createdAt: new Date().toISOString(),
+            messages: []
+        };
+        state.sessions.unshift(session);
+        if (activate) {
+            state.activeSessionId = session.sessionId;
+            state.activeRunId = null;
+            state.events = [];
+            state.artifacts = [];
+            state.answeredPendingIds = new Set();
+            state.status = "idle";
+        }
+        persistState();
+        return session;
+    }
+
+    function activeSession() {
+        return state.sessions.find(item => item.sessionId === state.activeSessionId) || state.sessions[0];
+    }
+
+    function setMode(mode) {
+        state.mode = mode;
+        els.mockModeBtn.classList.toggle("active", mode === "mock");
+        els.realModeBtn.classList.toggle("active", mode === "real");
+        els.connectionText.textContent = mode === "mock" ? "Mock mode" : "Real API mode";
+        persistState();
+        renderDebug();
+    }
+
+    function setStatus(status) {
+        state.status = status || "idle";
+        els.statusPill.textContent = state.status;
+        els.statusPill.className = `status-pill ${statusClass(state.status)}`;
+        renderDebug();
+    }
+
+    function statusClass(status) {
+        const value = String(status || "").toLowerCase();
+        if (value.includes("complete") || value.includes("final")) return "completed";
+        if (value.includes("fail") || value.includes("error")) return "failed";
+        if (value === "idle") return "";
+        return "running";
+    }
+
+    function addMessage(role, content, meta = {}) {
+        const session = activeSession();
+        const message = {
+            id: `msg-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            role,
+            content,
+            meta,
+            createdAt: new Date().toISOString()
+        };
+        session.messages.push(message);
+        if (role === "user" && session.messages.filter(item => item.role === "user").length === 1) {
+            session.title = content.slice(0, 22) || "新会话";
+        }
+        persistState();
+        renderMessages();
+        return message;
+    }
+
+    function addEvent(event) {
+        const normalized = {
+            eventId: event.eventId || `evt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            runId: event.runId || state.activeRunId,
+            seq: event.seq || state.events.length + 1,
+            eventType: event.eventType || "STATUS_CHANGED",
+            title: event.title || event.phase || event.status || "运行中",
+            message: event.message || event.summary || "",
+            artifactId: event.artifactId || null,
+            pendingId: event.pendingId || event.pendingInputId || null,
+            safePayload: event.safePayload || {},
+            createdAt: event.createdAt || new Date().toISOString()
+        };
+        state.events.push(normalized);
+        if (normalized.artifactId && !state.artifacts.find(item => item.artifactId === normalized.artifactId)) {
+            state.artifacts.push({
+                artifactId: normalized.artifactId,
+                title: "生成产物",
+                summary: normalized.message || "产物已生成。"
+            });
+        }
+        if (normalized.eventType === "FINAL_READY") {
+            setStatus("completed");
+            addFinalForScenario();
+        } else if (normalized.eventType === "RUN_FAILED") {
+            setStatus("failed");
+        } else if (normalized.pendingId) {
+            setStatus("waiting_user");
+        } else {
+            setStatus(normalized.title || "running");
+        }
+        renderMessages();
+        renderDebug();
+    }
+
+    function addFinalForScenario() {
+        const scenario = state.activeScenario || "simple_final";
+        const text = finalMessages[scenario] || finalMessages.simple_final;
+        const session = activeSession();
+        const last = session.messages[session.messages.length - 1];
+        if (!last || last.role !== "assistant" || last.meta.runId !== state.activeRunId) {
+            addMessage("assistant", text, {runId: state.activeRunId, final: true});
+        }
+    }
+
+    function renderSessions() {
+        els.sessionList.innerHTML = "";
+        state.sessions.forEach(session => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `session-button ${session.sessionId === state.activeSessionId ? "active" : ""}`;
+            button.innerHTML = `
+                <div class="session-title"><span>${escapeHtml(session.title || "新会话")}</span></div>
+                <div class="session-meta">${escapeHtml(formatTime(session.createdAt))}</div>
+            `;
+            button.addEventListener("click", () => {
+                state.activeSessionId = session.sessionId;
+                state.activeRunId = null;
+                state.events = [];
+                state.artifacts = [];
+                state.answeredPendingIds = new Set();
+                setStatus("idle");
+                persistState();
+                renderAll();
+            });
+            els.sessionList.appendChild(button);
+        });
+    }
+
+    function renderMessages() {
+        const session = activeSession();
+        els.emptyState.classList.toggle("hidden", Boolean(session.messages.length || state.events.length));
+        els.messageStack.innerHTML = "";
+        session.messages.forEach(message => {
+            els.messageStack.appendChild(renderMessage(message));
+        });
+        state.events.forEach(event => {
+            els.messageStack.appendChild(renderEvent(event));
+            if (event.pendingId && isPendingActive(event.pendingId)) {
+                els.messageStack.appendChild(renderPending(event.pendingId));
+            }
+            if (event.artifactId) {
+                els.messageStack.appendChild(renderArtifact(event.artifactId, event.message));
+            }
+        });
+        queueMicrotask(() => {
+            els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
+        });
+    }
+
+    function renderMessage(message) {
+        const wrapper = document.createElement("article");
+        wrapper.className = `message ${message.role}`;
+        const avatar = message.role === "user" ? "你" : "A";
+        wrapper.innerHTML = `
+            <div class="avatar">${avatar}</div>
+            <div class="bubble">${renderMarkdown(message.content)}</div>
+        `;
+        return wrapper;
+    }
+
+    function renderEvent(event) {
+        const wrapper = document.createElement("div");
+        wrapper.className = `event-line ${statusClass(event.eventType === "FINAL_READY" ? "completed" : event.eventType === "RUN_FAILED" ? "failed" : "running")}`;
+        wrapper.innerHTML = `
+            <div class="event-marker"></div>
+            <div>
+                <span class="event-title">${escapeHtml(displayEventTitle(event))}</span>
+                ${displayEventMessage(event) ? `<span> ${escapeHtml(displayEventMessage(event))}</span>` : ""}
+            </div>
+        `;
+        return wrapper;
+    }
+
+    function renderPending(pendingId) {
+        const pending = mockPendingInputs[pendingId] || {
+            pendingId,
+            pendingType: "CLARIFICATION",
+            inputMode: "TEXT",
+            allowFreeText: true,
+            question: "需要你的输入。",
+            options: []
+        };
+        const card = document.createElement("section");
+        card.className = "pending-card";
+        const options = (pending.options || []).map(option => `
+            <button class="option-button" data-pending="${escapeHtml(pending.pendingId)}" data-option="${escapeHtml(option.optionId)}" type="button">
+                ${escapeHtml(option.label || option.optionId)}
+            </button>
+        `).join("");
+        const freeText = pending.allowFreeText ? `
+            <div class="free-answer">
+                <input data-free-input="${escapeHtml(pending.pendingId)}" placeholder="补充回答">
+                <button class="option-button" data-free-submit="${escapeHtml(pending.pendingId)}" type="button">提交</button>
+            </div>
+        ` : "";
+        card.innerHTML = `
+            <h2 class="pending-title">需要确认</h2>
+            <p class="pending-question">${escapeHtml(pending.question)}</p>
+            <div class="pending-options">${options}</div>
+            ${freeText}
+        `;
+        card.querySelectorAll("[data-option]").forEach(button => {
+            button.addEventListener("click", () => submitPendingAnswer(pending.pendingId, button.dataset.option, null));
+        });
+        const freeButton = card.querySelector("[data-free-submit]");
+        if (freeButton) {
+            freeButton.addEventListener("click", () => {
+                const input = card.querySelector(`[data-free-input="${CSS.escape(pending.pendingId)}"]`);
+                submitPendingAnswer(pending.pendingId, null, input.value.trim());
+            });
+        }
+        return card;
+    }
+
+    function renderArtifact(artifactId, summary) {
+        const artifact = state.artifacts.find(item => item.artifactId === artifactId) || {artifactId, title: "生成产物", summary};
+        const card = document.createElement("section");
+        card.className = "artifact-card";
+        card.innerHTML = `
+            <h2 class="artifact-title">${escapeHtml(artifact.title || "生成产物")}</h2>
+            <p class="artifact-summary">${escapeHtml(artifact.summary || summary || "产物已生成。")}</p>
+            <button class="option-button" type="button" data-artifact="${escapeHtml(artifactId)}">查看产物</button>
+        `;
+        card.querySelector("[data-artifact]").addEventListener("click", () => openArtifact(artifactId));
+        return card;
+    }
+
+    function renderScenarios(scenarios) {
+        els.scenarioList.innerHTML = "";
+        scenarios.filter(item => !item.debugScenario).forEach(item => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `scenario-button ${state.activeScenario === item.scenario ? "active" : ""}`;
+            button.innerHTML = `
+                <div class="scenario-title">
+                    <span>${escapeHtml(displayScenarioTitle(item.scenario, item.title))}</span>
+                    ${item.debugScenario ? '<span class="debug-dot"></span>' : ""}
+                </div>
+                <div class="scenario-desc">${escapeHtml(displayScenarioDescription(item.scenario, item.description))}</div>
+            `;
+            button.addEventListener("click", () => runMockScenario(item.scenario));
+            els.scenarioList.appendChild(button);
+        });
+    }
+
+    function renderTopbar() {
+        const session = activeSession();
+        els.activeTitle.textContent = session?.title || "新会话";
+        els.activeRunId.textContent = state.activeRunId || "no active run";
+        els.connectionText.textContent = state.mode === "mock" ? "Mock mode" : "Real API mode";
+    }
+
+    function renderDebug() {
+        els.debugSessionId.textContent = state.activeSessionId || "-";
+        els.debugRunId.textContent = state.activeRunId || "-";
+        els.debugStatus.textContent = state.status || "idle";
+        els.debugMode.textContent = state.mode;
+        els.debugEvents.innerHTML = state.events.length ? state.events.map(event => `
+            <div class="debug-event">
+                <code>#${escapeHtml(String(event.seq))}</code> ${escapeHtml(event.eventType)}<br>
+                ${escapeHtml(displayEventTitle(event))}
+            </div>
+        `).join("") : '<div class="debug-event">No event</div>';
+        els.debugArtifacts.innerHTML = state.artifacts.length ? state.artifacts.map(artifact => `
+            <div class="debug-event">
+                <code>${escapeHtml(artifact.artifactId)}</code><br>
+                ${escapeHtml(artifact.summary || artifact.title || "")}
+            </div>
+        `).join("") : '<div class="debug-event">No artifact</div>';
+    }
+
+    function renderAll() {
+        renderSessions();
+        renderTopbar();
+        renderMessages();
+        renderDebug();
+    }
+
+    async function loadScenarios() {
+        try {
+            const scenarios = await requestJson("/mock/agent/scenarios");
+            renderScenarios(scenarios || fallbackScenarios);
+        } catch (error) {
+            renderScenarios(fallbackScenarios);
+        }
+    }
+
+    async function runMockScenario(scenario) {
+        closeStream();
+        setMode("mock");
+        state.activeScenario = scenario;
+        state.events = [];
+        state.artifacts = [];
+        state.answeredPendingIds = new Set();
+        addMessage("user", scenarioPrompt(scenario));
+        setStatus("starting");
+        renderScenarios(fallbackScenarios);
+        try {
+            const result = await requestJson(`/mock/agent/runs/${encodeURIComponent(scenario)}`, {method: "POST"});
+            state.activeRunId = result.runId || `mock-${scenario}`;
+            renderTopbar();
+            connectSse(`/mock/agent/runs/${encodeURIComponent(scenario)}/events/stream?runId=${encodeURIComponent(state.activeRunId)}`);
+        } catch (error) {
+            state.activeRunId = `mock-${scenario}-${Date.now()}`;
+            toast("使用本地模拟事件");
+            fallbackMockEvents(scenario, state.activeRunId).forEach((event, index) => {
+                window.setTimeout(() => addEvent(event), 280 * (index + 1));
+            });
+        }
+    }
+
+    async function sendMessage() {
+        const content = els.messageInput.value.trim();
+        if (!content) return;
+        els.messageInput.value = "";
+        closeStream();
+        state.events = [];
+        state.artifacts = [];
+        state.answeredPendingIds = new Set();
+        addMessage("user", content);
+        setStatus("starting");
+        if (state.mode === "mock") {
+            const scenario = inferScenario(content);
+            await runMockScenarioFromMessage(scenario);
+            return;
+        }
+        try {
+            const session = activeSession();
+            const result = await requestJson("/agent/chat", {
+                method: "POST",
+                body: JSON.stringify({
+                    sessionId: session.sessionId,
+                    agentId: "default",
+                    userId: "ui-user",
+                    content,
+                    inputType: "TEXT",
+                    metadata: {source: "agent_runtime_html"}
+                })
+            });
+            state.activeRunId = result.runId;
+            setStatus(result.status || "running");
+            renderTopbar();
+            connectSse(`/agent/runs/${encodeURIComponent(result.runId)}/events/stream`);
+        } catch (error) {
+            setStatus("failed");
+            toast(error.message);
+        }
+    }
+
+    async function runMockScenarioFromMessage(scenario) {
+        state.activeScenario = scenario;
+        try {
+            const result = await requestJson(`/mock/agent/runs/${encodeURIComponent(scenario)}`, {method: "POST"});
+            state.activeRunId = result.runId || `mock-${scenario}`;
+            renderTopbar();
+            connectSse(`/mock/agent/runs/${encodeURIComponent(scenario)}/events/stream?runId=${encodeURIComponent(state.activeRunId)}`);
+        } catch (error) {
+            state.activeRunId = `mock-${scenario}-${Date.now()}`;
+            renderTopbar();
+            fallbackMockEvents(scenario, state.activeRunId).forEach((event, index) => {
+                window.setTimeout(() => addEvent(event), 280 * (index + 1));
+            });
+        }
+    }
+
+    function connectSse(path) {
+        closeStream();
+        const source = new EventSource(API_BASE + path);
+        state.eventSource = source;
+        source.addEventListener("agent-event", event => {
+            try {
+                addEvent(JSON.parse(event.data));
+            } catch (error) {
+                toast("事件解析失败");
+            }
+        });
+        source.onerror = () => {
+            if (state.status !== "completed" && state.status !== "failed") {
+                toast("事件流已断开");
+            }
+            closeStream();
+        };
+    }
+
+    function closeStream() {
+        if (state.eventSource) {
+            state.eventSource.close();
+            state.eventSource = null;
+        }
+    }
+
+    async function submitPendingAnswer(pendingId, optionId, freeText) {
+        if (!optionId && !freeText) {
+            toast("请输入回答");
+            return;
+        }
+        state.answeredPendingIds.add(pendingId);
+        const label = optionId ? `选择：${optionId}` : freeText;
+        addMessage("user", label, {pendingId});
+        if (state.mode === "mock" || !state.activeRunId || state.activeRunId.startsWith("mock-")) {
+            setStatus("running");
+            window.setTimeout(() => addEvent({
+                eventType: "STATUS_CHANGED",
+                title: "继续处理",
+                message: "已收到你的回复。",
+                runId: state.activeRunId
+            }), 220);
+            window.setTimeout(() => addEvent({
+                eventType: "FINAL_READY",
+                title: "completed",
+                message: "Final response is ready.",
+                runId: state.activeRunId
+            }), 580);
+            return;
+        }
+        try {
+            const result = await requestJson(`/agent/runs/${encodeURIComponent(state.activeRunId)}/user-input`, {
+                method: "POST",
+                body: JSON.stringify({pendingId, optionId, freeText, cancelled: false, metadata: {source: "agent_runtime_html"}})
+            });
+            setStatus(result.status || "running");
+            connectSse(`/agent/runs/${encodeURIComponent(state.activeRunId)}/events/stream`);
+        } catch (error) {
+            toast(error.message);
+        }
+    }
+
+    async function openArtifact(artifactId) {
+        if (state.mode === "mock" || artifactId.startsWith("artifact-mock")) {
+            addMessage("assistant", `产物 ${artifactId} 已生成。当前 mock 模式不加载完整正文。`, {artifactId});
+            return;
+        }
+        try {
+            const artifact = await requestJson(`/agent/artifacts/${encodeURIComponent(artifactId)}`);
+            addMessage("assistant", artifact.content || artifact.summary || "产物暂无内容。", {artifactId});
+        } catch (error) {
+            toast(error.message);
+        }
+    }
+
+    function fallbackMockEvents(scenario, runId) {
+        const event = (seq, eventType, title, message, artifactId, pendingId) => ({
+            eventId: `local-${seq}`,
+            runId,
+            seq,
+            eventType,
+            title,
+            message,
+            artifactId,
+            pendingId
+        });
+        switch (scenario) {
+            case "rag_progress":
+                return [
+                    event(1, "STATUS_CHANGED", "received", "Request received."),
+                    event(2, "STATUS_CHANGED", "rag_retrieving", "Searching knowledge base."),
+                    event(3, "FINAL_READY", "completed", "Final response is ready.")
+                ];
+            case "tool_publish_progress":
+                return [
+                    event(1, "ASK_USER", "asking_user", "Confirm publishing this article?", null, "pending-mock-approve")
+                ];
+            case "ask_user_confirm":
+                return [event(1, "ASK_USER", "asking_user", "Confirm this operation?", null, "pending-mock-confirm")];
+            case "ask_user_choose_artifact":
+                return [event(1, "ASK_USER", "asking_user", "Which artifact should I use?", null, "pending-mock-artifact")];
+            case "artifact_created":
+                return [
+                    event(1, "STATUS_CHANGED", "composing", "Creating artifact."),
+                    event(2, "STATUS_CHANGED", "artifact_created", "Artifact created.", "artifact-mock-001")
+                ];
+            case "tool_failed":
+                return [
+                    event(1, "STATUS_CHANGED", "tool_calling", "Calling tool."),
+                    event(2, "RUN_FAILED", "failed", "Tool execution failed safely.")
+                ];
+            case "context_over_budget":
+                return [
+                    event(1, "STATUS_CHANGED", "context_over_budget", "Context is too large; asking for a narrower choice."),
+                    event(2, "ASK_USER", "asking_user", "Please choose the material range.", null, "pending-mock-context")
+                ];
+            default:
+                return [
+                    event(1, "STATUS_CHANGED", "received", "Request received."),
+                    event(2, "FINAL_READY", "completed", "Final response is ready.")
+                ];
+        }
+    }
+
+    function inferScenario(text) {
+        const value = text.toLowerCase();
+        if (value.includes("发布") || value.includes("csdn") || value.includes("工具")) return "tool_publish_progress";
+        if (value.includes("知识库") || value.includes("rag") || value.includes("检索")) return "rag_progress";
+        if (value.includes("上一篇") || value.includes("刚才") || value.includes("产物")) return "ask_user_choose_artifact";
+        if (value.includes("结构") || value.includes("整理")) return "artifact_created";
+        return "simple_final";
+    }
+
+    function scenarioPrompt(scenario) {
+        const prompts = {
+            simple_final: "帮我生成一篇 RAG 相关的八股文，200 字左右",
+            rag_progress: "根据知识库解释 RAG 的核心流程",
+            tool_publish_progress: "把这篇文章发布到 CSDN，发布前让我确认",
+            ask_user_confirm: "执行一个需要确认的操作",
+            ask_user_choose_artifact: "把刚才那篇文章重新整理一下",
+            artifact_created: "创建一篇结构化文章产物",
+            tool_failed: "模拟一次工具调用失败",
+            final_guard_repair: "模拟最终回答修复流程",
+            context_over_budget: "模拟上下文过大的选择流程"
+        };
+        return prompts[scenario] || prompts.simple_final;
+    }
+
+    function displayEventTitle(event) {
+        const title = event.title || event.phase || event.status || event.eventType;
+        const map = {
+            received: "已接收",
+            rag_retrieving: "正在检索",
+            composing: "正在组织回答",
+            asking_user: "等待确认",
+            tool_calling: "正在调用工具",
+            artifact_created: "产物已生成",
+            context_over_budget: "需要缩小范围",
+            completed: "已完成",
+            failed: "已停止"
+        };
+        return map[title] || map[String(title).toLowerCase()] || title;
+    }
+
+    function displayEventMessage(event) {
+        const text = String(event.message || event.summary || "");
+        const normalized = text.toLowerCase();
+        const map = {
+            "request received.": "",
+            "searching knowledge base.": "正在查找相关知识。",
+            "final response is ready.": "",
+            "confirm publishing this article?": "",
+            "publishing through configured tool.": "正在执行已确认的工具操作。",
+            "published successfully.": "",
+            "confirm this operation?": "",
+            "which artifact should i use?": "",
+            "creating artifact.": "正在生成可复用内容。",
+            "artifact created.": "",
+            "calling tool.": "正在执行工具操作。",
+            "tool execution failed safely.": "工具执行失败，流程已停止。",
+            "repairing final response.": "正在整理最终回答。",
+            "context is too large; asking for a narrower choice.": "可用上下文较多，需要先缩小范围。",
+            "please choose the material range.": ""
+        };
+        return map[normalized] ?? text;
+    }
+
+    function displayScenarioTitle(scenario, fallback) {
+        const map = {
+            simple_final: "直接回答",
+            rag_progress: "知识检索",
+            tool_publish_progress: "工具确认",
+            ask_user_confirm: "操作确认",
+            ask_user_choose_artifact: "选择产物",
+            artifact_created: "生成产物",
+            tool_failed: "工具失败",
+            final_guard_repair: "回答整理",
+            context_over_budget: "上下文选择"
+        };
+        return map[scenario] || fallback || scenario;
+    }
+
+    function displayScenarioDescription(scenario, fallback) {
+        const map = {
+            simple_final: "短回答流程。",
+            rag_progress: "检索知识后生成回答。",
+            tool_publish_progress: "发布前请求确认。",
+            ask_user_confirm: "等待用户确认后继续。",
+            ask_user_choose_artifact: "从历史产物中选择引用对象。",
+            artifact_created: "生成可复用内容。",
+            tool_failed: "工具失败时保持安全反馈。",
+            final_guard_repair: "回答完成前进行整理。",
+            context_over_budget: "上下文过大时请求缩小范围。"
+        };
+        return map[scenario] || fallback || "";
+    }
+
+    function isPendingActive(pendingId) {
+        if (state.answeredPendingIds.has(pendingId)) {
+            return false;
+        }
+        const index = state.events.findIndex(event => event.pendingId === pendingId);
+        if (index < 0) {
+            return false;
+        }
+        return !state.events.slice(index + 1).some(event => event.eventType === "FINAL_READY" || event.eventType === "RUN_FAILED");
+    }
+
+    function renderMarkdown(content) {
+        const raw = String(content || "");
+        if (window.marked && window.DOMPurify) {
+            return DOMPurify.sanitize(marked.parse(raw));
+        }
+        return escapeHtml(raw).replace(/\n/g, "<br>");
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function formatTime(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
+        return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    }
+
+    function toast(message) {
+        els.toast.textContent = message;
+        els.toast.classList.add("show");
+        window.clearTimeout(toast.timer);
+        toast.timer = window.setTimeout(() => els.toast.classList.remove("show"), 2200);
+    }
+
+    function openDebug() {
+        els.debugDrawer.classList.add("open");
+        els.drawerBackdrop.classList.add("open");
+        els.debugDrawer.setAttribute("aria-hidden", "false");
+    }
+
+    function closeDebug() {
+        els.debugDrawer.classList.remove("open");
+        els.drawerBackdrop.classList.remove("open");
+        els.debugDrawer.setAttribute("aria-hidden", "true");
+    }
+
+    function bindEvents() {
+        els.mockModeBtn.addEventListener("click", () => setMode("mock"));
+        els.realModeBtn.addEventListener("click", () => setMode("real"));
+        els.sendBtn.addEventListener("click", sendMessage);
+        els.messageInput.addEventListener("keydown", event => {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+        els.newChatBtn.addEventListener("click", () => {
+            closeStream();
+            createSession();
+            renderAll();
+        });
+        els.debugBtn.addEventListener("click", openDebug);
+        els.closeDebugBtn.addEventListener("click", closeDebug);
+        els.drawerBackdrop.addEventListener("click", closeDebug);
+        document.querySelectorAll("[data-starter]").forEach(button => {
+            button.addEventListener("click", () => {
+                els.messageInput.value = button.dataset.starter;
+                els.messageInput.focus();
+            });
+        });
+    }
+
+    async function boot() {
+        loadState();
+        bindEvents();
+        setMode(state.mode);
+        setStatus(state.status);
+        renderAll();
+        await loadScenarios();
+    }
+
+    boot();
+</script>
+</body>
+</html>
