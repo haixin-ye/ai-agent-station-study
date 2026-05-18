@@ -1,6 +1,7 @@
 package yhx.com.trigger.http;
 
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import yhx.com.api.dto.agent.AgentChatRequestDTO;
 import yhx.com.api.dto.agent.AgentChatResponseDTO;
@@ -17,6 +18,7 @@ import java.util.List;
 @RestController
 @CrossOrigin("*")
 @RequestMapping("/agent")
+@Slf4j
 public class AgentChatController {
 
     @Resource
@@ -41,6 +43,12 @@ public class AgentChatController {
                     .status(result.getNextRunStatus() == null ? null : result.getNextRunStatus().code())
                     .build());
         } catch (Exception e) {
+            log.error("[AutoAgent][chat-error] sessionId={}, agentId={}, userId={}, message={}",
+                    request == null ? null : request.getSessionId(),
+                    request == null ? null : request.getAgentId(),
+                    request == null ? null : request.getUserId(),
+                    request == null ? null : request.getContent(),
+                    e);
             return AgentResponseSupport.failed(e.getMessage());
         }
     }
@@ -53,4 +61,3 @@ public class AgentChatController {
                 .toList());
     }
 }
-

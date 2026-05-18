@@ -1,5 +1,6 @@
 package yhx.com.domain.agent.service.invocation;
 
+import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.adapter.port.INodeClientPort;
 import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.contract.ContractViolation;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 public class NodeInvocationPipeline {
 
     private final PromptAssembler promptAssembler;
@@ -53,6 +55,13 @@ public class NodeInvocationPipeline {
     }
 
     public NodeInvocationResult invoke(NodeInvocationCommand command) {
+        log.info("[AutoAgent][node-invoke] runId={}, component={}, contractVersion={}, promptVersion={}, modelCode={}, maxRepairAttempts={}",
+                command == null ? null : command.getRunId(),
+                command == null ? null : command.getComponentCode(),
+                command == null ? null : command.getContractVersion(),
+                command == null ? null : command.getPromptVersion(),
+                command == null ? null : command.getModelCode(),
+                command == null ? null : command.getMaxRepairAttempts());
         List<NodeInvocationAttempt> attempts = new ArrayList<>();
         InvocationEvaluation first = callAndEvaluate(command, command.getInputView(), false, 1);
         attempts.add(first.attempt());
@@ -94,6 +103,8 @@ public class NodeInvocationPipeline {
                 .metadata(command.getInvocationMetadata())
                 .build());
         String prompt = promptResult.assembledPrompt();
+        log.info("[AutoAgent][node-call] runId={}, component={}, attemptNo={}, repairAttempt={}, promptChars={}",
+                command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, prompt == null ? 0 : prompt.length());
         String rawOutput;
         try {
             NodeClientResponse response = nodeClientPort.call(NodeClientRequest.builder()
@@ -107,6 +118,8 @@ public class NodeInvocationPipeline {
                     .build());
             rawOutput = response == null ? null : response.getRawOutput();
         } catch (Exception e) {
+            log.error("[AutoAgent][node-client-error] runId={}, component={}, attemptNo={}, repairAttempt={}",
+                    command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, e);
             NodeInvocationAttempt attempt = NodeInvocationAttempt.builder()
                     .attemptNo(attemptNo)
                     .componentCode(command.getComponentCode())
@@ -146,6 +159,13 @@ public class NodeInvocationPipeline {
         }
 
         boolean success = parseResult.isSuccess() && validationResult != null && validationResult.isPassed();
+        if (success) {
+            log.info("[AutoAgent][node-success] runId={}, component={}, attemptNo={}, repairAttempt={}, rawOutput={}",
+                    command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, preview(rawOutput));
+        } else {
+            log.warn("[AutoAgent][node-invalid] runId={}, component={}, attemptNo={}, repairAttempt={}, failureType={}, failureMessage={}, rawOutput={}",
+                    command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, failureType, failureMessage, preview(rawOutput));
+        }
         NodeInvocationAttempt attempt = NodeInvocationAttempt.builder()
                 .attemptNo(attemptNo)
                 .componentCode(command.getComponentCode())
@@ -200,6 +220,14 @@ public class NodeInvocationPipeline {
 
     private String formatViolation(ContractViolation violation) {
         return violation.getCode() + " at " + violation.getField() + ": " + violation.getMessage();
+    }
+
+    private String preview(String rawOutput) {
+        if (rawOutput == null) {
+            return null;
+        }
+        String normalized = rawOutput.replace("\r", "\\r").replace("\n", "\\n");
+        return normalized.length() <= 600 ? normalized : normalized.substring(0, 600) + "...";
     }
 
     private NodeInvocationResult result(NodeInvocationStatusEnumVO status,

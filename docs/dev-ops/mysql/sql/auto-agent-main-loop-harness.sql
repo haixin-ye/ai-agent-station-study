@@ -1,4 +1,4 @@
-`-- AutoAgent main-loop harness runtime persistence schema.
+-- AutoAgent main-loop harness runtime persistence schema.
 -- Execute this file after the base database has been created.
 -- Historical ai-agent-station-study.sql remains untouched because the new harness uses a new table set.
 

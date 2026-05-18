@@ -1,6 +1,7 @@
 package yhx.com.domain.agent.service.runtime;
 
 import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 public class RunEventPublisher {
 
     private final IEventTraceRepository eventTraceRepository;
@@ -50,6 +52,9 @@ public class RunEventPublisher {
         if (eventTraceRepository == null || payloadRepository == null) {
             return;
         }
+        log.info("[AutoAgent][event] runId={}, eventType={}, title={}, summary={}, pendingInputId={}, finalMessageId={}",
+                runId, eventType == null ? null : eventType.code(), payload.get("title"), payload.get("summary"),
+                payload.get("pendingInputId"), payload.get("finalMessageId"));
         String payloadRef = payloadRepository.savePayload(AgentPayloadEntity.builder()
                 .payloadType(PayloadTypeEnumVO.JSON)
                 .content(JSON.toJSONString(payload))

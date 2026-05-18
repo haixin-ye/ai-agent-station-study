@@ -1,5 +1,6 @@
 package yhx.com.domain.agent.service.runtime;
 
+import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
@@ -23,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
 
     private static final String CONTEXT_PLANNER_CONTRACT_VERSION = "context-planner-output-v1";
@@ -55,6 +57,8 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
 
     @Override
     public ContextPlannerHandlingResult prepareContext(RuntimeExecutionContext context) {
+        log.info("[AutoAgent][context-prepare] runId={}, sessionId={}, loopIndex={}",
+                context.getRunId(), context.getSessionId(), context.getLoopIndex());
         ContextCandidateBundleVO candidates = contextPreparationService.prepare(ContextPreparationCommand.builder()
                 .runId(context.getRunId())
                 .sessionId(context.getSessionId())
@@ -70,11 +74,19 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
                 context.getRunId(),
                 context.getAgentId(),
                 contextPlannerProfile());
-        return contextPlannerStatusHandler.handle(plannerOutput, candidates);
+        ContextPlannerHandlingResult result = contextPlannerStatusHandler.handle(plannerOutput, candidates);
+        log.info("[AutoAgent][context-ready] runId={}, loopIndex={}, hasStateView={}, askUser={}, failure={}",
+                context.getRunId(), context.getLoopIndex(),
+                result != null && result.getStateView() != null,
+                result != null && result.getAskUserRequest() != null,
+                result == null ? null : result.getFailure());
+        return result;
     }
 
     @Override
     public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
+        log.info("[AutoAgent][main-agent-start] runId={}, loopIndex={}",
+                context.getRunId(), context.getLoopIndex());
         NodeInvocationProfileVO profile = profile(AgentComponentCodeEnumVO.MAIN_AGENT.name());
         NodeInvocationResult result = nodeInvocationPipeline.invoke(NodeInvocationCommand.builder()
                 .runId(context.getRunId())
@@ -90,8 +102,12 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
                 .invocationMetadata(Map.of("loopIndex", context.getLoopIndex()))
                 .build());
         if (result.getTypedOutput() instanceof MainAgentActionVO action) {
+            log.info("[AutoAgent][main-agent-action] runId={}, loopIndex={}, status={}, action={}",
+                    context.getRunId(), context.getLoopIndex(), result.getStatus(), action.getAction());
             return action;
         }
+        log.warn("[AutoAgent][main-agent-fallback] runId={}, loopIndex={}, status={}, failureCode={}, failureMessage={}",
+                context.getRunId(), context.getLoopIndex(), result.getStatus(), result.getFailureCode(), result.getFailureMessage());
         return safeFailAction("MAIN_AGENT_INVOCATION_FAILED", result.getFailureMessage());
     }
 
