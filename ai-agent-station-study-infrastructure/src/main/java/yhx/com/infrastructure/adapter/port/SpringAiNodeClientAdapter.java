@@ -1,56 +1,86 @@
 package yhx.com.infrastructure.adapter.port;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.context.ApplicationContext;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import yhx.com.domain.agent.adapter.port.INodeClientPort;
-import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
+import yhx.com.domain.agent.adapter.repository.IModelRuntimeRepository;
+import yhx.com.domain.agent.model.entity.modelruntime.AgentModelApiEntity;
+import yhx.com.domain.agent.model.entity.modelruntime.AgentModelProfileEntity;
 import yhx.com.domain.agent.model.valobj.invocation.NodeClientRequest;
 import yhx.com.domain.agent.model.valobj.invocation.NodeClientResponse;
-
-import java.util.Map;
 
 @Component
 public class SpringAiNodeClientAdapter implements INodeClientPort {
 
-    private final ApplicationContext applicationContext;
+    private final IModelRuntimeRepository modelRuntimeRepository;
 
-    public SpringAiNodeClientAdapter(ApplicationContext applicationContext) {
-        this.applicationContext = applicationContext;
+    public SpringAiNodeClientAdapter(IModelRuntimeRepository modelRuntimeRepository) {
+        this.modelRuntimeRepository = modelRuntimeRepository;
     }
 
     @Override
     public NodeClientResponse call(NodeClientRequest request) {
         validate(request);
         long startedAt = System.currentTimeMillis();
-        ChatClient chatClient = resolveChatClient(request.getModelCode());
+        AgentModelProfileEntity modelProfile = resolveModelProfile(request.getModelCode());
+        AgentModelApiEntity api = resolveApi(modelProfile.getApiId());
+        ChatClient chatClient = buildCleanChatClient(api, modelProfile, request);
         String rawOutput = chatClient.prompt()
                 .user(request.getPrompt())
                 .call()
                 .content();
         return NodeClientResponse.builder()
                 .rawOutput(rawOutput)
-                .modelName(request.getModelCode())
+                .modelName(modelProfile.getModelName())
                 .latencyMs(System.currentTimeMillis() - startedAt)
                 .build();
     }
 
-    private ChatClient resolveChatClient(String modelCode) {
-        if (StringUtils.hasText(modelCode)) {
-            if (applicationContext.containsBean(modelCode)) {
-                return applicationContext.getBean(modelCode, ChatClient.class);
-            }
-            String armoryBeanName = AiAgentEnumVO.AI_CLIENT.getBeanName(modelCode);
-            if (applicationContext.containsBean(armoryBeanName)) {
-                return applicationContext.getBean(armoryBeanName, ChatClient.class);
-            }
+    private AgentModelProfileEntity resolveModelProfile(String modelProfileId) {
+        if (!StringUtils.hasText(modelProfileId)) {
+            throw new IllegalArgumentException("NodeClientRequest.modelCode(modelProfileId) is required.");
         }
-        Map<String, ChatClient> clients = applicationContext.getBeansOfType(ChatClient.class);
-        if (clients.size() == 1) {
-            return clients.values().iterator().next();
+        return modelRuntimeRepository.findActiveModelProfile(modelProfileId)
+                .orElseThrow(() -> new IllegalStateException("Active model profile is not configured: " + modelProfileId));
+    }
+
+    private AgentModelApiEntity resolveApi(String apiId) {
+        return modelRuntimeRepository.findActiveApi(apiId)
+                .orElseThrow(() -> new IllegalStateException("Active model api is not configured: " + apiId));
+    }
+
+    private ChatClient buildCleanChatClient(AgentModelApiEntity api,
+                                            AgentModelProfileEntity modelProfile,
+                                            NodeClientRequest request) {
+        OpenAiApi openAiApi = OpenAiApi.builder()
+                .baseUrl(api.getBaseUrl())
+                .apiKey(api.getApiKey())
+                .completionsPath(api.getCompletionsPath())
+                .embeddingsPath(api.getEmbeddingsPath())
+                .build();
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .model(modelProfile.getModelName());
+        Double temperature = request.getTemperature() == null
+                ? modelProfile.getDefaultTemperature()
+                : request.getTemperature();
+        if (temperature != null) {
+            optionsBuilder.temperature(temperature);
         }
-        throw new IllegalStateException("ChatClient bean is not available for modelCode=" + modelCode);
+        Integer maxOutputTokens = request.getMaxOutputTokens() == null
+                ? modelProfile.getDefaultMaxOutputTokens()
+                : request.getMaxOutputTokens();
+        if (maxOutputTokens != null) {
+            optionsBuilder.maxTokens(maxOutputTokens);
+        }
+        OpenAiChatModel chatModel = OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(optionsBuilder.build())
+                .build();
+        return ChatClient.builder(chatModel).build();
     }
 
     private void validate(NodeClientRequest request) {

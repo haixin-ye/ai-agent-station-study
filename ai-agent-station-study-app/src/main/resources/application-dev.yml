@@ -58,14 +58,6 @@ spring:
     openai:
       base-url: https://api.apimart.ai
       api-key: XXXXsk-2ikk1D2
-    agent:
-      auto-config:
-        enabled: true
-        client-ids: 3101,3102,3103,3104
-        rag-api-id: "1002"
-        vector_name: "vector_store"
-        embedding-model-name: text-embedding-3-large
-        dimensions: 1536
 
 
 
@@ -109,38 +101,15 @@ auto-agent:
     debug-sse-enabled: true
     debug-payload-preview-enabled: true
     debug-payload-preview-max-chars: 2000
-  nodes:
-    models:
-      CONTEXT_PLANNER:
-        model-code: "3101"
-        prompt-version: "v1"
-        temperature: 0.1
-        max-output-tokens: 1600
-        max-repair-attempts: 1
-      MAIN_AGENT:
-        model-code: "3101"
-        prompt-version: "v1"
-        temperature: 0.2
-        max-output-tokens: 2400
-        max-repair-attempts: 1
-      RAG_VERIFIER:
-        model-code: "3101"
-        prompt-version: "v1"
-        temperature: 0.0
-        max-output-tokens: 1200
-        max-repair-attempts: 1
-      FINAL_REPAIR:
-        model-code: "3101"
-        prompt-version: "v1"
-        temperature: 0.1
-        max-output-tokens: 1200
-        max-repair-attempts: 1
-      CONTRACT_REPAIR:
-        model-code: "3101"
-        prompt-version: "v1"
-        temperature: 0.0
-        max-output-tokens: 1200
-        max-repair-attempts: 1
+  rag:
+    enabled: true
+    embedding-api-id: "amr-api-openai-001"
+    vector-name: "vector_store"
+    embedding-model-name: "text-embedding-3-large"
+    dimensions: 1536
+    max-queries-per-run: 3
+    max-hits-per-query: 5
+    max-evidence-snippet-chars: 1200
   mcp:
     enabled: true
     servers: []

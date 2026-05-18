@@ -11,7 +11,6 @@ import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
 import yhx.com.domain.agent.adapter.repository.IToolRepository;
-import yhx.com.domain.agent.model.valobj.enums.armory.AiAgentEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ApprovalPolicyEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.McpTransportTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.PermissionModeEnumVO;
@@ -66,9 +65,6 @@ public class AutoAgentToolConfig {
                 continue;
             }
             McpSyncClient client = clients.get(server.getServerId());
-            if (client == null) {
-                client = clients.get(AiAgentEnumVO.AI_CLIENT_TOOL_MCP.getBeanName(server.getServerId()));
-            }
             if (client != null) {
                 handles.put(server.getServerId(), client);
             }

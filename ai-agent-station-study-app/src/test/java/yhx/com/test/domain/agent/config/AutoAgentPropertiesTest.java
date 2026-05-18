@@ -6,7 +6,6 @@ import yhx.com.config.AutoAgentCapabilityProperties;
 import yhx.com.config.AutoAgentContextProperties;
 import yhx.com.config.AutoAgentDebugProperties;
 import yhx.com.config.AutoAgentMcpProperties;
-import yhx.com.config.AutoAgentNodeProperties;
 import yhx.com.config.AutoAgentRagProperties;
 import yhx.com.config.AutoAgentRuntimeProperties;
 
@@ -42,7 +41,6 @@ public class AutoAgentPropertiesTest {
 
     @Test
     public void test_otherProperties_canBeCreatedForConfigurationBinding() {
-        Assert.assertNotNull(new AutoAgentNodeProperties());
         Assert.assertNotNull(new AutoAgentRagProperties());
         Assert.assertNotNull(new AutoAgentMcpProperties());
         Assert.assertNotNull(new AutoAgentCapabilityProperties());

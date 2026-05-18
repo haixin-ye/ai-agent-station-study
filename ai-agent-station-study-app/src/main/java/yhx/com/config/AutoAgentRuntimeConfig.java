@@ -11,6 +11,7 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
+import yhx.com.domain.agent.adapter.repository.IModelRuntimeRepository;
 import yhx.com.domain.agent.adapter.repository.INodePromptRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IPendingInputRepository;
@@ -44,6 +45,7 @@ import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
+import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
 import yhx.com.domain.agent.service.prompt.PromptContentProvider;
 import yhx.com.domain.agent.service.prompt.RepositoryPromptContentProvider;
@@ -88,13 +90,11 @@ import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Configuration
 @ConditionalOnProperty(prefix = "auto-agent.runtime", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({AutoAgentRuntimeProperties.class, AutoAgentNodeProperties.class})
+@EnableConfigurationProperties(AutoAgentRuntimeProperties.class)
 public class AutoAgentRuntimeConfig {
 
     @Bean
@@ -157,6 +157,11 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public NodeInvocationPipeline nodeInvocationPipeline(PromptAssembler promptAssembler, INodeClientPort nodeClientPort) {
         return new NodeInvocationPipeline(promptAssembler, nodeClientPort);
+    }
+
+    @Bean
+    public NodeRuntimeProfileResolver nodeRuntimeProfileResolver(IModelRuntimeRepository modelRuntimeRepository) {
+        return new NodeRuntimeProfileResolver(modelRuntimeRepository);
     }
 
     @Bean
@@ -225,14 +230,13 @@ public class AutoAgentRuntimeConfig {
                                                        ContextPlannerNodeService contextPlannerNodeService,
                                                        ContextPlannerStatusHandler contextPlannerStatusHandler,
                                                        NodeInvocationPipeline nodeInvocationPipeline,
-                                                       AutoAgentNodeProperties nodeProperties,
-                                                       AutoAgentRuntimeProperties runtimeProperties,
+                                                       NodeRuntimeProfileResolver nodeRuntimeProfileResolver,
                                                        ObjectProvider<CapabilityRegistry> capabilityRegistryProvider) {
         return new DefaultRuntimeComponentPorts(contextPreparationService,
                 contextPlannerNodeService,
                 contextPlannerStatusHandler,
                 nodeInvocationPipeline,
-                nodeProfiles(nodeProperties, runtimeProperties),
+                nodeRuntimeProfileResolver.resolveAllActive(),
                 capabilityCandidates(capabilityRegistryProvider.getIfAvailable()),
                 defaultTokenBudget());
     }
@@ -309,11 +313,11 @@ public class AutoAgentRuntimeConfig {
 
     @Bean
     public RagVerifierNodeService ragVerifierNodeService(NodeInvocationPipeline nodeInvocationPipeline,
-                                                         AutoAgentNodeProperties nodeProperties,
+                                                         NodeRuntimeProfileResolver nodeRuntimeProfileResolver,
                                                          AutoAgentRuntimeProperties properties) {
         return new RagVerifierNodeService(nodeInvocationPipeline,
                 properties.getMaxContractRepairAttempts(),
-                nodeProfile(nodeProperties, properties, AgentComponentCodeEnumVO.RAG_VERIFIER.name(), "verification-result-v1"));
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.RAG_VERIFIER.name()));
     }
 
     @Bean
@@ -441,52 +445,6 @@ public class AutoAgentRuntimeConfig {
                 traceRecorder);
     }
 
-    private Map<String, NodeInvocationProfileVO> nodeProfiles(AutoAgentNodeProperties nodeProperties,
-                                                             AutoAgentRuntimeProperties runtimeProperties) {
-        Map<String, NodeInvocationProfileVO> profiles = new LinkedHashMap<>();
-        for (Map.Entry<String, AutoAgentNodeProperties.NodeModelProperties> entry : nodeProperties.getModels().entrySet()) {
-            AutoAgentNodeProperties.NodeModelProperties model = entry.getValue();
-            profiles.put(entry.getKey(), NodeInvocationProfileVO.builder()
-                    .componentCode(entry.getKey())
-                    .modelCode(defaultIfBlank(model.getModelCode(), model.getModelName()))
-                    .promptVersion(defaultIfBlank(model.getPromptVersion(), "v1"))
-                    .contractVersion(defaultContractVersion(entry.getKey()))
-                    .temperature(model.getTemperature())
-                    .maxOutputTokens(model.getMaxOutputTokens())
-                    .maxRepairAttempts(model.getMaxRepairAttempts() == null
-                            ? runtimeProperties.getMaxContractRepairAttempts()
-                            : model.getMaxRepairAttempts())
-                    .build());
-        }
-        return profiles;
-    }
-
-    private NodeInvocationProfileVO nodeProfile(AutoAgentNodeProperties nodeProperties,
-                                                AutoAgentRuntimeProperties runtimeProperties,
-                                                String componentCode,
-                                                String contractVersion) {
-        AutoAgentNodeProperties.NodeModelProperties model = nodeProperties.getModels().get(componentCode);
-        if (model == null) {
-            return NodeInvocationProfileVO.builder()
-                    .componentCode(componentCode)
-                    .promptVersion("v1")
-                    .contractVersion(contractVersion)
-                    .maxRepairAttempts(runtimeProperties.getMaxContractRepairAttempts())
-                    .build();
-        }
-        return NodeInvocationProfileVO.builder()
-                .componentCode(componentCode)
-                .modelCode(defaultIfBlank(model.getModelCode(), model.getModelName()))
-                .promptVersion(defaultIfBlank(model.getPromptVersion(), "v1"))
-                .contractVersion(contractVersion)
-                .temperature(model.getTemperature())
-                .maxOutputTokens(model.getMaxOutputTokens())
-                .maxRepairAttempts(model.getMaxRepairAttempts() == null
-                        ? runtimeProperties.getMaxContractRepairAttempts()
-                        : model.getMaxRepairAttempts())
-                .build();
-    }
-
     private List<CapabilityCandidateVO> capabilityCandidates(CapabilityRegistry capabilityRegistry) {
         if (capabilityRegistry == null) {
             return List.of();
@@ -523,14 +481,4 @@ public class AutoAgentRuntimeConfig {
                 .build();
     }
 
-    private String defaultContractVersion(String componentCode) {
-        if (AgentComponentCodeEnumVO.CONTEXT_PLANNER.name().equals(componentCode)) {
-            return "context-planner-output-v1";
-        }
-        return "main-agent-action-v1";
-    }
-
-    private String defaultIfBlank(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
-    }
 }

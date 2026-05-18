@@ -372,4 +372,3 @@ CREATE TABLE IF NOT EXISTS `agent_node_prompt` (
   KEY `idx_agent_node_prompt_lookup` (`agent_id`, `node_code`, `enabled`),
   KEY `idx_agent_node_prompt_version` (`agent_id`, `node_code`, `prompt_version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent editable node prompt';
-`
