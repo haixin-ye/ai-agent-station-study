@@ -39,16 +39,16 @@ public class AgentEventController {
     private ThreadPoolExecutor threadPoolExecutor;
 
     @GetMapping("/{runId}/events")
-    public Response<List<AgentUserVisibleEventDTO>> listEvents(@PathVariable String runId,
-                                                               @RequestParam(defaultValue = "100") int limit) {
+    public Response<List<AgentUserVisibleEventDTO>> listEvents(@PathVariable("runId") String runId,
+                                                               @RequestParam(value = "limit", defaultValue = "100") int limit) {
         return AgentResponseSupport.success(agentQueryFacade.listUserVisibleEvents(runId, limit).stream()
                 .map(event -> AgentApiMapper.toUserEvent(event, agentQueryFacade))
                 .toList());
     }
 
     @GetMapping("/{runId}/events/stream")
-    public SseEmitter streamEvents(@PathVariable String runId,
-                                   @RequestParam(required = false) Long lastSeq) {
+    public SseEmitter streamEvents(@PathVariable("runId") String runId,
+                                   @RequestParam(value = "lastSeq", required = false) Long lastSeq) {
         String streamKey = "normal:" + runId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, STREAM_TIMEOUT_MS);
         threadPoolExecutor.execute(() -> streamIncrementalEvents(streamKey, runId, lastSeq));

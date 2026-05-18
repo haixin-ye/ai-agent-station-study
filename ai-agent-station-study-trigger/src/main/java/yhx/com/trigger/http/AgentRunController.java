@@ -21,7 +21,7 @@ public class AgentRunController {
     private AgentQueryFacade agentQueryFacade;
 
     @GetMapping("/{runId}")
-    public Response<AgentRunDTO> findRun(@PathVariable String runId) {
+    public Response<AgentRunDTO> findRun(@PathVariable("runId") String runId) {
         return agentQueryFacade.findRun(runId)
                 .map(AgentApiMapper::toRun)
                 .map(AgentResponseSupport::success)
@@ -29,7 +29,7 @@ public class AgentRunController {
     }
 
     @GetMapping("/{runId}/final")
-    public Response<AgentFinalResponseDTO> findFinal(@PathVariable String runId) {
+    public Response<AgentFinalResponseDTO> findFinal(@PathVariable("runId") String runId) {
         Optional<AgentRunEntity> run = agentQueryFacade.findRun(runId);
         if (run.isEmpty()) {
             return AgentResponseSupport.failed("run not found");
@@ -40,4 +40,3 @@ public class AgentRunController {
                 agentQueryFacade.listSessionArtifacts(runEntity.getSessionId(), 20)));
     }
 }
-

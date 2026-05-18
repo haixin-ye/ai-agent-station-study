@@ -51,8 +51,8 @@ public class AgentDebugController {
     private ThreadPoolExecutor threadPoolExecutor;
 
     @GetMapping("/traces")
-    public Response<List<AgentDebugTraceDTO>> listTraces(@PathVariable String runId,
-                                                         @RequestParam(defaultValue = "100") int limit) {
+    public Response<List<AgentDebugTraceDTO>> listTraces(@PathVariable("runId") String runId,
+                                                         @RequestParam(value = "limit", defaultValue = "100") int limit) {
         try {
             return AgentResponseSupport.success(agentDebugFacade.listTraces(runId, limit).stream()
                     .map(trace -> AgentApiMapper.toDebugTrace(trace, agentQueryFacade))
@@ -63,7 +63,7 @@ public class AgentDebugController {
     }
 
     @GetMapping("/evidence")
-    public Response<List<Map<String, Object>>> listEvidence(@PathVariable String runId) {
+    public Response<List<Map<String, Object>>> listEvidence(@PathVariable("runId") String runId) {
         try {
             return AgentResponseSupport.success(agentDebugFacade.listEvidence(runId).stream()
                     .map(this::toEvidenceSummary)
@@ -74,7 +74,7 @@ public class AgentDebugController {
     }
 
     @GetMapping("/tool-calls")
-    public Response<List<Map<String, Object>>> listToolCalls(@PathVariable String runId) {
+    public Response<List<Map<String, Object>>> listToolCalls(@PathVariable("runId") String runId) {
         try {
             return AgentResponseSupport.success(agentDebugFacade.listToolCalls(runId).stream()
                     .map(this::toToolCallSummary)
@@ -85,7 +85,7 @@ public class AgentDebugController {
     }
 
     @GetMapping("/payloads/{payloadId}")
-    public Response<AgentDebugPayloadDTO> findPayload(@PathVariable String runId, @PathVariable String payloadId) {
+    public Response<AgentDebugPayloadDTO> findPayload(@PathVariable("runId") String runId, @PathVariable("payloadId") String payloadId) {
         try {
             return agentDebugFacade.findPayload(payloadId)
                     .map(AgentApiMapper::toDebugPayload)
@@ -97,8 +97,8 @@ public class AgentDebugController {
     }
 
     @GetMapping("/events/stream")
-    public SseEmitter streamDebugEvents(@PathVariable String runId,
-                                        @RequestParam(required = false) Long lastSeq) {
+    public SseEmitter streamDebugEvents(@PathVariable("runId") String runId,
+                                        @RequestParam(value = "lastSeq", required = false) Long lastSeq) {
         debugAccessPolicy.requireDebugSseEnabled();
         String streamKey = "debug:" + runId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, STREAM_TIMEOUT_MS);

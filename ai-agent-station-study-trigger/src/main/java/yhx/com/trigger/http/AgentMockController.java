@@ -34,7 +34,7 @@ public class AgentMockController {
     }
 
     @PostMapping("/runs/{scenario}")
-    public Response<Map<String, String>> createMockRun(@PathVariable String scenario) {
+    public Response<Map<String, String>> createMockRun(@PathVariable("scenario") String scenario) {
         return AgentResponseSupport.success(Map.of(
                 "scenario", scenario,
                 "runId", agentMockScenarioService.createMockRunId(scenario)
@@ -42,8 +42,8 @@ public class AgentMockController {
     }
 
     @GetMapping("/runs/{scenario}/events")
-    public Response<List<AgentUserVisibleEventDTO>> listMockEvents(@PathVariable String scenario,
-                                                                   @RequestParam(required = false) String runId) {
+    public Response<List<AgentUserVisibleEventDTO>> listMockEvents(@PathVariable("scenario") String scenario,
+                                                                   @RequestParam(value = "runId", required = false) String runId) {
         String actualRunId = runId == null || runId.isBlank() ? "mock-" + scenario : runId;
         return AgentResponseSupport.success(agentMockScenarioService.buildEvents(scenario, actualRunId).stream()
                 .map(AgentApiMapper::toMockEvent)
@@ -51,8 +51,8 @@ public class AgentMockController {
     }
 
     @GetMapping("/runs/{scenario}/events/stream")
-    public SseEmitter streamMockEvents(@PathVariable String scenario,
-                                       @RequestParam(required = false) String runId) {
+    public SseEmitter streamMockEvents(@PathVariable("scenario") String scenario,
+                                       @RequestParam(value = "runId", required = false) String runId) {
         String actualRunId = runId == null || runId.isBlank() ? "mock-" + scenario : runId;
         String streamKey = "mock:" + actualRunId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, 60_000L);
@@ -65,4 +65,3 @@ public class AgentMockController {
         return emitter;
     }
 }
-

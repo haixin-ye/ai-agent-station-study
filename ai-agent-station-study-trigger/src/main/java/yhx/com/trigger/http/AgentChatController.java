@@ -70,8 +70,8 @@ public class AgentChatController {
     }
 
     @GetMapping("/sessions/{sessionId}/messages")
-    public Response<List<AgentMessageDTO>> listMessages(@PathVariable String sessionId,
-                                                        @RequestParam(defaultValue = "50") int limit) {
+    public Response<List<AgentMessageDTO>> listMessages(@PathVariable("sessionId") String sessionId,
+                                                        @RequestParam(value = "limit", defaultValue = "50") int limit) {
         return AgentResponseSupport.success(agentQueryFacade.listVisibleMessages(sessionId, limit).stream()
                 .map(message -> AgentApiMapper.toMessage(message, agentQueryFacade))
                 .toList());

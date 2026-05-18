@@ -27,7 +27,7 @@ public class AgentPendingInputController {
     private AgentRuntimeFacade agentRuntimeFacade;
 
     @GetMapping("/{runId}/pending-input")
-    public Response<AgentPendingInputDTO> findPendingInput(@PathVariable String runId) {
+    public Response<AgentPendingInputDTO> findPendingInput(@PathVariable("runId") String runId) {
         return agentQueryFacade.findActivePendingInput(runId)
                 .map(pending -> AgentApiMapper.toPendingInput(pending, agentQueryFacade))
                 .map(AgentResponseSupport::success)
@@ -35,7 +35,7 @@ public class AgentPendingInputController {
     }
 
     @PostMapping("/{runId}/user-input")
-    public Response<AgentUserInputResponseDTO> submitUserInput(@PathVariable String runId,
+    public Response<AgentUserInputResponseDTO> submitUserInput(@PathVariable("runId") String runId,
                                                                @RequestBody AgentUserInputRequestDTO request) {
         Optional<AgentPendingInputEntity> pending = agentQueryFacade.findPendingInput(request.getPendingId());
         if (pending.isEmpty() || !runId.equals(pending.get().getRunId())) {
@@ -71,4 +71,3 @@ public class AgentPendingInputController {
                 || "TOOL_APPROVAL".equals(pending.getPendingType());
     }
 }
-

@@ -21,15 +21,15 @@ public class AgentArtifactController {
     private AgentQueryFacade agentQueryFacade;
 
     @GetMapping("/sessions/{sessionId}/artifacts")
-    public Response<List<AgentArtifactSummaryDTO>> listArtifacts(@PathVariable String sessionId,
-                                                                 @RequestParam(defaultValue = "100") int limit) {
+    public Response<List<AgentArtifactSummaryDTO>> listArtifacts(@PathVariable("sessionId") String sessionId,
+                                                                 @RequestParam(value = "limit", defaultValue = "100") int limit) {
         return AgentResponseSupport.success(agentQueryFacade.listSessionArtifacts(sessionId, limit).stream()
                 .map(AgentApiMapper::toArtifactSummary)
                 .toList());
     }
 
     @GetMapping("/artifacts/{artifactId}")
-    public Response<AgentArtifactDetailDTO> findArtifact(@PathVariable String artifactId) {
+    public Response<AgentArtifactDetailDTO> findArtifact(@PathVariable("artifactId") String artifactId) {
         return agentQueryFacade.findArtifact(artifactId)
                 .map(artifact -> AgentApiMapper.toArtifactDetail(artifact, agentQueryFacade))
                 .map(AgentResponseSupport::success)
@@ -37,10 +37,9 @@ public class AgentArtifactController {
     }
 
     @GetMapping("/artifacts/{artifactId}/versions")
-    public Response<List<AgentArtifactVersionDTO>> listVersions(@PathVariable String artifactId) {
+    public Response<List<AgentArtifactVersionDTO>> listVersions(@PathVariable("artifactId") String artifactId) {
         return AgentResponseSupport.success(agentQueryFacade.listArtifactVersions(artifactId).stream()
                 .map(AgentApiMapper::toArtifactVersion)
                 .toList());
     }
 }
-
