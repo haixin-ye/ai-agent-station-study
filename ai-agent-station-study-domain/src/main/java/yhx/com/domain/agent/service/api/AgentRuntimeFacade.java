@@ -16,10 +16,15 @@ public class AgentRuntimeFacade {
     }
 
     public RuntimeStepResult start(String sessionId, String agentId, String userId, String content, String inputType, Map<String, Object> metadata) {
+        return startWithRunId(null, sessionId, agentId, userId, content, inputType, metadata);
+    }
+
+    public RuntimeStepResult startWithRunId(String runId, String sessionId, String agentId, String userId, String content, String inputType, Map<String, Object> metadata) {
         if (autoAgentRuntimeService == null) {
             throw new IllegalStateException("AutoAgent runtime service is not configured.");
         }
         return autoAgentRuntimeService.start(RuntimeStartCommand.builder()
+                .runId(runId)
                 .sessionId(sessionId)
                 .agentId(agentId)
                 .userId(userId)

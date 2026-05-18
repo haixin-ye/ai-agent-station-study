@@ -14,6 +14,8 @@ import yhx.com.trigger.http.support.AgentApiMapper;
 import yhx.com.trigger.http.support.AgentResponseSupport;
 
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @RestController
 @CrossOrigin("*")
@@ -27,20 +29,34 @@ public class AgentChatController {
     @Resource
     private AgentQueryFacade agentQueryFacade;
 
+    @Resource
+    private ThreadPoolExecutor threadPoolExecutor;
+
     @PostMapping("/chat")
     public Response<AgentChatResponseDTO> chat(@RequestBody AgentChatRequestDTO request) {
         try {
-            RuntimeStepResult result = agentRuntimeFacade.start(request.getSessionId(),
-                    request.getAgentId(),
-                    request.getUserId(),
-                    request.getContent(),
-                    request.getInputType(),
-                    request.getMetadata());
+            String runId = "run-" + UUID.randomUUID();
+            String sessionId = firstNonBlank(request == null ? null : request.getSessionId(), "sess-" + UUID.randomUUID());
+            threadPoolExecutor.execute(() -> {
+                try {
+                    RuntimeStepResult result = agentRuntimeFacade.startWithRunId(runId,
+                            sessionId,
+                            request == null ? null : request.getAgentId(),
+                            request == null ? null : request.getUserId(),
+                            request == null ? null : request.getContent(),
+                            request == null ? null : request.getInputType(),
+                            request == null ? null : request.getMetadata());
+                    log.info("[AutoAgent][chat-async-completed] runId={}, sessionId={}, status={}",
+                            runId, sessionId, result == null ? null : result.getStatus());
+                } catch (Exception e) {
+                    log.error("[AutoAgent][chat-async-error] runId={}, sessionId={}", runId, sessionId, e);
+                }
+            });
             return AgentResponseSupport.success(AgentChatResponseDTO.builder()
-                    .runId(result.getRunId())
-                    .sessionId(result.getSessionId())
+                    .runId(runId)
+                    .sessionId(sessionId)
                     .userMessageId(null)
-                    .status(result.getNextRunStatus() == null ? null : result.getNextRunStatus().code())
+                    .status("RUNNING")
                     .build());
         } catch (Exception e) {
             log.error("[AutoAgent][chat-error] sessionId={}, agentId={}, userId={}, message={}",
@@ -59,5 +75,9 @@ public class AgentChatController {
         return AgentResponseSupport.success(agentQueryFacade.listVisibleMessages(sessionId, limit).stream()
                 .map(message -> AgentApiMapper.toMessage(message, agentQueryFacade))
                 .toList());
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }

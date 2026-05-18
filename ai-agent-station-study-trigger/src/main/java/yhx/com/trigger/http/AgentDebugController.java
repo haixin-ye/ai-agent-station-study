@@ -1,6 +1,7 @@
 package yhx.com.trigger.http;
 
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import yhx.com.api.dto.agent.AgentDebugPayloadDTO;
@@ -19,12 +20,17 @@ import yhx.com.trigger.http.support.AgentResponseSupport;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @RestController
 @CrossOrigin("*")
 @RequestMapping("/agent/runs/{runId}/debug")
+@Slf4j
 public class AgentDebugController {
+
+    private static final long STREAM_TIMEOUT_MS = 300_000L;
+    private static final long STREAM_POLL_INTERVAL_MS = 700L;
+    private static final long STREAM_HEARTBEAT_INTERVAL_MS = 15_000L;
 
     @Resource
     private AgentDebugFacade agentDebugFacade;
@@ -40,6 +46,9 @@ public class AgentDebugController {
 
     @Resource
     private SseEmitterRegistry sseEmitterRegistry;
+
+    @Resource
+    private ThreadPoolExecutor threadPoolExecutor;
 
     @GetMapping("/traces")
     public Response<List<AgentDebugTraceDTO>> listTraces(@PathVariable String runId,
@@ -92,12 +101,40 @@ public class AgentDebugController {
                                         @RequestParam(required = false) Long lastSeq) {
         debugAccessPolicy.requireDebugSseEnabled();
         String streamKey = "debug:" + runId;
-        SseEmitter emitter = sseEmitterRegistry.open(streamKey, 300_000L);
-        CompletableFuture.runAsync(() -> debugSseEventBridge.replayDebugEvents(runId, lastSeq, 200)
-                .stream()
-                .map(trace -> AgentApiMapper.toDebugTrace(trace, agentQueryFacade))
-                .forEach(trace -> sseEmitterRegistry.send(streamKey, "agent-debug-event", trace.getTraceId(), trace)));
+        SseEmitter emitter = sseEmitterRegistry.open(streamKey, STREAM_TIMEOUT_MS);
+        threadPoolExecutor.execute(() -> streamIncrementalDebugEvents(streamKey, runId, lastSeq));
         return emitter;
+    }
+
+    private void streamIncrementalDebugEvents(String streamKey, String runId, Long lastSeq) {
+        long cursor = lastSeq == null ? 0L : lastSeq;
+        long startedAt = System.currentTimeMillis();
+        long lastHeartbeatAt = 0L;
+        try {
+            while (System.currentTimeMillis() - startedAt < STREAM_TIMEOUT_MS) {
+                List<AgentDebugTraceDTO> traces = debugSseEventBridge.replayDebugEvents(runId, cursor, 200).stream()
+                        .map(trace -> AgentApiMapper.toDebugTrace(trace, agentQueryFacade))
+                        .toList();
+                for (AgentDebugTraceDTO trace : traces) {
+                    sseEmitterRegistry.send(streamKey, "agent-debug-event", trace.getTraceId(), trace);
+                    cursor = Math.max(cursor, trace.getSeq() == null ? cursor : trace.getSeq());
+                }
+                long now = System.currentTimeMillis();
+                if (now - lastHeartbeatAt >= STREAM_HEARTBEAT_INTERVAL_MS) {
+                    sseEmitterRegistry.send(streamKey, "agent-debug-heartbeat", "debug-heartbeat-" + runId + "-" + cursor,
+                            Map.of("runId", runId, "lastSeq", cursor, "timestamp", now));
+                    lastHeartbeatAt = now;
+                }
+                Thread.sleep(STREAM_POLL_INTERVAL_MS);
+            }
+            sseEmitterRegistry.complete(streamKey);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            sseEmitterRegistry.completeWithError(streamKey, e);
+        } catch (Exception e) {
+            log.error("[AutoAgent][debug-sse-stream-error] runId={}", runId, e);
+            sseEmitterRegistry.completeWithError(streamKey, e);
+        }
     }
 
     private Map<String, Object> toEvidenceSummary(AgentEvidenceEntity evidence) {

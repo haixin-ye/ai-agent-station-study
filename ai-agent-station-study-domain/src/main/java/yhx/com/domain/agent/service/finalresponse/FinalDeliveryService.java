@@ -73,9 +73,6 @@ public class FinalDeliveryService implements FinalDeliveryPort {
         }
         FinalResponseVO finalResponse = finalResponseBuilder.build(normalized, normalized.getFinalAnswerCandidate(), null);
         FinalResponseVO persisted = persistenceService.persistDelivered(normalized, finalResponse);
-        if (eventPublisher != null) {
-            eventPublisher.completed(normalized.getRunId(), persisted.getMessageId());
-        }
         return FinalDeliveryResultVO.builder()
                 .status(FinalDeliveryStatusEnumVO.DELIVERED)
                 .completed(true)
@@ -115,9 +112,6 @@ public class FinalDeliveryService implements FinalDeliveryPort {
         if ("PASSED".equals(fallbackGuard.getStatus())) {
             FinalResponseVO persisted = persistenceService.persistDelivered(fallbackCommand,
                     finalResponseBuilder.build(fallbackCommand, fallbackCommand.getFinalAnswerCandidate(), null));
-            if (eventPublisher != null) {
-                eventPublisher.completed(fallbackCommand.getRunId(), persisted.getMessageId());
-            }
             return FinalDeliveryResultVO.builder()
                     .status(FinalDeliveryStatusEnumVO.DELIVERED)
                     .completed(true)
@@ -132,9 +126,6 @@ public class FinalDeliveryService implements FinalDeliveryPort {
         RuntimeSafeFailureVO safeFailure = failureFactory.create(RuntimeFailureCodeEnumVO.FINAL_INTERNAL_LEAK, null,
                 "Final response guard failed and fallback did not pass guard: " + detail, false);
         persistenceService.persistFailure(command.getRunId(), failureCode, detail);
-        if (eventPublisher != null) {
-            eventPublisher.failed(command.getRunId(), safeFailure.getUserMessage());
-        }
         return FinalDeliveryResultVO.builder()
                 .status(FinalDeliveryStatusEnumVO.FAILED)
                 .failed(true)

@@ -1130,10 +1130,20 @@
     }
 
     function setStatus(status) {
-        state.status = status || "idle";
+        state.status = normalizeStatus(status);
         els.statusPill.textContent = state.status;
         els.statusPill.className = `status-pill ${statusClass(state.status)}`;
         renderDebug();
+    }
+
+    function normalizeStatus(status) {
+        const value = String(status || "idle").toLowerCase();
+        if (value === "completed" || value === "complete" || value === "final_ready") return "completed";
+        if (value === "failed" || value === "fail" || value === "run_failed" || value === "error") return "failed";
+        if (value === "waiting_user") return "waiting_user";
+        if (value === "running" || value === "run_started") return "running";
+        if (value === "idle") return "idle";
+        return value;
     }
 
     function statusClass(status) {
@@ -1191,11 +1201,14 @@
                 summary: normalized.message || "产物已生成。"
             });
         }
+        const terminalBefore = state.status === "completed" || state.status === "failed";
         if (normalized.eventType === "FINAL_READY") {
             setStatus("completed");
             addFinalForScenario();
         } else if (normalized.eventType === "RUN_FAILED") {
             setStatus("failed");
+        } else if (terminalBefore) {
+            renderDebug();
         } else if (normalized.pendingId) {
             setStatus("waiting_user");
         } else {
@@ -1511,8 +1524,10 @@
                 toast("事件解析失败");
             }
         });
+        source.addEventListener("agent-heartbeat", () => {});
         source.onerror = () => {
-            if (state.status !== "completed" && state.status !== "failed") {
+            const status = normalizeStatus(state.status);
+            if (status !== "completed" && status !== "failed") {
                 toast("事件流已断开");
             }
             closeStream();
