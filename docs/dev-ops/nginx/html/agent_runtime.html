@@ -950,7 +950,7 @@
         "pending-mock-artifact": {
             pendingId: "pending-mock-artifact",
             pendingType: "CLARIFICATION",
-            inputMode: "SINGLE_CHOICE",
+            inputMode: "SINGLE_CHOICE_OR_FREE_TEXT",
             allowFreeText: true,
             question: "要使用哪一个历史产物？",
             options: [
@@ -962,7 +962,7 @@
         "pending-mock-context": {
             pendingId: "pending-mock-context",
             pendingType: "CLARIFICATION",
-            inputMode: "SINGLE_CHOICE",
+            inputMode: "SINGLE_CHOICE_OR_FREE_TEXT",
             allowFreeText: true,
             question: "上下文过大，请选择要加载的材料范围。",
             options: [
@@ -994,7 +994,9 @@
         status: "idle",
         events: [],
         artifacts: [],
+        pendingInputs: new Map(),
         answeredPendingIds: new Set(),
+        seenEventKeys: new Set(),
         eventSource: null
     };
 
@@ -1084,9 +1086,7 @@
         if (activate) {
             state.activeSessionId = session.sessionId;
             state.activeRunId = null;
-            state.events = [];
-            state.artifacts = [];
-            state.answeredPendingIds = new Set();
+            resetRunViewState();
             state.status = "idle";
         }
         persistState();
@@ -1095,6 +1095,14 @@
 
     function activeSession() {
         return state.sessions.find(item => item.sessionId === state.activeSessionId) || state.sessions[0];
+    }
+
+    function resetRunViewState() {
+        state.events = [];
+        state.artifacts = [];
+        state.pendingInputs = new Map();
+        state.answeredPendingIds = new Set();
+        state.seenEventKeys = new Set();
     }
 
     function setMode(mode) {
@@ -1152,7 +1160,15 @@
             safePayload: event.safePayload || {},
             createdAt: event.createdAt || new Date().toISOString()
         };
+        const eventKey = event.eventId ? `id:${event.eventId}` : `seq:${normalized.runId}:${normalized.seq}`;
+        if (state.seenEventKeys.has(eventKey)) {
+            return;
+        }
+        state.seenEventKeys.add(eventKey);
         state.events.push(normalized);
+        if (normalized.pendingId) {
+            ensurePendingInput(normalized.pendingId);
+        }
         if (normalized.artifactId && !state.artifacts.find(item => item.artifactId === normalized.artifactId)) {
             state.artifacts.push({
                 artifactId: normalized.artifactId,
@@ -1197,9 +1213,7 @@
             button.addEventListener("click", () => {
                 state.activeSessionId = session.sessionId;
                 state.activeRunId = null;
-                state.events = [];
-                state.artifacts = [];
-                state.answeredPendingIds = new Set();
+                resetRunViewState();
                 setStatus("idle");
                 persistState();
                 renderAll();
@@ -1254,12 +1268,12 @@
     }
 
     function renderPending(pendingId) {
-        const pending = mockPendingInputs[pendingId] || {
+        const pending = state.pendingInputs.get(pendingId) || mockPendingInputs[pendingId] || {
             pendingId,
             pendingType: "CLARIFICATION",
             inputMode: "TEXT",
             allowFreeText: true,
-            question: "需要你的输入。",
+            question: "正在获取需要你确认的信息。",
             options: []
         };
         const card = document.createElement("section");
@@ -1292,6 +1306,29 @@
             });
         }
         return card;
+    }
+
+    async function ensurePendingInput(pendingId) {
+        if (!pendingId || state.pendingInputs.has(pendingId)) {
+            return;
+        }
+        if (mockPendingInputs[pendingId]) {
+            state.pendingInputs.set(pendingId, mockPendingInputs[pendingId]);
+            return;
+        }
+        if (state.mode !== "real" || !state.activeRunId) {
+            return;
+        }
+        try {
+            const pending = await requestJson(`/agent/runs/${encodeURIComponent(state.activeRunId)}/pending-input`);
+            if (pending && pending.pendingId === pendingId) {
+                state.pendingInputs.set(pendingId, pending);
+                renderMessages();
+                renderDebug();
+            }
+        } catch (error) {
+            toast(error.message);
+        }
     }
 
     function renderArtifact(artifactId, summary) {
@@ -1371,9 +1408,7 @@
         closeStream();
         setMode("mock");
         state.activeScenario = scenario;
-        state.events = [];
-        state.artifacts = [];
-        state.answeredPendingIds = new Set();
+        resetRunViewState();
         addMessage("user", scenarioPrompt(scenario));
         setStatus("starting");
         renderScenarios(fallbackScenarios);
@@ -1396,9 +1431,7 @@
         if (!content) return;
         els.messageInput.value = "";
         closeStream();
-        state.events = [];
-        state.artifacts = [];
-        state.answeredPendingIds = new Set();
+        resetRunViewState();
         addMessage("user", content);
         setStatus("starting");
         if (state.mode === "mock") {
@@ -1447,7 +1480,7 @@
 
     function connectSse(path) {
         closeStream();
-        const source = new EventSource(API_BASE + path);
+        const source = new EventSource(API_BASE + withLastSeq(path));
         state.eventSource = source;
         source.addEventListener("agent-event", event => {
             try {
@@ -1469,6 +1502,15 @@
             state.eventSource.close();
             state.eventSource = null;
         }
+    }
+
+    function withLastSeq(path) {
+        const lastSeq = state.events.reduce((max, event) => Math.max(max, Number(event.seq || 0)), 0);
+        if (!lastSeq) {
+            return path;
+        }
+        const separator = path.includes("?") ? "&" : "?";
+        return `${path}${separator}lastSeq=${encodeURIComponent(lastSeq)}`;
     }
 
     async function submitPendingAnswer(pendingId, optionId, freeText) {

@@ -1833,7 +1833,6 @@ Allowed `inputMode` values:
 
 - `CONFIRM`
 - `SINGLE_CHOICE`
-- `MULTI_CHOICE`
 - `FREE_TEXT`
 - `SINGLE_CHOICE_OR_FREE_TEXT`
 
@@ -2965,9 +2964,9 @@ Required fields:
 | `run_id` | varchar | Run id. |
 | `session_id` | varchar | Session id. |
 | `source_component` | varchar | Component that created this input, such as `ContextPlannerNode`, `MainAgentNode`, `Runtime`, `RagRuntime`, `RagVerifier`, or `FinalResponseGuard`. `ToolRuntime` must not create pending input. |
-| `pending_type` | varchar | `CLARIFICATION`, `CONFIRMATION`, `TOOL_APPROVAL`, `FREE_TEXT`, `MULTI_CHOICE`, `CONTEXT_SELECTION`, `USER_ACTION_REQUIRED`. |
+| `pending_type` | varchar | `CLARIFICATION`, `CONFIRMATION`, `TOOL_APPROVAL`, `FREE_TEXT`, `CONTEXT_SELECTION`, `USER_ACTION_REQUIRED`. |
 | `question` | varchar | User-facing question. |
-| `input_mode` | varchar | `CONFIRM`, `SINGLE_CHOICE`, `MULTI_CHOICE`, `FREE_TEXT`, `SINGLE_CHOICE_OR_FREE_TEXT`. |
+| `input_mode` | varchar | `CONFIRM`, `SINGLE_CHOICE`, `FREE_TEXT`, `SINGLE_CHOICE_OR_FREE_TEXT`. |
 | `options_ref` | varchar | Payload id for structured options. |
 | `answer_schema_ref` | varchar | Optional payload id for answer schema. |
 | `continuation_ref` | varchar | Payload id for continuation checkpoint. |
@@ -4017,7 +4016,7 @@ Request:
 {
   "sessionId": "sess_001",
   "agentId": "agent_001",
-  "message": "Publish this RAG article to CSDN.",
+  "content": "Publish this RAG article to CSDN.",
   "inputType": "TEXT"
 }
 ```
@@ -4152,7 +4151,6 @@ Frontend rendering rules for `inputMode`:
 |---|---|---|
 | `CONFIRM` | Two explicit action buttons, normally confirm/cancel. | Submit the selected `optionId`. Free text must not be shown unless `allowFreeText=true`, which should be avoided for high-risk approvals. |
 | `SINGLE_CHOICE` | Single-select option buttons, radio list, or choice cards. | Submit exactly one `optionId`. Do not render a free-text input. If `freeText` is submitted, backend must reject it as invalid for this mode. |
-| `MULTI_CHOICE` | Multi-select checkboxes or choice cards. | Submit selected option ids. Do not render a free-text input unless the pending input explicitly uses a future mixed mode. |
 | `FREE_TEXT` | Text input or textarea. | Submit `freeText`; `optionId` must be null. |
 | `SINGLE_CHOICE_OR_FREE_TEXT` | Single-select options plus an optional text input. | Submit either one `optionId` or `freeText`, not both. |
 
@@ -4184,8 +4182,8 @@ Response:
 ```json
 {
   "runId": "run_001",
-  "status": "RUNNING",
-  "message": "Execution resumed."
+  "pendingId": "pending_001",
+  "status": "RUNNING"
 }
 ```
 

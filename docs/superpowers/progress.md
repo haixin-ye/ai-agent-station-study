@@ -108,3 +108,19 @@
 - Notes:
   - This is a frontend MVP page, not a replacement of the old `index_cool.html`.
   - Real `/agent/chat` still depends on complete Spring runtime bean wiring; mock mode is ready for frontend review.
+
+## 2026-05-18 Phase 13 Frontend Review Fixes
+
+- Branch: `feature/auto-agent-main-loop-harness`
+- Status: implemented and locally checked
+- Scope: fixed frontend/spec mismatches found during review.
+- Changes:
+  - Canonical spec now uses `content` for `POST /agent/chat` and removes MVP `MULTI_CHOICE` pending input support.
+  - Pending input modes now allow only `CONFIRM`, `SINGLE_CHOICE`, `FREE_TEXT`, and `SINGLE_CHOICE_OR_FREE_TEXT`.
+  - Frontend mock scenarios changed choice-or-text cases from `SINGLE_CHOICE` to `SINGLE_CHOICE_OR_FREE_TEXT`.
+  - Frontend SSE client now deduplicates events by `eventId` or `runId + seq` and appends `lastSeq` on reconnect.
+  - Frontend now fetches real pending input details from `/agent/runs/{runId}/pending-input` when an SSE event carries a `pendingId`.
+- Verification:
+  - Extracted inline JavaScript from `agent_runtime.html` and ran `node --check`; command exited successfully.
+  - Canonical spec and frontend scan for `MULTI_CHOICE` returned no matches.
+  - Static scan for old normal-output fields `stepPlan|todoList|understanding|rawResult|StateView|StateDelta|trace payload|思考链路|节点调用|节点` returned no matches.
