@@ -124,3 +124,22 @@
   - Extracted inline JavaScript from `agent_runtime.html` and ran `node --check`; command exited successfully.
   - Canonical spec and frontend scan for `MULTI_CHOICE` returned no matches.
   - Static scan for old normal-output fields `stepPlan|todoList|understanding|rawResult|StateView|StateDelta|trace payload|思考链路|节点调用|节点` returned no matches.
+
+## 2026-05-18 Phase 14 Backend Runtime Wiring
+
+- Branch: `feature/auto-agent-main-loop-harness`
+- Status: implemented and locally checked
+- Scope:
+  - Added Spring app wiring for the real AutoAgent Runtime service, context preparation, prompt/node invocation, pending input, RAG runtime/verifier, action handlers, plan state persistence, event/trace/transcript recorders, and runtime policies.
+  - Replaced the placeholder Spring AI node adapter with a ChatClient-backed adapter that resolves exact bean names, Armory `ai_client_{id}` bean names, or a single available ChatClient.
+  - Added node invocation profiles so ContextPlanner, MainAgent, RagVerifier, FinalRepair, and ContractRepair can read yml model/prompt/repair defaults.
+  - Added `application-dev.yml` runtime, debug, node, MCP, and capability defaults.
+- Verification:
+  - `mvn -q -pl ai-agent-station-study-app -am -DskipTests compile` passed.
+  - `mvn -q -pl ai-agent-station-study-app -am '-Dtest=RuntimeStateMachineTest,PendingInputUserAnswerTest,MainActionDispatcherTest,FinalActionHandlerTest,AgentMockScenarioApiTest' '-Dsurefire.failIfNoSpecifiedTests=false' test` passed: 20 tests, 0 failures.
+  - `git diff --check` passed; only CRLF normalization warnings were reported.
+- Notes:
+  - Frontend mock mode remains testable without backend.
+  - Real `/agent/chat` now has a configured Runtime bean path; it still requires database tables, Armory client `3101`, PgVector/RAG dependencies, and provider API config to be available at runtime.
+  - `AgentRuntimeFacade` still keeps its missing-runtime guard message, but normal dev configuration now creates the runtime service.
+  - Static scan for old normal-output fields `stepPlan|todoList|understanding|rawResult|StateView|StateDelta|trace payload|思考链路|节点调用|节点` returned no matches.

@@ -95,3 +95,54 @@ logging:
   level:
     root: info
   config: classpath:logback-spring.xml
+
+auto-agent:
+  runtime:
+    enabled: true
+    max-loop-count: 8
+    max-contract-repair-attempts: 1
+    max-final-repair-attempts: 1
+    max-consecutive-continue-actions: 1
+    max-recovery-attempts-per-failure-code: 2
+  debug:
+    debug-api-enabled: true
+    debug-sse-enabled: true
+    debug-payload-preview-enabled: true
+    debug-payload-preview-max-chars: 2000
+  nodes:
+    models:
+      CONTEXT_PLANNER:
+        model-code: "3101"
+        prompt-version: "v1"
+        temperature: 0.1
+        max-output-tokens: 1600
+        max-repair-attempts: 1
+      MAIN_AGENT:
+        model-code: "3101"
+        prompt-version: "v1"
+        temperature: 0.2
+        max-output-tokens: 2400
+        max-repair-attempts: 1
+      RAG_VERIFIER:
+        model-code: "3101"
+        prompt-version: "v1"
+        temperature: 0.0
+        max-output-tokens: 1200
+        max-repair-attempts: 1
+      FINAL_REPAIR:
+        model-code: "3101"
+        prompt-version: "v1"
+        temperature: 0.1
+        max-output-tokens: 1200
+        max-repair-attempts: 1
+      CONTRACT_REPAIR:
+        model-code: "3101"
+        prompt-version: "v1"
+        temperature: 0.0
+        max-output-tokens: 1200
+        max-repair-attempts: 1
+  mcp:
+    enabled: true
+    servers: []
+  capabilities:
+    tools: []

@@ -14,9 +14,12 @@ public class AutoAgentNodeProperties {
 
     @Data
     public static class NodeModelProperties {
+        private String modelCode;
         private String modelName;
+        private String promptVersion = "v1";
         private Double temperature;
         private Integer maxOutputTokens;
+        private Integer maxRepairAttempts;
         private Integer timeoutSeconds;
     }
 }

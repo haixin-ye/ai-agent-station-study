@@ -6,6 +6,7 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO
 import yhx.com.domain.agent.model.valobj.finalresponse.FinalRepairPromptContextVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationCommand;
+import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
@@ -15,9 +16,15 @@ import java.util.Map;
 public class FinalRepairService {
 
     private final NodeInvocationPipeline nodeInvocationPipeline;
+    private final NodeInvocationProfileVO invocationProfile;
 
     public FinalRepairService(NodeInvocationPipeline nodeInvocationPipeline) {
+        this(nodeInvocationPipeline, null);
+    }
+
+    public FinalRepairService(NodeInvocationPipeline nodeInvocationPipeline, NodeInvocationProfileVO invocationProfile) {
         this.nodeInvocationPipeline = nodeInvocationPipeline;
+        this.invocationProfile = invocationProfile;
     }
 
     public FinalAnswerCandidateVO repair(FinalRepairPromptContextVO context) {
@@ -28,7 +35,11 @@ public class FinalRepairService {
                 .runId(context.getRunId())
                 .agentId(context.getAgentId())
                 .componentCode(AgentComponentCodeEnumVO.FINAL_REPAIR.name())
-                .contractVersion("main-agent-action-v1")
+                .contractVersion(firstNonBlank(invocationProfile == null ? null : invocationProfile.getContractVersion(), "main-agent-action-v1"))
+                .promptVersion(firstNonBlank(invocationProfile == null ? null : invocationProfile.getPromptVersion(), "v1"))
+                .modelCode(invocationProfile == null ? null : invocationProfile.getModelCode())
+                .temperature(invocationProfile == null ? null : invocationProfile.getTemperature())
+                .maxOutputTokens(invocationProfile == null ? null : invocationProfile.getMaxOutputTokens())
                 .inputView(safeInput(context))
                 .maxRepairAttempts(0)
                 .build());
@@ -70,5 +81,9 @@ public class FinalRepairService {
 
     private String value(String text) {
         return text == null ? "" : text;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return first == null || first.isBlank() ? second : first;
     }
 }

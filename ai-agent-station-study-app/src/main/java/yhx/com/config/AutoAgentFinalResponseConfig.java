@@ -8,6 +8,7 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
+import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO;
 import yhx.com.domain.agent.service.finalresponse.FinalDeliveryService;
 import yhx.com.domain.agent.service.finalresponse.FinalRepairService;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseBuilder;
@@ -22,7 +23,7 @@ import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 import yhx.com.domain.agent.service.runtime.port.FinalDeliveryPort;
 
 @Configuration
-@EnableConfigurationProperties(AutoAgentRuntimeProperties.class)
+@EnableConfigurationProperties({AutoAgentRuntimeProperties.class, AutoAgentNodeProperties.class})
 public class AutoAgentFinalResponseConfig {
 
     @Bean
@@ -54,8 +55,11 @@ public class AutoAgentFinalResponseConfig {
     }
 
     @Bean
-    public FinalRepairService finalRepairService(ObjectProvider<NodeInvocationPipeline> nodeInvocationPipelineProvider) {
-        return new FinalRepairService(nodeInvocationPipelineProvider.getIfAvailable());
+    public FinalRepairService finalRepairService(ObjectProvider<NodeInvocationPipeline> nodeInvocationPipelineProvider,
+                                                 AutoAgentNodeProperties nodeProperties,
+                                                 AutoAgentRuntimeProperties runtimeProperties) {
+        return new FinalRepairService(nodeInvocationPipelineProvider.getIfAvailable(),
+                nodeProfile(nodeProperties, runtimeProperties, "FINAL_REPAIR", "main-agent-action-v1"));
     }
 
     @Bean
@@ -78,5 +82,35 @@ public class AutoAgentFinalResponseConfig {
                 persistenceService,
                 new RuntimeFailureFactory(),
                 eventPublisherProvider.getIfAvailable());
+    }
+
+    private NodeInvocationProfileVO nodeProfile(AutoAgentNodeProperties nodeProperties,
+                                                AutoAgentRuntimeProperties runtimeProperties,
+                                                String componentCode,
+                                                String contractVersion) {
+        AutoAgentNodeProperties.NodeModelProperties model = nodeProperties.getModels().get(componentCode);
+        if (model == null) {
+            return NodeInvocationProfileVO.builder()
+                    .componentCode(componentCode)
+                    .promptVersion("v1")
+                    .contractVersion(contractVersion)
+                    .maxRepairAttempts(runtimeProperties.getMaxContractRepairAttempts())
+                    .build();
+        }
+        return NodeInvocationProfileVO.builder()
+                .componentCode(componentCode)
+                .modelCode(defaultIfBlank(model.getModelCode(), model.getModelName()))
+                .promptVersion(defaultIfBlank(model.getPromptVersion(), "v1"))
+                .contractVersion(contractVersion)
+                .temperature(model.getTemperature())
+                .maxOutputTokens(model.getMaxOutputTokens())
+                .maxRepairAttempts(model.getMaxRepairAttempts() == null
+                        ? runtimeProperties.getMaxContractRepairAttempts()
+                        : model.getMaxRepairAttempts())
+                .build();
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }
