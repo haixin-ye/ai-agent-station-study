@@ -11,5 +11,7 @@ public interface IAgentRunEventDao {
 
     int insert(AgentRunEventPO event);
 
+    Long queryMaxSeqByRunId(@Param("runId") String runId);
+
     List<AgentRunEventPO> listUserVisibleByRunId(@Param("runId") String runId, @Param("limit") int limit);
 }

@@ -35,8 +35,12 @@ public class EventTraceRepository implements IEventTraceRepository {
 
     @Override
     public void appendUserVisibleEvent(AgentRunEventEntity event) {
+        requireRunId(event.getRunId());
         if (event.getEventId() == null || event.getEventId().isBlank()) {
             event.setEventId("event-" + UUID.randomUUID());
+        }
+        if (event.getSeq() == null) {
+            event.setSeq(nextEventSeq(event.getRunId()));
         }
         if (event.getCreatedAt() == null) {
             event.setCreatedAt(LocalDateTime.now());
@@ -46,8 +50,12 @@ public class EventTraceRepository implements IEventTraceRepository {
 
     @Override
     public void appendTrace(AgentRunTraceEntity trace) {
+        requireRunId(trace.getRunId());
         if (trace.getTraceId() == null || trace.getTraceId().isBlank()) {
             trace.setTraceId("trace-" + UUID.randomUUID());
+        }
+        if (trace.getSeq() == null) {
+            trace.setSeq(nextTraceSeq(trace.getRunId()));
         }
         if (trace.getCreatedAt() == null) {
             trace.setCreatedAt(LocalDateTime.now());
@@ -134,5 +142,21 @@ public class EventTraceRepository implements IEventTraceRepository {
                 .payloadRef(entity.getPayloadRef())
                 .createdAt(entity.getCreatedAt())
                 .build();
+    }
+
+    private Long nextEventSeq(String runId) {
+        Long maxSeq = agentRunEventDao.queryMaxSeqByRunId(runId);
+        return (maxSeq == null ? 0L : maxSeq) + 1L;
+    }
+
+    private Long nextTraceSeq(String runId) {
+        Long maxSeq = agentRunTraceDao.queryMaxSeqByRunId(runId);
+        return (maxSeq == null ? 0L : maxSeq) + 1L;
+    }
+
+    private void requireRunId(String runId) {
+        if (runId == null || runId.isBlank()) {
+            throw new IllegalArgumentException("runId is required.");
+        }
     }
 }

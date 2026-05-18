@@ -11,5 +11,7 @@ public interface IAgentRunTraceDao {
 
     int insert(AgentRunTracePO trace);
 
+    Long queryMaxSeqByRunId(@Param("runId") String runId);
+
     List<AgentRunTracePO> listByRunId(@Param("runId") String runId, @Param("limit") int limit);
 }

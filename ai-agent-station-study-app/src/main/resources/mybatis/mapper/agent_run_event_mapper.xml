@@ -18,6 +18,12 @@
         VALUES (#{eventId}, #{runId}, #{seq}, #{eventType}, #{payloadRef}, #{userVisible}, #{createdAt})
     </insert>
 
+    <select id="queryMaxSeqByRunId" resultType="java.lang.Long">
+        SELECT COALESCE(MAX(seq), 0)
+        FROM agent_run_event
+        WHERE run_id = #{runId}
+    </select>
+
     <select id="listUserVisibleByRunId" resultMap="AgentRunEventMap">
         SELECT id, event_id, run_id, seq, event_type, payload_ref, user_visible, created_at
         FROM agent_run_event

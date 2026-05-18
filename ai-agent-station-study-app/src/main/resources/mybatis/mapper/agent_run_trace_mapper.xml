@@ -18,6 +18,12 @@
         VALUES (#{traceId}, #{runId}, #{seq}, #{traceType}, #{payloadRef}, #{summary}, #{createdAt})
     </insert>
 
+    <select id="queryMaxSeqByRunId" resultType="java.lang.Long">
+        SELECT COALESCE(MAX(seq), 0)
+        FROM agent_run_trace
+        WHERE run_id = #{runId}
+    </select>
+
     <select id="listByRunId" resultMap="AgentRunTraceMap">
         SELECT id, trace_id, run_id, seq, trace_type, payload_ref, summary, created_at
         FROM agent_run_trace
