@@ -27,6 +27,7 @@ public class PromptAssembler {
         ORDER.put(PromptLayerTypeEnumVO.OPERATING_CONTEXT, index++);
         ORDER.put(PromptLayerTypeEnumVO.INPUT_FIELD_GUIDE, index++);
         ORDER.put(PromptLayerTypeEnumVO.TASK_PROCEDURE, index++);
+        ORDER.put(PromptLayerTypeEnumVO.RESPONSE_STYLE, index++);
         ORDER.put(PromptLayerTypeEnumVO.DECISION_POLICY, index++);
         ORDER.put(PromptLayerTypeEnumVO.RISK_AND_PERMISSION_POLICY, index++);
         ORDER.put(PromptLayerTypeEnumVO.OUTPUT_CONTRACT, index++);

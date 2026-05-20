@@ -67,12 +67,25 @@ public class ContextCandidatePreselectorTest {
     }
 
     @Test
-    public void message_content_ref_loads_summary_not_full_payload() {
+    public void message_content_ref_loads_bounded_visible_content_instead_of_short_preview() {
         FakeContextRepositories repos = fixture();
 
         ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command(List.of()));
 
-        Assert.assertEquals("message preview", bundle.getRecentMessages().get(0).getSummary());
+        Assert.assertEquals("FULL_MESSAGE_BODY_SHOULD_NOW_BE_VISIBLE_TO_CONTEXT", bundle.getRecentMessages().get(0).getSummary());
+    }
+
+    @Test
+    public void message_context_is_truncated_when_payload_is_long() {
+        FakeContextRepositories repos = fixture();
+        String longContent = "A".repeat(1700);
+        repos.payloads.get("payload-message").setContent(longContent);
+
+        ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command(List.of()));
+
+        String summary = bundle.getRecentMessages().get(0).getSummary();
+        Assert.assertEquals(1615, summary.length());
+        Assert.assertTrue(summary.endsWith("... [truncated]"));
     }
 
     @Test
@@ -134,7 +147,7 @@ public class ContextCandidatePreselectorTest {
         repos.payloads.put("payload-message", AgentPayloadEntity.builder()
                 .payloadId("payload-message")
                 .payloadType(PayloadTypeEnumVO.TEXT)
-                .content("FULL_MESSAGE_BODY_SHOULD_NOT_APPEAR")
+                .content("FULL_MESSAGE_BODY_SHOULD_NOW_BE_VISIBLE_TO_CONTEXT")
                 .preview("message preview")
                 .build());
         repos.payloads.put("payload-artifact", AgentPayloadEntity.builder()

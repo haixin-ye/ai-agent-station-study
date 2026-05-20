@@ -29,6 +29,7 @@ public class ContextCandidatePreselector {
     private static final int DEFAULT_ARTIFACT_LIMIT = 5;
     private static final int DEFAULT_MEMORY_LIMIT = 5;
     private static final int DEFAULT_EVIDENCE_LIMIT = 5;
+    private static final int MAX_MESSAGE_CONTEXT_CHARS = 1600;
 
     private final IConversationRepository conversationRepository;
     private final IArtifactRepository artifactRepository;
@@ -115,7 +116,7 @@ public class ContextCandidatePreselector {
 
     private MessageCandidateVO toMessageCandidate(AgentMessageEntity message) {
         String summary = payloadRepository.findPayload(message.getContentRef())
-                .map(payload -> payload.getPreview() == null ? payload.getContent() : payload.getPreview())
+                .map(payload -> compactVisibleMessage(payload.getContent(), payload.getPreview()))
                 .orElse(null);
         return MessageCandidateVO.builder()
                 .messageId(message.getMessageId())
@@ -124,6 +125,18 @@ public class ContextCandidatePreselector {
                 .summary(summary)
                 .createdAt(message.getCreatedAt())
                 .build();
+    }
+
+    private String compactVisibleMessage(String content, String preview) {
+        String text = firstNonBlank(content, preview);
+        if (text == null) {
+            return null;
+        }
+        String normalized = text.trim();
+        if (normalized.length() <= MAX_MESSAGE_CONTEXT_CHARS) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_MESSAGE_CONTEXT_CHARS) + "... [truncated]";
     }
 
     private TokenBudgetVO defaultBudget(TokenBudgetVO budget) {
@@ -141,6 +154,13 @@ public class ContextCandidatePreselector {
 
     private int defaultIfNull(Integer value, int defaultValue) {
         return value == null ? defaultValue : value;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        return second == null || second.isBlank() ? null : second;
     }
 
     @SuppressWarnings("unchecked")

@@ -29,22 +29,29 @@ public class ContextPlannerPromptBuilder {
                         Inspect user intent and candidate metadata.
                         Select only references that are needed for the next MainAgentNode call.
                         Prefer minimal sufficient context over loading everything.
-                        Ask for clarification when target identity or intent is unsafe to guess.
+                        Resolve follow-up references from recentMessages, sessionSummaries, artifactCandidates, memoryCandidates, evidenceCandidates, pendingAction, and userClarifications before asking the user.
+                        Ask for clarification only when target identity or intent remains unsafe to guess after inspecting all candidates.
                         """),
                 layer(PromptLayerTypeEnumVO.DECISION_POLICY, "Decision Policy", """
                         Use METADATA_ONLY for publish, upload, archive, delete, or move operations.
                         Use SUMMARY_PLUS_SNIPPET for overview, title suggestion, or light evaluation.
-                        Use FULL_TEXT for review, rewrite, polish, restructure, or modify short artifacts.
+                        Use FULL_TEXT for review, rewrite, polish, restructure, compare, or modify short artifacts.
                         Use CHUNKED_CONTEXT when content inspection is required but full text exceeds budget.
-                        Use NEEDS_USER_CLARIFICATION when target identity or intent is unsafe to guess.
+                        For comparison requests such as "compare these two", "the original and modified version", or "difference between the two drafts", first select the plausible recent user/assistant messages or artifacts that represent the two versions.
+                        If recentMessages clearly contain an original draft and a later revised draft, do not ask which drafts; select them and let MainAgentNode compare.
+                        Use NEEDS_USER_CLARIFICATION only when at least two materially different target sets remain plausible and no safe assumption can be stated.
+                        Clarification options must be mutually exclusive, grounded in actual candidate ids, and labeled by their distinguishing role such as "original draft", "latest revised draft", "article A", or "article B"; do not produce duplicate options that point to the same candidate or describe only one side of a comparison.
                         """),
                 layer(PromptLayerTypeEnumVO.FEW_SHOT_EXAMPLES, "Few Shot Examples", """
                         If the user says "polish the article from last round", select the latest article artifact as FULL_TEXT.
                         If the user says "publish that RAG article", select the latest matching artifact as METADATA_ONLY.
+                        If the user asks "what are the differences between these two versions" after an original answer and a rewrite, select both visible message candidates or both artifacts that correspond to the original and latest revised versions.
                         """),
                 layer(PromptLayerTypeEnumVO.ANTI_EXAMPLES, "Anti Examples", """
                         Do not answer the user.
                         Do not invent artifact ids.
+                        Do not ask about ordinary semantic ambiguity that MainAgentNode can answer with an explicit assumption.
+                        Do not ask for clarification when recentMessages contain enough context to resolve "this", "that", "the previous one", "the two versions", or "after the revision".
                         Do not request FULL_TEXT for a destructive external action unless content inspection is necessary.
                         """)
         );
