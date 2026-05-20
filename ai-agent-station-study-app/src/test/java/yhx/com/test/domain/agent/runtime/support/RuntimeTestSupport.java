@@ -110,6 +110,14 @@ public class RuntimeTestSupport {
             }
 
             @Override
+            public ContextPlannerHandlingResult refreshContext(RuntimeExecutionContext context) {
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
             public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
                 return action;
             }

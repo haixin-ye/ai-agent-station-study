@@ -254,7 +254,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             if (resumeTransition != null) {
                 return failRun(context, resumeTransition);
             }
-            if (continuation.getNextPhase() == RuntimePhaseEnumVO.PREPARING_CONTEXT) {
+            if (continuation.getNextPhase() == RuntimePhaseEnumVO.PREPARING_CONTEXT
+                    || continuation.getNextPhase() == RuntimePhaseEnumVO.BUILDING_STATE_VIEW
+                    || continuation.getNextPhase() == RuntimePhaseEnumVO.CALLING_MAIN_NODE) {
                 return runLoop(context);
             }
         }
@@ -337,46 +339,14 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 return failRun(context, failureFactory.maxLoopReached(context.getCurrentPhase()));
             }
 
-            RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.PLANNING_CONTEXT);
-            if (transitionFailure != null) {
-                return failRun(context, transitionFailure);
+            RuntimeStepResult contextResult = prepareOrRefreshStateView(context);
+            if (contextResult != null) {
+                return contextResult;
             }
-            ContextPlannerHandlingResult prepared = componentPorts.prepareContext(context);
-            if (prepared == null) {
-                return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
-                        context.getCurrentPhase(), "Context preparation returned null.", true));
-            }
-            if (prepared.getAskUserRequest() != null) {
-                if (alreadyAnswered(context, prepared.getAskUserRequest())) {
-                    context.countersOrInitial().incrementLoop();
-                    context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
-                    RuntimeSafeFailureVO loopTransition = enterPhase(context, RuntimePhaseEnumVO.PREPARING_CONTEXT);
-                    if (loopTransition != null) {
-                        return failRun(context, loopTransition);
-                    }
-                    continue;
-                }
-                return pauseForUser(context, prepared.getAskUserRequest(), ContextPlannerPendingInputHandler.HANDLER_CODE,
-                        PendingInputTypeEnumVO.CONTEXT_CLARIFICATION.code(), "ContextPlanner needs user clarification.");
-            }
-            if (prepared.getFailure() != null) {
-                return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
-                        context.getCurrentPhase(), prepared.getFailure().getMessage(), true));
-            }
-            transitionFailure = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
-            if (transitionFailure != null) {
-                return failRun(context, transitionFailure);
-            }
-            context.setLastStateView(prepared.getStateView());
-            transcriptRecorder.appendStateViewSummary(context.getRunId(), context.getLoopIndex(), prepared.getStateView(), null);
 
-            transitionFailure = enterPhase(context, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
-            if (transitionFailure != null) {
-                return failRun(context, transitionFailure);
-            }
             MainAgentActionVO action = componentPorts.invokeMainAgent(context);
 
-            transitionFailure = enterPhase(context, RuntimePhaseEnumVO.VALIDATING_ACTION);
+            RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.VALIDATING_ACTION);
             if (transitionFailure != null) {
                 return failRun(context, transitionFailure);
             }
@@ -398,7 +368,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             if (stepResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
                 context.countersOrInitial().incrementLoop();
                 context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
-                RuntimeSafeFailureVO loopTransition = enterPhase(context, RuntimePhaseEnumVO.PREPARING_CONTEXT);
+                RuntimeSafeFailureVO loopTransition = enterPhase(context, nextLoopPhase(context, stepResult));
                 if (loopTransition != null) {
                     return failRun(context, loopTransition);
                 }
@@ -409,6 +379,105 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         }
         return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.MISSING_ACTIVE_RUN,
                 context.getCurrentPhase(), "Run loop exited without terminal status.", false));
+    }
+
+    private RuntimeStepResult prepareOrRefreshStateView(RuntimeExecutionContext context) {
+        RuntimePhaseEnumVO phase = context.getCurrentPhase();
+        if (phase == RuntimePhaseEnumVO.BUILDING_STATE_VIEW) {
+            return refreshStateView(context);
+        }
+        if (phase == RuntimePhaseEnumVO.PREPARING_CONTEXT || context.getLastStateView() == null) {
+            return prepareInitialStateView(context);
+        }
+        if (phase != RuntimePhaseEnumVO.CALLING_MAIN_NODE) {
+            RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
+            if (transitionFailure != null) {
+                return failRun(context, transitionFailure);
+            }
+        }
+        return null;
+    }
+
+    private RuntimeStepResult prepareInitialStateView(RuntimeExecutionContext context) {
+        RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.PLANNING_CONTEXT);
+        if (transitionFailure != null) {
+            return failRun(context, transitionFailure);
+        }
+        ContextPlannerHandlingResult prepared = componentPorts.prepareContext(context);
+        if (prepared == null) {
+            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
+                    context.getCurrentPhase(), "Context preparation returned null.", true));
+        }
+        if (prepared.getAskUserRequest() != null) {
+            if (alreadyAnswered(context, prepared.getAskUserRequest())) {
+                context.countersOrInitial().incrementLoop();
+                context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
+                RuntimeSafeFailureVO loopTransition = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
+                if (loopTransition != null) {
+                    return failRun(context, loopTransition);
+                }
+                return refreshStateView(context);
+            }
+            return pauseForUser(context, prepared.getAskUserRequest(), ContextPlannerPendingInputHandler.HANDLER_CODE,
+                    PendingInputTypeEnumVO.CONTEXT_CLARIFICATION.code(), "ContextPlanner needs user clarification.");
+        }
+        if (prepared.getFailure() != null) {
+            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
+                    context.getCurrentPhase(), prepared.getFailure().getMessage(), true));
+        }
+        return acceptStateViewAndCallMain(context, prepared);
+    }
+
+    private RuntimeStepResult refreshStateView(RuntimeExecutionContext context) {
+        ContextPlannerHandlingResult refreshed = componentPorts.refreshContext(context);
+        if (refreshed == null) {
+            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
+                    context.getCurrentPhase(), "Context refresh returned null.", true));
+        }
+        if (refreshed.getFailure() != null) {
+            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
+                    context.getCurrentPhase(), refreshed.getFailure().getMessage(), true));
+        }
+        return acceptStateViewAndCallMain(context, refreshed);
+    }
+
+    private RuntimeStepResult acceptStateViewAndCallMain(RuntimeExecutionContext context, ContextPlannerHandlingResult result) {
+        if (result == null || result.getStateView() == null) {
+            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
+                    context.getCurrentPhase(), "State view is missing.", true));
+        }
+        if (context.getCurrentPhase() != RuntimePhaseEnumVO.BUILDING_STATE_VIEW
+                && context.getCurrentPhase() != RuntimePhaseEnumVO.CALLING_MAIN_NODE) {
+            RuntimeSafeFailureVO buildFailure = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
+            if (buildFailure != null) {
+                return failRun(context, buildFailure);
+            }
+        }
+        context.setLastStateView(result.getStateView());
+        transcriptRecorder.appendStateViewSummary(context.getRunId(), context.getLoopIndex(), result.getStateView(), null);
+        RuntimeSafeFailureVO transitionFailure = context.getCurrentPhase() == RuntimePhaseEnumVO.CALLING_MAIN_NODE
+                ? null
+                : enterPhase(context, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
+        if (transitionFailure != null) {
+            return failRun(context, transitionFailure);
+        }
+        return null;
+    }
+
+    private RuntimePhaseEnumVO nextLoopPhase(RuntimeExecutionContext context, RuntimeStepResult stepResult) {
+        RuntimePhaseEnumVO requested = stepResult == null || stepResult.getNextPhase() == null
+                ? RuntimePhaseEnumVO.CALLING_MAIN_NODE
+                : stepResult.getNextPhase();
+        if (requested == RuntimePhaseEnumVO.PREPARING_CONTEXT && context.getLastStateView() != null && !forceContextReplan(context)) {
+            return RuntimePhaseEnumVO.BUILDING_STATE_VIEW;
+        }
+        return requested;
+    }
+
+    private boolean forceContextReplan(RuntimeExecutionContext context) {
+        return context != null
+                && context.getRuntimeFacts() != null
+                && Boolean.TRUE.equals(context.getRuntimeFacts().get("forceContextReplan"));
     }
 
     private RuntimeStepResult routeActionResult(RuntimeExecutionContext context, MainAgentActionVO action, MainActionHandlerResult actionResult) {
@@ -525,7 +594,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .askUserRequest(request)
                 .continuation(ContinuationCheckpointVO.builder()
                         .handler(handlerCode)
-                        .resumePhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                        .resumePhase(resumePhaseFor(handlerCode))
                         .sourceComponent(handlerCode)
                         .relatedRunId(context.getRunId())
                         .relatedLoopIndex(context.getLoopIndex())
@@ -550,6 +619,13 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .pendingInputId(pending.getPendingInputId())
                 .message(message)
                 .build();
+    }
+
+    private RuntimePhaseEnumVO resumePhaseFor(String handlerCode) {
+        if (MainAgentPendingInputHandler.HANDLER_CODE.equals(handlerCode)) {
+            return RuntimePhaseEnumVO.BUILDING_STATE_VIEW;
+        }
+        return RuntimePhaseEnumVO.PREPARING_CONTEXT;
     }
 
     private RuntimeSafeFailureVO enterPhase(RuntimeExecutionContext context, RuntimePhaseEnumVO nextPhase) {

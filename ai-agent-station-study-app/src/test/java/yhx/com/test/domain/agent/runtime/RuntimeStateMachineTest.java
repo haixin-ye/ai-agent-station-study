@@ -31,6 +31,14 @@ public class RuntimeStateMachineTest {
     }
 
     @Test
+    public void handling_action_can_continue_without_replanning_context() {
+        RuntimeStateMachine stateMachine = new RuntimeStateMachine();
+
+        Assert.assertTrue(stateMachine.canEnter(RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.BUILDING_STATE_VIEW));
+        Assert.assertTrue(stateMachine.canEnter(RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.CALLING_MAIN_NODE));
+    }
+
+    @Test
     public void terminal_status_cannot_continue_loop() {
         RuntimeStateMachine stateMachine = new RuntimeStateMachine();
 

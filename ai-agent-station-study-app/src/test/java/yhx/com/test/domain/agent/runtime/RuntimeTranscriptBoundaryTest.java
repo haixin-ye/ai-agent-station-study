@@ -84,6 +84,15 @@ public class RuntimeTranscriptBoundaryTest {
             }
 
             @Override
+            public ContextPlannerHandlingResult refreshContext(RuntimeExecutionContext context) {
+                resumedContext.set(context);
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
             public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
                 return invocationCount.getAndIncrement() == 0 ? askUserAction() : finalAction();
             }
@@ -113,6 +122,50 @@ public class RuntimeTranscriptBoundaryTest {
     }
 
     @Test
+    public void continued_loop_refreshes_state_view_without_replanning_context() {
+        RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
+        AtomicInteger prepareCount = new AtomicInteger();
+        AtomicInteger refreshCount = new AtomicInteger();
+        AtomicInteger mainCount = new AtomicInteger();
+        AutoAgentRuntimeService runtime = RuntimeTestSupport.runtime(repository, new RuntimeComponentPorts() {
+            @Override
+            public ContextPlannerHandlingResult prepareContext(RuntimeExecutionContext context) {
+                prepareCount.incrementAndGet();
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
+            public ContextPlannerHandlingResult refreshContext(RuntimeExecutionContext context) {
+                refreshCount.incrementAndGet();
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
+            public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
+                return mainCount.getAndIncrement() == 0 ? continueAction() : finalAction();
+            }
+        }, true, new RuntimeLoopPolicy());
+
+        RuntimeStepResult result = runtime.start(RuntimeStartCommand.builder()
+                .runId("run-006")
+                .sessionId("sess-006")
+                .userId("u1")
+                .userInput("continue once")
+                .build());
+
+        Assert.assertEquals(RuntimeStepStatusEnumVO.COMPLETED, result.getStatus());
+        Assert.assertEquals(1, prepareCount.get());
+        Assert.assertEquals(1, refreshCount.get());
+        Assert.assertEquals(2, mainCount.get());
+    }
+
+    @Test
     public void normal_message_table_is_not_used_as_internal_transcript() {
         RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
         AutoAgentRuntimeService runtime = RuntimeTestSupport.runtime(repository, RuntimeTestSupport.fixedPorts(finalAction()), true, new RuntimeLoopPolicy());
@@ -127,6 +180,13 @@ public class RuntimeTranscriptBoundaryTest {
         return MainAgentActionVO.builder()
                 .action("FINAL")
                 .stateDelta(Map.of("finalAnswerCandidate", Map.of("content", "done")))
+                .build();
+    }
+
+    private MainAgentActionVO continueAction() {
+        return MainAgentActionVO.builder()
+                .action("CONTINUE")
+                .stateDelta(Map.of("nextActionHint", "continue once"))
                 .build();
     }
 

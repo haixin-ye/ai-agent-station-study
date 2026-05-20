@@ -66,7 +66,7 @@ public class RetrieveRagActionHandler extends MainActionHandlerSupport implement
             if (result != null && (result.getStatus() == RagRuntimeStatusEnumVO.SUCCESS || result.getStatus() == RagRuntimeStatusEnumVO.NO_HIT)) {
                 return MainActionHandlerResult.builder()
                         .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
-                        .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                        .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
                         .createdEvidenceIds(result.getEvidenceIds())
                         .message(result.getMessage())
                         .build();

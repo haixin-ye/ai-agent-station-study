@@ -8,5 +8,7 @@ public interface RuntimeComponentPorts {
 
     ContextPlannerHandlingResult prepareContext(RuntimeExecutionContext context);
 
+    ContextPlannerHandlingResult refreshContext(RuntimeExecutionContext context);
+
     MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context);
 }

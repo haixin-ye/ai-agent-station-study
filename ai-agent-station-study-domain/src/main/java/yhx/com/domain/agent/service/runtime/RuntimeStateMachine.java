@@ -24,15 +24,18 @@ public class RuntimeStateMachine {
         allow(RuntimePhaseEnumVO.REPAIRING_CONTRACT, RuntimePhaseEnumVO.VALIDATING_ACTION, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.EXECUTING_RAG,
                 RuntimePhaseEnumVO.PREPARING_TOOL, RuntimePhaseEnumVO.VERIFYING_FINAL, RuntimePhaseEnumVO.WAITING_USER,
+                RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE,
                 RuntimePhaseEnumVO.COMPLETED, RuntimePhaseEnumVO.FAILED);
-        allow(RuntimePhaseEnumVO.EXECUTING_RAG, RuntimePhaseEnumVO.PREPARING_CONTEXT);
+        allow(RuntimePhaseEnumVO.EXECUTING_RAG, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
         allow(RuntimePhaseEnumVO.PREPARING_TOOL, RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.INVOKING_TOOL_RUNTIME, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.INVOKING_TOOL_RUNTIME, RuntimePhaseEnumVO.VERIFYING_TOOL);
-        allow(RuntimePhaseEnumVO.VERIFYING_TOOL, RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.FAILED);
+        allow(RuntimePhaseEnumVO.VERIFYING_TOOL, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE,
+                RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.VERIFYING_FINAL, RuntimePhaseEnumVO.REPAIRING_FINAL, RuntimePhaseEnumVO.COMPLETED, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.REPAIRING_FINAL, RuntimePhaseEnumVO.VERIFYING_FINAL);
         allow(RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.RESOLVING_USER_ANSWER);
-        allow(RuntimePhaseEnumVO.RESOLVING_USER_ANSWER, RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.PREPARING_TOOL,
+        allow(RuntimePhaseEnumVO.RESOLVING_USER_ANSWER, RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
+                RuntimePhaseEnumVO.PREPARING_TOOL,
                 RuntimePhaseEnumVO.CALLING_MAIN_NODE, RuntimePhaseEnumVO.CANCELLED, RuntimePhaseEnumVO.FAILED);
     }
 

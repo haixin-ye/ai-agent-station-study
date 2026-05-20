@@ -44,7 +44,7 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
             if (alreadyAnswered(context, request)) {
                 return MainActionHandlerResult.builder()
                         .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
-                        .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                        .nextPhase(RuntimePhaseEnumVO.CALLING_MAIN_NODE)
                         .message("User already answered this clarification. Continue with userClarifications.")
                         .build();
             }
@@ -56,7 +56,7 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
                     .askUserRequest(request)
                     .continuation(ContinuationCheckpointVO.builder()
                             .handler(MainAgentPendingInputHandler.HANDLER_CODE)
-                            .resumePhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                            .resumePhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
                             .sourceComponent(MainAgentPendingInputHandler.HANDLER_CODE)
                             .relatedRunId(context.getRunId())
                             .relatedLoopIndex(context.getLoopIndex())

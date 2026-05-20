@@ -80,7 +80,7 @@ public class UpdateArtifactActionHandler extends FinalActionHandler {
             }
             return MainActionHandlerResult.builder()
                     .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
-                    .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                    .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
                     .createdArtifactIds(List.of(artifact.getArtifactId()))
                     .message("Artifact updated.")
                     .build();

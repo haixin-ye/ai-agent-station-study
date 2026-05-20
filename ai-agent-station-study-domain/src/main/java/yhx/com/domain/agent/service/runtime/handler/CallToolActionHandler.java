@@ -76,7 +76,7 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
             if (result.getStatus() == ToolActionStatusEnumVO.CONTINUE_LOOP) {
                 return MainActionHandlerResult.builder()
                         .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
-                        .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                        .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
                         .createdEvidenceIds(result.getEvidenceIds())
                         .message(result.getMessage())
                         .build();

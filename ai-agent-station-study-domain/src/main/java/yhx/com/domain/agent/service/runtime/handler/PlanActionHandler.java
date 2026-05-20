@@ -52,7 +52,7 @@ public class PlanActionHandler extends MainActionHandlerSupport implements MainA
                     .build());
             return MainActionHandlerResult.builder()
                     .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
-                    .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                    .nextPhase(RuntimePhaseEnumVO.CALLING_MAIN_NODE)
                     .message("Plan state saved.")
                     .build();
         } catch (IllegalArgumentException e) {

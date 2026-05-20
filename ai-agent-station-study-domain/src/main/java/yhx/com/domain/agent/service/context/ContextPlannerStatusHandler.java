@@ -7,6 +7,7 @@ import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
 import yhx.com.domain.agent.model.valobj.context.FailureVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewBuildCommand;
+import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
@@ -40,6 +41,23 @@ public class ContextPlannerStatusHandler {
             case CONTEXT_OVER_BUDGET -> failure(COMPRESS_OR_ASK, "CONTEXT_OVER_BUDGET", "ContextPlanner selected oversized context.");
             case FAILED -> minimal(BUILD_MINIMAL_STATE_VIEW, candidates);
         };
+    }
+
+    public ContextPlannerHandlingResult refreshWithoutPlanner(ContextCandidateBundleVO candidates) {
+        if (candidates == null) {
+            return failure(SAFE_FAILURE, "CONTEXT_CANDIDATES_MISSING", "Context candidates are missing.");
+        }
+        return ContextPlannerHandlingResult.builder()
+                .nextStep(BUILD_MINIMAL_STATE_VIEW)
+                .stateView(stateViewBuilder.build(MainAgentStateViewBuildCommand.builder()
+                        .candidates(candidates)
+                        .artifactContent(List.of())
+                        .memoryPack(List.of())
+                        .evidencePack(materializeEvidence(candidates))
+                        .tokenBudget(candidates.getTokenBudget())
+                        .build()))
+                .effectiveSelections(List.of())
+                .build();
     }
 
     private ContextPlannerHandlingResult ready(ContextPlannerOutputVO output, ContextCandidateBundleVO candidates) {
@@ -109,6 +127,31 @@ public class ContextPlannerStatusHandler {
                 .failure(FailureVO.builder().failureCode(code).message(message).build())
                 .effectiveSelections(List.of())
                 .build();
+    }
+
+    private List<MaterializedEvidenceVO> materializeEvidence(ContextCandidateBundleVO candidates) {
+        if (candidates.getEvidenceCandidates() == null || candidates.getEvidenceCandidates().isEmpty()) {
+            return List.of();
+        }
+        return candidates.getEvidenceCandidates().stream()
+                .map(evidence -> MaterializedEvidenceVO.builder()
+                        .evidenceId(evidence.getEvidenceId())
+                        .evidenceType(evidence.getEvidenceType())
+                        .sourceRef(evidence.getSourceRef())
+                        .summary(truncate(evidence.getSummary(), candidates))
+                        .boundedSnippet(truncate(evidence.getSummary(), candidates))
+                        .build())
+                .toList();
+    }
+
+    private String truncate(String value, ContextCandidateBundleVO candidates) {
+        if (value == null) {
+            return null;
+        }
+        int maxChars = candidates.getTokenBudget() == null || candidates.getTokenBudget().getMaxEvidenceSummaryChars() == null
+                ? 800
+                : candidates.getTokenBudget().getMaxEvidenceSummaryChars();
+        return value.length() <= maxChars ? value : value.substring(0, maxChars);
     }
 
     private List<ContextSelectionVO> toSelections(ContextPlannerOutputVO output) {

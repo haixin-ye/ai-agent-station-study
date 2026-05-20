@@ -85,6 +85,30 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
     }
 
     @Override
+    public ContextPlannerHandlingResult refreshContext(RuntimeExecutionContext context) {
+        log.info("[AutoAgent][context-refresh] runId={}, sessionId={}, loopIndex={}",
+                context.getRunId(), context.getSessionId(), context.getLoopIndex());
+        ContextCandidateBundleVO candidates = contextPreparationService.prepare(ContextPreparationCommand.builder()
+                .runId(context.getRunId())
+                .sessionId(context.getSessionId())
+                .userId(context.getUserId())
+                .agentId(context.getAgentId())
+                .userMessageId(context.getUserMessageId())
+                .userInput(context.getUserInput())
+                .loopIndex(context.getLoopIndex())
+                .availableCapabilities(availableCapabilities)
+                .tokenBudget(defaultTokenBudget)
+                .runtimeFacts(context.getRuntimeFacts())
+                .build());
+        ContextPlannerHandlingResult result = contextPlannerStatusHandler.refreshWithoutPlanner(candidates);
+        log.info("[AutoAgent][context-refreshed] runId={}, loopIndex={}, hasStateView={}, failure={}",
+                context.getRunId(), context.getLoopIndex(),
+                result != null && result.getStateView() != null,
+                result == null ? null : result.getFailure());
+        return result;
+    }
+
+    @Override
     public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
         log.info("[AutoAgent][main-agent-start] runId={}, loopIndex={}",
                 context.getRunId(), context.getLoopIndex());

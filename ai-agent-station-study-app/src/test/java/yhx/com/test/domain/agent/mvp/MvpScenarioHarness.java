@@ -96,6 +96,14 @@ class MvpScenarioHarness {
             }
 
             @Override
+            public ContextPlannerHandlingResult refreshContext(RuntimeExecutionContext context) {
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
             public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
                 return MainAgentActionVO.builder().action("FINAL").build();
             }
@@ -232,4 +240,3 @@ class MvpScenarioHarness {
         }
     }
 }
-

@@ -43,7 +43,7 @@ public class ContinueActionHandler extends MainActionHandlerSupport implements M
         }
         return MainActionHandlerResult.builder()
                 .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
-                .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                .nextPhase(RuntimePhaseEnumVO.CALLING_MAIN_NODE)
                 .message("Continue hint accepted.")
                 .build();
     }
