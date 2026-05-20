@@ -31,7 +31,7 @@ public class ContextPlannerPendingInputHandler implements PendingInputContinuati
                 .sessionId(context.getSessionId())
                 .status(RuntimeStepStatusEnumVO.CONTINUE)
                 .nextRunStatus(RunStatusEnumVO.RUNNING)
-                .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                .nextPhase(ContinuationCheckpointSupport.resumePhase(checkpoint, RuntimePhaseEnumVO.PREPARING_CONTEXT))
                 .message("ContextPlanner pending input resolved.")
                 .build();
     }
@@ -46,4 +46,5 @@ public class ContextPlannerPendingInputHandler implements PendingInputContinuati
                 .message("User cancelled context clarification.")
                 .build();
     }
+
 }

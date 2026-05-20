@@ -256,6 +256,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             }
             if (continuation.getNextPhase() == RuntimePhaseEnumVO.PREPARING_CONTEXT
                     || continuation.getNextPhase() == RuntimePhaseEnumVO.BUILDING_STATE_VIEW
+                    || continuation.getNextPhase() == RuntimePhaseEnumVO.PREPARING_TOOL
                     || continuation.getNextPhase() == RuntimePhaseEnumVO.CALLING_MAIN_NODE) {
                 return runLoop(context);
             }
@@ -339,6 +340,21 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 return failRun(context, failureFactory.maxLoopReached(context.getCurrentPhase()));
             }
 
+            if (context.getCurrentPhase() == RuntimePhaseEnumVO.PREPARING_TOOL) {
+                RuntimeStepResult toolResult = resumeToolAction(context);
+                if (toolResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
+                    context.countersOrInitial().incrementLoop();
+                    context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
+                    RuntimeSafeFailureVO loopTransition = enterPhase(context, nextLoopPhase(context, toolResult));
+                    if (loopTransition != null) {
+                        return failRun(context, loopTransition);
+                    }
+                    continue;
+                }
+                applyRunResult(context, toolResult);
+                return toolResult;
+            }
+
             RuntimeStepResult contextResult = prepareOrRefreshStateView(context);
             if (contextResult != null) {
                 return contextResult;
@@ -379,6 +395,41 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         }
         return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.MISSING_ACTIVE_RUN,
                 context.getCurrentPhase(), "Run loop exited without terminal status.", false));
+    }
+
+    private RuntimeStepResult resumeToolAction(RuntimeExecutionContext context) {
+        Map<String, Object> toolIntent = resumeToolIntent(context);
+        if (toolIntent == null || toolIntent.isEmpty()) {
+            RuntimeSafeFailureVO failure = failureFactory.create(RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,
+                    RuntimePhaseEnumVO.PREPARING_TOOL, "Tool approval checkpoint is missing toolIntent.", true);
+            return failure(context.getRunId(), context.getSessionId(), failure);
+        }
+        MainAgentActionVO action = MainAgentActionVO.builder()
+                .action(MainAgentActionTypeEnumVO.CALL_TOOL.code())
+                .stateDelta(Map.of("toolIntent", toolIntent))
+                .build();
+        context.setLastAction(action);
+        traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), MainAgentActionTypeEnumVO.CALL_TOOL, null);
+        transcriptRecorder.appendAssistantAction(context.getRunId(), context.getLoopIndex(), action, null);
+
+        RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.HANDLING_ACTION);
+        if (transitionFailure != null) {
+            return failure(context.getRunId(), context.getSessionId(), transitionFailure);
+        }
+        MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
+        return routeActionResult(context, action, actionResult);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resumeToolIntent(RuntimeExecutionContext context) {
+        if (context == null || context.getRuntimeFacts() == null) {
+            return null;
+        }
+        Object value = context.getRuntimeFacts().get("resumeToolIntent");
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return null;
     }
 
     private RuntimeStepResult prepareOrRefreshStateView(RuntimeExecutionContext context) {

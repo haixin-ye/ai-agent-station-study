@@ -39,6 +39,13 @@ public class RuntimeStateMachineTest {
     }
 
     @Test
+    public void preparing_tool_can_resume_directly_to_action_handler() {
+        RuntimeStateMachine stateMachine = new RuntimeStateMachine();
+
+        Assert.assertTrue(stateMachine.canEnter(RuntimePhaseEnumVO.PREPARING_TOOL, RuntimePhaseEnumVO.HANDLING_ACTION));
+    }
+
+    @Test
     public void terminal_status_cannot_continue_loop() {
         RuntimeStateMachine stateMachine = new RuntimeStateMachine();
 

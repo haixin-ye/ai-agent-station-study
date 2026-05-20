@@ -19,7 +19,6 @@ public class ToolApprovalKeyGenerator {
     public String approvalKey(ToolApprovalKeyCommandVO command) {
         Map<String, Object> key = new LinkedHashMap<>();
         key.put("runId", command.getRunId());
-        key.put("toolCallId", command.getToolCallId());
         key.put("capabilityCode", command.getCapabilityCode());
         key.put("mcpServerCode", command.getMcpServerCode());
         key.put("toolName", command.getToolName());

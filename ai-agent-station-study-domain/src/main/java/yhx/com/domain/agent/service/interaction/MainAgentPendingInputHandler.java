@@ -38,7 +38,7 @@ public class MainAgentPendingInputHandler implements PendingInputContinuationHan
                 .sessionId(context.getSessionId())
                 .status(RuntimeStepStatusEnumVO.CONTINUE)
                 .nextRunStatus(RunStatusEnumVO.RUNNING)
-                .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
+                .nextPhase(ContinuationCheckpointSupport.resumePhase(checkpoint, RuntimePhaseEnumVO.BUILDING_STATE_VIEW))
                 .message("MainAgent pending input resolved.")
                 .build();
     }

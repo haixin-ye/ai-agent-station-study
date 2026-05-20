@@ -38,7 +38,7 @@ public class RagPendingInputHandler implements PendingInputContinuationHandler {
                 .sessionId(context.getSessionId())
                 .status(RuntimeStepStatusEnumVO.CONTINUE)
                 .nextRunStatus(RunStatusEnumVO.RUNNING)
-                .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                .nextPhase(ContinuationCheckpointSupport.resumePhase(checkpoint, RuntimePhaseEnumVO.BUILDING_STATE_VIEW))
                 .message("RAG clarification resolved.")
                 .build();
     }

@@ -80,7 +80,11 @@ public class ToolApprovalService {
                         .resumePhase(RuntimePhaseEnumVO.PREPARING_TOOL)
                         .sourceComponent("ToolApprovalService")
                         .relatedRunId(command.getRunId())
-                        .payload(Map.of("approvalId", approvalId, "approvalKey", command.getApprovalKey(), "toolCallId", command.getToolCallId()))
+                        .payload(Map.of(
+                                "approvalId", approvalId,
+                                "approvalKey", command.getApprovalKey(),
+                                "toolCallId", command.getToolCallId(),
+                                "toolIntent", toolIntentPayload(command)))
                         .build())
                 .build());
         return ToolApprovalDecisionResultVO.builder()
@@ -115,6 +119,18 @@ public class ToolApprovalService {
         return ToolApprovalDecisionResultVO.builder().status(ToolApprovalDecisionStatusEnumVO.REJECTED).approval(approval).failureCode("TOOL_PERMISSION_DENIED").message("Tool rejected.").build();
     }
 
+    public ToolApprovalDecisionResultVO handleUserDecisionByApprovalKey(UserAnswerVO answer, String approvalKey) {
+        if (approvalKey == null || approvalKey.isBlank()) {
+            return ToolApprovalDecisionResultVO.builder()
+                    .status(ToolApprovalDecisionStatusEnumVO.DENIED)
+                    .failureCode("TOOL_APPROVAL_REQUIRED")
+                    .message("Approval key is missing.")
+                    .build();
+        }
+        ToolApprovalEntity approval = toolRepository.findApprovalByApprovalKey(approvalKey).orElse(null);
+        return handleUserDecision(answer, approval);
+    }
+
     private ToolApprovalDecisionResultVO fromExisting(ToolApprovalEntity approval) {
         if (approval.getStatus() == ToolApprovalStatusEnumVO.APPROVED) {
             return ToolApprovalDecisionResultVO.builder().status(ToolApprovalDecisionStatusEnumVO.APPROVED).approval(approval).build();
@@ -138,6 +154,14 @@ public class ToolApprovalService {
                         Map.of("id", "reject", "label", "Reject", "value", Map.of("decision", "REJECTED", "approvalKey", command.getApprovalKey()))
                 ))
                 .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> toolIntentPayload(ToolApprovalDecisionCommandVO command) {
+        if (command == null || command.getToolIntent() == null) {
+            return Map.of();
+        }
+        return JSON.parseObject(JSON.toJSONString(command.getToolIntent()), Map.class);
     }
 
     private String savePayload(Object value) {

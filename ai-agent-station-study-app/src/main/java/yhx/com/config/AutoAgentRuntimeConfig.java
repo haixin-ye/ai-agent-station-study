@@ -90,6 +90,7 @@ import yhx.com.domain.agent.service.runtime.port.PlanStatePort;
 import yhx.com.domain.agent.service.runtime.port.RagRuntimePort;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
+import yhx.com.domain.agent.service.tool.ToolApprovalService;
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 import yhx.com.infrastructure.adapter.repository.AsyncFileRunDiagnosticRepository;
 
@@ -272,11 +273,11 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public PendingInputContinuationDispatcher pendingInputContinuationDispatcher() {
+    public PendingInputContinuationDispatcher pendingInputContinuationDispatcher(ObjectProvider<ToolApprovalService> toolApprovalServiceProvider) {
         return new PendingInputContinuationDispatcher(List.of(
                 new ContextPlannerPendingInputHandler(),
                 new MainAgentPendingInputHandler(),
-                new ToolApprovalPendingInputHandler(),
+                new ToolApprovalPendingInputHandler(toolApprovalServiceProvider::getIfAvailable),
                 new RagPendingInputHandler(),
                 new FinalRepairPendingInputHandler()));
     }

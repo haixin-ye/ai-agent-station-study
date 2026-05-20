@@ -38,7 +38,7 @@ public class FinalRepairPendingInputHandler implements PendingInputContinuationH
                 .sessionId(context.getSessionId())
                 .status(RuntimeStepStatusEnumVO.CONTINUE)
                 .nextRunStatus(RunStatusEnumVO.RUNNING)
-                .nextPhase(RuntimePhaseEnumVO.REPAIRING_FINAL)
+                .nextPhase(ContinuationCheckpointSupport.resumePhase(checkpoint, RuntimePhaseEnumVO.REPAIRING_FINAL))
                 .message("Final repair clarification resolved.")
                 .build();
     }

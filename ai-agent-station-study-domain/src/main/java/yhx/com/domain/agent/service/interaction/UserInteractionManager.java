@@ -112,6 +112,9 @@ public class UserInteractionManager {
             transcriptRecorder.appendUserReply(pendingInput.getRunId(), context == null ? null : context.getLoopIndex(), answer, answerRef);
         }
         ContinuationCheckpointVO checkpoint = loadContinuation(pendingInput.getContinuationRef());
+        if (context != null && context.getRuntimeFacts() != null && checkpoint != null) {
+            context.getRuntimeFacts().put("continuationCheckpoint", checkpoint);
+        }
         RuntimeStepResult continuationResult = continuationDispatcher.dispatch(answer, checkpoint, context);
         return UserInputResolveResult.builder()
                 .pendingInputId(pendingInput.getPendingId())

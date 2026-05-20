@@ -27,7 +27,7 @@ public class RuntimeStateMachine {
                 RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE,
                 RuntimePhaseEnumVO.COMPLETED, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.EXECUTING_RAG, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
-        allow(RuntimePhaseEnumVO.PREPARING_TOOL, RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.INVOKING_TOOL_RUNTIME, RuntimePhaseEnumVO.FAILED);
+        allow(RuntimePhaseEnumVO.PREPARING_TOOL, RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.INVOKING_TOOL_RUNTIME, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.INVOKING_TOOL_RUNTIME, RuntimePhaseEnumVO.VERIFYING_TOOL);
         allow(RuntimePhaseEnumVO.VERIFYING_TOOL, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE,
                 RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.FAILED);

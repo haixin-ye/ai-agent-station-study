@@ -46,11 +46,14 @@ public class PendingInputContinuationDispatcherTest {
 
     @Test
     public void tool_approval_approve_resumes_preparing_tool() {
+        RuntimeExecutionContext context = context();
         RuntimeStepResult result = RuntimeTestSupport.defaultContinuationDispatcher().dispatch(answer(Map.of("decision", "APPROVED")),
-                checkpoint(ToolApprovalPendingInputHandler.HANDLER_CODE), context());
+                checkpoint(ToolApprovalPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.PREPARING_TOOL,
+                        Map.of("toolIntent", Map.of("capabilityCode", "publish", "goal", "publish content"))), context);
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.CONTINUE, result.getStatus());
         Assert.assertEquals(RuntimePhaseEnumVO.PREPARING_TOOL, result.getNextPhase());
+        Assert.assertNotNull(context.getRuntimeFacts().get("resumeToolIntent"));
     }
 
     @Test
@@ -59,7 +62,7 @@ public class PendingInputContinuationDispatcherTest {
                 checkpoint(ToolApprovalPendingInputHandler.HANDLER_CODE), context());
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.CONTINUE, result.getStatus());
-        Assert.assertEquals(RuntimePhaseEnumVO.PREPARING_CONTEXT, result.getNextPhase());
+        Assert.assertEquals(RuntimePhaseEnumVO.BUILDING_STATE_VIEW, result.getNextPhase());
     }
 
     @Test
@@ -82,6 +85,14 @@ public class PendingInputContinuationDispatcherTest {
 
     private ContinuationCheckpointVO checkpoint(String handler) {
         return ContinuationCheckpointVO.builder().handler(handler).resumePhase(RuntimePhaseEnumVO.PREPARING_CONTEXT).build();
+    }
+
+    private ContinuationCheckpointVO checkpoint(String handler, RuntimePhaseEnumVO resumePhase, Map<String, Object> payload) {
+        return ContinuationCheckpointVO.builder()
+                .handler(handler)
+                .resumePhase(resumePhase)
+                .payload(payload)
+                .build();
     }
 
     private UserAnswerVO answer(Object value) {

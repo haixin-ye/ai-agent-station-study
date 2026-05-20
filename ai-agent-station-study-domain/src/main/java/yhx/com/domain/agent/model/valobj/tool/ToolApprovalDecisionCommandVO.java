@@ -19,4 +19,5 @@ public class ToolApprovalDecisionCommandVO {
     private CapabilitySpecVO capability;
     private McpToolSpecVO toolSpec;
     private PermissionDecisionVO permissionDecision;
+    private ToolIntentVO toolIntent;
 }
