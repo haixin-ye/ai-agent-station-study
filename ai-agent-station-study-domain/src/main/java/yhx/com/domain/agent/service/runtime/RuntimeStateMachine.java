@@ -65,7 +65,8 @@ public class RuntimeStateMachine {
             case RETRIEVE_RAG -> RuntimePhaseEnumVO.EXECUTING_RAG;
             case CALL_TOOL -> RuntimePhaseEnumVO.PREPARING_TOOL;
             case ASK_USER -> RuntimePhaseEnumVO.WAITING_USER;
-            case CREATE_ARTIFACT, UPDATE_ARTIFACT, PLAN, CONTINUE -> RuntimePhaseEnumVO.PREPARING_CONTEXT;
+            case CREATE_ARTIFACT, UPDATE_ARTIFACT -> RuntimePhaseEnumVO.BUILDING_STATE_VIEW;
+            case PLAN, CONTINUE -> RuntimePhaseEnumVO.CALLING_MAIN_NODE;
         };
     }
 

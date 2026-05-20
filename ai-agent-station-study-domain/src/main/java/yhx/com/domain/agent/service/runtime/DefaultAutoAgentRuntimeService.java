@@ -51,6 +51,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private final MainActionDispatcher actionDispatcher;
     private final UserInteractionManager userInteractionManager;
     private final RuntimeLoopPolicy loopPolicy;
+    private final RuntimeRoutePolicy routePolicy;
     private final RuntimeStateMachine stateMachine;
     private final RuntimeFailureFactory failureFactory;
     private final RuntimePhaseGuard phaseGuard;
@@ -79,6 +80,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 actionDispatcher,
                 userInteractionManager,
                 loopPolicy,
+                null,
                 stateMachine,
                 failureFactory,
                 phaseGuard,
@@ -102,6 +104,38 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                                           RunTranscriptRecorder transcriptRecorder,
                                           DeveloperTraceRecorder traceRecorder,
                                           RunDiagnosticRecorder diagnosticRecorder) {
+        this(conversationRepository,
+                runRepository,
+                payloadRepository,
+                componentPorts,
+                actionDispatcher,
+                userInteractionManager,
+                loopPolicy,
+                null,
+                stateMachine,
+                failureFactory,
+                phaseGuard,
+                eventPublisher,
+                transcriptRecorder,
+                traceRecorder,
+                diagnosticRecorder);
+    }
+
+    public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
+                                          IRunRepository runRepository,
+                                          IPayloadRepository payloadRepository,
+                                          RuntimeComponentPorts componentPorts,
+                                          MainActionDispatcher actionDispatcher,
+                                          UserInteractionManager userInteractionManager,
+                                          RuntimeLoopPolicy loopPolicy,
+                                          RuntimeRoutePolicy routePolicy,
+                                          RuntimeStateMachine stateMachine,
+                                          RuntimeFailureFactory failureFactory,
+                                          RuntimePhaseGuard phaseGuard,
+                                          RunEventPublisher eventPublisher,
+                                          RunTranscriptRecorder transcriptRecorder,
+                                          DeveloperTraceRecorder traceRecorder,
+                                          RunDiagnosticRecorder diagnosticRecorder) {
         this.conversationRepository = conversationRepository;
         this.runRepository = runRepository;
         this.payloadRepository = payloadRepository;
@@ -109,6 +143,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         this.actionDispatcher = actionDispatcher;
         this.userInteractionManager = userInteractionManager;
         this.loopPolicy = loopPolicy == null ? new RuntimeLoopPolicy() : loopPolicy;
+        this.routePolicy = routePolicy == null ? new RuntimeRoutePolicy() : routePolicy;
         this.stateMachine = stateMachine == null ? new RuntimeStateMachine() : stateMachine;
         this.failureFactory = failureFactory == null ? new RuntimeFailureFactory() : failureFactory;
         this.phaseGuard = phaseGuard;
@@ -516,19 +551,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     }
 
     private RuntimePhaseEnumVO nextLoopPhase(RuntimeExecutionContext context, RuntimeStepResult stepResult) {
-        RuntimePhaseEnumVO requested = stepResult == null || stepResult.getNextPhase() == null
-                ? RuntimePhaseEnumVO.CALLING_MAIN_NODE
-                : stepResult.getNextPhase();
-        if (requested == RuntimePhaseEnumVO.PREPARING_CONTEXT && context.getLastStateView() != null && !forceContextReplan(context)) {
-            return RuntimePhaseEnumVO.BUILDING_STATE_VIEW;
-        }
-        return requested;
-    }
-
-    private boolean forceContextReplan(RuntimeExecutionContext context) {
-        return context != null
-                && context.getRuntimeFacts() != null
-                && Boolean.TRUE.equals(context.getRuntimeFacts().get("forceContextReplan"));
+        return routePolicy.nextLoopPhase(context, stepResult);
     }
 
     private RuntimeStepResult routeActionResult(RuntimeExecutionContext context, MainAgentActionVO action, MainActionHandlerResult actionResult) {
