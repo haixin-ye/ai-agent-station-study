@@ -17,7 +17,8 @@ public enum RuntimeFailureCodeEnumVO {
     ACTION_HANDLER_UNAVAILABLE("ACTION_HANDLER_UNAVAILABLE", "No action handler is available."),
     MAIN_ACTION_CONTRACT_FAILED("MAIN_ACTION_CONTRACT_FAILED", "Main agent action failed contract validation."),
     MAIN_ACTION_PARSE_FAILED("MAIN_ACTION_PARSE_FAILED", "Main agent action could not be parsed."),
-    FINAL_INTERNAL_LEAK("FINAL_INTERNAL_LEAK", "Final answer leaked internal runtime details.");
+    FINAL_INTERNAL_LEAK("FINAL_INTERNAL_LEAK", "Final answer leaked internal runtime details."),
+    UNEXPECTED_RUNTIME_ERROR("UNEXPECTED_RUNTIME_ERROR", "Unexpected runtime error.");
 
     private final String code;
     private final String info;

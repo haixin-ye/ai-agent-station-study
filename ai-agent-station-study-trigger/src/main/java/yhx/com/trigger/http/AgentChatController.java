@@ -50,6 +50,12 @@ public class AgentChatController {
                             runId, sessionId, result == null ? null : result.getStatus());
                 } catch (Exception e) {
                     log.error("[AutoAgent][chat-async-error] runId={}, sessionId={}", runId, sessionId, e);
+                    try {
+                        agentRuntimeFacade.reportUnexpectedFailure(runId, sessionId, e);
+                    } catch (Exception reportError) {
+                        log.error("[AutoAgent][chat-async-error-report-failed] runId={}, sessionId={}",
+                                runId, sessionId, reportError);
+                    }
                 }
             });
             return AgentResponseSupport.success(AgentChatResponseDTO.builder()

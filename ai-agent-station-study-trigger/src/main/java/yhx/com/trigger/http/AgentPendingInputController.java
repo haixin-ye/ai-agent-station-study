@@ -1,6 +1,7 @@
 package yhx.com.trigger.http;
 
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import yhx.com.api.dto.agent.AgentPendingInputDTO;
 import yhx.com.api.dto.agent.AgentUserInputRequestDTO;
@@ -18,6 +19,7 @@ import java.util.Optional;
 @RestController
 @CrossOrigin("*")
 @RequestMapping("/agent/runs")
+@Slf4j
 public class AgentPendingInputController {
 
     @Resource
@@ -57,6 +59,13 @@ public class AgentPendingInputController {
                     .status(result.getNextRunStatus() == null ? null : result.getNextRunStatus().code())
                     .build());
         } catch (Exception e) {
+            log.error("[AutoAgent][user-input-error] runId={}, pendingId={}", runId, request.getPendingId(), e);
+            try {
+                agentRuntimeFacade.reportUnexpectedFailure(runId, null, e);
+            } catch (Exception reportError) {
+                log.error("[AutoAgent][user-input-error-report-failed] runId={}, pendingId={}",
+                        runId, request.getPendingId(), reportError);
+            }
             return AgentResponseSupport.failed(e.getMessage());
         }
     }

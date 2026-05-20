@@ -20,6 +20,7 @@ public class MainAgentStateViewVO {
     private List<ArtifactCandidateVO> resolvedArtifacts;
     private List<MaterializedArtifactContentVO> artifactContent;
     private List<MaterializedEvidenceVO> evidencePack;
+    private List<UserClarificationVO> userClarifications;
     private List<CapabilityCandidateVO> availableCapabilities;
     private PendingActionViewVO pendingAction;
     private Object currentPlan;

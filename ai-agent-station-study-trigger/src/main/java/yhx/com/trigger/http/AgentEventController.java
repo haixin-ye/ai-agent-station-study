@@ -65,7 +65,9 @@ public class AgentEventController {
                         .map(event -> AgentApiMapper.toUserEvent(event, agentQueryFacade))
                         .toList();
                 for (AgentUserVisibleEventDTO event : events) {
-                    sseEmitterRegistry.send(streamKey, "agent-event", event.getEventId(), event);
+                    if (!sseEmitterRegistry.send(streamKey, "agent-event", event.getEventId(), event)) {
+                        return;
+                    }
                     cursor = Math.max(cursor, event.getSeq() == null ? cursor : event.getSeq());
                     if (isTerminal(event)) {
                         sseEmitterRegistry.complete(streamKey);
@@ -74,8 +76,10 @@ public class AgentEventController {
                 }
                 long now = System.currentTimeMillis();
                 if (now - lastHeartbeatAt >= STREAM_HEARTBEAT_INTERVAL_MS) {
-                    sseEmitterRegistry.send(streamKey, "agent-heartbeat", "heartbeat-" + runId + "-" + cursor,
-                            Map.of("runId", runId, "lastSeq", cursor, "timestamp", now));
+                    if (!sseEmitterRegistry.send(streamKey, "agent-heartbeat", "heartbeat-" + runId + "-" + cursor,
+                            Map.of("runId", runId, "lastSeq", cursor, "timestamp", now))) {
+                        return;
+                    }
                     lastHeartbeatAt = now;
                 }
                 Thread.sleep(STREAM_POLL_INTERVAL_MS);

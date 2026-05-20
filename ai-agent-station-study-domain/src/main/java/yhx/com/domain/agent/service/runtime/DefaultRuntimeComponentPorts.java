@@ -69,6 +69,7 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
                 .loopIndex(context.getLoopIndex())
                 .availableCapabilities(availableCapabilities)
                 .tokenBudget(defaultTokenBudget)
+                .runtimeFacts(context.getRuntimeFacts())
                 .build());
         ContextPlannerOutputVO plannerOutput = contextPlannerNodeService.plan(candidates,
                 context.getRunId(),

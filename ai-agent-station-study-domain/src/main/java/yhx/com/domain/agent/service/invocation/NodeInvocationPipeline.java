@@ -20,8 +20,10 @@ import yhx.com.domain.agent.service.contract.ContractRegistry;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 import yhx.com.domain.agent.service.contract.RawOutputParser;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
+import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,10 +36,18 @@ public class NodeInvocationPipeline {
     private final ContractRegistry contractRegistry;
     private final ContractValidator contractValidator;
     private final NodeOutputMapper nodeOutputMapper;
+    private final RunDiagnosticRecorder diagnosticRecorder;
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler, INodeClientPort nodeClientPort) {
         this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
-                ContractValidator.defaultValidator(), new NodeOutputMapper());
+                ContractValidator.defaultValidator(), new NodeOutputMapper(), null);
+    }
+
+    public NodeInvocationPipeline(PromptAssembler promptAssembler,
+                                  INodeClientPort nodeClientPort,
+                                  RunDiagnosticRecorder diagnosticRecorder) {
+        this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
+                ContractValidator.defaultValidator(), new NodeOutputMapper(), diagnosticRecorder);
     }
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler,
@@ -46,12 +56,23 @@ public class NodeInvocationPipeline {
                                   ContractRegistry contractRegistry,
                                   ContractValidator contractValidator,
                                   NodeOutputMapper nodeOutputMapper) {
+        this(promptAssembler, nodeClientPort, rawOutputParser, contractRegistry, contractValidator, nodeOutputMapper, null);
+    }
+
+    public NodeInvocationPipeline(PromptAssembler promptAssembler,
+                                  INodeClientPort nodeClientPort,
+                                  RawOutputParser rawOutputParser,
+                                  ContractRegistry contractRegistry,
+                                  ContractValidator contractValidator,
+                                  NodeOutputMapper nodeOutputMapper,
+                                  RunDiagnosticRecorder diagnosticRecorder) {
         this.promptAssembler = promptAssembler;
         this.nodeClientPort = nodeClientPort;
         this.rawOutputParser = rawOutputParser;
         this.contractRegistry = contractRegistry;
         this.contractValidator = contractValidator;
         this.nodeOutputMapper = nodeOutputMapper;
+        this.diagnosticRecorder = diagnosticRecorder;
     }
 
     public NodeInvocationResult invoke(NodeInvocationCommand command) {
@@ -62,6 +83,13 @@ public class NodeInvocationPipeline {
                 command == null ? null : command.getPromptVersion(),
                 command == null ? null : command.getModelCode(),
                 command == null ? null : command.getMaxRepairAttempts());
+        diagnostic(command == null ? null : command.getRunId(), "NODE_INVOKE", diagnosticMap(
+                "componentCode", command == null ? null : command.getComponentCode(),
+                "contractVersion", command == null ? null : command.getContractVersion(),
+                "promptVersion", command == null ? null : command.getPromptVersion(),
+                "modelCode", command == null ? null : command.getModelCode(),
+                "maxRepairAttempts", command == null ? null : command.getMaxRepairAttempts()
+        ));
         List<NodeInvocationAttempt> attempts = new ArrayList<>();
         InvocationEvaluation first = callAndEvaluate(command, command.getInputView(), false, 1);
         attempts.add(first.attempt());
@@ -105,6 +133,13 @@ public class NodeInvocationPipeline {
         String prompt = promptResult.assembledPrompt();
         log.info("[AutoAgent][node-call] runId={}, component={}, attemptNo={}, repairAttempt={}, promptChars={}",
                 command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, prompt == null ? 0 : prompt.length());
+        diagnostic(command.getRunId(), "NODE_CALL", diagnosticMap(
+                "componentCode", command.getComponentCode(),
+                "attemptNo", attemptNo,
+                "repairAttempt", repairAttempt,
+                "promptChars", prompt == null ? 0 : prompt.length(),
+                "prompt", prompt
+        ));
         String rawOutput;
         try {
             NodeClientResponse response = nodeClientPort.call(NodeClientRequest.builder()
@@ -120,6 +155,11 @@ public class NodeInvocationPipeline {
         } catch (Exception e) {
             log.error("[AutoAgent][node-client-error] runId={}, component={}, attemptNo={}, repairAttempt={}",
                     command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, e);
+            diagnosticError(command.getRunId(), "NODE_CLIENT_ERROR", e, diagnosticMap(
+                    "componentCode", command.getComponentCode(),
+                    "attemptNo", attemptNo,
+                    "repairAttempt", repairAttempt
+            ));
             NodeInvocationAttempt attempt = NodeInvocationAttempt.builder()
                     .attemptNo(attemptNo)
                     .componentCode(command.getComponentCode())
@@ -162,9 +202,24 @@ public class NodeInvocationPipeline {
         if (success) {
             log.info("[AutoAgent][node-success] runId={}, component={}, attemptNo={}, repairAttempt={}, rawOutput={}",
                     command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, preview(rawOutput));
+            diagnostic(command.getRunId(), "NODE_SUCCESS", diagnosticMap(
+                    "componentCode", command.getComponentCode(),
+                    "attemptNo", attemptNo,
+                    "repairAttempt", repairAttempt,
+                    "rawOutput", rawOutput
+            ));
         } else {
             log.warn("[AutoAgent][node-invalid] runId={}, component={}, attemptNo={}, repairAttempt={}, failureType={}, failureMessage={}, rawOutput={}",
                     command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, failureType, failureMessage, preview(rawOutput));
+            diagnostic(command.getRunId(), "NODE_INVALID", diagnosticMap(
+                    "level", "WARN",
+                    "componentCode", command.getComponentCode(),
+                    "attemptNo", attemptNo,
+                    "repairAttempt", repairAttempt,
+                    "failureType", failureType == null ? null : failureType.code(),
+                    "failureMessage", failureMessage,
+                    "rawOutput", rawOutput
+            ));
         }
         NodeInvocationAttempt attempt = NodeInvocationAttempt.builder()
                 .attemptNo(attemptNo)
@@ -248,6 +303,39 @@ public class NodeInvocationPipeline {
                 .failureCode(failureCode)
                 .failureMessage(failureMessage)
                 .build();
+    }
+
+    private void diagnostic(String runId, String event, Map<String, Object> details) {
+        if (diagnosticRecorder == null) {
+            return;
+        }
+        diagnosticRecorder.record(runId, "NODE", event, sanitize(details));
+    }
+
+    private void diagnosticError(String runId, String event, Throwable error, Map<String, Object> details) {
+        if (diagnosticRecorder == null) {
+            return;
+        }
+        diagnosticRecorder.error(runId, "NODE", event, error, sanitize(details));
+    }
+
+    private Map<String, Object> sanitize(Map<String, Object> details) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        if (details != null) {
+            details.forEach((key, item) -> value.put(key, item));
+        }
+        return value;
+    }
+
+    private Map<String, Object> diagnosticMap(Object... keyValues) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        if (keyValues == null) {
+            return value;
+        }
+        for (int index = 0; index + 1 < keyValues.length; index += 2) {
+            value.put(String.valueOf(keyValues[index]), keyValues[index + 1]);
+        }
+        return value;
     }
 
     private record InvocationEvaluation(NodeInvocationAttempt attempt,

@@ -7,6 +7,7 @@ import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
 import yhx.com.domain.agent.model.valobj.context.FailureVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewBuildCommand;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
@@ -35,7 +36,7 @@ public class ContextPlannerStatusHandler {
         return switch (status) {
             case READY -> ready(output, candidates);
             case NO_RELEVANT_CONTEXT -> minimal(BUILD_MINIMAL_STATE_VIEW, candidates);
-            case NEEDS_USER_CLARIFICATION -> askUser(output);
+            case NEEDS_USER_CLARIFICATION -> alreadyAnswered(output, candidates) ? minimal(BUILD_MINIMAL_STATE_VIEW, candidates) : askUser(output);
             case CONTEXT_OVER_BUDGET -> failure(COMPRESS_OR_ASK, "CONTEXT_OVER_BUDGET", "ContextPlanner selected oversized context.");
             case FAILED -> minimal(BUILD_MINIMAL_STATE_VIEW, candidates);
         };
@@ -81,6 +82,25 @@ public class ContextPlannerStatusHandler {
                         .build())
                 .effectiveSelections(List.of())
                 .build();
+    }
+
+    private boolean alreadyAnswered(ContextPlannerOutputVO output, ContextCandidateBundleVO candidates) {
+        Map<String, Object> request = output == null ? null : output.getClarificationRequest();
+        String question = normalize(stringValue(request, "question"));
+        if (question.isBlank() || candidates == null || candidates.getUserClarifications() == null) {
+            return false;
+        }
+        return candidates.getUserClarifications().stream()
+                .anyMatch(clarification -> answeredSameQuestion(question, clarification));
+    }
+
+    private boolean answeredSameQuestion(String normalizedQuestion, UserClarificationVO clarification) {
+        if (clarification == null || !normalizedQuestion.equals(normalize(clarification.getQuestion()))) {
+            return false;
+        }
+        return clarification.getValue() != null
+                || notBlank(clarification.getSelectedOptionId())
+                || notBlank(clarification.getFreeText());
     }
 
     private ContextPlannerHandlingResult failure(String nextStep, String code, String message) {
@@ -138,5 +158,13 @@ public class ContextPlannerStatusHandler {
     private Double doubleValue(Map<String, Object> item, String key) {
         Object value = item == null ? null : item.get(key);
         return value instanceof Number number ? number.doubleValue() : null;
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "").trim();
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && !value.isBlank();
     }
 }

@@ -50,9 +50,6 @@ public class RetrieveRagActionHandler extends MainActionHandlerSupport implement
                 throw new IllegalArgumentException("ragRequest.query is required.");
             }
             runRepository.markRagWasUsed(context.getRunId());
-            if (eventPublisher != null) {
-                eventPublisher.phase(context.getRunId(), "RETRIEVING_KNOWLEDGE", "Retrieving knowledge.");
-            }
             if (ragRuntimePort == null) {
                 return safeFailure(context, RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,
                         "RAG retrieval is unavailable.", "RagRuntimePort is not configured.");
@@ -82,6 +79,11 @@ public class RetrieveRagActionHandler extends MainActionHandlerSupport implement
                     .build();
         } catch (IllegalArgumentException e) {
             return validationFailure(context, e.getMessage());
+        } catch (Exception e) {
+            return safeFailure(context,
+                    RuntimeFailureCodeEnumVO.RAG_RETRIEVAL_FAILED,
+                    "RAG retrieval failed.",
+                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
     }
 }

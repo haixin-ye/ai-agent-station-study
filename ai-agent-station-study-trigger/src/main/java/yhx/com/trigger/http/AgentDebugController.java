@@ -1,5 +1,6 @@
 package yhx.com.trigger.http;
 
+import com.alibaba.fastjson.JSON;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +18,15 @@ import yhx.com.trigger.http.sse.SseEmitterRegistry;
 import yhx.com.trigger.http.support.AgentApiMapper;
 import yhx.com.trigger.http.support.AgentResponseSupport;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @RestController
@@ -96,6 +103,54 @@ public class AgentDebugController {
         }
     }
 
+    @PostMapping("/export")
+    public Response<Map<String, Object>> exportDebug(@PathVariable("runId") String runId,
+                                                     @RequestBody(required = false) Map<String, Object> browserSnapshot) {
+        try {
+            Map<String, Object> export = new LinkedHashMap<>();
+            export.put("runId", runId);
+            export.put("exportedAt", LocalDateTime.now().toString());
+            export.put("run", agentQueryFacade.findRun(runId).map(AgentApiMapper::toRun).orElse(null));
+            export.put("finalAnswer", agentQueryFacade.findFinalAnswer(runId).orElse(null));
+            export.put("events", agentQueryFacade.listUserVisibleEvents(runId, 200).stream()
+                    .map(event -> AgentApiMapper.toUserEvent(event, agentQueryFacade))
+                    .toList());
+            List<AgentDebugTraceDTO> traces = agentDebugFacade.listTraces(runId, 500).stream()
+                    .map(trace -> AgentApiMapper.toDebugTrace(trace, agentQueryFacade))
+                    .toList();
+            export.put("traces", traces);
+            export.put("evidence", agentDebugFacade.listEvidence(runId).stream()
+                    .map(this::toEvidenceSummary)
+                    .toList());
+            export.put("toolCalls", agentDebugFacade.listToolCalls(runId).stream()
+                    .map(this::toToolCallSummary)
+                    .toList());
+            Map<String, Object> payloads = new LinkedHashMap<>();
+            traces.stream()
+                    .map(AgentDebugTraceDTO::getPayloadRef)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .forEach(payloadRef -> agentDebugFacade.findPayload(payloadRef)
+                            .map(AgentApiMapper::toDebugPayload)
+                            .ifPresent(payload -> payloads.put(payloadRef, payload)));
+            export.put("payloads", payloads);
+            export.put("browserSnapshot", browserSnapshot == null ? Map.of() : browserSnapshot);
+
+            Path directory = Path.of("data", "debug", "auto-agent");
+            Files.createDirectories(directory);
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            Path file = directory.resolve(safeFileName(runId) + "_" + timestamp + ".json");
+            Files.writeString(file, JSON.toJSONString(export, true), StandardCharsets.UTF_8);
+            return AgentResponseSupport.success(Map.of(
+                    "runId", runId,
+                    "path", file.toAbsolutePath().toString()
+            ));
+        } catch (Exception e) {
+            log.error("[AutoAgent][debug-export-error] runId={}", runId, e);
+            return AgentResponseSupport.failed(e.getMessage());
+        }
+    }
+
     @GetMapping("/events/stream")
     public SseEmitter streamDebugEvents(@PathVariable("runId") String runId,
                                         @RequestParam(value = "lastSeq", required = false) Long lastSeq) {
@@ -116,13 +171,17 @@ public class AgentDebugController {
                         .map(trace -> AgentApiMapper.toDebugTrace(trace, agentQueryFacade))
                         .toList();
                 for (AgentDebugTraceDTO trace : traces) {
-                    sseEmitterRegistry.send(streamKey, "agent-debug-event", trace.getTraceId(), trace);
+                    if (!sseEmitterRegistry.send(streamKey, "agent-debug-event", trace.getTraceId(), trace)) {
+                        return;
+                    }
                     cursor = Math.max(cursor, trace.getSeq() == null ? cursor : trace.getSeq());
                 }
                 long now = System.currentTimeMillis();
                 if (now - lastHeartbeatAt >= STREAM_HEARTBEAT_INTERVAL_MS) {
-                    sseEmitterRegistry.send(streamKey, "agent-debug-heartbeat", "debug-heartbeat-" + runId + "-" + cursor,
-                            Map.of("runId", runId, "lastSeq", cursor, "timestamp", now));
+                    if (!sseEmitterRegistry.send(streamKey, "agent-debug-heartbeat", "debug-heartbeat-" + runId + "-" + cursor,
+                            Map.of("runId", runId, "lastSeq", cursor, "timestamp", now))) {
+                        return;
+                    }
                     lastHeartbeatAt = now;
                 }
                 Thread.sleep(STREAM_POLL_INTERVAL_MS);
@@ -162,5 +221,10 @@ public class AgentDebugController {
         summary.put("failureCode", toolCall.getFailureCode());
         summary.put("createdAt", toolCall.getCreatedAt());
         return summary;
+    }
+
+    private String safeFileName(String value) {
+        String normalized = value == null || value.isBlank() ? "run" : value;
+        return normalized.replaceAll("[^A-Za-z0-9._-]", "_");
     }
 }

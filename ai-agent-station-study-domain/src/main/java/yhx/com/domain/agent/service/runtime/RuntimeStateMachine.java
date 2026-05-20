@@ -16,7 +16,8 @@ public class RuntimeStateMachine {
     public RuntimeStateMachine() {
         allow(RuntimePhaseEnumVO.CREATED, RuntimePhaseEnumVO.PREPARING_CONTEXT);
         allow(RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.PLANNING_CONTEXT, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
-        allow(RuntimePhaseEnumVO.PLANNING_CONTEXT, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.FAILED);
+        allow(RuntimePhaseEnumVO.PLANNING_CONTEXT, RuntimePhaseEnumVO.PREPARING_CONTEXT,
+                RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
         allow(RuntimePhaseEnumVO.CALLING_MAIN_NODE, RuntimePhaseEnumVO.VALIDATING_ACTION);
         allow(RuntimePhaseEnumVO.VALIDATING_ACTION, RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.REPAIRING_CONTRACT, RuntimePhaseEnumVO.FAILED);

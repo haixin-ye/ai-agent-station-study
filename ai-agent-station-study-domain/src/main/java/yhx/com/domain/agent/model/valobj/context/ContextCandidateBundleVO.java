@@ -20,6 +20,7 @@ public class ContextCandidateBundleVO {
     private List<ArtifactCandidateVO> artifactCandidates;
     private List<MemoryCandidateVO> memoryCandidates;
     private List<EvidenceCandidateVO> evidenceCandidates;
+    private List<UserClarificationVO> userClarifications;
     private List<CapabilityCandidateVO> availableCapabilities;
     private PendingActionViewVO pendingAction;
     private TokenBudgetVO tokenBudget;

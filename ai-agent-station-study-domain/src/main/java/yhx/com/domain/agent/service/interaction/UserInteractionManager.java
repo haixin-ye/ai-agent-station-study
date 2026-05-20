@@ -5,6 +5,7 @@ import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPendingInputEntity;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.UserAnswerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
@@ -25,6 +26,8 @@ import yhx.com.domain.agent.service.runtime.RunTranscriptRecorder;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserInteractionManager {
 
@@ -61,7 +64,7 @@ public class UserInteractionManager {
                     .build();
         }
         String pendingId = pendingInputManager.create(command);
-        eventPublisher.askingUser(command.getRunId(), pendingId, command.getAskUserRequest().getQuestion());
+        eventPublisher.askingUser(command.getRunId(), pendingId, command.getAskUserRequest());
         return PendingInputCreateResult.builder()
                 .pendingInputId(pendingId)
                 .runId(command.getRunId())
@@ -105,6 +108,7 @@ public class UserInteractionManager {
         } else {
             String answerRef = savePayload(answer);
             pendingInputManager.markAnswered(pendingInput.getPendingId(), answerRef);
+            appendUserClarification(context, pendingInput, answer);
             transcriptRecorder.appendUserReply(pendingInput.getRunId(), context == null ? null : context.getLoopIndex(), answer, answerRef);
         }
         ContinuationCheckpointVO checkpoint = loadContinuation(pendingInput.getContinuationRef());
@@ -163,6 +167,31 @@ public class UserInteractionManager {
         return payloadRepository.findContent(continuationRef)
                 .map(content -> JSON.parseObject(content, ContinuationCheckpointVO.class))
                 .orElse(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void appendUserClarification(RuntimeExecutionContext context, AgentPendingInputEntity pendingInput, UserAnswerVO answer) {
+        if (context == null || context.getRuntimeFacts() == null || pendingInput == null || answer == null) {
+            return;
+        }
+        Object existing = context.getRuntimeFacts().get("userClarifications");
+        List<UserClarificationVO> clarifications;
+        if (existing instanceof List<?> list) {
+            clarifications = (List<UserClarificationVO>) list;
+        } else {
+            clarifications = new ArrayList<>();
+            context.getRuntimeFacts().put("userClarifications", clarifications);
+        }
+        clarifications.add(UserClarificationVO.builder()
+                .sourceComponent(pendingInput.getSourceComponent())
+                .pendingId(pendingInput.getPendingId())
+                .question(pendingInput.getQuestion())
+                .answerType(answer.getAnswerType() == null ? null : answer.getAnswerType().code())
+                .selectedOptionId(answer.getSelectedOptionId())
+                .value(answer.getValue())
+                .freeText(answer.getFreeText())
+                .metadata(answer.getMetadata())
+                .build());
     }
 
     private UserInputResolveResult failed(UserInputResolveCommand command, RuntimeSafeFailureVO failure) {

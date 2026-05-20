@@ -64,9 +64,24 @@ public class UserReplyProcessor {
                 .status(UserAnswerStatusEnumVO.RESOLVED)
                 .answerType(UserAnswerTypeEnumVO.OPTION)
                 .selectedOptionId(command.getSelectedOptionId())
-                .value(option.get("value"))
+                .value(optionValue(option, command.getSelectedOptionId()))
                 .metadata(command.getRequestMetadata())
                 .build();
+    }
+
+    private Object optionValue(Map<String, Object> option, String selectedOptionId) {
+        if (option == null) {
+            return selectedOptionId;
+        }
+        Object value = option.get("value");
+        if (value != null) {
+            return value;
+        }
+        Object label = option.get("label");
+        if (label != null) {
+            return label;
+        }
+        return selectedOptionId;
     }
 
     private UserAnswerVO resolveFreeText(AgentPendingInputEntity pendingInput, UserInputResolveCommand command) {
@@ -102,7 +117,8 @@ public class UserReplyProcessor {
                 .flatMap(List::stream)
                 .filter(item -> item instanceof Map<?, ?>)
                 .map(item -> (Map<String, Object>) item)
-                .filter(option -> selectedOptionId.equals(String.valueOf(option.get("id"))))
+                .filter(option -> selectedOptionId.equals(String.valueOf(option.get("optionId")))
+                        || selectedOptionId.equals(String.valueOf(option.get("id"))))
                 .findFirst()
                 .orElse(null);
     }

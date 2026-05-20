@@ -12,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.RunMetaVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.context.UserInputVO;
 import yhx.com.domain.agent.service.artifact.ArtifactCandidateRanker;
 import yhx.com.domain.agent.service.evidence.EvidenceCandidatePreselector;
@@ -69,7 +70,7 @@ public class ContextCandidatePreselector {
         int evidenceLimit = defaultIfNull(command.getEvidenceCandidateLimit(), DEFAULT_EVIDENCE_LIMIT);
 
         List<MessageCandidateVO> messages = conversationRepository.listRecentVisibleMessages(command.getSessionId(), messageLimit).stream()
-                .filter(message -> !command.getUserMessageId().equals(message.getMessageId()))
+                .filter(message -> command.getUserMessageId() == null || !command.getUserMessageId().equals(message.getMessageId()))
                 .map(this::toMessageCandidate)
                 .toList();
 
@@ -92,6 +93,7 @@ public class ContextCandidatePreselector {
                         memoryRepository.findMemoryCandidates(command.getUserId(), command.getSessionId(), command.getUserInput(), memoryLimit), memoryLimit))
                 .evidenceCandidates(evidenceCandidatePreselector.select(command.getUserInput(),
                         evidenceRepository.listRunEvidence(command.getRunId()), evidenceLimit))
+                .userClarifications(userClarifications(command.getRuntimeFacts()))
                 .availableCapabilities(command.getAvailableCapabilities() == null ? List.of() : command.getAvailableCapabilities())
                 .tokenBudget(defaultBudget(command.getTokenBudget()))
                 .build();
@@ -139,5 +141,20 @@ public class ContextCandidatePreselector {
 
     private int defaultIfNull(Integer value, int defaultValue) {
         return value == null ? defaultValue : value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<UserClarificationVO> userClarifications(Map<String, Object> runtimeFacts) {
+        if (runtimeFacts == null) {
+            return List.of();
+        }
+        Object value = runtimeFacts.get("userClarifications");
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(UserClarificationVO.class::isInstance)
+                .map(item -> (UserClarificationVO) item)
+                .toList();
     }
 }

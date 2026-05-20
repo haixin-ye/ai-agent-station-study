@@ -10,6 +10,7 @@ import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.service.artifact.ArtifactPayloadLoader;
@@ -24,6 +25,7 @@ import yhx.com.test.domain.agent.context.support.FakeContextRepositories;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class ContextMaterializationTest {
 
@@ -48,6 +50,36 @@ public class ContextMaterializationTest {
 
         Assert.assertEquals(ContextLevelEnumVO.CHUNKED_CONTEXT, stateView.getArtifactContent().get(0).getContextLevel());
         Assert.assertFalse(stateView.getArtifactContent().get(0).getChunks().isEmpty());
+    }
+
+    @Test
+    public void state_view_includes_user_clarifications() {
+        FakeContextRepositories repos = fixture();
+        ContextPreparationCommand command = ContextPreparationCommand.builder()
+                .runId("run-1")
+                .sessionId("session-1")
+                .userId("user-1")
+                .agentId("agent-1")
+                .userMessageId("msg-current")
+                .userInput("write about mcp")
+                .runtimeFacts(Map.of("userClarifications", List.of(UserClarificationVO.builder()
+                        .question("Which MCP?")
+                        .answerType("OPTION")
+                        .selectedOptionId("mcp-software")
+                        .value(Map.of("topic", "mcp software"))
+                        .build())))
+                .build();
+        ContextCandidateBundleVO candidates = new ContextCandidatePreselector(repos, repos, repos, repos).buildCandidates(command);
+
+        MainAgentStateViewVO stateView = new MainAgentStateViewBuilder().build(yhx.com.domain.agent.model.valobj.context.MainAgentStateViewBuildCommand.builder()
+                .candidates(candidates)
+                .artifactContent(List.of())
+                .memoryPack(List.of())
+                .evidencePack(List.of())
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+
+        Assert.assertEquals("mcp-software", stateView.getUserClarifications().get(0).getSelectedOptionId());
     }
 
     private MainAgentStateViewVO materialize(ContextLevelEnumVO level, int maxInlineChars) {

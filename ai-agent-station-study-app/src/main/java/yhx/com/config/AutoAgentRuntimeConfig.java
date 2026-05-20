@@ -16,6 +16,7 @@ import yhx.com.domain.agent.adapter.repository.INodePromptRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IPendingInputRepository;
 import yhx.com.domain.agent.adapter.repository.IRagExecutionRepository;
+import yhx.com.domain.agent.adapter.repository.IRunDiagnosticRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
 import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
 import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
@@ -71,6 +72,7 @@ import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
 import yhx.com.domain.agent.service.runtime.RuntimePhaseGuard;
 import yhx.com.domain.agent.service.runtime.RuntimeStateMachine;
+import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
 import yhx.com.domain.agent.service.runtime.handler.AskUserActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.CallToolActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.ContinueActionHandler;
@@ -89,7 +91,9 @@ import yhx.com.domain.agent.service.runtime.port.RagRuntimePort;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
+import yhx.com.infrastructure.adapter.repository.AsyncFileRunDiagnosticRepository;
 
+import java.nio.file.Path;
 import java.util.List;
 
 @Configuration
@@ -100,6 +104,16 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public RuntimeFailureFactory runtimeFailureFactory() {
         return new RuntimeFailureFactory();
+    }
+
+    @Bean(destroyMethod = "close")
+    public IRunDiagnosticRepository runDiagnosticRepository() {
+        return new AsyncFileRunDiagnosticRepository(Path.of("data", "log", "agent-run-trace"), 8192);
+    }
+
+    @Bean
+    public RunDiagnosticRecorder runDiagnosticRecorder(IRunDiagnosticRepository runDiagnosticRepository) {
+        return new RunDiagnosticRecorder(runDiagnosticRepository);
     }
 
     @Bean
@@ -118,8 +132,10 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public RunEventPublisher runEventPublisher(IEventTraceRepository eventTraceRepository, IPayloadRepository payloadRepository) {
-        return new RunEventPublisher(eventTraceRepository, payloadRepository);
+    public RunEventPublisher runEventPublisher(IEventTraceRepository eventTraceRepository,
+                                               IPayloadRepository payloadRepository,
+                                               RunDiagnosticRecorder runDiagnosticRecorder) {
+        return new RunEventPublisher(eventTraceRepository, payloadRepository, runDiagnosticRecorder);
     }
 
     @Bean
@@ -128,8 +144,10 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public DeveloperTraceRecorder developerTraceRecorder(IEventTraceRepository eventTraceRepository, IPayloadRepository payloadRepository) {
-        return new DeveloperTraceRecorder(eventTraceRepository, payloadRepository);
+    public DeveloperTraceRecorder developerTraceRecorder(IEventTraceRepository eventTraceRepository,
+                                                         IPayloadRepository payloadRepository,
+                                                         RunDiagnosticRecorder runDiagnosticRecorder) {
+        return new DeveloperTraceRecorder(eventTraceRepository, payloadRepository, runDiagnosticRecorder);
     }
 
     @Bean
@@ -155,8 +173,10 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public NodeInvocationPipeline nodeInvocationPipeline(PromptAssembler promptAssembler, INodeClientPort nodeClientPort) {
-        return new NodeInvocationPipeline(promptAssembler, nodeClientPort);
+    public NodeInvocationPipeline nodeInvocationPipeline(PromptAssembler promptAssembler,
+                                                         INodeClientPort nodeClientPort,
+                                                         RunDiagnosticRecorder runDiagnosticRecorder) {
+        return new NodeInvocationPipeline(promptAssembler, nodeClientPort, runDiagnosticRecorder);
     }
 
     @Bean
@@ -429,7 +449,8 @@ public class AutoAgentRuntimeConfig {
                                                            RuntimePhaseGuard phaseGuard,
                                                            RunEventPublisher eventPublisher,
                                                            RunTranscriptRecorder transcriptRecorder,
-                                                           DeveloperTraceRecorder traceRecorder) {
+                                                           DeveloperTraceRecorder traceRecorder,
+                                                           RunDiagnosticRecorder runDiagnosticRecorder) {
         return new DefaultAutoAgentRuntimeService(conversationRepository,
                 runRepository,
                 payloadRepository,
@@ -442,7 +463,8 @@ public class AutoAgentRuntimeConfig {
                 phaseGuard,
                 eventPublisher,
                 transcriptRecorder,
-                traceRecorder);
+                traceRecorder,
+                runDiagnosticRecorder);
     }
 
     private List<CapabilityCandidateVO> capabilityCandidates(CapabilityRegistry capabilityRegistry) {

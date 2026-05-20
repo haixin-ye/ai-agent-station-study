@@ -18,6 +18,7 @@ public class MainAgentStateViewBuildCommand {
     private List<MaterializedArtifactContentVO> artifactContent;
     private List<MaterializedMemoryVO> memoryPack;
     private List<MaterializedEvidenceVO> evidencePack;
+    private List<UserClarificationVO> userClarifications;
     private TokenBudgetVO tokenBudget;
     private FailureVO failure;
 }

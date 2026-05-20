@@ -11,6 +11,7 @@ public enum PromptLayerTypeEnumVO {
     OPERATING_CONTEXT("OPERATING_CONTEXT", "Component operating context."),
     INPUT_FIELD_GUIDE("INPUT_FIELD_GUIDE", "Input field meaning guide."),
     TASK_PROCEDURE("TASK_PROCEDURE", "Component task procedure."),
+    RESPONSE_STYLE("RESPONSE_STYLE", "User-facing answer style policy."),
     DECISION_POLICY("DECISION_POLICY", "Component decision policy."),
     RISK_AND_PERMISSION_POLICY("RISK_AND_PERMISSION_POLICY", "Risk and permission policy."),
     OUTPUT_CONTRACT("OUTPUT_CONTRACT", "Java-owned structured output contract."),

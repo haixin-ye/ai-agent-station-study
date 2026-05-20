@@ -1,6 +1,7 @@
 package yhx.com.domain.agent.service.runtime.handler;
 
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
@@ -40,6 +41,13 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
         try {
             AskUserRequestVO request = requireAskUserRequest(action);
             validateAskUserRequest(request);
+            if (alreadyAnswered(context, request)) {
+                return MainActionHandlerResult.builder()
+                        .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
+                        .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                        .message("User already answered this clarification. Continue with userClarifications.")
+                        .build();
+            }
             PendingInputCreateResult pending = userInteractionManager.createPendingInput(PendingInputCreateCommand.builder()
                     .runId(context.getRunId())
                     .sessionId(context.getSessionId())
@@ -80,5 +88,28 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
                 throw new IllegalArgumentException("askUserRequest.options are required for choice input modes.");
             }
         }
+    }
+
+    private boolean alreadyAnswered(RuntimeExecutionContext context, AskUserRequestVO request) {
+        if (context == null || context.getRuntimeFacts() == null || request == null || isBlank(request.getQuestion())) {
+            return false;
+        }
+        Object value = context.getRuntimeFacts().get("userClarifications");
+        if (!(value instanceof Iterable<?> iterable)) {
+            return false;
+        }
+        String question = normalize(request.getQuestion());
+        for (Object item : iterable) {
+            if (item instanceof UserClarificationVO clarification
+                    && question.equals(normalize(clarification.getQuestion()))
+                    && (clarification.getValue() != null || !isBlank(clarification.getFreeText()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "").trim();
     }
 }

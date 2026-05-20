@@ -6,6 +6,7 @@ import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunEventEntity;
+import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.RunEventTypeEnumVO;
 
@@ -18,10 +19,18 @@ public class RunEventPublisher {
 
     private final IEventTraceRepository eventTraceRepository;
     private final IPayloadRepository payloadRepository;
+    private final RunDiagnosticRecorder diagnosticRecorder;
 
     public RunEventPublisher(IEventTraceRepository eventTraceRepository, IPayloadRepository payloadRepository) {
+        this(eventTraceRepository, payloadRepository, null);
+    }
+
+    public RunEventPublisher(IEventTraceRepository eventTraceRepository,
+                             IPayloadRepository payloadRepository,
+                             RunDiagnosticRecorder diagnosticRecorder) {
         this.eventTraceRepository = eventTraceRepository;
         this.payloadRepository = payloadRepository;
+        this.diagnosticRecorder = diagnosticRecorder;
     }
 
     public void received(String runId, String summary) {
@@ -34,6 +43,20 @@ public class RunEventPublisher {
 
     public void askingUser(String runId, String pendingInputId, String question) {
         append(runId, RunEventTypeEnumVO.ASK_USER, payload("asking_user", question, pendingInputId, null));
+    }
+
+    public void askingUser(String runId, String pendingInputId, AskUserRequestVO request) {
+        Map<String, Object> payload = payload("asking_user",
+                request == null ? null : request.getQuestion(),
+                pendingInputId,
+                null);
+        if (request != null) {
+            payload.put("question", request.getQuestion());
+            payload.put("inputMode", request.getInputMode());
+            payload.put("allowFreeText", request.getAllowFreeText());
+            payload.put("options", request.getOptions());
+        }
+        append(runId, RunEventTypeEnumVO.ASK_USER, payload);
     }
 
     public void completed(String runId, String finalMessageId) {
@@ -55,6 +78,11 @@ public class RunEventPublisher {
         log.info("[AutoAgent][event] runId={}, eventType={}, title={}, summary={}, pendingInputId={}, finalMessageId={}",
                 runId, eventType == null ? null : eventType.code(), payload.get("title"), payload.get("summary"),
                 payload.get("pendingInputId"), payload.get("finalMessageId"));
+        if (diagnosticRecorder != null) {
+            Map<String, Object> diagnostic = new LinkedHashMap<>(payload);
+            diagnostic.put("eventType", eventType == null ? null : eventType.code());
+            diagnosticRecorder.record(runId, "USER_EVENT", eventType == null ? null : eventType.code(), diagnostic);
+        }
         String payloadRef = payloadRepository.savePayload(AgentPayloadEntity.builder()
                 .payloadType(PayloadTypeEnumVO.JSON)
                 .content(JSON.toJSONString(payload))

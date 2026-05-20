@@ -33,15 +33,15 @@ public class OutputContractPromptRenderer {
 
                 Valid examples:
                 {"action":"FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Answer text for the user."}}}
-                {"action":"CREATE_ARTIFACT","stateDelta":{"artifactDraft":{"artifactType":"ARTICLE","title":"RAG 八股文","content":"..."},"finalAnswerCandidate":{"content":"已生成文章。"}}}
+                {"action":"CREATE_ARTIFACT","stateDelta":{"artifactDraft":{"artifactType":"ARTICLE","title":"RAG notes","content":"..."},"finalAnswerCandidate":{"content":"Article draft created."}}}
                 {"action":"UPDATE_ARTIFACT","stateDelta":{"artifactPatch":{"artifactId":"artifact-1","patchType":"REPLACE_CONTENT","content":"..."}}}
-                {"action":"RETRIEVE_RAG","stateDelta":{"ragRequest":{"query":"RAG 核心概念","topK":5}}}
+                {"action":"RETRIEVE_RAG","stateDelta":{"ragRequest":{"query":"Find the uploaded project document section about deployment rules.","topK":5}}}
                 {"action":"CALL_TOOL","stateDelta":{"toolIntent":{"toolName":"csdn.publish","intent":"Publish selected artifact.","arguments":{"artifactId":"artifact-1"}}}}
-                {"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"请选择要发布的文章","inputMode":"SINGLE_CHOICE","options":[{"label":"最新文章","value":{"artifactId":"artifact-1"}}]}}}
+                {"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"Which article should I use?","inputMode":"SINGLE_CHOICE","options":[{"optionId":"article-1","label":"Latest article","value":{"artifactId":"artifact-1"}}]}}}
                 {"action":"PLAN","stateDelta":{"planDraft":{"steps":["retrieve evidence","write answer"]}}}
                 {"action":"CONTINUE","stateDelta":{"nextActionHint":{"reason":"Need another loop after context update."}}}
                 {"action":"REPAIR_FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Repaired clean answer."}}}
-                {"action":"FAIL","stateDelta":{"failure":{"message":"当前无法完成该请求。"}}}
+                {"action":"FAIL","stateDelta":{"failure":{"message":"The request cannot be completed safely right now."}}}
                 """.formatted(actionCodes(), stateDeltaScopeTable());
     }
 
@@ -59,7 +59,7 @@ public class OutputContractPromptRenderer {
 
                 Valid examples:
                 {"status":"READY","selectedContext":[{"sourceType":"ARTIFACT","artifactId":"artifact-1","useLevel":"FULL_TEXT","reason":"User asked to rewrite the article."}]}
-                {"status":"NEEDS_USER_CLARIFICATION","clarificationRequest":{"question":"你想处理哪一篇文章？","inputMode":"SINGLE_CHOICE_OR_FREE_TEXT","options":[{"label":"最新文章","value":{"artifactId":"artifact-1"}}]}}
+                {"status":"NEEDS_USER_CLARIFICATION","clarificationRequest":{"question":"Which article do you want to use?","inputMode":"SINGLE_CHOICE_OR_FREE_TEXT","options":[{"optionId":"article-1","label":"Latest article","value":{"artifactId":"artifact-1"}}]}}
                 """.formatted(contextStatusCodes());
     }
 

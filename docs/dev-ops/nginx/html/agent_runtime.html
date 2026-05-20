@@ -9,14 +9,15 @@
     <link rel="stylesheet" href="css/github.min.css">
     <style>
         :root {
-            --canvas: #f7f4ee;
+            --canvas: #f8f6f1;
             --paper: #fffdfa;
-            --panel: #efe8dc;
-            --panel-strong: #e4dacb;
+            --panel: #f2eee6;
+            --panel-strong: #e8dfd2;
+            --surface-float: rgba(255, 253, 250, 0.82);
             --ink: #1d1b18;
             --ink-soft: #514d45;
             --ink-muted: #81786b;
-            --line: #ddd2c2;
+            --line: #e2d8c9;
             --line-strong: #c7b8a5;
             --accent: #9b5b43;
             --green: #487a62;
@@ -25,8 +26,9 @@
             --dark: #1f1d19;
             --dark-soft: #2f2b25;
             --light: #fffaf1;
-            --radius: 8px;
+            --radius: 16px;
             --sidebar-width: 300px;
+            --sidebar-collapsed-width: 72px;
             --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
             --sans: "Avenir Next", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
             --serif: "Iowan Old Style", "Songti SC", Georgia, serif;
@@ -70,6 +72,11 @@
             display: grid;
             grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
             overflow: hidden;
+            transition: grid-template-columns 180ms ease;
+        }
+
+        body.sidebar-collapsed .app-shell {
+            grid-template-columns: 82px minmax(0, 1fr);
         }
 
         .sidebar {
@@ -78,8 +85,8 @@
             display: grid;
             grid-template-rows: auto minmax(0, 1fr) auto;
             overflow: hidden;
-            background: var(--panel);
-            border-right: 1px solid var(--line);
+            background: linear-gradient(180deg, #f5f0e8 0%, #f8f6f1 100%);
+            border-right: 1px solid rgba(226, 216, 201, 0.72);
         }
 
         .brand {
@@ -92,6 +99,29 @@
             align-items: center;
             gap: 10px;
             margin-bottom: 14px;
+        }
+
+        .brand-copy {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .collapse-sidebar {
+            width: 46px;
+            height: 46px;
+            display: grid;
+            place-items: center;
+            border-radius: 14px;
+            color: var(--ink-muted);
+            background: transparent;
+            border: 1px solid transparent;
+            font-size: 22px;
+        }
+
+        .collapse-sidebar:hover {
+            color: var(--ink);
+            background: rgba(255, 253, 250, 0.78);
+            border-color: var(--line);
         }
 
         .mark {
@@ -116,6 +146,29 @@
             margin-top: 2px;
             color: var(--ink-muted);
             font-size: 12px;
+        }
+
+        body.sidebar-collapsed .brand {
+            padding: 16px 12px;
+            border-bottom: 0;
+        }
+
+        body.sidebar-collapsed .brand-row {
+            display: grid;
+            justify-items: center;
+            gap: 12px;
+            margin-bottom: 0;
+        }
+
+        body.sidebar-collapsed .brand-copy,
+        body.sidebar-collapsed .mode-switch,
+        body.sidebar-collapsed .sidebar-scroll,
+        body.sidebar-collapsed .sidebar-footer {
+            display: none;
+        }
+
+        body.sidebar-collapsed .collapse-sidebar {
+            transform: rotate(180deg);
         }
 
         .mode-switch {
@@ -147,6 +200,33 @@
             min-height: 0;
             overflow-y: auto;
             padding: 14px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(29, 27, 24, 0.22) transparent;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar,
+        .chat-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar-track,
+        .chat-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar-thumb,
+        .chat-scroll::-webkit-scrollbar-thumb {
+            border-radius: 999px;
+            background: rgba(29, 27, 24, 0.22);
+            border: 2px solid transparent;
+            background-clip: content-box;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover,
+        .chat-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(29, 27, 24, 0.34);
+            border: 2px solid transparent;
+            background-clip: content-box;
         }
 
         .sidebar-section + .sidebar-section {
@@ -176,11 +256,11 @@
         }
 
         .session-item {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 30px;
-            gap: 4px;
-            align-items: stretch;
+            display: block;
+            width: 100%;
+            min-width: 0;
             border-radius: var(--radius);
+            position: relative;
         }
 
         .session-button,
@@ -194,28 +274,100 @@
             text-align: left;
         }
 
-        .session-button:hover,
+        .session-button {
+            display: block;
+            box-sizing: border-box;
+            overflow: hidden;
+            padding-right: 42px;
+        }
+
+        .session-item:hover .session-button,
         .scenario-button:hover,
         .session-item.active .session-button,
+        .session-item.menu-open .session-button,
         .scenario-button.active {
             background: rgba(255, 253, 250, 0.78);
         }
 
-        .delete-session {
-            width: 30px;
-            border-radius: 7px;
+        .session-menu-button {
+            position: absolute;
+            top: 50%;
+            right: 7px;
+            transform: translateY(-50%);
+            width: 26px;
+            height: 26px;
+            border-radius: 9px;
             color: var(--ink-muted);
             background: transparent;
-            font-size: 16px;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0;
+            transition: opacity 140ms ease, background 140ms ease, color 140ms ease;
         }
 
-        .delete-session:hover {
-            color: #fff;
-            background: var(--red);
+        .session-item:hover .session-menu-button,
+        .session-item.menu-open .session-menu-button {
+            opacity: 1;
+        }
+
+        .session-menu-button:hover,
+        .session-item.menu-open .session-menu-button {
+            color: var(--ink);
+            background: rgba(255, 253, 250, 0.82);
+        }
+
+        .session-menu {
+            position: absolute;
+            top: 38px;
+            right: 6px;
+            z-index: 12;
+            min-width: 132px;
+            padding: 8px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255, 253, 250, 0.98);
+            box-shadow: 0 18px 44px rgba(54, 46, 34, 0.16);
+        }
+
+        .session-menu[hidden] {
+            display: none;
+        }
+
+        .session-menu-item {
+            width: 100%;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 0 9px;
+            border-radius: 10px;
+            color: var(--red);
+            background: transparent;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .session-menu-item.neutral {
+            color: var(--ink-soft);
+        }
+
+        .session-menu-item:hover {
+            background: rgba(169, 68, 61, 0.09);
+        }
+
+        .session-menu-item.neutral:hover {
+            background: rgba(232, 223, 210, 0.5);
+        }
+
+        .session-menu-item svg {
+            width: 16px;
+            height: 16px;
         }
 
         .session-title,
         .scenario-title {
+            display: block;
+            max-width: 100%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -255,7 +407,9 @@
             display: grid;
             grid-template-rows: auto minmax(0, 1fr) auto;
             overflow: hidden;
-            background: var(--paper);
+            background:
+                radial-gradient(circle at 80% 0%, rgba(232, 223, 210, 0.32), transparent 32%),
+                linear-gradient(180deg, #fffdfa 0%, #fbf8f2 100%);
         }
 
         .topbar {
@@ -266,7 +420,8 @@
             gap: 16px;
             padding: 0 22px;
             border-bottom: 1px solid var(--line);
-            background: rgba(255, 253, 250, 0.94);
+            background: rgba(255, 253, 250, 0.72);
+            backdrop-filter: blur(16px);
         }
 
         .run-title {
@@ -672,6 +827,12 @@
             border-bottom: 1px solid #373229;
         }
 
+        .drawer-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .drawer-content {
             min-height: 0;
             overflow-y: auto;
@@ -720,6 +881,27 @@
             line-height: 1.45;
         }
 
+        .debug-event.error {
+            border-color: rgba(205, 92, 92, 0.58);
+            background: rgba(96, 35, 35, 0.34);
+        }
+
+        .debug-event.warn {
+            border-color: rgba(190, 146, 70, 0.58);
+            background: rgba(96, 73, 35, 0.28);
+        }
+
+        .debug-event pre {
+            max-height: 190px;
+            margin: 7px 0 0;
+            overflow: auto;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            color: #d8d0c4;
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
         .toast {
             position: fixed;
             left: 50%;
@@ -743,6 +925,365 @@
 
         .hidden {
             display: none !important;
+        }
+
+        .chat-inner {
+            width: min(840px, 100%);
+        }
+
+        .message-stack {
+            gap: 26px;
+        }
+
+        .message {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.assistant {
+            justify-content: flex-start;
+        }
+
+        .message-body {
+            max-width: min(760px, 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .message.user .message-body {
+            align-items: flex-end;
+        }
+
+        .message.assistant .message-body {
+            align-items: flex-start;
+        }
+
+        .message .avatar {
+            display: none;
+        }
+
+        .bubble {
+            padding-top: 0;
+        }
+
+        .message.user .bubble {
+            max-width: min(560px, 86vw);
+            padding: 13px 17px;
+            border: 0;
+            border-radius: 24px;
+            background: #f0eee9;
+            box-shadow: 0 1px 0 rgba(29, 27, 24, 0.03);
+        }
+
+        .message.assistant .bubble {
+            max-width: min(760px, 100%);
+            padding: 2px 0;
+        }
+
+        .message-actions {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            min-height: 28px;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-2px);
+            transition: opacity 150ms ease, transform 150ms ease;
+        }
+
+        .message.user .message-actions {
+            padding-right: 8px;
+        }
+
+        .message.assistant .message-actions {
+            padding-left: 2px;
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        .message:hover .message-actions,
+        .message:focus-within .message-actions {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        .message-action {
+            width: 30px;
+            height: 30px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            color: #6d675e;
+            background: transparent;
+            transition: color 140ms ease, background 140ms ease, transform 140ms ease;
+        }
+
+        .message-action svg {
+            width: 17px;
+            height: 17px;
+            stroke-width: 1.85;
+        }
+
+        .message-action:hover,
+        .message-action.active {
+            color: var(--ink);
+            background: rgba(232, 223, 210, 0.7);
+        }
+
+        .message-action:hover {
+            transform: translateY(-1px);
+        }
+
+        .message-action.active svg {
+            fill: currentColor;
+        }
+
+        .thinking-panel {
+            width: min(680px, 90vw);
+            border: 1px solid rgba(226, 216, 201, 0.82);
+            border-radius: 20px;
+            background: rgba(255, 253, 250, 0.76);
+            box-shadow: 0 12px 34px rgba(54, 46, 34, 0.08);
+            overflow: hidden;
+            background-clip: padding-box;
+        }
+
+        .thinking-panel[open] {
+            background: rgba(255, 253, 250, 0.9);
+        }
+
+        .thinking-final {
+            display: block;
+            width: min(680px, 90vw);
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            overflow: visible;
+        }
+
+        .thinking-final-summary {
+            display: inline-flex;
+            list-style: none;
+            cursor: pointer;
+            padding: 0 0 8px;
+            user-select: none;
+        }
+
+        .thinking-final-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .thinking-final .thinking-current {
+            animation: thinkingFloat 2.6s ease-in-out infinite;
+        }
+
+        .thinking-final .thinking-wave {
+            background: linear-gradient(90deg, #6e6559 0%, #9b5b43 38%, #c0b5a6 66%, #6e6559 100%);
+            background-size: 220% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: thinkingWave 2.2s linear infinite;
+            font-weight: 650;
+        }
+
+        .thinking-final-body {
+            margin-top: 4px;
+            padding: 16px 18px;
+            border: 1px solid rgba(226, 216, 201, 0.82);
+            border-radius: 20px;
+            background: rgba(255, 253, 250, 0.9);
+            box-shadow: 0 12px 34px rgba(54, 46, 34, 0.08);
+        }
+
+        .thinking-live {
+            display: block;
+            width: min(680px, 90vw);
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            overflow: visible;
+        }
+
+        .thinking-live-summary {
+            display: inline-flex;
+            list-style: none;
+            cursor: pointer;
+            padding: 0 0 8px;
+            color: var(--ink-muted);
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .thinking-live-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .thinking-live-body {
+            margin-top: 4px;
+            padding: 16px 18px;
+            border: 1px solid rgba(226, 216, 201, 0.82);
+            border-radius: 20px;
+            background: rgba(255, 253, 250, 0.9);
+            box-shadow: 0 12px 34px rgba(54, 46, 34, 0.08);
+        }
+
+        .thinking-summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            color: var(--ink-muted);
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .thinking-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .thinking-current {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            animation: thinkingFloat 2.6s ease-in-out infinite;
+        }
+
+        .thinking-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--amber);
+            box-shadow: 0 0 0 5px rgba(154, 107, 47, 0.12);
+        }
+
+        .thinking-wave {
+            background: linear-gradient(90deg, #2f2b25 0%, #9b5b43 36%, #b6aa99 62%, #2f2b25 100%);
+            background-size: 220% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: thinkingWave 2.2s linear infinite;
+            font-weight: 650;
+        }
+
+        .thinking-list {
+            display: grid;
+            gap: 11px;
+            padding: 0 18px 16px;
+        }
+
+        .thinking-row {
+            display: grid;
+            grid-template-columns: 8px minmax(0, 1fr);
+            gap: 9px;
+            color: var(--ink-muted);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .thinking-row::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            margin-top: 7px;
+            border-radius: 999px;
+            background: var(--line-strong);
+        }
+
+        .thinking-row-title {
+            color: var(--ink-soft);
+            font-weight: 700;
+        }
+
+        .thinking-row-message {
+            margin-top: 1px;
+        }
+
+        @keyframes thinkingWave {
+            from {
+                background-position: 0% 50%;
+            }
+            to {
+                background-position: -220% 50%;
+            }
+        }
+
+        @keyframes thinkingFloat {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-2px);
+            }
+        }
+
+        .composer-wrap {
+            border-top: 0;
+            background: linear-gradient(180deg, rgba(250, 248, 243, 0), rgba(250, 248, 243, 0.98) 38%);
+        }
+
+        .composer {
+            grid-template-columns: 34px minmax(0, 1fr) 38px;
+            gap: 8px;
+            align-items: end;
+            min-height: 50px;
+            padding: 5px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(255, 253, 250, 0.94);
+            box-shadow: 0 12px 34px rgba(54, 46, 34, 0.11);
+            transition: border-radius 150ms ease, padding 150ms ease, min-height 150ms ease;
+        }
+
+        .composer.expanded {
+            min-height: 92px;
+            padding: 10px 8px;
+            border-radius: 26px;
+        }
+
+        .composer::before {
+            content: "+";
+            width: 38px;
+            height: 38px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            color: var(--ink-soft);
+            font-size: 22px;
+            align-self: end;
+        }
+
+        .composer textarea {
+            min-height: 38px;
+            max-height: 130px;
+            height: 38px;
+            padding: 8px 2px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            overflow-y: hidden;
+            line-height: 22px;
+        }
+
+        .composer textarea:focus {
+            border-color: transparent;
+            background: transparent;
+        }
+
+        .send-button {
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            align-self: end;
         }
 
         @media (max-width: 920px) {
@@ -792,6 +1333,23 @@
                 padding-left: 0;
             }
         }
+
+        @media (max-width: 620px) {
+            .composer {
+                grid-template-columns: 34px minmax(0, 1fr) 40px;
+                border-radius: 28px;
+            }
+
+            .send-button {
+                width: 40px;
+                height: 40px;
+            }
+
+            .pending-card,
+            .artifact-card {
+                margin-left: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -800,10 +1358,11 @@
         <div class="brand">
             <div class="brand-row">
                 <div class="mark">A</div>
-                <div>
+                <div class="brand-copy">
                     <div class="brand-title">AutoAgent</div>
                     <div class="brand-subtitle">Runtime Chat</div>
                 </div>
+                <button id="collapseSidebarBtn" class="collapse-sidebar" type="button" title="收起侧边栏" aria-label="收起侧边栏">◐</button>
             </div>
             <div class="mode-switch" aria-label="mode switch">
                 <button id="mockModeBtn" class="mode-button" type="button">Mock</button>
@@ -881,7 +1440,7 @@
 
         <footer class="composer-wrap">
             <div class="composer">
-                <textarea id="messageInput" placeholder="输入消息" rows="2"></textarea>
+                <textarea id="messageInput" placeholder="输入消息" rows="1"></textarea>
                 <button id="sendBtn" class="send-button" type="button" aria-label="发送">↑</button>
             </div>
         </footer>
@@ -892,7 +1451,10 @@
 <aside id="debugDrawer" class="drawer" aria-hidden="true">
     <div class="drawer-header">
         <div class="drawer-title">Debug</div>
-        <button id="closeDebugBtn" class="ghost-button" type="button">Close</button>
+        <div class="drawer-actions">
+            <button id="exportDebugBtn" class="ghost-button" type="button">Export</button>
+            <button id="closeDebugBtn" class="ghost-button" type="button">Close</button>
+        </div>
     </div>
     <div class="drawer-content">
         <section class="debug-section">
@@ -906,6 +1468,22 @@
         <section class="debug-section">
             <h3>Events</h3>
             <div id="debugEvents" class="debug-list"></div>
+        </section>
+        <section class="debug-section">
+            <h3>Local Log</h3>
+            <div id="debugLocalLog" class="debug-list"></div>
+        </section>
+        <section class="debug-section">
+            <h3>Backend Traces</h3>
+            <div id="debugTraces" class="debug-list"></div>
+        </section>
+        <section class="debug-section">
+            <h3>Evidence</h3>
+            <div id="debugEvidence" class="debug-list"></div>
+        </section>
+        <section class="debug-section">
+            <h3>Tool Calls</h3>
+            <div id="debugToolCalls" class="debug-list"></div>
         </section>
         <section class="debug-section">
             <h3>Artifacts</h3>
@@ -990,12 +1568,19 @@
         pendingInputs: new Map(),
         answeredPendingIds: new Set(),
         seenEventKeys: new Set(),
-        eventSource: null
+        debugDetails: {traces: [], evidence: [], toolCalls: [], payloads: {}},
+        eventSource: null,
+        streamStatus: "idle",
+        lastStreamError: null,
+        sidebarCollapsed: false
     };
+
+    const recoveryTimers = new Map();
 
     const els = {
         mockModeBtn: document.getElementById("mockModeBtn"),
         realModeBtn: document.getElementById("realModeBtn"),
+        collapseSidebarBtn: document.getElementById("collapseSidebarBtn"),
         scenarioList: document.getElementById("scenarioList"),
         sessionList: document.getElementById("sessionList"),
         connectionText: document.getElementById("connectionText"),
@@ -1008,6 +1593,7 @@
         newChatBtn: document.getElementById("newChatBtn"),
         newChatSmallBtn: document.getElementById("newChatSmallBtn"),
         debugBtn: document.getElementById("debugBtn"),
+        exportDebugBtn: document.getElementById("exportDebugBtn"),
         closeDebugBtn: document.getElementById("closeDebugBtn"),
         drawerBackdrop: document.getElementById("drawerBackdrop"),
         debugDrawer: document.getElementById("debugDrawer"),
@@ -1021,6 +1607,10 @@
         debugMode: document.getElementById("debugMode"),
         debugApiBase: document.getElementById("debugApiBase"),
         debugEvents: document.getElementById("debugEvents"),
+        debugLocalLog: document.getElementById("debugLocalLog"),
+        debugTraces: document.getElementById("debugTraces"),
+        debugEvidence: document.getElementById("debugEvidence"),
+        debugToolCalls: document.getElementById("debugToolCalls"),
         debugArtifacts: document.getElementById("debugArtifacts")
     };
 
@@ -1051,7 +1641,9 @@
             const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
             state.mode = params.get("mode") || saved.mode || "real";
             state.sessions = Array.isArray(saved.sessions) ? saved.sessions : [];
+            state.sessions.forEach(ensureSessionShape);
             state.activeSessionId = saved.activeSessionId || null;
+            state.sidebarCollapsed = Boolean(saved.sidebarCollapsed);
         } catch (error) {
             state.sessions = [];
         }
@@ -1067,8 +1659,18 @@
         localStorage.setItem(STORE_KEY, JSON.stringify({
             mode: state.mode,
             sessions: state.sessions,
-            activeSessionId: state.activeSessionId
+            activeSessionId: state.activeSessionId,
+            sidebarCollapsed: state.sidebarCollapsed
         }));
+    }
+
+    function applySidebarState() {
+        document.body.classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
+        if (els.collapseSidebarBtn) {
+            const label = state.sidebarCollapsed ? "展开侧边栏" : "收起侧边栏";
+            els.collapseSidebarBtn.title = label;
+            els.collapseSidebarBtn.setAttribute("aria-label", label);
+        }
     }
 
     function createSession(title = "新会话", activate = true) {
@@ -1076,8 +1678,10 @@
             sessionId: `sess-ui-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
             title,
             createdAt: new Date().toISOString(),
-            messages: []
+            messages: [],
+            debugRecords: []
         };
+        ensureSessionShape(session);
         state.sessions.unshift(session);
         if (activate) {
             state.activeSessionId = session.sessionId;
@@ -1107,8 +1711,36 @@
         renderAll();
     }
 
+    function renameSession(sessionId) {
+        const session = state.sessions.find(item => item.sessionId === sessionId);
+        if (!session) return;
+        const nextTitle = window.prompt("修改会话名", session.title || "新会话");
+        if (nextTitle == null) return;
+        const trimmed = nextTitle.trim();
+        if (!trimmed) {
+            toast("会话名不能为空");
+            return;
+        }
+        session.title = trimmed.slice(0, 80);
+        persistState();
+        renderSessions();
+        renderTopbar();
+    }
+
     function activeSession() {
         return state.sessions.find(item => item.sessionId === state.activeSessionId) || state.sessions[0];
+    }
+
+    function ensureSessionShape(session) {
+        if (!session) return session;
+        session.messages = Array.isArray(session.messages) ? session.messages : [];
+        session.debugRecords = Array.isArray(session.debugRecords) ? session.debugRecords : [];
+        return session;
+    }
+
+    function activeDebugRecords() {
+        const session = ensureSessionShape(activeSession());
+        return session?.debugRecords || [];
     }
 
     function resetRunViewState() {
@@ -1117,6 +1749,9 @@
         state.pendingInputs = new Map();
         state.answeredPendingIds = new Set();
         state.seenEventKeys = new Set();
+        state.debugDetails = {traces: [], evidence: [], toolCalls: [], payloads: {}};
+        state.streamStatus = "idle";
+        state.lastStreamError = null;
     }
 
     function setMode(mode) {
@@ -1136,10 +1771,30 @@
         renderDebug();
     }
 
+    function recordDebug(type, title, detail = {}, level = "info") {
+        const records = activeDebugRecords();
+        records.unshift({
+            id: `dbg-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            runId: state.activeRunId,
+            sessionId: state.activeSessionId,
+            type,
+            title,
+            detail,
+            level,
+            createdAt: new Date().toISOString()
+        });
+        if (records.length > 300) {
+            records.length = 300;
+        }
+        persistState();
+        renderDebug();
+    }
+
     function normalizeStatus(status) {
         const value = String(status || "idle").toLowerCase();
         if (value === "completed" || value === "complete" || value === "final_ready") return "completed";
         if (value === "failed" || value === "fail" || value === "run_failed" || value === "error") return "failed";
+        if (value === "disconnected" || value === "stream_disconnected") return "disconnected";
         if (value === "waiting_user") return "waiting_user";
         if (value === "running" || value === "run_started") return "running";
         if (value === "idle") return "idle";
@@ -1149,7 +1804,7 @@
     function statusClass(status) {
         const value = String(status || "").toLowerCase();
         if (value.includes("complete") || value.includes("final")) return "completed";
-        if (value.includes("fail") || value.includes("error")) return "failed";
+        if (value.includes("fail") || value.includes("error") || value.includes("disconnect")) return "failed";
         if (value === "idle") return "";
         return "running";
     }
@@ -1173,7 +1828,52 @@
         return message;
     }
 
+    function addAssistantThinking(runId = null) {
+        const session = activeSession();
+        const last = session.messages[session.messages.length - 1];
+        if (last?.role === "assistant" && last.meta?.thinking && !last.meta?.final) {
+            if (runId) last.meta.runId = runId;
+            last.meta.events = Array.isArray(last.meta.events) ? last.meta.events : [];
+            persistState();
+            renderMessages();
+            return last;
+        }
+        return addMessage("assistant", "", {
+            runId,
+            thinking: true,
+            final: false,
+            events: []
+        });
+    }
+
+    function currentAssistantMessage(runId = state.activeRunId) {
+        const session = activeSession();
+        return [...session.messages].reverse().find(message => message.role === "assistant" && (
+            message.meta?.runId === runId || (!message.meta?.runId && message.meta?.thinking && !message.meta?.final)
+        ));
+    }
+
+    function assignAssistantRunId(runId) {
+        const message = currentAssistantMessage(runId);
+        if (!message) return;
+        message.meta.runId = runId;
+        message.meta.events = Array.isArray(message.meta.events) ? message.meta.events : [];
+        persistState();
+        renderMessages();
+    }
+
+    function attachEventToAssistant(event) {
+        const message = currentAssistantMessage(event.runId);
+        if (!message) return;
+        message.meta.events = Array.isArray(message.meta.events) ? message.meta.events : [];
+        if (!message.meta.events.some(item => item.eventId === event.eventId || (item.runId === event.runId && item.seq === event.seq))) {
+            message.meta.events.push(event);
+            persistState();
+        }
+    }
+
     function addEvent(event) {
+        const safePayload = event.safePayload || event.payload || {};
         const normalized = {
             eventId: event.eventId || `evt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
             runId: event.runId || state.activeRunId,
@@ -1182,16 +1882,19 @@
             title: event.title || event.phase || event.status || "运行中",
             message: event.message || event.summary || "",
             artifactId: event.artifactId || null,
-            pendingId: event.pendingId || event.pendingInputId || null,
-            safePayload: event.safePayload || {},
+            pendingId: event.pendingId || event.pendingInputId || safePayload.pendingId || safePayload.pendingInputId || null,
+            safePayload,
             createdAt: event.createdAt || new Date().toISOString()
         };
         const eventKey = event.eventId ? `id:${event.eventId}` : `seq:${normalized.runId}:${normalized.seq}`;
         if (state.seenEventKeys.has(eventKey)) return;
         state.seenEventKeys.add(eventKey);
         state.events.push(normalized);
+        recordDebug("EVENT", `${normalized.eventType} ${displayEventTitle(normalized)}`, normalized.safePayload || {});
+        attachEventToAssistant(normalized);
 
         if (normalized.pendingId) {
+            seedPendingInputFromEvent(normalized);
             ensurePendingInput(normalized.pendingId);
         }
         if (normalized.artifactId && !state.artifacts.find(item => item.artifactId === normalized.artifactId)) {
@@ -1203,10 +1906,16 @@
         }
         const terminalBefore = state.status === "completed" || state.status === "failed";
         if (normalized.eventType === "FINAL_READY") {
+            clearRunRecovery(normalized.runId);
+            state.streamStatus = "completed";
             setStatus("completed");
-            addFinalForScenario();
+            addFinalForScenario(normalized.runId);
         } else if (normalized.eventType === "RUN_FAILED") {
+            clearRunRecovery(normalized.runId);
+            state.streamStatus = "failed";
             setStatus("failed");
+            addAssistantFinal(displayEventMessage(normalized) || "运行过程中发生错误，流程已停止。");
+            loadBackendDebug(normalized.runId);
         } else if (terminalBefore) {
             renderDebug();
         } else if (normalized.pendingId) {
@@ -1218,28 +1927,35 @@
         renderDebug();
     }
 
-    async function addFinalForScenario() {
-        if (state.mode === "mock" || String(state.activeRunId || "").startsWith("mock-")) {
+    async function addFinalForScenario(runId = state.activeRunId) {
+        if (state.mode === "mock" || String(runId || "").startsWith("mock-")) {
             const scenario = state.activeScenario || "simple_final";
             addAssistantFinal(finalMessages[scenario] || finalMessages.simple_final);
             return;
         }
         try {
-            const result = await requestJson(`/agent/runs/${encodeURIComponent(state.activeRunId)}/final`);
+            const result = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/final`);
+            recordDebug("API", "Loaded final response", {runId, status: result?.status, completed: result?.completed});
             if (result?.finalAnswer) {
-                addAssistantFinal(result.finalAnswer);
+                addAssistantFinal(result.finalAnswer, runId);
             }
+            loadBackendDebug(runId);
         } catch (error) {
+            recordDebug("ERROR", "Final response read failed", {runId, message: error.message}, "error");
+            addAssistantFinal(`最终回答读取失败：${error.message}`, runId);
             toast(`最终回答读取失败：${error.message}`);
         }
     }
 
-    function addAssistantFinal(text) {
-        const session = activeSession();
-        const last = session.messages[session.messages.length - 1];
-        if (!last || last.role !== "assistant" || last.meta.runId !== state.activeRunId) {
-            addMessage("assistant", text, {runId: state.activeRunId, final: true});
-        }
+    function addAssistantFinal(text, runId = state.activeRunId) {
+        const message = currentAssistantMessage(runId) || addAssistantThinking(runId);
+        message.content = text;
+        message.meta.runId = runId;
+        message.meta.final = true;
+        message.meta.thinking = false;
+        message.meta.events = Array.isArray(message.meta.events) ? message.meta.events : [...state.events];
+        persistState();
+        renderMessages();
     }
 
     function ensurePendingInput(pendingId) {
@@ -1253,10 +1969,57 @@
             .then(pending => {
                 if (pending?.pendingId) {
                     state.pendingInputs.set(pending.pendingId, pending);
+                    recordDebug("API", "Loaded pending input", {
+                        pendingId: pending.pendingId,
+                        inputMode: pending.inputMode,
+                        options: (pending.options || []).length,
+                        allowFreeText: pending.allowFreeText
+                    });
                     renderMessages();
                 }
             })
-            .catch(error => toast(`用户确认加载失败：${error.message}`));
+            .catch(error => {
+                recordDebug("ERROR", "Pending input load failed", {pendingId, message: error.message}, "error");
+                toast(`用户确认加载失败：${error.message}`);
+            });
+    }
+
+    function seedPendingInputFromEvent(event) {
+        if (!event?.pendingId || state.pendingInputs.has(event.pendingId)) {
+            return;
+        }
+        if (event.eventType !== "ASK_USER") {
+            return;
+        }
+        const payload = event.safePayload || {};
+        state.pendingInputs.set(event.pendingId, {
+            pendingId: event.pendingId,
+            pendingType: payload.pendingType || "CLARIFICATION",
+            inputMode: payload.inputMode || "SINGLE_CHOICE_OR_FREE_TEXT",
+            allowFreeText: payload.allowFreeText !== false,
+            question: payload.question || event.message || event.summary || "需要你的确认后继续。",
+            options: normalizePendingOptions(payload.options || [])
+        });
+        recordDebug("ASK_USER", "Seeded pending input from event", {
+            pendingId: event.pendingId,
+            inputMode: payload.inputMode || "SINGLE_CHOICE_OR_FREE_TEXT",
+            options: Array.isArray(payload.options) ? payload.options.length : 0
+        });
+    }
+
+    function normalizePendingOptions(options) {
+        if (!Array.isArray(options)) {
+            return [];
+        }
+        return options.map((option, index) => {
+            const optionId = option.optionId || option.id || `option-${index + 1}`;
+            return {
+                ...option,
+                optionId,
+                id: option.id || optionId,
+                label: option.label || optionId
+            };
+        });
     }
 
     function renderSessions() {
@@ -1264,6 +2027,7 @@
         state.sessions.forEach(session => {
             const item = document.createElement("div");
             item.className = `session-item ${session.sessionId === state.activeSessionId ? "active" : ""}`;
+            let menu;
             const button = document.createElement("button");
             button.type = "button";
             button.className = "session-button";
@@ -1281,26 +2045,58 @@
             });
             const del = document.createElement("button");
             del.type = "button";
-            del.className = "delete-session";
-            del.title = "删除会话";
-            del.textContent = "×";
+            del.className = "session-menu-button";
+            del.title = "更多";
+            del.setAttribute("aria-label", "更多");
+            del.textContent = "•••";
             del.addEventListener("click", event => {
+                event.stopPropagation();
+                document.querySelectorAll(".session-item.menu-open").forEach(openItem => {
+                    if (openItem !== item) openItem.classList.remove("menu-open");
+                });
+                item.classList.toggle("menu-open");
+                menu.hidden = !item.classList.contains("menu-open");
+            });
+            menu = document.createElement("div");
+            menu.className = "session-menu";
+            menu.hidden = true;
+            const renameButton = document.createElement("button");
+            renameButton.type = "button";
+            renameButton.className = "session-menu-item neutral";
+            renameButton.innerHTML = `${iconSvg("edit")}<span>重命名</span>`;
+            renameButton.addEventListener("click", event => {
+                event.stopPropagation();
+                item.classList.remove("menu-open");
+                menu.hidden = true;
+                renameSession(session.sessionId);
+            });
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "session-menu-item";
+            deleteButton.innerHTML = `${iconSvg("trash")}<span>删除</span>`;
+            deleteButton.addEventListener("click", event => {
                 event.stopPropagation();
                 deleteSession(session.sessionId);
             });
+            menu.appendChild(renameButton);
+            menu.appendChild(deleteButton);
             item.appendChild(button);
             item.appendChild(del);
+            item.appendChild(menu);
             els.sessionList.appendChild(item);
         });
     }
 
     function renderMessages() {
         const session = activeSession();
+        const scroll = els.chatScroll;
+        const shouldStickToBottom = isNearBottom(scroll);
+        const previousScrollTop = scroll ? scroll.scrollTop : 0;
+        const openThinkingKeys = captureOpenThinkingKeys();
         els.emptyState.classList.toggle("hidden", Boolean(session.messages.length || state.events.length));
         els.messageStack.innerHTML = "";
         session.messages.forEach(message => els.messageStack.appendChild(renderMessage(message)));
         state.events.forEach(event => {
-            els.messageStack.appendChild(renderEvent(event));
             if (event.pendingId && isPendingActive(event.pendingId)) {
                 els.messageStack.appendChild(renderPending(event.pendingId));
             }
@@ -1308,19 +2104,149 @@
                 els.messageStack.appendChild(renderArtifact(event.artifactId, event.message));
             }
         });
+        restoreOpenThinkingKeys(openThinkingKeys);
         queueMicrotask(() => {
-            els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
+            if (!scroll) return;
+            if (shouldStickToBottom) {
+                scroll.scrollTop = scroll.scrollHeight;
+            } else {
+                scroll.scrollTop = previousScrollTop;
+            }
+        });
+    }
+
+    function isNearBottom(scroll) {
+        if (!scroll) return true;
+        const distance = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
+        return distance < 96;
+    }
+
+    function captureOpenThinkingKeys() {
+        const keys = new Set();
+        els.messageStack.querySelectorAll("details[data-thinking-key][open]").forEach(item => {
+            keys.add(item.dataset.thinkingKey);
+        });
+        return keys;
+    }
+
+    function restoreOpenThinkingKeys(keys) {
+        if (!keys || !keys.size) return;
+        els.messageStack.querySelectorAll("details[data-thinking-key]").forEach(item => {
+            if (keys.has(item.dataset.thinkingKey)) {
+                item.open = true;
+            }
         });
     }
 
     function renderMessage(message) {
         const wrapper = document.createElement("article");
         wrapper.className = `message ${message.role}`;
+        const thinking = message.role === "assistant" ? renderThinkingPanel(message) : "";
+        const bubble = message.content ? `<div class="bubble">${renderMarkdown(message.content)}</div>` : "";
         wrapper.innerHTML = `
-            <div class="avatar">${message.role === "user" ? "你" : "A"}</div>
-            <div class="bubble">${renderMarkdown(message.content)}</div>
+            <div class="message-body">
+                ${thinking}
+                ${bubble}
+                ${renderMessageActions(message)}
+            </div>
         `;
         return wrapper;
+    }
+
+    function renderThinkingPanel(message) {
+        const events = Array.isArray(message.meta?.events) ? message.meta.events : [];
+        if (!message.meta?.thinking && !message.meta?.final && !events.length) return "";
+        const final = Boolean(message.meta?.final);
+        const thinkingKey = message.meta?.runId || message.id;
+        const current = final ? "展开思考内容" : currentThinkingText(events);
+        const rows = events.length ? events.map(event => `
+            <div class="thinking-row">
+                <div>
+                    <div class="thinking-row-title">${escapeHtml(displayEventTitle(event))}</div>
+                    ${displayEventMessage(event) ? `<div class="thinking-row-message">${escapeHtml(displayEventMessage(event))}</div>` : ""}
+                </div>
+            </div>
+        `).join("") : `
+            <div class="thinking-row">
+                <div>
+                    <div class="thinking-row-title">正在思考ing</div>
+                    <div class="thinking-row-message">正在准备回答。</div>
+                </div>
+            </div>
+        `;
+        if (final) {
+            return `
+                <details class="thinking-final" data-thinking-key="${escapeHtml(thinkingKey)}">
+                    <summary class="thinking-final-summary">
+                        <span class="thinking-current">
+                            <span class="thinking-wave">${escapeHtml(current)}</span>
+                        </span>
+                    </summary>
+                    <div class="thinking-final-body">
+                        <div class="thinking-list">${rows}</div>
+                    </div>
+                </details>
+            `;
+        }
+        return `
+            <details class="thinking-live" data-thinking-key="${escapeHtml(thinkingKey)}">
+                <summary class="thinking-live-summary">
+                    <span class="thinking-current">
+                        <span class="thinking-dot"></span>
+                        <span class="thinking-wave">${escapeHtml(current)}</span>
+                    </span>
+                </summary>
+                <div class="thinking-live-body">
+                    <div class="thinking-list">${rows}</div>
+                </div>
+            </details>
+        `;
+    }
+
+    function currentThinkingText(events) {
+        if (!events.length) return "正在思考ing";
+        const last = events[events.length - 1];
+        if (last.eventType === "RUN_FAILED") return displayEventTitle(last);
+        const active = [...events].reverse().find(event => event.eventType !== "FINAL_READY" && event.eventType !== "RUN_FAILED");
+        return displayEventTitle(active || events[events.length - 1]) || "正在思考ing";
+    }
+
+    function renderMessageActions(message) {
+        if (!message.content && message.role === "assistant") return "";
+        const feedback = message.meta?.feedback || "";
+        if (message.role === "user") {
+            return `
+                <div class="message-actions">
+                    <button class="message-action" type="button" data-message-action="copy" data-message-id="${escapeHtml(message.id)}" title="复制" aria-label="复制">${iconSvg("copy")}</button>
+                    <button class="message-action" type="button" data-message-action="retry" data-message-id="${escapeHtml(message.id)}" title="重写" aria-label="重写">${iconSvg("edit")}</button>
+                </div>
+            `;
+        }
+        return `
+            <div class="message-actions">
+                <button class="message-action" type="button" data-message-action="copy" data-message-id="${escapeHtml(message.id)}" title="复制" aria-label="复制">${iconSvg("copy")}</button>
+                <button class="message-action ${feedback === "like" ? "active" : ""}" type="button" data-message-action="like" data-message-id="${escapeHtml(message.id)}" title="点赞" aria-label="点赞">${iconSvg("thumbsUp")}</button>
+                <button class="message-action ${feedback === "dislike" ? "active" : ""}" type="button" data-message-action="dislike" data-message-id="${escapeHtml(message.id)}" title="点踩" aria-label="点踩">${iconSvg("thumbsDown")}</button>
+                <button class="message-action" type="button" data-message-action="noop" data-message-id="${escapeHtml(message.id)}" title="分享" aria-label="分享">${iconSvg("share")}</button>
+                <button class="message-action" type="button" data-message-action="retry" data-message-id="${escapeHtml(message.id)}" title="重新生成" aria-label="重新生成">${iconSvg("refresh")}</button>
+                <button class="message-action" type="button" data-message-action="noop" data-message-id="${escapeHtml(message.id)}" title="更多" aria-label="更多">${iconSvg("more")}</button>
+            </div>
+        `;
+    }
+
+    function iconSvg(name) {
+        const attrs = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+        const icons = {
+            copy: '<rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"></path>',
+            edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
+            thumbsUp: '<path d="M7 10v11"></path><path d="M15 5.5 14 10h5.2a2 2 0 0 1 2 2.3l-1.1 7A2 2 0 0 1 18.1 21H7a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3h2.4L13 3a2 2 0 0 1 2 2.5Z"></path>',
+            thumbsDown: '<path d="M17 14V3"></path><path d="M9 18.5 10 14H4.8a2 2 0 0 1-2-2.3l1.1-7A2 2 0 0 1 5.9 3H17a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-2.4L11 21a2 2 0 0 1-2-2.5Z"></path>',
+            share: '<path d="M12 16V4"></path><path d="m7 9 5-5 5 5"></path><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"></path>',
+            refresh: '<path d="M21 12a9 9 0 0 1-15.3 6.4"></path><path d="M3 12A9 9 0 0 1 18.3 5.6"></path><path d="M3 18h5v-5"></path><path d="M21 6h-5v5"></path>',
+            trash: '<path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path>',
+            more: '<circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle>'
+        };
+        return `<svg ${attrs}>${icons[name] || icons.more}</svg>`;
     }
 
     function renderEvent(event) {
@@ -1354,7 +2280,8 @@
             <div class="pending-options"></div>
         `;
         const options = card.querySelector(".pending-options");
-        (pending.options || []).forEach(option => {
+        const normalizedOptions = normalizePendingOptions(pending.options || []);
+        normalizedOptions.forEach(option => {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "option-button";
@@ -1363,7 +2290,11 @@
             button.addEventListener("click", () => submitPendingAnswer(pending.pendingId, option.optionId, null));
             options.appendChild(button);
         });
-        if (pending.allowFreeText || pending.inputMode === "FREE_TEXT" || pending.inputMode === "SINGLE_CHOICE_OR_FREE_TEXT") {
+        const shouldShowFreeInput = pending.allowFreeText
+            || pending.inputMode === "FREE_TEXT"
+            || pending.inputMode === "SINGLE_CHOICE_OR_FREE_TEXT"
+            || (!normalizedOptions.length && pending.pendingType !== "TOOL_APPROVAL" && pending.inputMode !== "CONFIRM");
+        if (shouldShowFreeInput) {
             const free = document.createElement("div");
             free.className = "free-answer";
             free.innerHTML = `
@@ -1420,15 +2351,46 @@
     function renderDebug() {
         els.debugSessionId.textContent = state.activeSessionId || "-";
         els.debugRunId.textContent = state.activeRunId || "-";
-        els.debugStatus.textContent = state.status || "idle";
+        els.debugStatus.textContent = `${state.status || "idle"} / stream=${state.streamStatus || "idle"}${state.lastStreamError ? " / " + state.lastStreamError : ""}`;
         els.debugMode.textContent = state.mode;
         els.debugApiBase.textContent = API_BASE || location.origin;
-        els.debugEvents.innerHTML = state.events.length ? state.events.map(event => `
+        const currentRunId = state.activeRunId;
+        const runEvents = currentRunId ? state.events.filter(event => event.runId === currentRunId) : state.events;
+        els.debugEvents.innerHTML = runEvents.length ? runEvents.map(event => `
             <div class="debug-event">
                 <code>#${escapeHtml(String(event.seq))}</code> ${escapeHtml(event.eventType)}<br>
                 ${escapeHtml(displayEventTitle(event))}
+                <pre>${escapeHtml(JSON.stringify(event.safePayload || {}, null, 2))}</pre>
             </div>
         `).join("") : '<div class="debug-event">No event</div>';
+        els.debugLocalLog.innerHTML = activeDebugRecords().length ? activeDebugRecords().map(record => `
+            <div class="debug-event ${escapeHtml(record.level || "info")}">
+                <code>${escapeHtml(formatTime(record.createdAt))}</code> ${escapeHtml(record.type || "LOG")}<br>
+                ${escapeHtml(record.title || "")}
+                <pre>${escapeHtml(JSON.stringify(record.detail || {}, null, 2))}</pre>
+            </div>
+        `).join("") : '<div class="debug-event">No local log</div>';
+        els.debugTraces.innerHTML = state.debugDetails.traces.length ? state.debugDetails.traces.map(trace => `
+            <div class="debug-event">
+                <code>#${escapeHtml(String(trace.seq || ""))}</code> ${escapeHtml(trace.traceType || "TRACE")}<br>
+                ${escapeHtml(trace.componentName || "")} ${escapeHtml(trace.actionType || "")}
+                ${trace.payloadRef ? `<pre>${escapeHtml(debugPayloadText(trace.payloadRef))}</pre>` : ""}
+            </div>
+        `).join("") : '<div class="debug-event">No backend trace loaded</div>';
+        els.debugEvidence.innerHTML = state.debugDetails.evidence.length ? state.debugDetails.evidence.map(evidence => `
+            <div class="debug-event">
+                <code>${escapeHtml(evidence.evidenceId || evidence.sourceRef || "")}</code><br>
+                ${escapeHtml(evidence.evidenceType || "")} ${escapeHtml(evidence.summary || "")}
+                <pre>${escapeHtml(JSON.stringify(evidence, null, 2))}</pre>
+            </div>
+        `).join("") : '<div class="debug-event">No evidence</div>';
+        els.debugToolCalls.innerHTML = state.debugDetails.toolCalls.length ? state.debugDetails.toolCalls.map(tool => `
+            <div class="debug-event ${tool.status === "FAILED" ? "error" : ""}">
+                <code>${escapeHtml(tool.toolCallId || "")}</code> ${escapeHtml(tool.status || "")}<br>
+                ${escapeHtml(tool.toolName || "")} ${escapeHtml(tool.failureCode || "")}
+                <pre>${escapeHtml(JSON.stringify(tool, null, 2))}</pre>
+            </div>
+        `).join("") : '<div class="debug-event">No tool call</div>';
         els.debugArtifacts.innerHTML = state.artifacts.length ? state.artifacts.map(artifact => `
             <div class="debug-event">
                 <code>${escapeHtml(artifact.artifactId)}</code><br>
@@ -1438,10 +2400,65 @@
     }
 
     function renderAll() {
+        applySidebarState();
         renderSessions();
         renderTopbar();
         renderMessages();
         renderDebug();
+    }
+
+    function debugPayloadText(payloadRef) {
+        const payload = state.debugDetails.payloads?.[payloadRef];
+        if (!payload) {
+            return `payloadRef: ${payloadRef}`;
+        }
+        return JSON.stringify({
+            payloadRef,
+            preview: payload.preview,
+            rawContent: payload.rawContent
+        }, null, 2);
+    }
+
+    function findMessage(messageId) {
+        const session = activeSession();
+        return session.messages.find(message => message.id === messageId);
+    }
+
+    function resizeComposerInput() {
+        const input = els.messageInput;
+        if (!input) return;
+        input.style.height = "38px";
+        const nextHeight = Math.min(Math.max(input.scrollHeight, 38), 130);
+        input.style.height = `${nextHeight}px`;
+        input.style.overflowY = input.scrollHeight > 130 ? "auto" : "hidden";
+        input.closest(".composer")?.classList.toggle("expanded", nextHeight > 44);
+    }
+
+    async function handleMessageAction(event) {
+        const button = event.target.closest("[data-message-action]");
+        if (!button) return;
+        const message = findMessage(button.dataset.messageId);
+        if (!message) return;
+        const action = button.dataset.messageAction;
+        if (action === "copy") {
+            await navigator.clipboard?.writeText(message.content || "");
+            toast("已复制");
+            return;
+        }
+        if (action === "retry") {
+            els.messageInput.value = message.content || "";
+            resizeComposerInput();
+            els.messageInput.focus();
+            return;
+        }
+        if (action === "noop") {
+            return;
+        }
+        if (action === "like" || action === "dislike") {
+            message.meta.feedback = message.meta.feedback === action ? "" : action;
+            persistState();
+            renderMessages();
+        }
     }
 
     async function loadScenarios() {
@@ -1461,9 +2478,11 @@
         const content = els.messageInput.value.trim();
         if (!content) return;
         els.messageInput.value = "";
+        resizeComposerInput();
         closeStream();
         resetRunViewState();
         addMessage("user", content);
+        addAssistantThinking();
         setStatus("starting");
 
         if (state.mode === "mock") {
@@ -1485,11 +2504,16 @@
                 })
             });
             state.activeRunId = result.runId;
+            assignAssistantRunId(result.runId);
             setStatus(result.status || "running");
+            recordDebug("API", "Chat run started", result);
             renderTopbar();
-            connectSse(`/agent/runs/${encodeURIComponent(result.runId)}/events/stream`);
+            connectSse(`/agent/runs/${encodeURIComponent(result.runId)}/events/stream`, result.runId);
+            scheduleRunRecovery(result.runId);
         } catch (error) {
             setStatus("failed");
+            recordDebug("ERROR", "Chat request failed", {message: error.message}, "error");
+            addAssistantFinal(`后端请求失败：${error.message}`);
             toast(`后端请求失败：${error.message}`);
         }
     }
@@ -1500,6 +2524,7 @@
         state.activeScenario = scenario;
         resetRunViewState();
         addMessage("user", scenarioPrompt(scenario));
+        addAssistantThinking();
         setStatus("starting");
         await runMockScenarioFromMessage(scenario);
     }
@@ -1507,30 +2532,48 @@
     async function runMockScenarioFromMessage(scenario) {
         state.activeScenario = scenario;
         state.activeRunId = `mock-${scenario}-${Date.now()}`;
+        assignAssistantRunId(state.activeRunId);
         renderTopbar();
         fallbackMockEvents(scenario, state.activeRunId).forEach((event, index) => {
             window.setTimeout(() => addEvent(event), 260 * (index + 1));
         });
     }
 
-    function connectSse(path) {
+    function connectSse(path, runId = state.activeRunId) {
         closeStream();
+        state.streamStatus = "connecting";
+        state.lastStreamError = null;
         const source = new EventSource(API_BASE + withLastSeq(path));
         state.eventSource = source;
+        recordDebug("SSE", "Event stream opened", {runId, path});
+        source.onopen = () => {
+            state.streamStatus = "open";
+            state.lastStreamError = null;
+            recordDebug("SSE", "Event stream connected", {runId, path});
+            renderDebug();
+        };
         source.addEventListener("agent-event", event => {
             try {
+                state.streamStatus = "receiving";
                 addEvent(JSON.parse(event.data));
             } catch (error) {
+                state.lastStreamError = error.message;
+                recordDebug("ERROR", "SSE event parse failed", {runId, message: error.message, data: event.data}, "error");
                 toast("事件解析失败");
             }
         });
         source.addEventListener("agent-heartbeat", () => {});
         source.onerror = () => {
             const status = normalizeStatus(state.status);
-            if (status !== "completed" && status !== "failed") {
-                toast("事件流已断开");
+            state.streamStatus = "disconnected";
+            state.lastStreamError = "SSE stream disconnected before terminal event.";
+            recordDebug("WARN", "Event stream disconnected", {runId, status}, "warn");
+            if (status !== "completed" && status !== "failed" && status !== "waiting_user") {
+                toast("事件流已断开，正在恢复状态");
+                recoverRunFromServer(runId, "sse-disconnected");
             }
             closeStream();
+            renderDebug();
         };
     }
 
@@ -1539,12 +2582,165 @@
             state.eventSource.close();
             state.eventSource = null;
         }
+        if (state.streamStatus === "open" || state.streamStatus === "receiving" || state.streamStatus === "connecting") {
+            state.streamStatus = "closed";
+        }
     }
 
     function withLastSeq(path) {
-        const lastSeq = state.events.reduce((max, event) => Math.max(max, Number(event.seq || 0)), 0);
+        const runId = state.activeRunId;
+        const lastSeq = state.events
+            .filter(event => !runId || event.runId === runId)
+            .reduce((max, event) => Math.max(max, Number(event.seq || 0)), 0);
         if (!lastSeq) return path;
         return `${path}${path.includes("?") ? "&" : "?"}lastSeq=${encodeURIComponent(lastSeq)}`;
+    }
+
+    function scheduleRunRecovery(runId) {
+        clearRunRecovery(runId);
+        if (!runId || state.mode !== "real") return;
+        const timers = [
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-3s"), 3000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-8s"), 8000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-15s"), 15000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-30s"), 30000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-60s"), 60000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-120s"), 120000)
+        ];
+        recoveryTimers.set(runId, timers);
+    }
+
+    function clearRunRecovery(runId) {
+        const timers = recoveryTimers.get(runId);
+        if (!timers) return;
+        timers.forEach(timer => window.clearTimeout(timer));
+        recoveryTimers.delete(runId);
+    }
+
+    async function recoverRunFromServer(runId, reason) {
+        if (!runId || state.mode !== "real") return;
+        const status = normalizeStatus(state.status);
+        if (status === "completed" || status === "failed") return;
+        recordDebug("RECOVERY", "Recovering run state from backend", {runId, reason});
+        try {
+            const events = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/events?limit=200`);
+            (events || [])
+                .slice()
+                .sort((first, second) => Number(first.seq || 0) - Number(second.seq || 0))
+                .forEach(addEvent);
+        } catch (error) {
+            recordDebug("ERROR", "Event replay failed", {runId, reason, message: error.message}, "error");
+        }
+        const nextStatus = normalizeStatus(state.status);
+        if (nextStatus === "completed" || nextStatus === "failed" || nextStatus === "waiting_user") {
+            return;
+        }
+        try {
+            const final = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/final`);
+            recordDebug("RECOVERY", "Loaded run final snapshot", {runId, status: final?.status, completed: final?.completed});
+            if (final?.completed || String(final?.status || "").toUpperCase() === "COMPLETED") {
+                clearRunRecovery(runId);
+                state.streamStatus = "completed";
+                setStatus("completed");
+                if (final.finalAnswer) {
+                    addAssistantFinal(final.finalAnswer, runId);
+                }
+                await loadBackendDebug(runId);
+            } else if (String(final?.status || "").toUpperCase() === "FAILED") {
+                clearRunRecovery(runId);
+                state.streamStatus = "failed";
+                setStatus("failed");
+                addAssistantFinal("运行过程中发生错误，流程已停止。", runId);
+                await loadBackendDebug(runId);
+            }
+        } catch (error) {
+            recordDebug("ERROR", "Final snapshot recovery failed", {runId, reason, message: error.message}, "error");
+        }
+        const finalStatus = normalizeStatus(state.status);
+        if (reason === "sse-disconnected"
+            && finalStatus !== "completed"
+            && finalStatus !== "failed"
+            && finalStatus !== "waiting_user") {
+            markStreamRecovering(runId, reason);
+        }
+    }
+
+    function markStreamRecovering(runId, reason) {
+        state.streamStatus = "recovering";
+        state.lastStreamError = reason || "stream disconnected";
+        recordDebug("WARN", "Event stream is recovering without terminal state", {runId, reason}, "warn");
+        connectSse(`/agent/runs/${encodeURIComponent(runId)}/events/stream`, runId);
+    }
+
+    async function loadBackendDebug(runId = state.activeRunId) {
+        if (!runId || state.mode !== "real") return;
+        const [tracesResult, evidenceResult, toolCallsResult] = await Promise.allSettled([
+            requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/traces?limit=200`),
+            requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/evidence`),
+            requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/tool-calls`)
+        ]);
+        state.debugDetails = {
+            traces: tracesResult.status === "fulfilled" ? tracesResult.value || [] : [],
+            evidence: evidenceResult.status === "fulfilled" ? evidenceResult.value || [] : [],
+            toolCalls: toolCallsResult.status === "fulfilled" ? toolCallsResult.value || [] : [],
+            payloads: {}
+        };
+        state.debugDetails.payloads = await loadDebugPayloads(runId, state.debugDetails.traces);
+        [tracesResult, evidenceResult, toolCallsResult].forEach((result, index) => {
+            if (result.status === "rejected") {
+                const names = ["traces", "evidence", "toolCalls"];
+                recordDebug("ERROR", `Backend debug ${names[index]} failed to load`, {runId, message: result.reason?.message || String(result.reason)}, "error");
+            }
+        });
+        recordDebug("DEBUG", "Loaded backend debug details", {
+                runId,
+                traces: state.debugDetails.traces.length,
+                evidence: state.debugDetails.evidence.length,
+                toolCalls: state.debugDetails.toolCalls.length,
+                payloads: Object.keys(state.debugDetails.payloads).length
+            });
+            renderDebug();
+    }
+
+    async function loadDebugPayloads(runId, traces) {
+        const refs = [...new Set((traces || []).map(trace => trace.payloadRef).filter(Boolean))].slice(0, 80);
+        const entries = await Promise.allSettled(refs.map(async payloadRef => {
+            const payload = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/payloads/${encodeURIComponent(payloadRef)}`);
+            return [payloadRef, payload];
+        }));
+        const payloads = {};
+        entries.forEach(result => {
+            if (result.status === "fulfilled" && result.value?.[0]) {
+                payloads[result.value[0]] = result.value[1];
+            }
+        });
+        return payloads;
+    }
+
+    async function exportDebugToFile() {
+        const runId = state.activeRunId;
+        if (!runId || state.mode !== "real" || String(runId).startsWith("mock-")) {
+            toast("当前没有可导出的真实运行记录");
+            return;
+        }
+        try {
+            await loadBackendDebug(runId);
+            const result = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/export`, {
+                method: "POST",
+                body: JSON.stringify({
+                    browserDebugRecords: activeDebugRecords(),
+                    browserEvents: state.events.filter(event => event.runId === runId),
+                    browserDebugDetails: state.debugDetails,
+                    status: state.status,
+                    exportedFrom: "agent_runtime_html"
+                })
+            });
+            recordDebug("DEBUG_EXPORT", "Debug snapshot exported", result || {});
+            toast(`Debug 已落库：${result?.path || "已保存"}`);
+        } catch (error) {
+            recordDebug("ERROR", "Debug export failed", {runId, message: error.message}, "error");
+            toast(`Debug 导出失败：${error.message}`);
+        }
     }
 
     async function submitPendingAnswer(pendingId, optionId, freeText) {
@@ -1553,7 +2749,7 @@
             return;
         }
         state.answeredPendingIds.add(pendingId);
-        addMessage("user", optionId ? `选择：${optionId}` : freeText, {pendingId});
+        recordPendingAnswer(pendingId, optionId, freeText);
 
         if (state.mode === "mock" || !state.activeRunId || state.activeRunId.startsWith("mock-")) {
             setStatus("running");
@@ -1578,10 +2774,30 @@
                 body: JSON.stringify({pendingId, optionId, freeText, cancelled: false, metadata: {source: "agent_runtime_html"}})
             });
             setStatus(result.status || "running");
-            connectSse(`/agent/runs/${encodeURIComponent(state.activeRunId)}/events/stream`);
+            recordDebug("API", "Submitted pending user answer", {pendingId, optionId, hasFreeText: Boolean(freeText), result});
+            connectSse(`/agent/runs/${encodeURIComponent(state.activeRunId)}/events/stream`, state.activeRunId);
+            scheduleRunRecovery(state.activeRunId);
         } catch (error) {
+            setStatus("failed");
+            recordDebug("ERROR", "Pending user answer failed", {pendingId, message: error.message}, "error");
+            addAssistantFinal(`用户回答提交失败：${error.message}`, state.activeRunId);
             toast(`提交失败：${error.message}`);
         }
+    }
+
+    function recordPendingAnswer(pendingId, optionId, freeText) {
+        const pending = state.pendingInputs.get(pendingId) || mockPendingInputs[pendingId] || {};
+        const option = (pending.options || []).find(item => item.optionId === optionId || item.id === optionId);
+        const answerText = freeText || option?.label || optionId || "已回答";
+        recordDebug("USER_INPUT", "User answered pending request", {pendingId, optionId, freeText, answerText});
+        addEvent({
+            eventId: `local-answer-${pendingId}-${Date.now()}`,
+            runId: state.activeRunId,
+            eventType: "STATUS_CHANGED",
+            title: "USER_ANSWERED",
+            message: `你的回答：${answerText}`,
+            safePayload: {pendingId, optionId, freeText}
+        });
     }
 
     async function openArtifact(artifactId) {
@@ -1676,8 +2892,21 @@
             context_over_budget: "需要缩小范围",
             completed: "已完成",
             failed: "已停止",
+            PREPARING_CONTEXT: "准备上下文",
+            PLANNING_CONTEXT: "规划上下文",
+            BUILDING_STATE_VIEW: "构建状态视图",
+            CALLING_MAIN_NODE: "调用主节点",
+            VALIDATING_ACTION: "校验动作",
+            HANDLING_ACTION: "处理动作",
+            EXECUTING_RAG: "检索知识",
+            RETRIEVING_KNOWLEDGE: "正在检索知识",
+            KNOWLEDGE_RETRIEVED: "知识检索完成",
+            KNOWLEDGE_NOT_FOUND: "未找到知识",
+            VERIFYING_FINAL: "最终校验",
+            PERSISTING_FINAL: "保存回答",
+            USER_ANSWERED: "已收到你的回答",
             "STATUS_CHANGED": "运行中",
-            "ASK_USER": "等待确认",
+            "ASK_USER": "等待你的确认",
             "FINAL_READY": "已完成",
             "RUN_FAILED": "已停止"
         };
@@ -1688,6 +2917,19 @@
         const text = String(event.message || event.summary || "");
         const map = {
             "Request received.": "",
+            "User message received.": "已收到你的消息。",
+            "Runtime loads candidates and current state.": "正在读取候选上下文和当前状态。",
+            "Runtime invokes ContextPlannerNode when needed.": "正在判断需要加载哪些上下文。",
+            "Runtime builds MainAgentStateView.": "正在组装主节点可见的状态视图。",
+            "Runtime invokes MainAgentNode.": "正在让主节点生成下一步动作。",
+            "Runtime parses and validates MainAgentAction.": "正在校验主节点输出。",
+            "Runtime routes the action to the correct handler.": "正在处理当前动作。",
+            "Runtime executes RAG retrieval.": "正在检索知识库内容。",
+            "Retrieving knowledge.": "正在检索知识库内容。",
+            "Knowledge evidence is ready.": "已找到可用知识证据。",
+            "No matching knowledge evidence was found.": "没有找到匹配的知识证据。",
+            "Runtime runs final response guard pipeline.": "正在做最终回答保护。",
+            "Runtime persists final response and assistant message.": "正在保存最终回答。",
             "Searching knowledge base.": "正在查找相关知识。",
             "Final response is ready.": "",
             "Confirm publishing this article?": "",
@@ -1744,6 +2986,7 @@
         els.debugDrawer.classList.add("open");
         els.drawerBackdrop.classList.add("open");
         els.debugDrawer.setAttribute("aria-hidden", "false");
+        loadBackendDebug(state.activeRunId);
     }
 
     function closeDebug() {
@@ -1762,13 +3005,20 @@
             closeStream();
             setMode("real");
         });
+        els.collapseSidebarBtn?.addEventListener("click", () => {
+            state.sidebarCollapsed = !state.sidebarCollapsed;
+            applySidebarState();
+            persistState();
+        });
         els.sendBtn.addEventListener("click", sendMessage);
+        els.messageStack.addEventListener("click", handleMessageAction);
         els.messageInput.addEventListener("keydown", event => {
             if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 sendMessage();
             }
         });
+        els.messageInput.addEventListener("input", resizeComposerInput);
         const newChat = () => {
             closeStream();
             createSession();
@@ -1777,11 +3027,22 @@
         els.newChatBtn.addEventListener("click", newChat);
         els.newChatSmallBtn.addEventListener("click", newChat);
         els.debugBtn.addEventListener("click", openDebug);
+        els.exportDebugBtn.addEventListener("click", exportDebugToFile);
         els.closeDebugBtn.addEventListener("click", closeDebug);
         els.drawerBackdrop.addEventListener("click", closeDebug);
+        document.addEventListener("click", event => {
+            if (!event.target.closest(".session-item")) {
+                document.querySelectorAll(".session-item.menu-open").forEach(item => {
+                    item.classList.remove("menu-open");
+                    const menu = item.querySelector(".session-menu");
+                    if (menu) menu.hidden = true;
+                });
+            }
+        });
         document.querySelectorAll("[data-starter]").forEach(button => {
             button.addEventListener("click", () => {
                 els.messageInput.value = button.dataset.starter;
+                resizeComposerInput();
                 els.messageInput.focus();
             });
         });
@@ -1790,6 +3051,7 @@
     async function boot() {
         loadState();
         bindEvents();
+        resizeComposerInput();
         setMode(state.mode);
         setStatus(state.status);
         renderAll();

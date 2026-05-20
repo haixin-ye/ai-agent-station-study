@@ -52,6 +52,13 @@ public class FinalResponseGuardTest {
         Assert.assertEquals("PASSED", result.getStatus());
     }
 
+    @Test
+    public void public_technical_words_are_not_internal_leaks() {
+        FinalResponseGuardResultVO result = check("Install Codex after installing Node.js, then configure your API key and run the command from a terminal prompt.");
+
+        Assert.assertEquals("PASSED", result.getStatus());
+    }
+
     private FinalResponseGuardResultVO check(String content) {
         return guard().check(input(content, List.of(), List.of(), 1000));
     }

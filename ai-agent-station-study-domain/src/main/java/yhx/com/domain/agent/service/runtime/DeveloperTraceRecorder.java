@@ -21,10 +21,18 @@ public class DeveloperTraceRecorder {
 
     private final IEventTraceRepository eventTraceRepository;
     private final IPayloadRepository payloadRepository;
+    private final RunDiagnosticRecorder diagnosticRecorder;
 
     public DeveloperTraceRecorder(IEventTraceRepository eventTraceRepository, IPayloadRepository payloadRepository) {
+        this(eventTraceRepository, payloadRepository, null);
+    }
+
+    public DeveloperTraceRecorder(IEventTraceRepository eventTraceRepository,
+                                  IPayloadRepository payloadRepository,
+                                  RunDiagnosticRecorder diagnosticRecorder) {
         this.eventTraceRepository = eventTraceRepository;
         this.payloadRepository = payloadRepository;
+        this.diagnosticRecorder = diagnosticRecorder;
     }
 
     public void phaseStarted(String runId, Integer loopIndex, RuntimePhaseEnumVO phase) {
@@ -58,6 +66,11 @@ public class DeveloperTraceRecorder {
         log.info("[AutoAgent][trace] runId={}, traceType={}, loopIndex={}, event={}, code={}, summary={}, payloadRef={}",
                 runId, traceType == null ? null : traceType.code(), payload.get("loopIndex"),
                 payload.get("event"), payload.get("code"), payload.get("summary"), payload.get("payloadRef"));
+        if (diagnosticRecorder != null) {
+            Map<String, Object> diagnostic = new LinkedHashMap<>(payload);
+            diagnostic.put("traceType", traceType == null ? null : traceType.code());
+            diagnosticRecorder.record(runId, "TRACE", String.valueOf(payload.get("event")), diagnostic);
+        }
         String payloadRef = payloadRepository.savePayload(AgentPayloadEntity.builder()
                 .payloadType(PayloadTypeEnumVO.DEBUG_TRACE)
                 .content(JSON.toJSONString(payload))

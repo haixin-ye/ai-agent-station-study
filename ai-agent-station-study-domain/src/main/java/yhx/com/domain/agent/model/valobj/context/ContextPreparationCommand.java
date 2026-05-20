@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -28,4 +29,5 @@ public class ContextPreparationCommand {
     private List<AgentArtifactEntity> artifactSeeds;
     private List<CapabilityCandidateVO> availableCapabilities;
     private TokenBudgetVO tokenBudget;
+    private Map<String, Object> runtimeFacts;
 }

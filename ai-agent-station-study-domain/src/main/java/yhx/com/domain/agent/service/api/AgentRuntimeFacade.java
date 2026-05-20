@@ -47,4 +47,11 @@ public class AgentRuntimeFacade {
                 .requestMetadata(metadata)
                 .build());
     }
+
+    public RuntimeStepResult reportUnexpectedFailure(String runId, String sessionId, Throwable error) {
+        if (autoAgentRuntimeService == null) {
+            throw new IllegalStateException("AutoAgent runtime service is not configured.");
+        }
+        return autoAgentRuntimeService.reportUnexpectedFailure(runId, sessionId, error);
+    }
 }

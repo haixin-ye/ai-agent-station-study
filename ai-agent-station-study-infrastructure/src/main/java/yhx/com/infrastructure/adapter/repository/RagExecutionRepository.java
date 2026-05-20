@@ -17,6 +17,9 @@ import java.util.UUID;
 @Repository
 public class RagExecutionRepository implements IRagExecutionRepository {
 
+    private static final int FAILURE_CODE_LIMIT = 64;
+    private static final int FAILURE_MESSAGE_LIMIT = 4000;
+
     @Resource
     private IAgentRagQueryDao agentRagQueryDao;
 
@@ -37,7 +40,8 @@ public class RagExecutionRepository implements IRagExecutionRepository {
 
     @Override
     public void updateRagQueryStatus(String ragQueryId, String status, String failureCode, String failureMessage) {
-        agentRagQueryDao.updateStatus(ragQueryId, status, failureCode, failureMessage);
+        agentRagQueryDao.updateStatus(ragQueryId, status, truncate(failureCode, FAILURE_CODE_LIMIT),
+                truncate(failureMessage, FAILURE_MESSAGE_LIMIT));
     }
 
     @Override
@@ -123,5 +127,15 @@ public class RagExecutionRepository implements IRagExecutionRepository {
                 .sourceUri(po.getSourceUri())
                 .createdAt(po.getCreatedAt())
                 .build();
+    }
+
+    private String truncate(String value, int limit) {
+        if (value == null || value.length() <= limit) {
+            return value;
+        }
+        if (limit <= 3) {
+            return value.substring(0, limit);
+        }
+        return value.substring(0, limit - 3) + "...";
     }
 }

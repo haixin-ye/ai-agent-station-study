@@ -3,19 +3,25 @@ package yhx.com.test.domain.agent.runtime;
 import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
+import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
+import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.TranscriptBlockTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeResumeCommand;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStartCommand;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
+import yhx.com.domain.agent.service.runtime.RuntimeComponentPorts;
 import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
 import yhx.com.test.domain.agent.runtime.support.RuntimeTestSupport;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RuntimeTranscriptBoundaryTest {
 
@@ -57,6 +63,53 @@ public class RuntimeTranscriptBoundaryTest {
 
         Assert.assertTrue(repository.transcriptBlocks.stream()
                 .anyMatch(block -> TranscriptBlockTypeEnumVO.USER_MESSAGE == block.getBlockType() && !block.getPayloadRef().equals(repository.messages.get(0).getContentRef())));
+        Assert.assertEquals(1, repository.pendingInputs.size());
+    }
+
+    @Test
+    public void resume_hydrates_original_run_context_before_next_loop() {
+        RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
+        AtomicInteger invocationCount = new AtomicInteger();
+        AtomicReference<RuntimeExecutionContext> resumedContext = new AtomicReference<>();
+        AutoAgentRuntimeService runtime = RuntimeTestSupport.runtime(repository, new RuntimeComponentPorts() {
+            @Override
+            public ContextPlannerHandlingResult prepareContext(RuntimeExecutionContext context) {
+                if (invocationCount.get() > 0) {
+                    resumedContext.set(context);
+                }
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
+            public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
+                return invocationCount.getAndIncrement() == 0 ? askUserAction() : finalAction();
+            }
+        }, true, new RuntimeLoopPolicy());
+
+        RuntimeStepResult waiting = runtime.start(RuntimeStartCommand.builder()
+                .runId("run-005")
+                .sessionId("sess-005")
+                .userId("u1")
+                .agentId("agent-1")
+                .userInput("original question")
+                .build());
+
+        runtime.resume(RuntimeResumeCommand.builder()
+                .runId("run-005")
+                .pendingId(waiting.getPendingInputId())
+                .freeText("continue")
+                .build());
+
+        Assert.assertNotNull(resumedContext.get());
+        Assert.assertEquals("sess-005", resumedContext.get().getSessionId());
+        Assert.assertEquals("u1", resumedContext.get().getUserId());
+        Assert.assertEquals("agent-1", resumedContext.get().getAgentId());
+        Assert.assertEquals("original question", resumedContext.get().getUserInput());
+        Assert.assertNotNull(resumedContext.get().getUserMessageId());
+        Assert.assertTrue(resumedContext.get().getRuntimeFacts().containsKey("userClarifications"));
     }
 
     @Test

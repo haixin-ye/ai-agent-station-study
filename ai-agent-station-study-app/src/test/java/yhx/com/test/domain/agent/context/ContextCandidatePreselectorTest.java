@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.service.context.ContextCandidatePreselector;
@@ -17,6 +18,7 @@ import yhx.com.test.domain.agent.context.support.FakeContextRepositories;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class ContextCandidatePreselectorTest {
 
@@ -71,6 +73,26 @@ public class ContextCandidatePreselectorTest {
         ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command(List.of()));
 
         Assert.assertEquals("message preview", bundle.getRecentMessages().get(0).getSummary());
+    }
+
+    @Test
+    public void runtime_user_clarifications_are_preserved_as_candidates() {
+        FakeContextRepositories repos = fixture();
+        UserClarificationVO clarification = UserClarificationVO.builder()
+                .pendingId("pending-1")
+                .question("Which MCP?")
+                .answerType("OPTION")
+                .selectedOptionId("mcp-software")
+                .value(Map.of("topic", "mcp software"))
+                .build();
+
+        ContextPreparationCommand command = command(List.of());
+        command.setRuntimeFacts(Map.of("userClarifications", List.of(clarification)));
+
+        ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command);
+
+        Assert.assertEquals(1, bundle.getUserClarifications().size());
+        Assert.assertEquals("mcp-software", bundle.getUserClarifications().get(0).getSelectedOptionId());
     }
 
     private ContextCandidatePreselector preselector(FakeContextRepositories repos) {

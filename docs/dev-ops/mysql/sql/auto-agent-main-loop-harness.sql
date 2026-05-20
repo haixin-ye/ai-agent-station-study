@@ -1,8 +1,38 @@
 -- AutoAgent main-loop harness runtime persistence schema.
--- Execute this file after the base database has been created.
--- Historical ai-agent-station-study.sql remains untouched because the new harness uses a new table set.
+-- Destructive rebuild script. It drops and recreates the new AutoAgent runtime tables.
+-- Execute this file before auto-agent-model-runtime.sql.
 
-CREATE TABLE IF NOT EXISTS `agent_session` (
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS `agent_node_prompt`;
+DROP TABLE IF EXISTS `agent_run_audit`;
+DROP TABLE IF EXISTS `agent_run_trace`;
+DROP TABLE IF EXISTS `agent_run_event`;
+DROP TABLE IF EXISTS `agent_rag_hit`;
+DROP TABLE IF EXISTS `agent_rag_query`;
+DROP TABLE IF EXISTS `agent_tool_verification`;
+DROP TABLE IF EXISTS `agent_tool_approval`;
+DROP TABLE IF EXISTS `agent_tool_call`;
+DROP TABLE IF EXISTS `agent_pending_input`;
+DROP TABLE IF EXISTS `agent_evidence`;
+DROP TABLE IF EXISTS `agent_artifact_relation`;
+DROP TABLE IF EXISTS `agent_artifact_alias`;
+DROP TABLE IF EXISTS `agent_artifact`;
+DROP TABLE IF EXISTS `agent_payload`;
+DROP TABLE IF EXISTS `agent_memory_event`;
+DROP TABLE IF EXISTS `agent_long_term_memory`;
+DROP TABLE IF EXISTS `agent_conversation_summary`;
+DROP TABLE IF EXISTS `agent_session_memory`;
+DROP TABLE IF EXISTS `agent_run_transcript`;
+DROP TABLE IF EXISTS `agent_run_state_snapshot`;
+DROP TABLE IF EXISTS `agent_run`;
+DROP TABLE IF EXISTS `agent_message`;
+DROP TABLE IF EXISTS `agent_session`;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE `agent_session` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `session_id` varchar(64) NOT NULL,
   `user_id` varchar(64) DEFAULT NULL,
@@ -15,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `agent_session` (
   KEY `idx_agent_session_user_status` (`user_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent session';
 
-CREATE TABLE IF NOT EXISTS `agent_message` (
+CREATE TABLE `agent_message` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `message_id` varchar(64) NOT NULL,
   `session_id` varchar(64) NOT NULL,
@@ -32,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `agent_message` (
   KEY `idx_agent_message_run` (`run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent conversation message';
 
-CREATE TABLE IF NOT EXISTS `agent_run` (
+CREATE TABLE `agent_run` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `run_id` varchar(64) NOT NULL,
   `session_id` varchar(64) NOT NULL,
@@ -44,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `agent_run` (
   `final_message_id` varchar(64) DEFAULT NULL,
   `final_answer_ref` varchar(64) DEFAULT NULL,
   `failure_code` varchar(128) DEFAULT NULL,
-  `failure_message` varchar(512) DEFAULT NULL,
+  `failure_message` text,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -53,7 +83,7 @@ CREATE TABLE IF NOT EXISTS `agent_run` (
   KEY `idx_agent_run_status_phase` (`status`, `phase`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent run lifecycle';
 
-CREATE TABLE IF NOT EXISTS `agent_run_state_snapshot` (
+CREATE TABLE `agent_run_state_snapshot` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `snapshot_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
@@ -65,7 +95,7 @@ CREATE TABLE IF NOT EXISTS `agent_run_state_snapshot` (
   KEY `idx_agent_run_state_snapshot_run` (`run_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent run state snapshot';
 
-CREATE TABLE IF NOT EXISTS `agent_run_transcript` (
+CREATE TABLE `agent_run_transcript` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `block_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
@@ -80,7 +110,20 @@ CREATE TABLE IF NOT EXISTS `agent_run_transcript` (
   KEY `idx_agent_run_transcript_type_seq` (`run_id`, `block_type`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent typed run transcript';
 
-CREATE TABLE IF NOT EXISTS `agent_conversation_summary` (
+CREATE TABLE `agent_session_memory` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `session_id` varchar(64) NOT NULL,
+  `round_no` int NOT NULL,
+  `user_message` longtext,
+  `final_answer` longtext,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_session_memory_round` (`session_id`, `round_no`),
+  KEY `idx_agent_session_memory_session` (`session_id`, `round_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent short session memory';
+
+CREATE TABLE `agent_conversation_summary` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `summary_id` varchar(64) NOT NULL,
   `session_id` varchar(64) NOT NULL,
@@ -95,7 +138,7 @@ CREATE TABLE IF NOT EXISTS `agent_conversation_summary` (
   KEY `idx_agent_conversation_summary_session` (`session_id`, `updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent conversation summary';
 
-CREATE TABLE IF NOT EXISTS `agent_long_term_memory` (
+CREATE TABLE `agent_long_term_memory` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `memory_id` varchar(64) NOT NULL,
   `user_id` varchar(64) DEFAULT NULL,
@@ -112,7 +155,7 @@ CREATE TABLE IF NOT EXISTS `agent_long_term_memory` (
   KEY `idx_agent_long_term_memory_session` (`session_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent long-term memory';
 
-CREATE TABLE IF NOT EXISTS `agent_memory_event` (
+CREATE TABLE `agent_memory_event` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `event_id` varchar(64) NOT NULL,
   `run_id` varchar(64) DEFAULT NULL,
@@ -127,7 +170,7 @@ CREATE TABLE IF NOT EXISTS `agent_memory_event` (
   KEY `idx_agent_memory_event_session` (`session_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent memory event';
 
-CREATE TABLE IF NOT EXISTS `agent_payload` (
+CREATE TABLE `agent_payload` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `payload_id` varchar(64) NOT NULL,
   `payload_type` varchar(64) NOT NULL,
@@ -141,10 +184,10 @@ CREATE TABLE IF NOT EXISTS `agent_payload` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_agent_payload_id` (`payload_id`),
-  KEY `idx_agent_payload_type` (`payload_id`, `payload_type`)
+  KEY `idx_agent_payload_type` (`payload_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent payload storage';
 
-CREATE TABLE IF NOT EXISTS `agent_artifact` (
+CREATE TABLE `agent_artifact` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `artifact_id` varchar(64) NOT NULL,
   `session_id` varchar(64) NOT NULL,
@@ -163,7 +206,7 @@ CREATE TABLE IF NOT EXISTS `agent_artifact` (
   KEY `idx_agent_artifact_run` (`run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent artifact';
 
-CREATE TABLE IF NOT EXISTS `agent_artifact_alias` (
+CREATE TABLE `agent_artifact_alias` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `alias_id` varchar(64) NOT NULL,
   `artifact_id` varchar(64) NOT NULL,
@@ -175,7 +218,7 @@ CREATE TABLE IF NOT EXISTS `agent_artifact_alias` (
   KEY `idx_agent_artifact_alias_session` (`session_id`, `alias_text`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent artifact alias';
 
-CREATE TABLE IF NOT EXISTS `agent_artifact_relation` (
+CREATE TABLE `agent_artifact_relation` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `relation_id` varchar(64) NOT NULL,
   `source_artifact_id` varchar(64) NOT NULL,
@@ -188,7 +231,7 @@ CREATE TABLE IF NOT EXISTS `agent_artifact_relation` (
   KEY `idx_agent_artifact_relation_target` (`target_artifact_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent artifact relation';
 
-CREATE TABLE IF NOT EXISTS `agent_evidence` (
+CREATE TABLE `agent_evidence` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `evidence_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
@@ -203,7 +246,7 @@ CREATE TABLE IF NOT EXISTS `agent_evidence` (
   KEY `idx_agent_evidence_run_type` (`run_id`, `evidence_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent evidence';
 
-CREATE TABLE IF NOT EXISTS `agent_pending_input` (
+CREATE TABLE `agent_pending_input` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `pending_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
@@ -211,7 +254,7 @@ CREATE TABLE IF NOT EXISTS `agent_pending_input` (
   `pending_type` varchar(64) NOT NULL,
   `input_mode` varchar(64) NOT NULL,
   `status` varchar(64) NOT NULL,
-  `question` varchar(512) NOT NULL,
+  `question` varchar(1024) NOT NULL,
   `options_ref` varchar(64) DEFAULT NULL,
   `answer_schema_ref` varchar(64) DEFAULT NULL,
   `continuation_ref` varchar(64) DEFAULT NULL,
@@ -225,7 +268,7 @@ CREATE TABLE IF NOT EXISTS `agent_pending_input` (
   KEY `idx_agent_pending_input_pending_status` (`pending_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent pending user input';
 
-CREATE TABLE IF NOT EXISTS `agent_tool_call` (
+CREATE TABLE `agent_tool_call` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `tool_call_id` varchar(64) NOT NULL,
   `tool_invocation_id` varchar(64) DEFAULT NULL,
@@ -247,7 +290,7 @@ CREATE TABLE IF NOT EXISTS `agent_tool_call` (
   KEY `idx_agent_tool_call_invocation` (`tool_invocation_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent tool call';
 
-CREATE TABLE IF NOT EXISTS `agent_tool_approval` (
+CREATE TABLE `agent_tool_approval` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `approval_id` varchar(64) NOT NULL,
   `approval_key` varchar(128) NOT NULL,
@@ -266,7 +309,7 @@ CREATE TABLE IF NOT EXISTS `agent_tool_approval` (
   KEY `idx_agent_tool_approval_run_status` (`run_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent tool approval';
 
-CREATE TABLE IF NOT EXISTS `agent_tool_verification` (
+CREATE TABLE `agent_tool_verification` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `verification_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
@@ -281,17 +324,17 @@ CREATE TABLE IF NOT EXISTS `agent_tool_verification` (
   KEY `idx_agent_tool_verification_call` (`tool_call_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent tool verification';
 
-CREATE TABLE IF NOT EXISTS `agent_rag_query` (
+CREATE TABLE `agent_rag_query` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `rag_query_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
-  `query_text` varchar(512) NOT NULL,
+  `query_text` varchar(1024) NOT NULL,
   `knowledge_tag` varchar(128) DEFAULT NULL,
   `filters_ref` varchar(64) DEFAULT NULL,
   `top_k` int DEFAULT NULL,
   `status` varchar(32) NOT NULL DEFAULT 'REQUESTED',
-  `failure_code` varchar(64) DEFAULT NULL,
-  `failure_message` varchar(512) DEFAULT NULL,
+  `failure_code` varchar(128) DEFAULT NULL,
+  `failure_message` text,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `completed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -299,7 +342,7 @@ CREATE TABLE IF NOT EXISTS `agent_rag_query` (
   KEY `idx_agent_rag_query_run` (`run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent RAG query';
 
-CREATE TABLE IF NOT EXISTS `agent_rag_hit` (
+CREATE TABLE `agent_rag_hit` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `rag_hit_id` varchar(64) NOT NULL,
   `rag_query_id` varchar(64) NOT NULL,
@@ -315,7 +358,7 @@ CREATE TABLE IF NOT EXISTS `agent_rag_hit` (
   KEY `idx_agent_rag_hit_run` (`run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent RAG hit';
 
-CREATE TABLE IF NOT EXISTS `agent_run_event` (
+CREATE TABLE `agent_run_event` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `event_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
@@ -330,14 +373,14 @@ CREATE TABLE IF NOT EXISTS `agent_run_event` (
   KEY `idx_agent_run_event_run` (`run_id`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent user-visible run event';
 
-CREATE TABLE IF NOT EXISTS `agent_run_trace` (
+CREATE TABLE `agent_run_trace` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `trace_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
   `seq` bigint NOT NULL,
   `trace_type` varchar(64) NOT NULL,
   `payload_ref` varchar(64) DEFAULT NULL,
-  `summary` varchar(512) DEFAULT NULL,
+  `summary` varchar(1024) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_agent_run_trace_id` (`trace_id`),
@@ -345,7 +388,7 @@ CREATE TABLE IF NOT EXISTS `agent_run_trace` (
   KEY `idx_agent_run_trace_type` (`run_id`, `trace_type`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent developer debug trace';
 
-CREATE TABLE IF NOT EXISTS `agent_run_audit` (
+CREATE TABLE `agent_run_audit` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `audit_id` varchar(64) NOT NULL,
   `run_id` varchar(64) NOT NULL,
@@ -357,7 +400,7 @@ CREATE TABLE IF NOT EXISTS `agent_run_audit` (
   KEY `idx_agent_run_audit_run` (`run_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent audit record';
 
-CREATE TABLE IF NOT EXISTS `agent_node_prompt` (
+CREATE TABLE `agent_node_prompt` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `prompt_id` varchar(64) NOT NULL,
   `agent_id` varchar(64) NOT NULL,

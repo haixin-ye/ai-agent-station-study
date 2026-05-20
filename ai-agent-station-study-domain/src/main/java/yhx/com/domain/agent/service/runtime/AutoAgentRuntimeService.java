@@ -9,4 +9,6 @@ public interface AutoAgentRuntimeService {
     RuntimeStepResult start(RuntimeStartCommand command);
 
     RuntimeStepResult resume(RuntimeResumeCommand command);
+
+    RuntimeStepResult reportUnexpectedFailure(String runId, String sessionId, Throwable error);
 }

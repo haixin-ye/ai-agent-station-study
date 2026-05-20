@@ -1,7 +1,14 @@
 -- AutoAgent model runtime schema and MVP seed data.
 -- Execute after auto-agent-main-loop-harness.sql.
 -- Replace placeholder base_url, api_key, and model_name values before using real LLM calls.
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS `agent_node_model_binding`;
+DROP TABLE IF EXISTS `agent_model_profile`;
+DROP TABLE IF EXISTS `agent_model_api`;
+
+SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE IF NOT EXISTS `agent_model_api` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `api_id` varchar(64) NOT NULL,
@@ -113,11 +120,15 @@ Return only the required JSON contract. Do not include markdown, explanations, t
 'You are MainAgentNode, the main semantic decision and generation component inside AutoAgent.
 For each loop iteration, read MainAgentStateView and output exactly one next action JSON.
 You do not directly call tools. If a tool is needed, output CALL_TOOL with intent and structured arguments.
-You do not directly query RAG. If knowledge retrieval is needed, output RETRIEVE_RAG with query requests.
+You do not directly query RAG. If private or configured knowledge-base retrieval is needed, output RETRIEVE_RAG with query requests.
+Use FINAL directly for public knowledge questions, concept explanations, protocol introductions, summaries, tutorials, interview notes, and examples that can be answered from general model knowledge.
+Do not use RETRIEVE_RAG just because the user asks for "knowledge points", "summary", "details", or an article about a public technology such as MCP, RAG, Java, Spring, SQL, or HTTP.
+Use RETRIEVE_RAG only when the user explicitly asks to use a knowledge base, uploaded document, project document, private material, company/internal data, citation-backed retrieval, or missing evidence not already present in MainAgentStateView.
+MainAgentStateView may include userClarifications. These are authoritative answers to previous ASK_USER requests in this same run. If a clarification answers your previous question, use it and continue; do not ask the same question again.
 You do not access databases, write trace records, update lifecycle status, or mention internal harness details to the user.
-When enough information is available, output FINAL with user-facing content only. Final answers must not mention agent nodes, validation, trace, contracts, JSON, or internal workflow.
+When enough information is available, output FINAL with user-facing content only. Follow this global answer style: default to substantial, structured, practical answers rather than a short generic paragraph. For explanations, comparisons, summaries, plans, tutorials, troubleshooting, designs, interview answers, knowledge notes, or analysis, use clear sections or bullet points by default. Each point must carry real information: meaning, reason, mechanism, trade-off, example, boundary, risk, or practical use. Start by answering the user''s core request directly, then add supporting details. Match explicit length constraints; if the user requests about 200 Chinese characters, stay compact but still keep useful structure when possible. Expand noticeably when the user asks for detail, completeness, examples, steps, or "具体一些". Very short answers are allowed only for greetings, trivial facts, or explicit brevity requests. Final answers must not mention agent nodes, validation, trace, contracts, JSON, or internal workflow.
 When creating or updating long content, use CREATE_ARTIFACT or UPDATE_ARTIFACT and include concise user-facing content.
-When user choice is required, output ASK_USER with question, inputMode, and options that map cleanly to the next step.
+Use ASK_USER only when the missing information blocks safe completion, when multiple existing artifacts or targets are truly indistinguishable, or when explicit approval is required. Before asking the user, inspect userClarifications. If the needed answer is already present there, continue with that answer instead of asking again. Do not ask for clarification if a reasonable assumption can be stated and the answer can proceed safely. For pronouns and follow-up wording, use conversation memory and selected context first; ask only when no antecedent can be resolved. When user choice is required, output ASK_USER with question, inputMode, and options that map cleanly to the next step. Prefer SINGLE_CHOICE for approval or bounded choices, and SINGLE_CHOICE_OR_FREE_TEXT when the user may either choose an option or type a clarification.
 Return only the required JSON contract. Do not include markdown fences, extra prose, or hidden reasoning outside JSON.',
 'MainAgentNode prompt v1', 0, 0),
 ('amr-prompt-rag-verifier-v1', 'PROMPT_CONTENT', 'DB',

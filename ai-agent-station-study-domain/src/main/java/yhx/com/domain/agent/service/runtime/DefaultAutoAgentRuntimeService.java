@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentRunEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentSessionEntity;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
@@ -37,6 +38,7 @@ import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -55,6 +57,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private final RunEventPublisher eventPublisher;
     private final RunTranscriptRecorder transcriptRecorder;
     private final DeveloperTraceRecorder traceRecorder;
+    private final RunDiagnosticRecorder diagnosticRecorder;
 
     public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
                                           IRunRepository runRepository,
@@ -69,6 +72,36 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                                           RunEventPublisher eventPublisher,
                                           RunTranscriptRecorder transcriptRecorder,
                                           DeveloperTraceRecorder traceRecorder) {
+        this(conversationRepository,
+                runRepository,
+                payloadRepository,
+                componentPorts,
+                actionDispatcher,
+                userInteractionManager,
+                loopPolicy,
+                stateMachine,
+                failureFactory,
+                phaseGuard,
+                eventPublisher,
+                transcriptRecorder,
+                traceRecorder,
+                null);
+    }
+
+    public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
+                                          IRunRepository runRepository,
+                                          IPayloadRepository payloadRepository,
+                                          RuntimeComponentPorts componentPorts,
+                                          MainActionDispatcher actionDispatcher,
+                                          UserInteractionManager userInteractionManager,
+                                          RuntimeLoopPolicy loopPolicy,
+                                          RuntimeStateMachine stateMachine,
+                                          RuntimeFailureFactory failureFactory,
+                                          RuntimePhaseGuard phaseGuard,
+                                          RunEventPublisher eventPublisher,
+                                          RunTranscriptRecorder transcriptRecorder,
+                                          DeveloperTraceRecorder traceRecorder,
+                                          RunDiagnosticRecorder diagnosticRecorder) {
         this.conversationRepository = conversationRepository;
         this.runRepository = runRepository;
         this.payloadRepository = payloadRepository;
@@ -82,6 +115,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         this.eventPublisher = eventPublisher;
         this.transcriptRecorder = transcriptRecorder;
         this.traceRecorder = traceRecorder;
+        this.diagnosticRecorder = diagnosticRecorder;
     }
 
     @Override
@@ -95,6 +129,16 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         String sessionId = firstNonBlank(command.getSessionId(), "sess-" + UUID.randomUUID());
         String messageId = "msg-" + UUID.randomUUID();
         String userPayloadRef = savePayload(PayloadTypeEnumVO.TEXT, command.getUserInput(), preview(command.getUserInput()));
+        diagnostic(runId, "RUN_START_REQUEST", diagnosticMap(
+                "sessionId", sessionId,
+                "userId", command.getUserId(),
+                "agentId", command.getAgentId(),
+                "messageId", messageId,
+                "userPayloadRef", userPayloadRef,
+                "userInput", command.getUserInput(),
+                "inputType", command.getInputType(),
+                "metadata", command.getRequestMetadata()
+        ));
 
         conversationRepository.findSession(sessionId).orElseGet(() -> {
             conversationRepository.createSession(AgentSessionEntity.builder()
@@ -153,16 +197,41 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
 
     @Override
     public RuntimeStepResult resume(RuntimeResumeCommand command) {
+        if (command == null) {
+            RuntimeSafeFailureVO failure = failureFactory.create(RuntimeFailureCodeEnumVO.MISSING_COMMAND,
+                    RuntimePhaseEnumVO.RESOLVING_USER_ANSWER, "RuntimeResumeCommand is null.", false);
+            return failure(null, null, failure);
+        }
         UserInputResolveCommand resolveCommand = UserInputResolveCommand.builder()
-                .runId(command == null ? null : command.getRunId())
-                .pendingId(command == null ? null : command.getPendingId())
-                .selectedOptionId(command == null ? null : command.getSelectedOptionId())
-                .freeText(command == null ? null : command.getFreeText())
-                .cancelled(command == null ? null : command.getCancelled())
-                .requestMetadata(command == null ? null : command.getRequestMetadata())
+                .runId(command.getRunId())
+                .pendingId(command.getPendingId())
+                .selectedOptionId(command.getSelectedOptionId())
+                .freeText(command.getFreeText())
+                .cancelled(command.getCancelled())
+                .requestMetadata(command.getRequestMetadata())
                 .build();
+        AgentRunEntity run = runRepository.findRun(resolveCommand.getRunId()).orElse(null);
+        diagnostic(resolveCommand.getRunId(), "USER_INPUT_RESUME_REQUEST", diagnosticMap(
+                "pendingId", resolveCommand.getPendingId(),
+                "selectedOptionId", resolveCommand.getSelectedOptionId(),
+                "freeText", resolveCommand.getFreeText(),
+                "cancelled", resolveCommand.getCancelled(),
+                "requestMetadata", resolveCommand.getRequestMetadata()
+        ));
+        if (run == null) {
+            RuntimeSafeFailureVO failure = failureFactory.create(RuntimeFailureCodeEnumVO.MISSING_ACTIVE_RUN,
+                    RuntimePhaseEnumVO.RESOLVING_USER_ANSWER,
+                    "Run record is missing during USER_ASK resume: " + resolveCommand.getRunId() + ".", true);
+            return failure(resolveCommand.getRunId(), null, failure);
+        }
+        AgentMessageEntity userMessage = findRunUserMessage(run.getSessionId(), run.getRunId());
         RuntimeExecutionContext context = RuntimeExecutionContext.builder()
                 .runId(resolveCommand.getRunId())
+                .sessionId(run.getSessionId())
+                .userId(run.getUserId())
+                .agentId(run.getAgentId())
+                .userMessageId(userMessage == null ? null : userMessage.getMessageId())
+                .userInput(loadPayloadContent(userMessage == null ? null : userMessage.getContentRef()))
                 .currentPhase(RuntimePhaseEnumVO.WAITING_USER)
                 .loopIndex(0)
                 .runStatus(RunStatusEnumVO.WAITING_USER)
@@ -193,8 +262,77 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         return continuation;
     }
 
+    private AgentMessageEntity findRunUserMessage(String sessionId, String runId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return null;
+        }
+        return conversationRepository.listRecentVisibleMessages(sessionId, 20).stream()
+                .filter(message -> runId == null || runId.equals(message.getRunId()))
+                .filter(message -> message.getRole() == MessageRoleEnumVO.USER)
+                .reduce((first, second) -> second)
+                .orElse(null);
+    }
+
+    private String loadPayloadContent(String payloadRef) {
+        if (payloadRef == null || payloadRef.isBlank()) {
+            return null;
+        }
+        return payloadRepository.findContent(payloadRef).orElse(null);
+    }
+
+    @Override
+    public RuntimeStepResult reportUnexpectedFailure(String runId, String sessionId, Throwable error) {
+        String developerMessage = preview(error == null || error.getMessage() == null
+                ? "Unexpected runtime error."
+                : error.getMessage());
+        diagnosticError(runId, "UNEXPECTED_FAILURE", error, diagnosticMap(
+                "sessionId", sessionId,
+                "developerMessage", developerMessage
+        ));
+        RuntimeSafeFailureVO failure = failureFactory.create(RuntimeFailureCodeEnumVO.UNEXPECTED_RUNTIME_ERROR,
+                RuntimePhaseEnumVO.FAILED, developerMessage, true);
+        if (runId != null && !runId.isBlank()) {
+            try {
+                traceRecorder.error(runId, null, failure.getFailureCode(), failure.getDeveloperMessage(), null);
+            } catch (Exception ignored) {
+                // Failure reporting must not hide the user-visible failed event.
+            }
+            try {
+                transcriptRecorder.appendError(runId, null, failure.getFailureCode(), failure.getDeveloperMessage(), null);
+            } catch (Exception ignored) {
+                // Failure reporting must not hide the user-visible failed event.
+            }
+            try {
+                runRepository.updateRunPhase(runId, RuntimePhaseEnumVO.FAILED);
+                runRepository.updateRunStatus(runId, RunStatusEnumVO.FAILED, failure.getFailureCode().code());
+            } catch (Exception ignored) {
+                // Keep publishing the failed event even if status persistence is already broken.
+            }
+            try {
+                eventPublisher.failed(runId, failure.getUserMessage());
+            } catch (Exception ignored) {
+                // Nothing else can be done in this top-level emergency path.
+            }
+        }
+        return RuntimeStepResult.builder()
+                .runId(runId)
+                .sessionId(sessionId)
+                .status(RuntimeStepStatusEnumVO.FAILED)
+                .nextRunStatus(RunStatusEnumVO.FAILED)
+                .nextPhase(RuntimePhaseEnumVO.FAILED)
+                .safeFailure(failure)
+                .finalAnswer(failure.getUserMessage())
+                .message(failure.getDeveloperMessage())
+                .build();
+    }
+
     private RuntimeStepResult runLoop(RuntimeExecutionContext context) {
         while (context.getRunStatus() == RunStatusEnumVO.RUNNING) {
+            diagnostic(context.getRunId(), "LOOP_STARTED", diagnosticMap(
+                    "sessionId", context.getSessionId(),
+                    "loopIndex", context.getLoopIndex(),
+                    "phase", context.getCurrentPhase() == null ? null : context.getCurrentPhase().code()
+            ));
             if (loopPolicy.maxLoopReached(context.countersOrInitial())) {
                 return failRun(context, failureFactory.maxLoopReached(context.getCurrentPhase()));
             }
@@ -209,6 +347,15 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                         context.getCurrentPhase(), "Context preparation returned null.", true));
             }
             if (prepared.getAskUserRequest() != null) {
+                if (alreadyAnswered(context, prepared.getAskUserRequest())) {
+                    context.countersOrInitial().incrementLoop();
+                    context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
+                    RuntimeSafeFailureVO loopTransition = enterPhase(context, RuntimePhaseEnumVO.PREPARING_CONTEXT);
+                    if (loopTransition != null) {
+                        return failRun(context, loopTransition);
+                    }
+                    continue;
+                }
                 return pauseForUser(context, prepared.getAskUserRequest(), ContextPlannerPendingInputHandler.HANDLER_CODE,
                         PendingInputTypeEnumVO.CONTEXT_CLARIFICATION.code(), "ContextPlanner needs user clarification.");
             }
@@ -283,6 +430,18 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                         .message(actionResult.getMessage())
                         .build();
             }
+            if (alreadyAnswered(context, actionResult.getAskUserRequest())) {
+                return RuntimeStepResult.builder()
+                        .runId(context.getRunId())
+                        .sessionId(context.getSessionId())
+                        .status(RuntimeStepStatusEnumVO.CONTINUE)
+                        .nextRunStatus(RunStatusEnumVO.RUNNING)
+                        .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
+                        .action(action)
+                        .actionResult(actionResult)
+                        .message("User already answered this clarification. Continue with userClarifications.")
+                        .build();
+            }
             return pauseForUser(context, actionResult.getAskUserRequest(), MainAgentPendingInputHandler.HANDLER_CODE,
                     PendingInputTypeEnumVO.MAIN_AGENT_QUESTION.code(), actionResult.getMessage());
         }
@@ -350,6 +509,14 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                                            String handlerCode,
                                            String pendingType,
                                            String message) {
+        diagnostic(context.getRunId(), "PAUSE_FOR_USER_REQUEST", diagnosticMap(
+                "sessionId", context.getSessionId(),
+                "loopIndex", context.getLoopIndex(),
+                "handlerCode", handlerCode,
+                "pendingType", pendingType,
+                "message", message,
+                "askUserRequest", request
+        ));
         PendingInputCreateResult pending = userInteractionManager.createPendingInput(PendingInputCreateCommand.builder()
                 .runId(context.getRunId())
                 .sessionId(context.getSessionId())
@@ -394,10 +561,48 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         return failure;
     }
 
+    private boolean alreadyAnswered(RuntimeExecutionContext context, AskUserRequestVO request) {
+        if (context == null || context.getRuntimeFacts() == null || request == null || isBlank(request.getQuestion())) {
+            return false;
+        }
+        Object value = context.getRuntimeFacts().get("userClarifications");
+        if (!(value instanceof Iterable<?> iterable)) {
+            return false;
+        }
+        String question = normalize(request.getQuestion());
+        for (Object item : iterable) {
+            if (item instanceof UserClarificationVO clarification
+                    && question.equals(normalize(clarification.getQuestion()))
+                    && (clarification.getValue() != null || !isBlank(clarification.getFreeText()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "").trim();
+    }
+
     private void applyRunResult(RuntimeExecutionContext context, RuntimeStepResult result) {
         if (result == null || result.getNextRunStatus() == null) {
             return;
         }
+        diagnostic(context.getRunId(), "RUN_RESULT_APPLIED", diagnosticMap(
+                "sessionId", context.getSessionId(),
+                "status", result.getStatus() == null ? null : result.getStatus().code(),
+                "nextRunStatus", result.getNextRunStatus() == null ? null : result.getNextRunStatus().code(),
+                "nextPhase", result.getNextPhase() == null ? null : result.getNextPhase().code(),
+                "message", result.getMessage(),
+                "finalMessageId", result.getFinalMessageId(),
+                "pendingInputId", result.getPendingInputId(),
+                "failureCode", result.getSafeFailure() == null || result.getSafeFailure().getFailureCode() == null
+                        ? null : result.getSafeFailure().getFailureCode().code()
+        ));
         context.setRunStatus(result.getNextRunStatus());
         if (result.getNextPhase() != null) {
             context.setCurrentPhase(result.getNextPhase());
@@ -416,6 +621,14 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     }
 
     private RuntimeStepResult failRun(RuntimeExecutionContext context, RuntimeSafeFailureVO failure) {
+        diagnostic(context == null ? null : context.getRunId(), "RUNTIME_FAILURE", diagnosticMap(
+                "sessionId", context == null ? null : context.getSessionId(),
+                "loopIndex", context == null ? null : context.getLoopIndex(),
+                "phase", context == null || context.getCurrentPhase() == null ? null : context.getCurrentPhase().code(),
+                "failureCode", failure == null || failure.getFailureCode() == null ? null : failure.getFailureCode().code(),
+                "developerMessage", failure == null ? null : failure.getDeveloperMessage(),
+                "userMessage", failure == null ? null : failure.getUserMessage()
+        ));
         if (context != null && context.getRunId() != null) {
             traceRecorder.error(context.getRunId(), context.getLoopIndex(), failure.getFailureCode(), failure.getDeveloperMessage(), null);
             transcriptRecorder.appendError(context.getRunId(), context.getLoopIndex(), failure.getFailureCode(), failure.getDeveloperMessage(), null);
@@ -467,5 +680,30 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return null;
         }
         return content.length() <= 200 ? content : content.substring(0, 200);
+    }
+
+    private void diagnostic(String runId, String event, Map<String, Object> details) {
+        if (diagnosticRecorder == null || runId == null || runId.isBlank()) {
+            return;
+        }
+        diagnosticRecorder.record(runId, "RUNTIME", event, details);
+    }
+
+    private void diagnosticError(String runId, String event, Throwable error, Map<String, Object> details) {
+        if (diagnosticRecorder == null || runId == null || runId.isBlank()) {
+            return;
+        }
+        diagnosticRecorder.error(runId, "RUNTIME", event, error, details);
+    }
+
+    private Map<String, Object> diagnosticMap(Object... keyValues) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        if (keyValues == null) {
+            return value;
+        }
+        for (int index = 0; index + 1 < keyValues.length; index += 2) {
+            value.put(String.valueOf(keyValues[index]), keyValues[index + 1]);
+        }
+        return value;
     }
 }
