@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class ContextCandidatePreselector {
 
-    private static final int DEFAULT_RECENT_MESSAGE_LIMIT = 8;
+    private static final int DEFAULT_RECENT_MESSAGE_LIMIT = 16;
     private static final int DEFAULT_ARTIFACT_LIMIT = 5;
     private static final int DEFAULT_MEMORY_LIMIT = 5;
     private static final int DEFAULT_EVIDENCE_LIMIT = 5;
