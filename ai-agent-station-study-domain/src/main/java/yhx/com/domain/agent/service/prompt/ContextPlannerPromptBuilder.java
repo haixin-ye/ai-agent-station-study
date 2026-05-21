@@ -16,8 +16,9 @@ public class ContextPlannerPromptBuilder {
                         """),
                 layer(PromptLayerTypeEnumVO.INPUT_FIELD_GUIDE, "Input Field Guide", """
                         userInput: latest user request.
-                        recentMessages: compact recent conversation turns.
-                        sessionSummaries: summaries of older conversation context. sessionSummaries may include artifactRefs that point to artifactCandidates.
+                        fixedRecentMessages: fixed short-term conversation context that Runtime injects into MainAgentNode automatically; do not select it.
+                        recentMessages: optional planning-only message candidates, excluding fixedRecentMessages when structured turn memory is available.
+                        sessionSummaries: planning candidate summaries of older conversation context. sessionSummaries may include artifactRefs that point to artifactCandidates.
                         artifactCandidates: candidate artifacts that can be loaded by reference.
                         memoryCandidates: candidate long-term memories.
                         pendingAction: interrupted action that may need continuation.
@@ -28,6 +29,7 @@ public class ContextPlannerPromptBuilder {
                 layer(PromptLayerTypeEnumVO.TASK_PROCEDURE, "Task Procedure", """
                         Inspect user intent and candidate metadata.
                         Select only references that are needed for the next MainAgentNode call.
+                        Do not select fixedRecentMessages; they are already injected into MainAgentNode by Runtime.
                         Prefer minimal sufficient context over loading everything.
                         Resolve follow-up references from recentMessages, sessionSummaries, artifactCandidates, memoryCandidates, evidenceCandidates, pendingAction, and userClarifications before asking the user.
                         When a session summary matches the user's reference and contains artifactRefs, select the referenced ARTIFACT candidate by artifactId instead of selecting the summary itself.

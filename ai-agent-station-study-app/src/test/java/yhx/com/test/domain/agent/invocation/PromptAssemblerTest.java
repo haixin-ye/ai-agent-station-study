@@ -40,6 +40,7 @@ public class PromptAssemblerTest {
         Assert.assertTrue(prompt.contains("Do not ask for clarification when recentMessages contain enough context"));
         Assert.assertTrue(prompt.contains("sessionSummaries may include artifactRefs"));
         Assert.assertTrue(prompt.contains("select the referenced ARTIFACT candidate by artifactId"));
+        Assert.assertTrue(prompt.contains("Do not select fixedRecentMessages"));
     }
 
     @Test

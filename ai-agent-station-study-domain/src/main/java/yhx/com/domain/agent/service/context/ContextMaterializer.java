@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.valobj.context.MaterializedArtifactContentVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedMemoryVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
 import yhx.com.domain.agent.service.artifact.ArtifactPayloadLoader;
@@ -65,10 +66,12 @@ public class ContextMaterializer {
                         command.getCandidates().getEvidenceCandidates().stream()
                                 .filter(item -> selected("EVIDENCE", item.getEvidenceId(), selections))
                                 .toList());
+        List<SummaryCandidateVO> summaries = selectedSummaries(command.getCandidates().getSessionSummaries(), selections);
 
         MainAgentStateViewVO stateView = stateViewBuilder.build(MainAgentStateViewBuildCommand.builder()
                 .candidates(command.getCandidates())
                 .selections(selections)
+                .conversationSummaries(summaries)
                 .artifactContent(artifacts)
                 .memoryPack(memories)
                 .evidencePack(evidence)
@@ -98,6 +101,18 @@ public class ContextMaterializer {
 
     private boolean selected(String sourceType, String sourceId, List<ContextSelectionVO> selections) {
         return selections.stream().anyMatch(selection -> sourceType.equals(selection.getSourceType()) && sourceId.equals(selection.getSourceId()));
+    }
+
+    private List<SummaryCandidateVO> selectedSummaries(List<SummaryCandidateVO> summaries, List<ContextSelectionVO> selections) {
+        if (summaries == null || summaries.isEmpty()) {
+            return List.of();
+        }
+        return summaries.stream()
+                .filter(summary -> selected("TURN_SUMMARY", summary.getSummaryId(), selections)
+                        || selected("SESSION_SUMMARY", summary.getSummaryId(), selections)
+                        || selected("SUMMARY", summary.getSummaryId(), selections)
+                        || selected("TURN", summary.getTurnId(), selections))
+                .toList();
     }
 
     private MaterializedMemoryVO toMemory(MemoryCandidateVO memory) {

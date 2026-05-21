@@ -17,6 +17,12 @@ public class ContextSelectionValidator {
         if (candidates.getRecentMessages() != null) {
             candidates.getRecentMessages().forEach(message -> validIds.add(message.getMessageId()));
         }
+        if (candidates.getSessionSummaries() != null) {
+            candidates.getSessionSummaries().forEach(summary -> {
+                validIds.add(summary.getSummaryId());
+                validIds.add(summary.getTurnId());
+            });
+        }
         if (candidates.getArtifactCandidates() != null) {
             candidates.getArtifactCandidates().forEach(artifact -> validIds.add(artifact.getArtifactId()));
         }

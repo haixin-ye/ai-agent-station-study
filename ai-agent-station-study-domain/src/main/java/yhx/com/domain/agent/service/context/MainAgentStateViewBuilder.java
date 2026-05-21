@@ -3,8 +3,12 @@ package yhx.com.domain.agent.service.context;
 import yhx.com.domain.agent.model.valobj.context.ConversationViewVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewBuildCommand;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
+import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainAgentStateViewBuilder {
 
@@ -13,8 +17,8 @@ public class MainAgentStateViewBuilder {
                 .runMeta(command.getCandidates().getRunMeta())
                 .userInput(command.getCandidates().getUserInput())
                 .conversation(ConversationViewVO.builder()
-                        .recentMessages(command.getCandidates().getRecentMessages())
-                        .summaries(command.getCandidates().getSessionSummaries())
+                        .recentMessages(mergedMessages(command))
+                        .summaries(command.getConversationSummaries() == null ? List.of() : command.getConversationSummaries())
                         .build())
                 .memoryPack(command.getMemoryPack() == null ? List.of() : command.getMemoryPack())
                 .resolvedArtifacts(command.getCandidates().getArtifactCandidates())
@@ -33,5 +37,24 @@ public class MainAgentStateViewBuilder {
 
     private <T> List<T> defaultList(List<T> value) {
         return value == null ? List.of() : value;
+    }
+
+    private List<MessageCandidateVO> mergedMessages(MainAgentStateViewBuildCommand command) {
+        Map<String, MessageCandidateVO> merged = new LinkedHashMap<>();
+        addMessages(merged, command.getCandidates().getFixedRecentMessages());
+        addMessages(merged, command.getCandidates().getRecentMessages());
+        return List.copyOf(merged.values());
+    }
+
+    private void addMessages(Map<String, MessageCandidateVO> target, List<MessageCandidateVO> messages) {
+        if (messages == null) {
+            return;
+        }
+        for (MessageCandidateVO message : messages) {
+            if (message == null || message.getMessageId() == null) {
+                continue;
+            }
+            target.putIfAbsent(message.getMessageId(), message);
+        }
     }
 }

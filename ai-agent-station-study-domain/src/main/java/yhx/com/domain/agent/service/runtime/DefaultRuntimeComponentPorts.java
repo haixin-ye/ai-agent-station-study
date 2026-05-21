@@ -65,7 +65,7 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
                 .tokenBudget(defaultTokenBudget)
                 .runtimeFacts(context.getRuntimeFacts())
                 .build());
-        ContextPlannerOutputVO plannerOutput = contextPlannerNodeService.plan(candidates,
+        ContextPlannerOutputVO plannerOutput = contextPlannerNodeService.plan(planningView(candidates),
                 context.getRunId(),
                 context.getAgentId(),
                 contextPlannerProfile());
@@ -146,6 +146,26 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
                 .maxArtifactInlineChars(4000)
                 .maxEvidenceSummaryChars(800)
                 .overBudget(false)
+                .build();
+    }
+
+    private ContextCandidateBundleVO planningView(ContextCandidateBundleVO candidates) {
+        if (candidates == null) {
+            return null;
+        }
+        return ContextCandidateBundleVO.builder()
+                .runMeta(candidates.getRunMeta())
+                .userInput(candidates.getUserInput())
+                .fixedRecentMessages(List.of())
+                .recentMessages(candidates.getRecentMessages() == null ? List.of() : candidates.getRecentMessages())
+                .sessionSummaries(candidates.getSessionSummaries() == null ? List.of() : candidates.getSessionSummaries())
+                .artifactCandidates(candidates.getArtifactCandidates() == null ? List.of() : candidates.getArtifactCandidates())
+                .memoryCandidates(candidates.getMemoryCandidates() == null ? List.of() : candidates.getMemoryCandidates())
+                .evidenceCandidates(candidates.getEvidenceCandidates() == null ? List.of() : candidates.getEvidenceCandidates())
+                .userClarifications(candidates.getUserClarifications() == null ? List.of() : candidates.getUserClarifications())
+                .availableCapabilities(candidates.getAvailableCapabilities() == null ? List.of() : candidates.getAvailableCapabilities())
+                .pendingAction(candidates.getPendingAction())
+                .tokenBudget(candidates.getTokenBudget())
                 .build();
     }
 

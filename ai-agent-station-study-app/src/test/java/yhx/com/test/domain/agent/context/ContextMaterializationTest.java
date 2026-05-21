@@ -9,6 +9,8 @@ import yhx.com.domain.agent.model.valobj.context.ContextMaterializationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
+import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
@@ -80,6 +82,46 @@ public class ContextMaterializationTest {
                 .build());
 
         Assert.assertEquals("mcp-software", stateView.getUserClarifications().get(0).getSelectedOptionId());
+    }
+
+    @Test
+    public void materializer_keeps_fixed_recent_messages_and_only_selected_summaries() {
+        ContextTokenEstimator estimator = new ContextTokenEstimator();
+        ContextCandidateBundleVO candidates = ContextCandidateBundleVO.builder()
+                .fixedRecentMessages(List.of(MessageCandidateVO.builder()
+                        .messageId("msg-fixed-1")
+                        .role("USER")
+                        .summary("fixed recent turn")
+                        .build()))
+                .recentMessages(List.of())
+                .sessionSummaries(List.of(
+                        SummaryCandidateVO.builder().summaryId("summary-1").summary("not selected").build(),
+                        SummaryCandidateVO.builder().summaryId("summary-2").summary("selected older summary").build()))
+                .artifactCandidates(List.of())
+                .memoryCandidates(List.of())
+                .evidenceCandidates(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(1000).build())
+                .build();
+        ContextMaterializer materializer = new ContextMaterializer(
+                new ContextSelectionValidator(),
+                null,
+                new EvidencePackBuilder(),
+                new ContextBudgetManager(estimator),
+                new MainAgentStateViewBuilder());
+
+        MainAgentStateViewVO stateView = materializer.materialize(ContextMaterializationCommand.builder()
+                .candidates(candidates)
+                .forcedSelections(List.of(ContextSelectionVO.builder()
+                        .sourceType("TURN_SUMMARY")
+                        .sourceId("summary-2")
+                        .contextLevel(ContextLevelEnumVO.SUMMARY_ONLY)
+                        .build()))
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+
+        Assert.assertEquals("msg-fixed-1", stateView.getConversation().getRecentMessages().get(0).getMessageId());
+        Assert.assertEquals(1, stateView.getConversation().getSummaries().size());
+        Assert.assertEquals("summary-2", stateView.getConversation().getSummaries().get(0).getSummaryId());
     }
 
     private MainAgentStateViewVO materialize(ContextLevelEnumVO level, int maxInlineChars) {

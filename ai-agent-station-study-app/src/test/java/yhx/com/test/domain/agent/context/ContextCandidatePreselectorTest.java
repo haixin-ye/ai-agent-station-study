@@ -111,7 +111,7 @@ public class ContextCandidatePreselectorTest {
     }
 
     @Test
-    public void turn_window_uses_latest_six_full_turns_and_previous_six_summaries() {
+    public void turn_window_keeps_latest_six_full_turns_fixed_and_exposes_previous_summaries_to_planner() {
         FakeContextRepositories repos = fixture();
         repos.messages.clear();
         repos.payloads.clear();
@@ -144,10 +144,11 @@ public class ContextCandidatePreselectorTest {
         ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos, repos, repos)
                 .buildCandidates(command(List.of()));
 
-        Assert.assertEquals(12, bundle.getRecentMessages().size());
+        Assert.assertTrue(bundle.getRecentMessages().isEmpty());
+        Assert.assertEquals(12, bundle.getFixedRecentMessages().size());
         Assert.assertEquals(6, bundle.getSessionSummaries().size());
-        Assert.assertEquals("msg-user-8", bundle.getRecentMessages().get(0).getMessageId());
-        Assert.assertEquals("msg-assistant-13", bundle.getRecentMessages().get(11).getMessageId());
+        Assert.assertEquals("msg-user-8", bundle.getFixedRecentMessages().get(0).getMessageId());
+        Assert.assertEquals("msg-assistant-13", bundle.getFixedRecentMessages().get(11).getMessageId());
         Assert.assertEquals("summary-2", bundle.getSessionSummaries().get(0).getSummaryId());
         Assert.assertEquals("summary 7", bundle.getSessionSummaries().get(5).getSummary());
     }
@@ -184,6 +185,8 @@ public class ContextCandidatePreselectorTest {
         Assert.assertTrue(bundle.getSessionSummaries().stream()
                 .anyMatch(summary -> "summary-rag-old".equals(summary.getSummaryId())
                         && summary.getArtifactRefs().contains("artifact-rag-1")));
+        Assert.assertTrue(bundle.getFixedRecentMessages().isEmpty());
+        Assert.assertTrue(bundle.getRecentMessages().isEmpty());
         Assert.assertTrue(bundle.getArtifactCandidates().stream()
                 .anyMatch(artifact -> "artifact-rag-1".equals(artifact.getArtifactId())));
         Assert.assertFalse(bundle.toString().contains("FULL_RAG_ARTICLE_BODY_SHOULD_NOT_APPEAR_IN_CANDIDATES"));

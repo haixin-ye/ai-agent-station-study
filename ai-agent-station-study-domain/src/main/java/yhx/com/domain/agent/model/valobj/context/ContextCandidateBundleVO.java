@@ -15,6 +15,7 @@ public class ContextCandidateBundleVO {
 
     private RunMetaVO runMeta;
     private UserInputVO userInput;
+    private List<MessageCandidateVO> fixedRecentMessages;
     private List<MessageCandidateVO> recentMessages;
     private List<SummaryCandidateVO> sessionSummaries;
     private List<ArtifactCandidateVO> artifactCandidates;

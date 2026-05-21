@@ -116,7 +116,8 @@ public class ContextCandidatePreselector {
                         .messageId(command.getUserMessageId())
                         .content(command.getUserInput())
                         .build())
-                .recentMessages(turnWindow.messages())
+                .fixedRecentMessages(turnWindow.fixedMessages())
+                .recentMessages(turnWindow.planningMessages())
                 .sessionSummaries(sessionSummaries)
                 .artifactCandidates(artifactCandidateRanker.rank(command.getUserInput(), artifactCandidates(command, artifactLimit, sessionSummaries), artifactLimit))
                 .memoryCandidates(memoryCandidatePreselector.select(command.getUserInput(),
@@ -182,7 +183,7 @@ public class ContextCandidatePreselector {
                     .filter(message -> command.getUserMessageId() == null || !command.getUserMessageId().equals(message.getMessageId()))
                     .map(this::toMessageCandidate)
                     .toList();
-            return new TurnContextWindow(messages, List.of());
+            return new TurnContextWindow(List.of(), messages, List.of());
         }
 
         List<AgentTurnEntity> recentTurns = turnRepository.listRecentCompletedTurns(command.getSessionId(), DEFAULT_FULL_TURN_LIMIT).stream()
@@ -214,7 +215,7 @@ public class ContextCandidatePreselector {
                 .sorted(Comparator.comparing(summary -> previousTurnIds.indexOf(summary.getTurnId())))
                 .map(this::toSummaryCandidate)
                 .toList();
-        return new TurnContextWindow(messages, summaries);
+        return new TurnContextWindow(messages, List.of(), summaries);
     }
 
     private MessageCandidateVO toTurnMessageCandidate(String messageId, String role, String contentRef, java.time.LocalDateTime createdAt) {
@@ -323,6 +324,8 @@ public class ContextCandidatePreselector {
                 .toList();
     }
 
-    private record TurnContextWindow(List<MessageCandidateVO> messages, List<SummaryCandidateVO> summaries) {
+    private record TurnContextWindow(List<MessageCandidateVO> fixedMessages,
+                                     List<MessageCandidateVO> planningMessages,
+                                     List<SummaryCandidateVO> summaries) {
     }
 }
