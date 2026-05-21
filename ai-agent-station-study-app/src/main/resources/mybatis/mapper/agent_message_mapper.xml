@@ -25,6 +25,14 @@
         )
     </insert>
 
+    <select id="queryByMessageId" resultMap="AgentMessageMap">
+        SELECT id, message_id, session_id, run_id, role, content_ref, metadata_ref,
+               visible_to_user, seq, created_at
+        FROM agent_message
+        WHERE message_id = #{messageId}
+        LIMIT 1
+    </select>
+
     <select id="listRecentVisibleBySessionId" resultMap="AgentMessageMap">
         SELECT id, message_id, session_id, run_id, role, content_ref, metadata_ref,
                visible_to_user, seq, created_at

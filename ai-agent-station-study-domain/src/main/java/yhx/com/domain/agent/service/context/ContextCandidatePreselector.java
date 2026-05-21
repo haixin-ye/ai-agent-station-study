@@ -5,12 +5,17 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.RunMetaVO;
+import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.context.UserInputVO;
@@ -19,13 +24,18 @@ import yhx.com.domain.agent.service.evidence.EvidenceCandidatePreselector;
 import yhx.com.domain.agent.service.memory.MemoryCandidatePreselector;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 public class ContextCandidatePreselector {
 
     private static final int DEFAULT_RECENT_MESSAGE_LIMIT = 16;
+    private static final int DEFAULT_FULL_TURN_LIMIT = 6;
+    private static final int DEFAULT_SUMMARY_TURN_LIMIT = 6;
     private static final int DEFAULT_ARTIFACT_LIMIT = 5;
     private static final int DEFAULT_MEMORY_LIMIT = 5;
     private static final int DEFAULT_EVIDENCE_LIMIT = 5;
@@ -36,6 +46,8 @@ public class ContextCandidatePreselector {
     private final IMemoryRepository memoryRepository;
     private final IEvidenceRepository evidenceRepository;
     private final IPayloadRepository payloadRepository;
+    private final ITurnRepository turnRepository;
+    private final ITurnSummaryRepository turnSummaryRepository;
     private final ContextTokenEstimator tokenEstimator;
     private final ArtifactCandidateRanker artifactCandidateRanker;
     private final MemoryCandidatePreselector memoryCandidatePreselector;
@@ -53,11 +65,23 @@ public class ContextCandidatePreselector {
                                        IMemoryRepository memoryRepository,
                                        IEvidenceRepository evidenceRepository,
                                        IPayloadRepository payloadRepository) {
+        this(conversationRepository, artifactRepository, memoryRepository, evidenceRepository, payloadRepository, null, null);
+    }
+
+    public ContextCandidatePreselector(IConversationRepository conversationRepository,
+                                       IArtifactRepository artifactRepository,
+                                       IMemoryRepository memoryRepository,
+                                       IEvidenceRepository evidenceRepository,
+                                       IPayloadRepository payloadRepository,
+                                       ITurnRepository turnRepository,
+                                       ITurnSummaryRepository turnSummaryRepository) {
         this.conversationRepository = conversationRepository;
         this.artifactRepository = artifactRepository;
         this.memoryRepository = memoryRepository;
         this.evidenceRepository = evidenceRepository;
         this.payloadRepository = payloadRepository;
+        this.turnRepository = turnRepository;
+        this.turnSummaryRepository = turnSummaryRepository;
         this.tokenEstimator = new ContextTokenEstimator();
         this.artifactCandidateRanker = new ArtifactCandidateRanker(tokenEstimator);
         this.memoryCandidatePreselector = new MemoryCandidatePreselector();
@@ -70,10 +94,7 @@ public class ContextCandidatePreselector {
         int memoryLimit = defaultIfNull(command.getMemoryCandidateLimit(), DEFAULT_MEMORY_LIMIT);
         int evidenceLimit = defaultIfNull(command.getEvidenceCandidateLimit(), DEFAULT_EVIDENCE_LIMIT);
 
-        List<MessageCandidateVO> messages = conversationRepository.listRecentVisibleMessages(command.getSessionId(), messageLimit).stream()
-                .filter(message -> command.getUserMessageId() == null || !command.getUserMessageId().equals(message.getMessageId()))
-                .map(this::toMessageCandidate)
-                .toList();
+        TurnContextWindow turnWindow = buildTurnContextWindow(command, messageLimit);
 
         ContextCandidateBundleVO bundle = ContextCandidateBundleVO.builder()
                 .runMeta(RunMetaVO.builder()
@@ -87,8 +108,8 @@ public class ContextCandidatePreselector {
                         .messageId(command.getUserMessageId())
                         .content(command.getUserInput())
                         .build())
-                .recentMessages(messages)
-                .sessionSummaries(List.of())
+                .recentMessages(turnWindow.messages())
+                .sessionSummaries(turnWindow.summaries())
                 .artifactCandidates(artifactCandidateRanker.rank(command.getUserInput(), artifactCandidates(command, artifactLimit), artifactLimit))
                 .memoryCandidates(memoryCandidatePreselector.select(command.getUserInput(),
                         memoryRepository.findMemoryCandidates(command.getUserId(), command.getSessionId(), command.getUserInput(), memoryLimit), memoryLimit))
@@ -112,6 +133,74 @@ public class ContextCandidatePreselector {
             command.getArtifactSeeds().forEach(artifact -> merged.putIfAbsent(artifact.getArtifactId(), artifact));
         }
         return new ArrayList<>(merged.values());
+    }
+
+    private TurnContextWindow buildTurnContextWindow(ContextPreparationCommand command, int messageLimit) {
+        if (turnRepository == null || turnSummaryRepository == null) {
+            List<MessageCandidateVO> messages = conversationRepository.listRecentVisibleMessages(command.getSessionId(), messageLimit).stream()
+                    .filter(message -> command.getUserMessageId() == null || !command.getUserMessageId().equals(message.getMessageId()))
+                    .map(this::toMessageCandidate)
+                    .toList();
+            return new TurnContextWindow(messages, List.of());
+        }
+
+        List<AgentTurnEntity> recentTurns = turnRepository.listRecentCompletedTurns(command.getSessionId(), DEFAULT_FULL_TURN_LIMIT).stream()
+                .filter(turn -> "COMPLETED".equals(turn.getStatus()))
+                .sorted(Comparator.comparing(AgentTurnEntity::getTurnNo, Comparator.nullsLast(Long::compareTo)))
+                .toList();
+        List<MessageCandidateVO> messages = recentTurns.stream()
+                .flatMap(turn -> Stream.of(
+                        toTurnMessageCandidate(turn.getUserMessageId(), "USER", turn.getUserPayloadRef(), turn.getCompletedAt()),
+                        toTurnMessageCandidate(turn.getAssistantMessageId(), "ASSISTANT", turn.getAssistantPayloadRef(), turn.getCompletedAt())))
+                .filter(Objects::nonNull)
+                .filter(message -> command.getUserMessageId() == null || !command.getUserMessageId().equals(message.getMessageId()))
+                .toList();
+
+        Long beforeTurnNo = recentTurns.stream()
+                .map(AgentTurnEntity::getTurnNo)
+                .filter(Objects::nonNull)
+                .min(Long::compareTo)
+                .orElse(null);
+        List<String> previousTurnIds = beforeTurnNo == null
+                ? List.of()
+                : turnRepository.listCompletedTurnsBefore(command.getSessionId(), beforeTurnNo, DEFAULT_SUMMARY_TURN_LIMIT).stream()
+                .sorted(Comparator.comparing(AgentTurnEntity::getTurnNo, Comparator.nullsLast(Long::compareTo)))
+                .map(AgentTurnEntity::getTurnId)
+                .toList();
+        List<SummaryCandidateVO> summaries = previousTurnIds.isEmpty()
+                ? List.of()
+                : turnSummaryRepository.listByTurnIds(previousTurnIds).stream()
+                .sorted(Comparator.comparing(summary -> previousTurnIds.indexOf(summary.getTurnId())))
+                .map(this::toSummaryCandidate)
+                .toList();
+        return new TurnContextWindow(messages, summaries);
+    }
+
+    private MessageCandidateVO toTurnMessageCandidate(String messageId, String role, String contentRef, java.time.LocalDateTime createdAt) {
+        if (messageId == null || messageId.isBlank()) {
+            return null;
+        }
+        String summary = contentRef == null ? null : payloadRepository.findPayload(contentRef)
+                .map(payload -> compactVisibleMessage(payload.getContent(), payload.getPreview()))
+                .orElse(null);
+        return MessageCandidateVO.builder()
+                .messageId(messageId)
+                .role(role)
+                .contentRef(contentRef)
+                .summary(summary)
+                .createdAt(createdAt)
+                .build();
+    }
+
+    private SummaryCandidateVO toSummaryCandidate(AgentTurnSummaryEntity summary) {
+        String text = summary.getSummaryRef() == null ? null : payloadRepository.findPayload(summary.getSummaryRef())
+                .map(payload -> compactVisibleMessage(payload.getContent(), payload.getPreview()))
+                .orElse(null);
+        return SummaryCandidateVO.builder()
+                .summaryId(summary.getSummaryId())
+                .summary(text)
+                .summaryRef(summary.getSummaryRef())
+                .build();
     }
 
     private MessageCandidateVO toMessageCandidate(AgentMessageEntity message) {
@@ -176,5 +265,8 @@ public class ContextCandidatePreselector {
                 .filter(UserClarificationVO.class::isInstance)
                 .map(item -> (UserClarificationVO) item)
                 .toList();
+    }
+
+    private record TurnContextWindow(List<MessageCandidateVO> messages, List<SummaryCandidateVO> summaries) {
     }
 }

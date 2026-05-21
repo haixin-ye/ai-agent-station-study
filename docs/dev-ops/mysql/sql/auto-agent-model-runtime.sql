@@ -94,6 +94,7 @@ VALUES
 ('amr-bind-main-agent-001', 'MAIN_AGENT', 'amr-model-main-001', 'v1', 'main-agent-action-v1', 0.200, 2400, 1, 1),
 ('amr-bind-rag-verifier-001', 'RAG_VERIFIER', 'amr-model-verify-001', 'v1', 'verification-result-v1', 0.000, 1200, 1, 1),
 ('amr-bind-final-repair-001', 'FINAL_REPAIR', 'amr-model-repair-001', 'v1', 'main-agent-action-v1', 0.100, 1200, 1, 1),
+('amr-bind-turn-summary-001', 'TURN_SUMMARY', 'amr-model-main-001', 'v1', 'turn-summary-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-contract-repair-001', 'CONTRACT_REPAIR', 'amr-model-repair-001', 'v1', 'contract-repair-v1', 0.000, 1200, 1, 1)
 ON DUPLICATE KEY UPDATE
   `model_profile_id` = VALUES(`model_profile_id`),
@@ -147,6 +148,14 @@ Rewrite only the user-facing final content while preserving the original user in
 Remove internal harness details, node names, trace details, validation details, JSON mentions, and repair-process explanations.
 Return a valid FINAL action JSON according to main-agent-action-v1. Do not include markdown fences or extra prose outside JSON.',
 'FinalRepair prompt v1', 0, 0),
+('amr-prompt-turn-summary-v1', 'PROMPT_CONTENT', 'DB',
+'You are TurnSummaryNode, a bounded memory component inside AutoAgent.
+You summarize exactly one completed user-agent turn for future context recall.
+You do not answer the user, create long-term memory directly, call tools, or modify runtime state.
+Read the user request and final answer. Produce a concise but specific summary, intent, topics, entities, artifact references, importance score, and whether long-term memory extraction may be useful.
+Do not include hidden reasoning. Do not invent facts that are not present in the completed turn.
+Return only the required turn-summary-output-v1 JSON contract.',
+'TurnSummaryNode prompt v1', 0, 0),
 ('amr-prompt-contract-repair-v1', 'PROMPT_CONTENT', 'DB',
 'You are ContractRepairNode, a bounded structured-output repair component.
 You receive invalid raw output, contract information, and validation failures.
@@ -169,6 +178,7 @@ VALUES
 ('amr-node-prompt-main-agent-v1', 'GLOBAL', 'MAIN_AGENT', 'v1', 'amr-prompt-main-agent-v1', 1),
 ('amr-node-prompt-rag-verifier-v1', 'GLOBAL', 'RAG_VERIFIER', 'v1', 'amr-prompt-rag-verifier-v1', 1),
 ('amr-node-prompt-final-repair-v1', 'GLOBAL', 'FINAL_REPAIR', 'v1', 'amr-prompt-final-repair-v1', 1),
+('amr-node-prompt-turn-summary-v1', 'GLOBAL', 'TURN_SUMMARY', 'v1', 'amr-prompt-turn-summary-v1', 1),
 ('amr-node-prompt-contract-repair-v1', 'GLOBAL', 'CONTRACT_REPAIR', 'v1', 'amr-prompt-contract-repair-v1', 1)
 ON DUPLICATE KEY UPDATE
   `agent_id` = VALUES(`agent_id`),

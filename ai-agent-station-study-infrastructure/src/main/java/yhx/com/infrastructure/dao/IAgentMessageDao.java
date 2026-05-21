@@ -11,5 +11,7 @@ public interface IAgentMessageDao {
 
     int insert(AgentMessagePO message);
 
+    AgentMessagePO queryByMessageId(@Param("messageId") String messageId);
+
     List<AgentMessagePO> listRecentVisibleBySessionId(@Param("sessionId") String sessionId, @Param("limit") int limit);
 }

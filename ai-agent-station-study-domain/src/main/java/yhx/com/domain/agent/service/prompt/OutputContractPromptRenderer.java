@@ -16,6 +16,7 @@ public class OutputContractPromptRenderer {
             case "RAG_VERIFIER", "TOOL_VERIFIER" -> renderVerificationResultContract();
             case "FINAL_RESPONSE_GUARD" -> renderFinalResponseGuardResultContract();
             case "CONTRACT_REPAIR" -> renderRepairContract(componentCode, contractVersion);
+            case "TURN_SUMMARY" -> renderTurnSummaryContract();
             default -> "Return one JSON object that satisfies component contract version " + contractVersion + ".";
         };
     }
@@ -92,6 +93,24 @@ public class OutputContractPromptRenderer {
                 Required output is the same JSON object expected from the original component.
                 Do not add repair explanations.
                 """.formatted(originalComponentCode, contractVersion);
+    }
+
+    public String renderTurnSummaryContract() {
+        return """
+                Required contract version: turn-summary-output-v1
+
+                Required top-level fields:
+                - summary: concise string
+                - intent: concise string
+                - topics: array of strings
+                - entities: array of objects
+                - artifactRefs: array of strings
+                - importanceScore: number from 0.0 to 1.0
+                - requiresLongTermExtraction: boolean
+
+                Valid example:
+                {"summary":"User asked for an RAG article and the agent drafted a structured explanation.","intent":"create article","topics":["RAG","article"],"entities":[],"artifactRefs":["artifact-1"],"importanceScore":0.7,"requiresLongTermExtraction":false}
+                """;
     }
 
     private String actionCodes() {

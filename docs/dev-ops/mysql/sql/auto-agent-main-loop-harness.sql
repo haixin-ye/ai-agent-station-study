@@ -6,6 +6,9 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `agent_node_prompt`;
+DROP TABLE IF EXISTS `agent_memory_task`;
+DROP TABLE IF EXISTS `agent_turn_summary`;
+DROP TABLE IF EXISTS `agent_turn`;
 DROP TABLE IF EXISTS `agent_run_audit`;
 DROP TABLE IF EXISTS `agent_run_trace`;
 DROP TABLE IF EXISTS `agent_run_event`;
@@ -61,6 +64,77 @@ CREATE TABLE `agent_message` (
   KEY `idx_agent_message_session_created` (`session_id`, `created_at`),
   KEY `idx_agent_message_run` (`run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent conversation message';
+
+CREATE TABLE `agent_turn` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `turn_id` varchar(64) NOT NULL,
+  `session_id` varchar(64) NOT NULL,
+  `run_id` varchar(64) NOT NULL,
+  `user_id` varchar(64) DEFAULT NULL,
+  `agent_id` varchar(64) DEFAULT NULL,
+  `turn_no` bigint NOT NULL,
+  `user_message_id` varchar(64) NOT NULL,
+  `assistant_message_id` varchar(64) DEFAULT NULL,
+  `user_payload_ref` varchar(64) DEFAULT NULL,
+  `assistant_payload_ref` varchar(64) DEFAULT NULL,
+  `status` varchar(64) NOT NULL DEFAULT 'COMPLETED',
+  `started_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_turn_id` (`turn_id`),
+  UNIQUE KEY `uk_agent_turn_run` (`run_id`),
+  UNIQUE KEY `uk_agent_turn_session_no` (`session_id`, `turn_no`),
+  KEY `idx_agent_turn_session_completed` (`session_id`, `completed_at`),
+  KEY `idx_agent_turn_user_session` (`user_id`, `session_id`, `completed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent completed user-agent turn';
+
+CREATE TABLE `agent_turn_summary` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `summary_id` varchar(64) NOT NULL,
+  `turn_id` varchar(64) NOT NULL,
+  `session_id` varchar(64) NOT NULL,
+  `run_id` varchar(64) NOT NULL,
+  `user_id` varchar(64) DEFAULT NULL,
+  `summary_ref` varchar(64) NOT NULL,
+  `intent` varchar(512) DEFAULT NULL,
+  `topics_json` json DEFAULT NULL,
+  `entities_json` json DEFAULT NULL,
+  `artifact_refs_json` json DEFAULT NULL,
+  `importance_score` decimal(8,4) DEFAULT NULL,
+  `requires_long_term_extraction` tinyint(1) NOT NULL DEFAULT 0,
+  `status` varchar(64) NOT NULL DEFAULT 'ACTIVE',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_turn_summary_id` (`summary_id`),
+  UNIQUE KEY `uk_agent_turn_summary_turn` (`turn_id`),
+  KEY `idx_agent_turn_summary_session` (`session_id`, `created_at`),
+  KEY `idx_agent_turn_summary_run` (`run_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent per-turn summary';
+
+CREATE TABLE `agent_memory_task` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `task_id` varchar(64) NOT NULL,
+  `task_type` varchar(64) NOT NULL,
+  `session_id` varchar(64) DEFAULT NULL,
+  `run_id` varchar(64) DEFAULT NULL,
+  `turn_id` varchar(64) DEFAULT NULL,
+  `status` varchar(64) NOT NULL,
+  `attempt_count` int NOT NULL DEFAULT 0,
+  `failure_code` varchar(128) DEFAULT NULL,
+  `failure_message` text,
+  `input_ref` varchar(64) DEFAULT NULL,
+  `output_ref` varchar(64) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `completed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_memory_task_id` (`task_id`),
+  KEY `idx_agent_memory_task_status` (`status`, `created_at`),
+  KEY `idx_agent_memory_task_turn` (`turn_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent async memory task';
 
 CREATE TABLE `agent_run` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,

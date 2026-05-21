@@ -1,6 +1,7 @@
 package yhx.com.config;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +11,7 @@ import yhx.com.domain.agent.adapter.repository.IArtifactRepository;
 import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
+import yhx.com.domain.agent.adapter.repository.IMemoryTaskRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IModelRuntimeRepository;
 import yhx.com.domain.agent.adapter.repository.INodePromptRepository;
@@ -19,12 +21,15 @@ import yhx.com.domain.agent.adapter.repository.IRagExecutionRepository;
 import yhx.com.domain.agent.adapter.repository.IRunDiagnosticRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
 import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
 import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
 import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
 import yhx.com.domain.agent.service.node.ragverifier.RagVerifierNodeService;
+import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
 import yhx.com.domain.agent.service.artifact.ArtifactManager;
 import yhx.com.domain.agent.service.artifact.ArtifactPayloadLoader;
 import yhx.com.domain.agent.service.context.ContextBudgetManager;
@@ -47,6 +52,8 @@ import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
+import yhx.com.domain.agent.service.memory.AsyncTurnSummaryProcessor;
+import yhx.com.domain.agent.service.memory.TurnCompletionPublisher;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
 import yhx.com.domain.agent.service.prompt.PromptContentProvider;
@@ -96,6 +103,8 @@ import yhx.com.infrastructure.adapter.repository.AsyncFileRunDiagnosticRepositor
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Configuration
 @ConditionalOnProperty(prefix = "auto-agent.runtime", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -210,8 +219,16 @@ public class AutoAgentRuntimeConfig {
                                                                    IArtifactRepository artifactRepository,
                                                                    IMemoryRepository memoryRepository,
                                                                    IEvidenceRepository evidenceRepository,
-                                                                   IPayloadRepository payloadRepository) {
-        return new ContextCandidatePreselector(conversationRepository, artifactRepository, memoryRepository, evidenceRepository, payloadRepository);
+                                                                   IPayloadRepository payloadRepository,
+                                                                   ITurnRepository turnRepository,
+                                                                   ITurnSummaryRepository turnSummaryRepository) {
+        return new ContextCandidatePreselector(conversationRepository,
+                artifactRepository,
+                memoryRepository,
+                evidenceRepository,
+                payloadRepository,
+                turnRepository,
+                turnSummaryRepository);
     }
 
     @Bean
@@ -346,6 +363,31 @@ public class AutoAgentRuntimeConfig {
         return new RagVerifierNodeService(nodeInvocationPipeline,
                 properties.getMaxContractRepairAttempts(),
                 nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.RAG_VERIFIER.name()));
+    }
+
+    @Bean
+    public TurnSummaryNodeService turnSummaryNodeService(NodeInvocationPipeline nodeInvocationPipeline) {
+        return new TurnSummaryNodeService(nodeInvocationPipeline);
+    }
+
+    @Bean("autoAgentMemoryTaskExecutor")
+    public Executor autoAgentMemoryTaskExecutor() {
+        return Executors.newFixedThreadPool(2);
+    }
+
+    @Bean
+    public TurnCompletionPublisher turnCompletionPublisher(@Qualifier("autoAgentMemoryTaskExecutor") Executor memoryTaskExecutor,
+                                                           ITurnRepository turnRepository,
+                                                           ITurnSummaryRepository turnSummaryRepository,
+                                                           IMemoryTaskRepository memoryTaskRepository,
+                                                           IPayloadRepository payloadRepository,
+                                                           TurnSummaryNodeService turnSummaryNodeService) {
+        return new AsyncTurnSummaryProcessor(memoryTaskExecutor,
+                turnRepository,
+                turnSummaryRepository,
+                memoryTaskRepository,
+                payloadRepository,
+                turnSummaryNodeService);
     }
 
     @Bean

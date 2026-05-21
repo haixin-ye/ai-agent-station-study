@@ -7,6 +7,8 @@ import yhx.com.domain.agent.model.entity.persistence.AgentEvidenceEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
@@ -106,6 +108,48 @@ public class ContextCandidatePreselectorTest {
 
         Assert.assertEquals(1, bundle.getUserClarifications().size());
         Assert.assertEquals("mcp-software", bundle.getUserClarifications().get(0).getSelectedOptionId());
+    }
+
+    @Test
+    public void turn_window_uses_latest_six_full_turns_and_previous_six_summaries() {
+        FakeContextRepositories repos = fixture();
+        repos.messages.clear();
+        repos.payloads.clear();
+        for (int i = 1; i <= 13; i++) {
+            String turnId = "turn-" + i;
+            repos.turns.add(AgentTurnEntity.builder()
+                    .turnId(turnId)
+                    .sessionId("session-1")
+                    .runId("run-" + i)
+                    .turnNo((long) i)
+                    .userMessageId("msg-user-" + i)
+                    .assistantMessageId("msg-assistant-" + i)
+                    .userPayloadRef("payload-user-" + i)
+                    .assistantPayloadRef("payload-assistant-" + i)
+                    .status("COMPLETED")
+                    .completedAt(LocalDateTime.now().plusMinutes(i))
+                    .build());
+            repos.payloads.put("payload-user-" + i, AgentPayloadEntity.builder().payloadId("payload-user-" + i).content("user " + i).build());
+            repos.payloads.put("payload-assistant-" + i, AgentPayloadEntity.builder().payloadId("payload-assistant-" + i).content("assistant " + i).build());
+            repos.turnSummaries.add(AgentTurnSummaryEntity.builder()
+                    .summaryId("summary-" + i)
+                    .turnId(turnId)
+                    .sessionId("session-1")
+                    .summaryRef("payload-summary-" + i)
+                    .status("ACTIVE")
+                    .build());
+            repos.payloads.put("payload-summary-" + i, AgentPayloadEntity.builder().payloadId("payload-summary-" + i).content("summary " + i).build());
+        }
+
+        ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos, repos, repos)
+                .buildCandidates(command(List.of()));
+
+        Assert.assertEquals(12, bundle.getRecentMessages().size());
+        Assert.assertEquals(6, bundle.getSessionSummaries().size());
+        Assert.assertEquals("msg-user-8", bundle.getRecentMessages().get(0).getMessageId());
+        Assert.assertEquals("msg-assistant-13", bundle.getRecentMessages().get(11).getMessageId());
+        Assert.assertEquals("summary-2", bundle.getSessionSummaries().get(0).getSummaryId());
+        Assert.assertEquals("summary 7", bundle.getSessionSummaries().get(5).getSummary());
     }
 
     private ContextCandidatePreselector preselector(FakeContextRepositories repos) {

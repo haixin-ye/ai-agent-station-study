@@ -60,6 +60,14 @@ public class ConversationRepository implements IConversationRepository {
     }
 
     @Override
+    public Optional<AgentMessageEntity> findMessageById(String messageId) {
+        if (messageId == null || messageId.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(agentMessageDao.queryByMessageId(messageId)).map(this::toMessageEntity);
+    }
+
+    @Override
     public List<AgentMessageEntity> listRecentVisibleMessages(String sessionId, int limit) {
         List<AgentMessagePO> rows = agentMessageDao.listRecentVisibleBySessionId(sessionId, limit);
         Collections.reverse(rows);

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentTurnSummaryDao">
+
+    <resultMap id="AgentTurnSummaryMap" type="yhx.com.infrastructure.dao.po.AgentTurnSummaryPO">
+        <id column="id" property="id"/>
+        <result column="summary_id" property="summaryId"/>
+        <result column="turn_id" property="turnId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="run_id" property="runId"/>
+        <result column="user_id" property="userId"/>
+        <result column="summary_ref" property="summaryRef"/>
+        <result column="intent" property="intent"/>
+        <result column="topics_json" property="topicsJson"/>
+        <result column="entities_json" property="entitiesJson"/>
+        <result column="artifact_refs_json" property="artifactRefsJson"/>
+        <result column="importance_score" property="importanceScore"/>
+        <result column="requires_long_term_extraction" property="requiresLongTermExtraction"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentTurnSummaryPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_turn_summary (
+            summary_id, turn_id, session_id, run_id, user_id, summary_ref, intent,
+            topics_json, entities_json, artifact_refs_json, importance_score,
+            requires_long_term_extraction, status, created_at, updated_at
+        ) VALUES (
+            #{summaryId}, #{turnId}, #{sessionId}, #{runId}, #{userId}, #{summaryRef}, #{intent},
+            #{topicsJson}, #{entitiesJson}, #{artifactRefsJson}, #{importanceScore},
+            #{requiresLongTermExtraction}, #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="queryByTurnId" resultMap="AgentTurnSummaryMap">
+        SELECT id, summary_id, turn_id, session_id, run_id, user_id, summary_ref, intent,
+               topics_json, entities_json, artifact_refs_json, importance_score,
+               requires_long_term_extraction, status, created_at, updated_at
+        FROM agent_turn_summary
+        WHERE turn_id = #{turnId}
+        LIMIT 1
+    </select>
+
+    <select id="listByTurnIds" resultMap="AgentTurnSummaryMap">
+        SELECT id, summary_id, turn_id, session_id, run_id, user_id, summary_ref, intent,
+               topics_json, entities_json, artifact_refs_json, importance_score,
+               requires_long_term_extraction, status, created_at, updated_at
+        FROM agent_turn_summary
+        WHERE turn_id IN
+        <foreach collection="turnIds" item="turnId" open="(" separator="," close=")">
+            #{turnId}
+        </foreach>
+    </select>
+
+</mapper>

@@ -8,6 +8,7 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnRepository;
 import yhx.com.domain.agent.service.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.finalresponse.FinalDeliveryService;
@@ -17,6 +18,7 @@ import yhx.com.domain.agent.service.finalresponse.FinalResponseGuardInputBuilder
 import yhx.com.domain.agent.service.finalresponse.FinalResponsePersistenceService;
 import yhx.com.domain.agent.service.finalresponse.FixedSafeFallbackFactory;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
+import yhx.com.domain.agent.service.memory.TurnCompletionPublisher;
 import yhx.com.domain.agent.service.rag.runtime.RagVerificationRouter;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
@@ -50,8 +52,15 @@ public class AutoAgentFinalResponseConfig {
     public FinalResponsePersistenceService finalResponsePersistenceService(IPayloadRepository payloadRepository,
                                                                            IConversationRepository conversationRepository,
                                                                            IRunRepository runRepository,
-                                                                           IEventTraceRepository eventTraceRepository) {
-        return new FinalResponsePersistenceService(payloadRepository, conversationRepository, runRepository, eventTraceRepository);
+                                                                           IEventTraceRepository eventTraceRepository,
+                                                                           ObjectProvider<ITurnRepository> turnRepositoryProvider,
+                                                                           ObjectProvider<TurnCompletionPublisher> turnCompletionPublisherProvider) {
+        return new FinalResponsePersistenceService(payloadRepository,
+                conversationRepository,
+                runRepository,
+                eventTraceRepository,
+                turnRepositoryProvider.getIfAvailable(),
+                turnCompletionPublisherProvider.getIfAvailable());
     }
 
     @Bean

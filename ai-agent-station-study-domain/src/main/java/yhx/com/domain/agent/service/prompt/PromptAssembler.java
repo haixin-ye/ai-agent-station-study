@@ -112,6 +112,9 @@ public class PromptAssembler {
         if (AgentComponentCodeEnumVO.CONTRACT_REPAIR.name().equals(componentCode)) {
             return new ContractRepairPromptBuilder().build();
         }
+        if (AgentComponentCodeEnumVO.TURN_SUMMARY.name().equals(componentCode)) {
+            return new TurnSummaryPromptBuilder().build();
+        }
         return List.of();
     }
 

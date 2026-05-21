@@ -5,6 +5,8 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentConversationSummaryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentEvidenceEntity;
@@ -13,6 +15,8 @@ import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEventEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentSessionEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,13 +24,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class FakeContextRepositories implements IConversationRepository, IArtifactRepository, IEvidenceRepository, IMemoryRepository, IPayloadRepository {
+public class FakeContextRepositories implements IConversationRepository, IArtifactRepository, IEvidenceRepository, IMemoryRepository, IPayloadRepository, ITurnRepository, ITurnSummaryRepository {
 
     public final Map<String, AgentPayloadEntity> payloads = new HashMap<>();
     public final Map<String, AgentArtifactEntity> artifacts = new HashMap<>();
     public final List<AgentMessageEntity> messages = new ArrayList<>();
     public final List<AgentEvidenceEntity> evidence = new ArrayList<>();
     public final List<AgentMemoryEntity> memories = new ArrayList<>();
+    public final List<AgentTurnEntity> turns = new ArrayList<>();
+    public final List<AgentTurnSummaryEntity> turnSummaries = new ArrayList<>();
 
     @Override
     public String createSession(AgentSessionEntity session) {
@@ -41,6 +47,11 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
     @Override
     public void appendMessage(AgentMessageEntity message) {
         messages.add(message);
+    }
+
+    @Override
+    public Optional<AgentMessageEntity> findMessageById(String messageId) {
+        return messages.stream().filter(message -> messageId.equals(message.getMessageId())).findFirst();
     }
 
     @Override
@@ -113,5 +124,64 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
     @Override
     public Optional<AgentPayloadEntity> findPayload(String payloadId) {
         return Optional.ofNullable(payloads.get(payloadId));
+    }
+
+    @Override
+    public String saveCompletedTurn(AgentTurnEntity turn) {
+        turns.add(turn);
+        return turn.getTurnId();
+    }
+
+    @Override
+    public Optional<AgentTurnEntity> findByTurnId(String turnId) {
+        return turns.stream().filter(turn -> turnId.equals(turn.getTurnId())).findFirst();
+    }
+
+    @Override
+    public Optional<AgentTurnEntity> findByRunId(String runId) {
+        return turns.stream().filter(turn -> runId.equals(turn.getRunId())).findFirst();
+    }
+
+    @Override
+    public List<AgentTurnEntity> listRecentCompletedTurns(String sessionId, int limit) {
+        return turns.stream()
+                .filter(turn -> sessionId == null || sessionId.equals(turn.getSessionId()))
+                .filter(turn -> "COMPLETED".equals(turn.getStatus()))
+                .sorted((left, right) -> Long.compare(nullToZero(right.getTurnNo()), nullToZero(left.getTurnNo())))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public List<AgentTurnEntity> listCompletedTurnsBefore(String sessionId, Long beforeTurnNo, int limit) {
+        return turns.stream()
+                .filter(turn -> sessionId == null || sessionId.equals(turn.getSessionId()))
+                .filter(turn -> "COMPLETED".equals(turn.getStatus()))
+                .filter(turn -> beforeTurnNo == null || (turn.getTurnNo() != null && turn.getTurnNo() < beforeTurnNo))
+                .sorted((left, right) -> Long.compare(nullToZero(right.getTurnNo()), nullToZero(left.getTurnNo())))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public String saveSummary(AgentTurnSummaryEntity summary) {
+        turnSummaries.add(summary);
+        return summary.getSummaryId();
+    }
+
+    @Override
+    public Optional<AgentTurnSummaryEntity> findSummaryByTurnId(String turnId) {
+        return turnSummaries.stream().filter(summary -> turnId.equals(summary.getTurnId())).findFirst();
+    }
+
+    @Override
+    public List<AgentTurnSummaryEntity> listByTurnIds(List<String> turnIds) {
+        return turnSummaries.stream()
+                .filter(summary -> turnIds.contains(summary.getTurnId()))
+                .toList();
+    }
+
+    private long nullToZero(Long value) {
+        return value == null ? 0L : value;
     }
 }

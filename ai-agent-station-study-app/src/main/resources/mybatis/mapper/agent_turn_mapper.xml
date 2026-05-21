@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentTurnDao">
+
+    <resultMap id="AgentTurnMap" type="yhx.com.infrastructure.dao.po.AgentTurnPO">
+        <id column="id" property="id"/>
+        <result column="turn_id" property="turnId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="run_id" property="runId"/>
+        <result column="user_id" property="userId"/>
+        <result column="agent_id" property="agentId"/>
+        <result column="turn_no" property="turnNo"/>
+        <result column="user_message_id" property="userMessageId"/>
+        <result column="assistant_message_id" property="assistantMessageId"/>
+        <result column="user_payload_ref" property="userPayloadRef"/>
+        <result column="assistant_payload_ref" property="assistantPayloadRef"/>
+        <result column="status" property="status"/>
+        <result column="started_at" property="startedAt"/>
+        <result column="completed_at" property="completedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentTurnPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_turn (
+            turn_id, session_id, run_id, user_id, agent_id, turn_no,
+            user_message_id, assistant_message_id, user_payload_ref, assistant_payload_ref,
+            status, started_at, completed_at, created_at, updated_at
+        ) VALUES (
+            #{turnId}, #{sessionId}, #{runId}, #{userId}, #{agentId}, #{turnNo},
+            #{userMessageId}, #{assistantMessageId}, #{userPayloadRef}, #{assistantPayloadRef},
+            #{status}, #{startedAt}, #{completedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="nextTurnNo" resultType="java.lang.Long">
+        SELECT COALESCE(MAX(turn_no), 0) + 1
+        FROM agent_turn
+        WHERE session_id = #{sessionId}
+    </select>
+
+    <select id="queryByTurnId" resultMap="AgentTurnMap">
+        SELECT id, turn_id, session_id, run_id, user_id, agent_id, turn_no,
+               user_message_id, assistant_message_id, user_payload_ref, assistant_payload_ref,
+               status, started_at, completed_at, created_at, updated_at
+        FROM agent_turn
+        WHERE turn_id = #{turnId}
+        LIMIT 1
+    </select>
+
+    <select id="queryByRunId" resultMap="AgentTurnMap">
+        SELECT id, turn_id, session_id, run_id, user_id, agent_id, turn_no,
+               user_message_id, assistant_message_id, user_payload_ref, assistant_payload_ref,
+               status, started_at, completed_at, created_at, updated_at
+        FROM agent_turn
+        WHERE run_id = #{runId}
+        LIMIT 1
+    </select>
+
+    <select id="listRecentCompleted" resultMap="AgentTurnMap">
+        SELECT id, turn_id, session_id, run_id, user_id, agent_id, turn_no,
+               user_message_id, assistant_message_id, user_payload_ref, assistant_payload_ref,
+               status, started_at, completed_at, created_at, updated_at
+        FROM agent_turn
+        WHERE session_id = #{sessionId}
+          AND status = 'COMPLETED'
+        ORDER BY turn_no DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="listCompletedBefore" resultMap="AgentTurnMap">
+        SELECT id, turn_id, session_id, run_id, user_id, agent_id, turn_no,
+               user_message_id, assistant_message_id, user_payload_ref, assistant_payload_ref,
+               status, started_at, completed_at, created_at, updated_at
+        FROM agent_turn
+        WHERE session_id = #{sessionId}
+          AND status = 'COMPLETED'
+          AND turn_no &lt; #{beforeTurnNo}
+        ORDER BY turn_no DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

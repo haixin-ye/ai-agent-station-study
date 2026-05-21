@@ -1,0 +1,32 @@
+package yhx.com.domain.agent.model.entity.persistence;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AgentTurnSummaryEntity {
+
+    private String summaryId;
+    private String turnId;
+    private String sessionId;
+    private String runId;
+    private String userId;
+    private String summaryRef;
+    private String intent;
+    private String topicsJson;
+    private String entitiesJson;
+    private String artifactRefsJson;
+    private BigDecimal importanceScore;
+    private Boolean requiresLongTermExtraction;
+    private String status;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}

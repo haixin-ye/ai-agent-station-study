@@ -23,6 +23,9 @@ public class StaticPromptContentProvider implements PromptContentProvider {
         if (AgentComponentCodeEnumVO.CONTRACT_REPAIR.name().equals(componentCode)) {
             return List.of("You repair invalid structured JSON so it matches the specified contract.");
         }
+        if (AgentComponentCodeEnumVO.TURN_SUMMARY.name().equals(componentCode)) {
+            return List.of("You are TurnSummaryNode. You summarize one completed user-agent turn for future memory recall.");
+        }
         return List.of("You are an AutoAgent bounded-step component.");
     }
 }

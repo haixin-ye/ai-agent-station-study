@@ -14,5 +14,7 @@ public interface IConversationRepository {
 
     void appendMessage(AgentMessageEntity message);
 
+    Optional<AgentMessageEntity> findMessageById(String messageId);
+
     List<AgentMessageEntity> listRecentVisibleMessages(String sessionId, int limit);
 }

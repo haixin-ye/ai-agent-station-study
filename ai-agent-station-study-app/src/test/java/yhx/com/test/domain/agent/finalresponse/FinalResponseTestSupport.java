@@ -60,6 +60,11 @@ class FinalResponseTestSupport {
         }
 
         @Override
+        public Optional<AgentMessageEntity> findMessageById(String messageId) {
+            return messages.stream().filter(message -> messageId.equals(message.getMessageId())).findFirst();
+        }
+
+        @Override
         public List<AgentMessageEntity> listRecentVisibleMessages(String sessionId, int limit) {
             return messages.stream()
                     .filter(message -> sessionId.equals(message.getSessionId()))

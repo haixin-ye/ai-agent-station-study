@@ -9,6 +9,7 @@ public enum AgentComponentCodeEnumVO {
     TOOL_VERIFIER,
     FINAL_RESPONSE_GUARD,
     FINAL_REPAIR,
+    TURN_SUMMARY,
     CONTRACT_REPAIR
 }
 
