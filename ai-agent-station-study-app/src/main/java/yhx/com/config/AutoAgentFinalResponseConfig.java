@@ -8,7 +8,7 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
-import yhx.com.domain.agent.node.finalrepair.FinalRepairNodeService;
+import yhx.com.domain.agent.service.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.finalresponse.FinalDeliveryService;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseBuilder;

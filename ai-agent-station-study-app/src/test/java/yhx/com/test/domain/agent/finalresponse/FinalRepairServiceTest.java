@@ -8,7 +8,7 @@ import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationCommand;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
-import yhx.com.domain.agent.node.finalrepair.FinalRepairNodeService;
+import yhx.com.domain.agent.service.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
 
 import java.util.Map;

@@ -15,7 +15,7 @@ import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeSafeFailureVO;
-import yhx.com.domain.agent.node.finalrepair.FinalRepairNodeService;
+import yhx.com.domain.agent.service.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.rag.runtime.RagVerificationRouter;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;

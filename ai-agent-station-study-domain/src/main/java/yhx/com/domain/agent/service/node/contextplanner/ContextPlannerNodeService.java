@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.node.contextplanner;
+package yhx.com.domain.agent.service.node.contextplanner;
 
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;

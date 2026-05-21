@@ -11,8 +11,8 @@ import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
-import yhx.com.domain.agent.node.contextplanner.ContextPlannerNodeService;
-import yhx.com.domain.agent.node.mainagent.MainAgentNodeService;
+import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
+import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
 import yhx.com.domain.agent.service.context.ContextPlannerStatusHandler;
 import yhx.com.domain.agent.service.context.ContextPreparationService;
 

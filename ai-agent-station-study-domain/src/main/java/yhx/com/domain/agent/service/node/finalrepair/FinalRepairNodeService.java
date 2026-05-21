@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.node.finalrepair;
+package yhx.com.domain.agent.service.node.finalrepair;
 
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEnumVO;

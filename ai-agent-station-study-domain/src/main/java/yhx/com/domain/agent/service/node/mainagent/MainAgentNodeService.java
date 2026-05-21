@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.node.mainagent;
+package yhx.com.domain.agent.service.node.mainagent;
 
 import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;

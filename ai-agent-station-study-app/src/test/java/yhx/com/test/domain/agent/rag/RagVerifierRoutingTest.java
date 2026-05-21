@@ -13,7 +13,7 @@ import yhx.com.domain.agent.model.valobj.rag.RagVerifierInputVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
 import yhx.com.domain.agent.service.rag.runtime.RagVerificationRouter;
 import yhx.com.domain.agent.service.rag.runtime.RagVerifierInputBuilder;
-import yhx.com.domain.agent.node.ragverifier.RagVerifierNodeService;
+import yhx.com.domain.agent.service.node.ragverifier.RagVerifierNodeService;
 
 import java.util.List;
 
