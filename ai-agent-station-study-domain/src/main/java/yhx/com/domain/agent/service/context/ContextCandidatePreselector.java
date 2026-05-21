@@ -22,6 +22,7 @@ import yhx.com.domain.agent.model.valobj.context.UserInputVO;
 import yhx.com.domain.agent.service.artifact.ArtifactCandidateRanker;
 import yhx.com.domain.agent.service.evidence.EvidenceCandidatePreselector;
 import yhx.com.domain.agent.service.memory.MemoryCandidatePreselector;
+import yhx.com.domain.agent.service.memory.TurnSummaryRecallPreselector;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -29,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class ContextCandidatePreselector {
@@ -36,6 +38,8 @@ public class ContextCandidatePreselector {
     private static final int DEFAULT_RECENT_MESSAGE_LIMIT = 16;
     private static final int DEFAULT_FULL_TURN_LIMIT = 6;
     private static final int DEFAULT_SUMMARY_TURN_LIMIT = 6;
+    private static final int DEFAULT_RECALL_SUMMARY_SCAN_LIMIT = 40;
+    private static final int DEFAULT_RECALL_SUMMARY_LIMIT = 6;
     private static final int DEFAULT_ARTIFACT_LIMIT = 5;
     private static final int DEFAULT_MEMORY_LIMIT = 5;
     private static final int DEFAULT_EVIDENCE_LIMIT = 5;
@@ -51,6 +55,7 @@ public class ContextCandidatePreselector {
     private final ContextTokenEstimator tokenEstimator;
     private final ArtifactCandidateRanker artifactCandidateRanker;
     private final MemoryCandidatePreselector memoryCandidatePreselector;
+    private final TurnSummaryRecallPreselector turnSummaryRecallPreselector;
     private final EvidenceCandidatePreselector evidenceCandidatePreselector;
 
     public ContextCandidatePreselector(IConversationRepository conversationRepository,
@@ -85,6 +90,7 @@ public class ContextCandidatePreselector {
         this.tokenEstimator = new ContextTokenEstimator();
         this.artifactCandidateRanker = new ArtifactCandidateRanker(tokenEstimator);
         this.memoryCandidatePreselector = new MemoryCandidatePreselector();
+        this.turnSummaryRecallPreselector = new TurnSummaryRecallPreselector(payloadRepository);
         this.evidenceCandidatePreselector = new EvidenceCandidatePreselector();
     }
 
@@ -95,6 +101,8 @@ public class ContextCandidatePreselector {
         int evidenceLimit = defaultIfNull(command.getEvidenceCandidateLimit(), DEFAULT_EVIDENCE_LIMIT);
 
         TurnContextWindow turnWindow = buildTurnContextWindow(command, messageLimit);
+        List<SummaryCandidateVO> sessionSummaries = mergeSummaries(turnWindow.summaries(),
+                recallRelevantSummaries(command, turnWindow.summaries()));
 
         ContextCandidateBundleVO bundle = ContextCandidateBundleVO.builder()
                 .runMeta(RunMetaVO.builder()
@@ -109,8 +117,8 @@ public class ContextCandidatePreselector {
                         .content(command.getUserInput())
                         .build())
                 .recentMessages(turnWindow.messages())
-                .sessionSummaries(turnWindow.summaries())
-                .artifactCandidates(artifactCandidateRanker.rank(command.getUserInput(), artifactCandidates(command, artifactLimit), artifactLimit))
+                .sessionSummaries(sessionSummaries)
+                .artifactCandidates(artifactCandidateRanker.rank(command.getUserInput(), artifactCandidates(command, artifactLimit, sessionSummaries), artifactLimit))
                 .memoryCandidates(memoryCandidatePreselector.select(command.getUserInput(),
                         memoryRepository.findMemoryCandidates(command.getUserId(), command.getSessionId(), command.getUserInput(), memoryLimit), memoryLimit))
                 .evidenceCandidates(evidenceCandidatePreselector.select(command.getUserInput(),
@@ -123,14 +131,47 @@ public class ContextCandidatePreselector {
         return bundle;
     }
 
-    private List<AgentArtifactEntity> artifactCandidates(ContextPreparationCommand command, int artifactLimit) {
+    private List<AgentArtifactEntity> artifactCandidates(ContextPreparationCommand command, int artifactLimit, List<SummaryCandidateVO> sessionSummaries) {
         Map<String, AgentArtifactEntity> merged = new LinkedHashMap<>();
         if (artifactRepository != null) {
             artifactRepository.findArtifactCandidates(command.getSessionId(), command.getUserInput(), artifactLimit)
                     .forEach(artifact -> merged.put(artifact.getArtifactId(), artifact));
         }
+        if (artifactRepository != null && sessionSummaries != null) {
+            sessionSummaries.stream()
+                    .filter(summary -> summary.getArtifactRefs() != null)
+                    .flatMap(summary -> summary.getArtifactRefs().stream())
+                    .distinct()
+                    .forEach(artifactId -> artifactRepository.findArtifact(artifactId)
+                            .ifPresent(artifact -> merged.putIfAbsent(artifact.getArtifactId(), artifact)));
+        }
         if (command.getArtifactSeeds() != null) {
             command.getArtifactSeeds().forEach(artifact -> merged.putIfAbsent(artifact.getArtifactId(), artifact));
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private List<SummaryCandidateVO> recallRelevantSummaries(ContextPreparationCommand command, List<SummaryCandidateVO> fixedSummaries) {
+        if (turnSummaryRepository == null) {
+            return List.of();
+        }
+        Set<String> excludedIds = fixedSummaries == null ? Set.of() : fixedSummaries.stream()
+                .map(SummaryCandidateVO::getSummaryId)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        return turnSummaryRecallPreselector.select(command.getUserInput(),
+                turnSummaryRepository.listRecentActiveSummaries(command.getSessionId(), DEFAULT_RECALL_SUMMARY_SCAN_LIMIT),
+                excludedIds,
+                DEFAULT_RECALL_SUMMARY_LIMIT);
+    }
+
+    private List<SummaryCandidateVO> mergeSummaries(List<SummaryCandidateVO> fixedSummaries, List<SummaryCandidateVO> recalledSummaries) {
+        Map<String, SummaryCandidateVO> merged = new LinkedHashMap<>();
+        if (fixedSummaries != null) {
+            fixedSummaries.forEach(summary -> merged.put(summary.getSummaryId(), summary));
+        }
+        if (recalledSummaries != null) {
+            recalledSummaries.forEach(summary -> merged.putIfAbsent(summary.getSummaryId(), summary));
         }
         return new ArrayList<>(merged.values());
     }
@@ -198,8 +239,11 @@ public class ContextCandidatePreselector {
                 .orElse(null);
         return SummaryCandidateVO.builder()
                 .summaryId(summary.getSummaryId())
+                .turnId(summary.getTurnId())
                 .summary(text)
                 .summaryRef(summary.getSummaryRef())
+                .artifactRefs(parseStringList(summary.getArtifactRefsJson()))
+                .createdAt(summary.getCreatedAt())
                 .build();
     }
 
@@ -250,6 +294,18 @@ public class ContextCandidatePreselector {
             return first;
         }
         return second == null || second.isBlank() ? null : second;
+    }
+
+    private List<String> parseStringList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<String> values = com.alibaba.fastjson.JSON.parseArray(json, String.class);
+            return values == null ? List.of() : values;
+        } catch (Exception ignored) {
+            return List.of();
+        }
     }
 
     @SuppressWarnings("unchecked")

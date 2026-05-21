@@ -152,6 +152,43 @@ public class ContextCandidatePreselectorTest {
         Assert.assertEquals("summary 7", bundle.getSessionSummaries().get(5).getSummary());
     }
 
+    @Test
+    public void recalled_turn_summary_exposes_artifact_reference_without_inlining_artifact_body_to_planner() {
+        FakeContextRepositories repos = fixture();
+        repos.messages.clear();
+        repos.payloads.clear();
+        repos.artifacts.put("artifact-rag-1", article("artifact-rag-1", "RAG Article", "payload-artifact-rag"));
+        repos.payloads.put("payload-artifact-rag", AgentPayloadEntity.builder()
+                .payloadId("payload-artifact-rag")
+                .payloadType(PayloadTypeEnumVO.ARTIFACT_CONTENT)
+                .content("FULL_RAG_ARTICLE_BODY_SHOULD_NOT_APPEAR_IN_CANDIDATES")
+                .preview("rag artifact preview")
+                .build());
+        repos.turnSummaries.add(AgentTurnSummaryEntity.builder()
+                .summaryId("summary-rag-old")
+                .turnId("turn-rag-old")
+                .sessionId("session-1")
+                .summaryRef("payload-summary-rag-old")
+                .artifactRefsJson("[\"artifact-rag-1\"]")
+                .status("ACTIVE")
+                .createdAt(LocalDateTime.now().minusDays(3))
+                .build());
+        repos.payloads.put("payload-summary-rag-old", AgentPayloadEntity.builder()
+                .payloadId("payload-summary-rag-old")
+                .content("User created a RAG article draft and asked to keep it for later editing.")
+                .build());
+
+        ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos, repos, repos)
+                .buildCandidates(command(List.of()));
+
+        Assert.assertTrue(bundle.getSessionSummaries().stream()
+                .anyMatch(summary -> "summary-rag-old".equals(summary.getSummaryId())
+                        && summary.getArtifactRefs().contains("artifact-rag-1")));
+        Assert.assertTrue(bundle.getArtifactCandidates().stream()
+                .anyMatch(artifact -> "artifact-rag-1".equals(artifact.getArtifactId())));
+        Assert.assertFalse(bundle.toString().contains("FULL_RAG_ARTICLE_BODY_SHOULD_NOT_APPEAR_IN_CANDIDATES"));
+    }
+
     private ContextCandidatePreselector preselector(FakeContextRepositories repos) {
         return new ContextCandidatePreselector(repos, repos, repos, repos);
     }

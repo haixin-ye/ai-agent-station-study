@@ -38,6 +38,8 @@ public class PromptAssemblerTest {
         Assert.assertTrue(prompt.contains("original draft"));
         Assert.assertTrue(prompt.contains("latest revised draft"));
         Assert.assertTrue(prompt.contains("Do not ask for clarification when recentMessages contain enough context"));
+        Assert.assertTrue(prompt.contains("sessionSummaries may include artifactRefs"));
+        Assert.assertTrue(prompt.contains("select the referenced ARTIFACT candidate by artifactId"));
     }
 
     @Test

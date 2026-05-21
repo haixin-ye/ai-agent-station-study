@@ -122,6 +122,15 @@ public class AsyncTurnSummaryProcessorTest {
         }
 
         @Override
+        public List<AgentTurnSummaryEntity> listRecentActiveSummaries(String sessionId, int limit) {
+            return summaries.stream()
+                    .filter(summary -> sessionId == null || sessionId.equals(summary.getSessionId()))
+                    .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public String createTask(AgentMemoryTaskEntity task) {
             task.setTaskId("task-1");
             tasks.add(task);

@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -12,8 +15,12 @@ import lombok.NoArgsConstructor;
 public class SummaryCandidateVO {
 
     private String summaryId;
+    private String turnId;
     private String summary;
     private String summaryRef;
+    private List<String> artifactRefs;
+    private Double relevanceScore;
     private Long messageStartSeq;
     private Long messageEndSeq;
+    private LocalDateTime createdAt;
 }

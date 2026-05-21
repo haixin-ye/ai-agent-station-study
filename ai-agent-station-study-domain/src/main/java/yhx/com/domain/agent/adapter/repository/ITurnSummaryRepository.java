@@ -12,4 +12,6 @@ public interface ITurnSummaryRepository {
     Optional<AgentTurnSummaryEntity> findSummaryByTurnId(String turnId);
 
     List<AgentTurnSummaryEntity> listByTurnIds(List<String> turnIds);
+
+    List<AgentTurnSummaryEntity> listRecentActiveSummaries(String sessionId, int limit);
 }

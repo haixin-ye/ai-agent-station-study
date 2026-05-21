@@ -181,7 +181,21 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
                 .toList();
     }
 
+    @Override
+    public List<AgentTurnSummaryEntity> listRecentActiveSummaries(String sessionId, int limit) {
+        return turnSummaries.stream()
+                .filter(summary -> sessionId == null || sessionId.equals(summary.getSessionId()))
+                .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                .sorted((left, right) -> nullSafeCreatedAt(right).compareTo(nullSafeCreatedAt(left)))
+                .limit(limit)
+                .toList();
+    }
+
     private long nullToZero(Long value) {
         return value == null ? 0L : value;
+    }
+
+    private java.time.LocalDateTime nullSafeCreatedAt(AgentTurnSummaryEntity summary) {
+        return summary.getCreatedAt() == null ? java.time.LocalDateTime.MIN : summary.getCreatedAt();
     }
 }

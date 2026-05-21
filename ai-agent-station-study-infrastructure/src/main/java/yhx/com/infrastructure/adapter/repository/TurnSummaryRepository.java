@@ -50,6 +50,11 @@ public class TurnSummaryRepository implements ITurnSummaryRepository {
         return agentTurnSummaryDao.listByTurnIds(turnIds).stream().map(this::toEntity).toList();
     }
 
+    @Override
+    public List<AgentTurnSummaryEntity> listRecentActiveSummaries(String sessionId, int limit) {
+        return agentTurnSummaryDao.listRecentActive(sessionId, limit).stream().map(this::toEntity).toList();
+    }
+
     private AgentTurnSummaryPO toPO(AgentTurnSummaryEntity entity) {
         return AgentTurnSummaryPO.builder()
                 .summaryId(entity.getSummaryId())

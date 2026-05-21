@@ -53,4 +53,15 @@
         </foreach>
     </select>
 
+    <select id="listRecentActive" resultMap="AgentTurnSummaryMap">
+        SELECT id, summary_id, turn_id, session_id, run_id, user_id, summary_ref, intent,
+               topics_json, entities_json, artifact_refs_json, importance_score,
+               requires_long_term_extraction, status, created_at, updated_at
+        FROM agent_turn_summary
+        WHERE session_id = #{sessionId}
+          AND status = 'ACTIVE'
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

@@ -14,4 +14,6 @@ public interface IAgentTurnSummaryDao {
     AgentTurnSummaryPO queryByTurnId(@Param("turnId") String turnId);
 
     List<AgentTurnSummaryPO> listByTurnIds(@Param("turnIds") List<String> turnIds);
+
+    List<AgentTurnSummaryPO> listRecentActive(@Param("sessionId") String sessionId, @Param("limit") int limit);
 }
