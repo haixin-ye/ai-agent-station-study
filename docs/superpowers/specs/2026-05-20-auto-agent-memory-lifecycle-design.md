@@ -13,7 +13,7 @@ The design uses MySQL as the source of truth and vector storage as semantic inde
 1. MySQL owns truth, lifecycle, status, versioning, audit, permissions, and recovery.
 2. Vector storage owns semantic recall only.
 3. Recent conversational context is loaded deterministically from MySQL, not selected by vector search.
-4. Reference phrases such as "上次那篇文章", "刚才那个方案", "第二版" are resolved primarily by structured session state, recency, artifact metadata, and ContextPlanner judgment, not by pure vector similarity.
+4. Reference phrases such as "上次那篇文章", "刚才那个方案", and "第二版" are resolved primarily by structured session state, recency, artifact metadata, and ContextPlanner judgment, not by pure vector similarity.
 5. MainAgentNode receives clean, bound context. It should know why an artifact, memory, or summary was selected.
 6. Memory extraction, rolling summary, indexing, merge, and GC run outside the user-facing critical path.
 
@@ -97,7 +97,7 @@ Vector indexes:
 
 Usage:
 
-- Resolve "那篇 RAG 文章", "第二版方案", "上次生成的宣誓稿".
+- Resolve "那篇 RAG 文章", "第二版方案", and "上次生成的宣誓稿".
 - Locate relevant sections inside long artifacts.
 - Load selected artifact content into MainAgentStateView.
 

@@ -1,84 +1,67 @@
-# AutoAgent Harness Redesign Plan
-
-Canonical working note:
-`docs/superpowers/specs/2026-04-28-auto-agent-main-loop-harness-working-notes.md`
-
-Future task backlog:
-`docs/superpowers/future-dev-tasks.md`
+# AutoAgent Current Development Plan
 
 ## Current Goal
 
-Redesign the AutoAgent harness from the current fixed multi-node ReAct-style chain into a main-loop architecture centered on `MainAgentNode` plus deterministic Java Runtime orchestration.
+Continue building AutoAgent as a production-grade main-loop agent system with clear DDD boundaries, observable Runtime behavior, reliable pending-input handling, and a memory system based on MySQL truth plus vector semantic indexes.
 
-## Active Design Phases
+## Canonical References
 
-- [x] Problem analysis: node coordination imbalance, intermediate-output leakage, context overflow, frontend trace noise.
-- [x] Main architecture: `MainAgentNode`, Runtime, ContextPlanner, Verifiers, Memory, Artifacts, Evidence.
-- [x] Memory lifecycle: session messages, summaries, long-term memory, run-level state.
-- [x] Tool/RAG execution model: explicit RAG action; all external tool use goes through `CALL_TOOL` and Runtime-owned `ToolRuntime` backed by Spring AI MCP clients; Runtime captures receipts and evidence.
-- [x] Logging and frontend display model: final response, visible events, developer trace, audit, evidence, artifacts.
-- [x] Artifact resolution and context policy: artifact id is internal, ContextPlanner resolves references and decides content granularity.
-- [ ] AgentState and StateView schema design.
-- [x] Runtime loop detailed state machine.
-- [x] Database table design and repository boundaries.
-- [x] DDD package/module layout for implementation.
-- [x] Prompt and output contract design for ContextPlanner and MainAgentNode.
-- [x] Frontend API and SSE interaction design.
-- [x] Verification and testing strategy.
-- [x] Final spec consolidation and implementation plan completed: master plan plus Phase 0-12 executable plans created.
-- [x] Final spec files created: English canonical spec and Chinese review sample.
-- [x] Master implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-main-loop-harness-master-plan.md`.
-- [x] Phase 0/1 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-0-1-contract-skeleton.md`.
-- [x] Phase 2 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-2-persistence-repository.md`.
-- [x] Phase 3 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-3-prompt-node-invocation.md`.
-- [x] Phase 4 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-4-context-artifact-memory.md`.
-- [x] Phase 5 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-5-runtime-pending-input.md`.
-- [x] Phase 6 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-6-main-action-handlers.md`.
-- [x] Phase 7 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-7-rag-runtime-verification.md`.
-- [x] Phase 8 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-8-tool-mcp-permission-approval.md`.
-- [x] Phase 9 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-9-final-response-guard-repair.md`.
-- [x] Phase 10 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-10-api-sse-debug-mock.md`.
-- [x] Phase 11 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-11-old-harness-isolation-cleanup.md`.
-- [x] Phase 12 executable implementation plan created: `docs/superpowers/plans/2026-05-12-auto-agent-phase-12-mvp-verification-review.md`.
+- Current governance: `docs/architecture/auto-agent-prompt-harness-governance-spec.md`
+- Main-loop architecture: `docs/architecture/auto-agent-main-loop-harness-redesign-spec.md`
+- Memory lifecycle design: `docs/superpowers/specs/2026-05-20-auto-agent-memory-lifecycle-design.md`
+- Memory phase 1 implementation plan: `docs/superpowers/plans/2026-05-21-auto-agent-memory-phase-1-structured-turns.md`
+- Current findings: `findings.md`
+- Historical progress: `progress.md` and `docs/superpowers/progress.md`
 
-## Operating Rule
+Historical Node1-4 and `DynamicContext` documents are archive material only and are not current implementation guidance.
 
-Before continuing design or implementation, read this file and the canonical working note to recover decisions.
+## Current Implemented Baseline
 
-## Development Execution Rule
+- [x] AutoAgent main-loop Runtime exists and is wired through Spring config.
+- [x] `MainAgentNode` action output goes through `NodeInvocationPipeline`.
+- [x] Context preparation separates initial ContextPlanner planning from later state-view refresh.
+- [x] `RuntimeRoutePolicy` centralizes continued-loop routing.
+- [x] USER_ASK resumes from continuation checkpoints.
+- [x] RAG runtime and fact-triggered RAG verification exist.
+- [x] Tool/MCP permission and approval flow exists.
+- [x] Final delivery, final guard, and final repair exist.
+- [x] Normal frontend/debug boundary and async diagnostic log writing exist.
+- [x] Node entry services have been moved to `domain/agent/service/node/<node>/`.
+- [x] `FINAL_REPAIR` and `CONTRACT_REPAIR` prompt builders are split.
 
-- Use a dedicated feature branch for the harness redesign implementation.
-- Record meaningful Git checkpoints in `progress.md` with branch name, commit hash, completed slice, verification command, and result.
-- Treat Phase 0-12 as the full backlog and verification map, not as a rigid coding order.
-- Implement by vertical slices: foundation skeleton, minimal end-to-end direct-answer flow, persistence, prompt/context, runtime actions, RAG/tool capabilities, final/API/debug, old-harness isolation, MVP verification.
-- When a later-phase module is needed early, create a stable interface and fake/stub implementation first, then fill the production implementation later.
-- Build to production standard rather than quick demos: if a missing prior interface, adapter, mapper, repository method, or contract is discovered during a later phase, stop and implement the correct root-cause fix before continuing. Do not use shortcut code that hides an architectural gap.
-- Keep DDD package names explicit and subdomain-aligned:
-  - external API contracts use `*Api`;
-  - domain service contracts use `*DomainService`;
-  - `domain/agent/model/entity`, `domain/agent/model/valobj`, and `domain/agent/model/valobj/enums` must use subdomain folders matching service domains where practical, such as `armory`, `rag`, `runtime`, `contract`, `tool`, `token`, and `memory`.
-  - `domain/agent/service/**` must contain behavior-oriented services, strategies, builders, pipelines, validators, and policies only. Data carrier classes such as `*VO`, `*Command`, `*Result`, `*Request`, `*Response`, and enums must live under `domain/agent/model/valobj/**` or `domain/agent/model/valobj/enums/**` with matching subdomain folders.
+## Current Package Rules
 
-## Implementation Status
+- LLM node entry services:
+  - `domain/agent/service/node/contextplanner/ContextPlannerNodeService.java`
+  - `domain/agent/service/node/mainagent/MainAgentNodeService.java`
+  - `domain/agent/service/node/ragverifier/RagVerifierNodeService.java`
+  - `domain/agent/service/node/finalrepair/FinalRepairNodeService.java`
+- Future LLM nodes:
+  - add node entry service under `domain/agent/service/node/<node>/`;
+  - add component prompt builder under `domain/agent/service/prompt`;
+  - add input/output VOs under `domain/agent/model/valobj/<subdomain>`;
+  - add component enum under `domain/agent/model/valobj/enums/contract`;
+  - update `PromptAssembler`, `OutputContractPromptRenderer`, and `NodeOutputMapper` when structured output is needed;
+  - add app config/model binding only at the assembly layer.
+- `domain/agent/service/**` must contain behavior only.
+- Data carriers such as `*VO`, `*Command`, `*Result`, `*Request`, `*Response`, and enums must live under `domain/agent/model/valobj/**` or `domain/agent/model/valobj/enums/**`.
+- Persistence entities live under `domain/agent/model/entity/**`.
+- Repository ports live under `domain/agent/adapter/repository/**`.
+- DAO/PO/mapper/repository adapter implementations live in `infrastructure`.
 
-- [x] Dedicated branch created: `feature/auto-agent-main-loop-harness`.
-- [x] First foundation slice implemented locally: core contract registry, parser, validator, StateDelta scope rules, core enums, typed AutoAgent properties, and targeted tests.
-- [x] First Git checkpoint commit recorded in `progress.md`: `e4094f3` (`agent: checkpoint foundation contracts`).
-- [x] Second vertical slice implemented: minimal fake-node direct-answer Runtime path with final guard and 16 passing targeted tests.
-- [x] Second Git checkpoint commit recorded in `progress.md`: `4261ab6` (`agent: add direct runtime slice`).
-- [x] Third cleanup/DDD alignment slice implemented: old Node1-4 execute chain, old controller/API DTOs, old tests, and old Node1-4-only state objects removed; reusable contract/tool/token objects moved to `model/valobj`.
-- [x] Third Git checkpoint commit recorded in `progress.md`: `8f8a49b` (`agent: remove legacy execute harness`).
-- [x] Fourth DDD package normalization slice implemented: RAG API/domain naming separated and model entity/valobj/enums moved into subdomain folders.
-- [x] Fourth Git checkpoint commit recorded in `progress.md`: `09beb99` (`agent: normalize ddd package layout`).
-- [x] Source mojibake cleanup checkpoint implemented and recorded: `5d09538` (`agent: clean source mojibake`), with historical SQL seed files intentionally left untouched.
-- [x] Fifth checkpoint started and first persistence boundary slice committed: `4cd3252` (`agent: add persistence boundary contracts`), covering domain persistence entities, persistence enums, repository interfaces, and boundary tests before full DAO/mapper/DDL implementation.
-- [x] Sixth checkpoint committed: `d0f882b` (`agent: add core persistence infrastructure`), including full new harness DDL plus core PO/DAO/MyBatis mapper/repository adapters for payload, conversation, run, artifact, evidence, pending input, and event/trace/audit.
-- [x] Seventh checkpoint committed: `3625eff` (`agent: add remaining persistence adapters`), covering remaining persistence infrastructure for memory, tool call/approval/verification, RAG query/hit, node prompt, and run transcript.
-- [x] Eighth checkpoint committed: `0da8870` (`agent: add prompt invocation pipeline`), covering prompt assembly and node invocation pipeline, including layered Java-owned prompt construction, output contract rendering, node client port, parser/mapper/validator pipeline, bounded repair, Spring AI adapter skeleton, and prompt/invocation tests.
-- [x] Ninth checkpoint committed: `56bc3a4` (`agent: add context preparation layer`), covering context/artifact/memory/evidence preparation layer, including compact candidate preselection, artifact ranking/policy/resolution/loading, memory and evidence selection, ContextPlanner wrapper/status handling, context materialization, budget shrink, MainAgentStateView building, and targeted context tests.
-- [x] Tenth checkpoint committed: `25d91a5` (`agent: add artifact candidate repository lookup`), fixing the Phase 4 repository discovery omission by adding artifact candidate lookup through the domain repository, DAO/mapper, and context preselector.
-- [x] Eleventh checkpoint committed: `efcc9b0` (`agent: add runtime pending input lifecycle`), covering Runtime state machine, loop policy, safe failure handling, pending input pause/resume, Java-only user answer processing, continuation dispatch, transcript/event/trace recorders, and runtime lifecycle tests.
-- [x] Twelfth checkpoint committed: `15e6edd` (`agent: add main action handlers`), covering the production action dispatcher, one handler per MainAgent action, action ports, artifact routing, ASK_USER routing, RAG fact update, tool orchestration boundary, plan state, and handler tests.
-- [x] Thirteenth checkpoint committed: `eca11b2` (`agent: add rag runtime verification`), covering explicit RAG retrieval execution, query/hit/payload/evidence persistence, bounded `RagVerifierInput`, fact-triggered `RagVerifier`, and RAG recovery mapping.
-- [x] Clean model runtime replacement implemented locally: old Armory assembly path deleted, node model binding moved to new DB tables, Spring AI calls now build a clean chat model from `agent_model_api` + `agent_model_profile`, runtime node profiles now come from `agent_node_model_binding`, and SQL seed file for model/runtime/prompt configuration was added.
-- [x] Runtime routing refinement implemented: USER_ASK resumes from checkpoint, and continued-loop routing is now centralized in `RuntimeRoutePolicy` so execution modules return through `BUILDING_STATE_VIEW` while forced context replanning remains explicit.
+## Development Workflow
+
+- Use focused Git checkpoints.
+- Keep unrelated dirty files untouched.
+- Prefer vertical slices that prove real behavior.
+- If a missing repository method, mapper, adapter, lifecycle boundary, prompt contract, or state transition is discovered, implement the root-cause design rather than a shortcut.
+- For prompt/contract/node changes, verify Java-owned contract, DB prompt scope, parser/mapper behavior, and tests together.
+- For frontend/API changes, check backend DTOs, SSE payload shape, and normal/debug boundary together.
+
+## Next Work Queue
+
+1. Implement memory phase 1 structured turns.
+2. Add async turn summary node and task processing.
+3. Inject latest full turns and previous summaries deterministically into context preparation.
+4. Prepare memory vector index and GC phases after phase 1 is stable.
+5. Continue RAG and MCP production testing after memory baseline is in place.

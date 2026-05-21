@@ -1,50 +1,61 @@
-# AutoAgent Harness Findings
+# AutoAgent Current Findings
 
-## Core Decisions
+This file records current implementation guidance. Historical Node1-4 and `DynamicContext` notes are archived in older specs and should not be treated as active development rules.
 
-- Runtime is deterministic Java orchestration, not an LLM brain.
-- Communication rule: future design answers must add Chinese translation and short explanation for complex/professional English terms to improve collaboration efficiency.
-- Detail design rule: when designing refined modules, cover all cases and show complete structures, such as every action JSON shape, rather than only selected examples.
-- `MainAgentNode` is the primary LLM decision/generation node.
-- Tool execution is separated from MainAgentNode: MainAgentNode does not mount MCP tools directly; all external tool use goes through `CALL_TOOL` action and deterministic Runtime-owned `ToolRuntime` backed by Spring AI MCP clients.
-- Database persistence is grouped by conversation, run, memory, artifact, evidence, tool, RAG, event/trace/audit, and payload. Detailed fields/repositories are delegated to assistant design and final spec consolidation.
-- DDD layout keeps one top-level `agent` domain and splits internals into execute, context, node, memory, artifact, evidence, tool, rag, verification, event, and armory.
-- Configuration layering is confirmed: Java Config assembles beans, yml provides defaults/thresholds, database provides agent-level runtime configuration overrides.
-- Tool `expectedOutcome` is task-level and verifier-readable, not hard-coded per tool. Tool-specific schemas, success signals, and required result fields come from capability configuration.
-- FinalResponseGuard MVP uses Java rule-based guard pipeline first; LLM safety/policy/quality guards are reserved for later extension.
-- Prompt/contract boundary is confirmed: harness internals such as JSON schema, action contracts, parser rules, state write scopes, and recovery logic live in Java; database stores editable role/behavior/style/business prompt content.
-- Frontend API boundary is confirmed: normal UI only consumes messages, run status, SSE user-visible events, final response, pending input, and artifacts; debug APIs are isolated.
-- Run event streaming must use SSE emitter, not polling as the primary design.
-- Testing strategy is minimal necessary backend tests plus frontend mock/SSE scenarios for visual workflow verification.
-- `ContextPlanner` is a lightweight LLM-assisted node before `MainAgentNode`; it decides which memory, artifact, evidence, and context granularity should be loaded.
-- Final spec is the sole implementation reference. It must contain deterministic requirements, complete schemas/prompts/contracts/components, structured architecture, and implementation workflow/task planning.
-- Java pre-selection is only rough candidate recall and ordering, using stable signals such as recency, explicit reference words, keyword overlap, type hints, and session scope.
-- Final natural-language judgment belongs to `ContextPlanner` or `MainAgentNode`, not hard-coded Java rules.
-- Artifact IDs are internal. Users never need to know them. User references such as "这个", "刚才那版", and "第二个方案" are resolved before calling `MainAgentNode`.
-- Full artifact text is loaded only when needed by the current task and budget. It is not permanently copied into conversation history.
-- Frontend normal view consumes user-visible events and final response only. Debug trace is separate.
-- Final answer can only come from `FinalResponse.finalAnswer`, not from trace, verifier result, tool receipt, memory summary, or execution summary.
-- Recovery design is template-driven: Runtime has no LLM and only combines Java guard failures, LLM verifier repair hints, and predefined recovery templates.
-- Final spec is the sole implementation reference. It must contain deterministic requirements, complete schemas/prompts/contracts/components, structured architecture, and implementation workflow/task planning.
-- Chinese review sample must be a complete translation of the English canonical spec, not a summary. During review, keep both files structurally synchronized.
-- Second spec review found and corrected ToolVerifier MVP inconsistencies: execution proof verification must not use missing business fields such as publish URL as a failure example. Missing real tool receipt is represented by `TOOL_RECEIPT_MISSING`; `TOOL_RESULT_MISMATCH` is reserved for future business-completion verification.
-- Second spec review found and corrected undefined RuntimePhase names in test paths: use `VERIFYING_RAG`, `VERIFYING_TOOL`, and `VERIFYING_FINAL`, not ad hoc `VERIFYING` or `GUARDING_FINAL`.
-- Second spec review found and corrected incomplete RecoveryPolicy coverage: every MVP failure code now has a deterministic recovery action.
-- Remaining review blocker: Chinese review sample sections 7-11 still contain summary-only pointers such as "English canonical spec section X has full structure". If the Chinese sample is still required for user review, these sections must be fully translated before spec lock.
-- English canonical spec review result: after the latest corrections, no hard contradiction remains for implementation. Verified mechanically that every MVP failure code has RecoveryPolicy coverage and every MainAgent action has an allowed StateDelta write scope. Remaining known issue is only the Chinese review sample completeness, not the English implementation spec.
-- External reference review started for `ultraworkers/claw-code` / `instructkr/claw-code` redirect. Treat it as a public clean-room/reference implementation, not as verified Anthropic Claude Code source. Initial useful lessons: one-loop `ConversationRuntime` directly executes model-emitted tool calls through deterministic `ToolExecutor`; tool execution is not another LLM node; permissions are first-class per-tool metadata; sessions persist typed message blocks; compaction preserves tool-use/tool-result integrity; deterministic mock parity harness covers streaming, file tools, permission prompts, multi-tool turns, bash, and plugin paths.
-- Candidate spec correction from `claw-code` review: replace MVP `ToolExecutionNode` LLM with deterministic `ToolRuntime` / `McpToolInvoker` if Spring AI MCP tools can be invoked by name with JSON arguments outside a ChatClient tool-use loop. Keep any LLM-based tool execution only as a compatibility fallback, not the core architecture. MainAgentNode should emit a structured `CALL_TOOL` request; Runtime should validate schema, enforce permission, invoke the tool, persist receipt, and feed the receipt back into the next main-loop iteration.
-- Candidate spec correction from `claw-code` review: add or strengthen typed internal transcript blocks for run replay and compaction safety, especially `ASSISTANT_ACTION`, `TOOL_CALL_REQUEST`, `TOOL_RESULT`, `RAG_RESULT`, `ARTIFACT_REF`, `USER_REPLY`, and `COMPACTION_SUMMARY`. Final user-visible output must remain separate from transcript/debug blocks.
-- Candidate spec correction from `claw-code` review: promote permission to a first-class runtime model (`PermissionMode`, required permission, approval policy, workspace scope, destructive flag) instead of treating it only as tool risk metadata. This is especially important for future coding/file operations.
-- Follow-up `claw-code` memory review: the useful reference is session persistence and compaction, not a full multi-layer memory system. It persists typed conversation messages (`System`, `User`, `Assistant`, `Tool`) with content blocks (`Text`, `Thinking`, `ToolUse`, `ToolResult`), prompt history, workspace root, fork metadata, model, and compaction metadata. It also discovers project instruction files and runtime config into the system prompt. No clear vector/semantic long-term memory module was found in the inspected runtime/config/prompt code.
-- Follow-up `claw-code` MCP review: external MCP tools are not reimplemented one by one by the agent. The runtime exposes generic MCP bridge tools (`ListMcpResources`, `ReadMcpResource`, `MCP`) and a `McpToolRegistry` that tracks server connection state, tool metadata, resource metadata, and calls a selected server/tool with JSON arguments. For our Java/Spring AI design, the target should be a generic MCP invocation adapter, not hand-written per-tool execution logic.
-- User accepted the external-tool architecture correction: MVP tool execution should be Runtime-owned and implemented through Spring AI MCP client instances for stdio/SSE MCP servers. Each configured MCP server may have its own client instance; Runtime owns server/tool registry, permission enforcement, schema validation, invocation, receipt persistence, and SSE-visible progress events. No separate LLM `ToolExecutionNode` should be used in the core design.
-- User accepted typed transcript as a reference design. The spec should add explicit transcript blocks and compaction invariants while keeping user-visible messages, debug traces, audit logs, receipts, evidence, and final answer channels separate.
-- Prompt review from `claw-code`: prompt design is a layered builder, not a single opaque database prompt. It separates static scaffold from dynamic runtime context with a boundary marker; includes intro, optional output style, system rules, task behavior rules, action safety, environment context, project context, instruction files, runtime config, and appended sections. It budgets and truncates project instruction files, discovers instruction files from ancestor directories, includes date/cwd/platform/git context, and keeps tool schemas outside the main prompt builder through the model API/tool surface.
-- Prompt wording review from `claw-code`: the core role prompt is intentionally short and action-oriented: identity as an interactive agent helping with software-engineering tasks, use available tools, and avoid guessing URLs. The system prompt emphasizes user-visible text boundaries, permission-gated tools, untrusted external/tool data and prompt-injection awareness, hook feedback, and automatic compaction. The task prompt emphasizes reading relevant code before changes, tight scope, no speculative abstractions or unrelated cleanup, required files only, diagnose failures before changing tactics, security awareness, and truthful verification reporting. The action-safety prompt explicitly distinguishes local reversible actions from high-blast-radius actions requiring authorization. For our spec, this suggests adding concrete behavior rules to MainAgentNode prompt rather than only abstract node responsibilities.
+## Current Architecture
 
-## Future Backlog Already Agreed
+- AutoAgent uses a deterministic Java Runtime main loop.
+- `MainAgentNode` emits one structured `MainAgentAction`; Runtime routes the action to deterministic handlers.
+- `ContextPlannerNode` is used for initial context planning and selected explicit replanning, not as a mandatory step before every MainAgent call.
+- Continued-loop routing is centralized in `RuntimeRoutePolicy`.
+- RAG/tool/artifact modules return evidence, receipts, or state updates to Runtime; Runtime then returns to state-view building or MainAgent according to route policy.
+- `ASK_USER` is a Runtime pending-input pause/resume mechanism. It should resume from the stored checkpoint, not restart the user request from scratch.
+- Final answers are delivered only through final delivery and guard services. Trace/debug/verifier/tool data must not become normal assistant messages.
 
-- Context auto-planning for long prompts and long artifacts.
-- Subagent scheduling.
-- Coding agent capability through MCP-style file/code tools with `ASK_USER` approval for risky operations.
+## Current Node Layout
+
+- Node entry services belong under `domain/agent/service/node/<node>/`.
+- Current node entry services:
+  - `service/node/contextplanner/ContextPlannerNodeService.java`
+  - `service/node/mainagent/MainAgentNodeService.java`
+  - `service/node/ragverifier/RagVerifierNodeService.java`
+  - `service/node/finalrepair/FinalRepairNodeService.java`
+- Future LLM node entry services should follow the same location, for example `service/node/turnsummary/TurnSummaryNodeService.java`.
+- Node entry services call `NodeInvocationPipeline`; they should not own shared parsing, contract validation, prompt assembly, or persistence logic.
+
+## DDD Package Rules
+
+- `service/**` contains behavior: services, handlers, routers, policies, builders, validators, pipelines, and node entry services.
+- Data carriers belong in `model/**`, not `service/**`.
+- `*VO`, `*Command`, `*Result`, `*Request`, `*Response`, and enums belong under `model/valobj/**` or `model/valobj/enums/**`.
+- Persistence entities belong under `model/entity/**`.
+- Domain repository ports belong under `adapter/repository/**`.
+- DAO, PO, mapper XML, and repository adapter implementations belong in `infrastructure`.
+- Spring bean assembly belongs in `app/config`.
+- HTTP/SSE controllers and web registries belong in `trigger`.
+
+## Prompt And Contract Boundary
+
+- Java-owned contracts are the source of truth for structured outputs.
+- Database prompts are role/style/behavior configuration only.
+- `PromptAssembler` composes DB role prompts, shared Java-owned prompt layers, component prompt builders, output contracts, input view, and output-only instructions.
+- `CONTRACT_REPAIR` repairs JSON/contract shape only.
+- `FINAL_REPAIR` repairs the final user-facing answer only.
+- Do not merge `FinalRepairPromptBuilder` and `ContractRepairPromptBuilder` back into one generic repair prompt.
+
+## Runtime And UI Boundary
+
+- Normal frontend consumes safe messages, user-visible run events, pending input, artifacts, and final response.
+- Debug details belong in debug APIs/logs/traces only.
+- Backend failures must produce terminal run events or safe failure output instead of leaving the frontend waiting indefinitely.
+- SSE reconnect/replay should preserve user view state and should not force-close expanded thinking/debug panels.
+
+## Memory Direction
+
+- MySQL is the source of truth for conversation turns, summaries, artifacts, memory lifecycle, status, audit, and recovery.
+- Vector storage is semantic index only, never the only copy of important memory.
+- Recent context should be injected deterministically from MySQL before semantic recall:
+  - latest completed turns as full text;
+  - older recent turns as summaries.
+- ContextPlanner selects additional relevant artifacts, summaries, memory items, and evidence; MainAgent receives clean context with selection reasons.
+- Memory extraction, rolling summaries, vector indexing, merge, and GC should run asynchronously outside the user-facing critical path.

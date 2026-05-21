@@ -68,7 +68,7 @@ Turn completion and summary:
 
 - Create `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/model/valobj/memory/TurnSummaryInputVO.java`
 - Create `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/model/valobj/memory/TurnSummaryOutputVO.java`
-- Create `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/service/memory/TurnSummaryNodeService.java`
+- Create `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/service/node/turnsummary/TurnSummaryNodeService.java`
 - Create `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/service/memory/TurnCompletionPublisher.java`
 - Create `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/service/memory/NoopTurnCompletionPublisher.java`
 - Create `ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/service/memory/AsyncTurnSummaryProcessor.java`
@@ -778,7 +778,7 @@ git commit -m "agent: persist completed conversation turns"
 - Create: `TurnSummaryPromptBuilder.java`
 - Create: `TurnSummaryInputVO.java`
 - Create: `TurnSummaryOutputVO.java`
-- Create: `TurnSummaryNodeService.java`
+- Create: `TurnSummaryNodeService.java` under `domain/agent/service/node/turnsummary`
 - Modify: `docs/dev-ops/mysql/sql/auto-agent-model-runtime.sql`
 - Test: `TurnSummaryNodeServiceTest.java`, `PromptAssemblerTest.java`
 
@@ -882,7 +882,7 @@ private String renderTurnSummaryContract() {
 
 - [ ] **Step 5: Add node service**
 
-Create `TurnSummaryNodeService` calling `NodeInvocationPipeline` with `AgentComponentCodeEnumVO.TURN_SUMMARY.name()` and returning typed `TurnSummaryOutputVO`. Follow `ContextPlannerNodeService` style.
+Create `TurnSummaryNodeService` under `domain/agent/service/node/turnsummary`. It calls `NodeInvocationPipeline` with `AgentComponentCodeEnumVO.TURN_SUMMARY.name()` and returns typed `TurnSummaryOutputVO`. Follow the current node-entry pattern used by `service/node/contextplanner/ContextPlannerNodeService`.
 
 - [ ] **Step 6: Add DB seed prompt and model binding**
 

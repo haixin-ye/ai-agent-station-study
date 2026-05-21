@@ -1,93 +1,151 @@
-# AutoAgent Prompt / Harness Governance Spec
+# AutoAgent Prompt / Runtime Governance Spec
 
 ## 1. Purpose
-This spec defines the long-term development rules for AutoAgent prompt, harness, contract, and `DynamicContext` design.
+
+This spec defines the long-term development rules for AutoAgent prompt, node, contract, Runtime, state-view, and recovery work.
 
 It applies to:
-- extending existing execute nodes
-- adding new execute nodes
-- evolving prompt / harness behaviors
-- adding new structured state exchanged across nodes
 
-This is a project-level spec, not a one-off refactor note.
+- adding or modifying LLM node components;
+- changing prompt composition or database prompt usage;
+- changing structured output contracts or repair behavior;
+- changing Runtime state, routing, pending input, RAG/tool/action handling, or final delivery;
+- adding structured state exchanged between Runtime modules and MainAgent.
 
-## 2. DDD Layer Boundaries
+This is the current project-level governance document. Older Node1-4 and `DynamicContext` documents are historical references only.
+
+## 2. Active Architecture
+
+- Runtime is deterministic Java orchestration.
+- `MainAgentNode` is the primary LLM decision/generation node and returns one structured `MainAgentAction`.
+- `ContextPlannerNode` selects context for the initial call and for explicit forced replanning. It is not a mandatory step before every MainAgent loop.
+- RAG, MCP/tool calls, artifact operations, pending input, final delivery, guards, verification, diagnostics, and persistence are Runtime-owned modules.
+- `ASK_USER` pauses a run with a persisted checkpoint and resumes from that checkpoint after Java-normalized user answer handling.
+- Final user-visible output is produced by final delivery and guard services, not by trace/debug/verifier/tool data.
+
+## 3. DDD Layer Boundaries
 
 ### `domain`
-- owns node workflow behavior
-- owns node contract definitions
-- owns output parsing and normalization rules
-- owns recovery semantics such as `lowConfidence`
-- owns `DynamicContext` state semantics and write-back rules
+
+- owns Runtime semantics, action handlers, route policy, pending-input behavior, node entry services, prompt assembly, output contracts, parsing/repair policies, domain entities/VOs, and domain repository ports;
+- contains behavior classes under `service/**`;
+- contains data carriers under `model/**`, not `service/**`.
 
 ### `infrastructure`
-- owns prompt persistence and repository access
-- owns DAO / SQL / external configuration parsing
-- must not own node decision logic
+
+- owns DAO/PO/MyBatis mapper files, repository adapter implementations, and external integration adapter details;
+- must not own AutoAgent business decisions or node routing rules.
+
+### `trigger`
+
+- owns HTTP/SSE/job entry points and translation between web DTOs and domain APIs;
+- must not own Runtime decisions or domain state mutation rules.
 
 ### `app`
-- owns Spring bootstrapping and runtime assembly
-- owns integration test wiring
+
+- owns Spring bootstrapping, runtime bean assembly, properties binding, and integration-style tests.
 
 ### `docs`
-- owns governance specs and refactor specs
 
-## 3. Prompt Layering
+- owns governance specs, architecture references, implementation plans, and review notes.
 
-### System Prompt
-- stored in MySQL
-- defines node role, responsibility, boundaries, and stable operating principles
-- must not be the source of runtime schema truth
+## 4. Node Entry Service Rules
 
-### Harness Prompt
-- built in Java from node contract + `DynamicContext`
-- defines runtime payload, output contract, and response rules
-- must be rendered through the shared contract pipeline
+Every LLM node entry service must live under:
+
+```text
+ai-agent-station-study-domain/src/main/java/yhx/com/domain/agent/service/node/<node>/
+```
+
+Examples:
+
+- `service/node/contextplanner/ContextPlannerNodeService.java`
+- `service/node/mainagent/MainAgentNodeService.java`
+- `service/node/ragverifier/RagVerifierNodeService.java`
+- `service/node/finalrepair/FinalRepairNodeService.java`
+
+Future examples:
+
+- `service/node/turnsummary/TurnSummaryNodeService.java`
+- `service/node/memoryextractor/MemoryExtractorNodeService.java`
+
+Node entry services should:
+
+- call `NodeInvocationPipeline`;
+- pass component code, contract version, prompt version, model profile, and input view;
+- return typed output or a safe typed fallback;
+- avoid owning shared prompt assembly, parsing, validation, persistence, or Runtime routing logic.
+
+## 5. Prompt Layering
+
+### Database Role Prompt
+
+- stored in MySQL through node prompt tables;
+- defines role, responsibility, style, business tone, and stable behavioral principles;
+- must not become the source of runtime schema truth.
+
+### Java-Owned Prompt Layers
+
+- built through `PromptAssembler`;
+- include shared safety/boundary/untrusted-content rules, component-specific prompt builders, output contract rendering, current input view, and output-only instruction.
 
 ### Output Contract
-- defined in Java
-- is the only source of truth for runtime fields, fallback semantics, and write-back behavior
 
-## 4. Node Contract Rules
-Every node must declare:
-- node id
-- contract version
-- primary truth sources
-- runtime prompt payload structure
-- output parse mode
-- recovery policy
-- context write-back scope
+- rendered from Java contract definitions;
+- is the source of truth for required fields, allowed actions, repair behavior, and parsing/validation expectations.
 
-Nodes may specialize behavior, but must not bypass the shared contract pipeline.
+## 6. Structured Contract Rules
 
-## 5. Recovery Rules
+Every Runtime component or LLM node with structured output must declare:
 
-### Recovery Levels
-- `FORMAT_NOISE`
-- `STRUCTURE_RECOVERABLE`
-- `SEMANTIC_UNCERTAIN`
-- `EXECUTION_UNVERIFIED`
-- `CONTRACT_VIOLATION`
+- component code;
+- contract version;
+- prompt version;
+- input facts/view shape;
+- output contract;
+- parse and validation semantics;
+- repair policy;
+- allowed state or result write scope.
 
-### `lowConfidence`
-- marks objects recovered through legacy, fallback, or high-risk repair paths
-- prevents repaired output from being treated as normal truth by default
-- must be preserved in downstream guardrail decisions
+Nodes may specialize behavior, but must not bypass the shared prompt/contract/invocation pipeline.
 
-## 6. DynamicContext Write Ownership
-- Node1 owns planning state such as `currentStepPlan`, `masterPlan`, `taskBoard`, `roundArchive`
-- Node2 owns execution facts such as `executionOutcome`, `roundExecutionSummary`, `toolExecutionLog`
-- Node3 owns acceptance and next-step state such as `acceptedResults`, `overallStatus`, `nextRoundDirective`
-- Node4 owns final user-facing summary state
+## 7. Model And Package Placement Rules
 
-Nodes must not silently overwrite another node's core state.
+- `*VO`, `*Command`, `*Result`, `*Request`, `*Response`, and enums belong under `domain/agent/model/valobj/**` or `domain/agent/model/valobj/enums/**`.
+- Persistence entities belong under `domain/agent/model/entity/**`.
+- Domain repository interfaces belong under `domain/agent/adapter/repository/**`.
+- DAO interfaces, PO classes, mapper XML, and repository adapters belong in `infrastructure`.
+- Behavior classes belong under `domain/agent/service/**`.
+- Spring configuration belongs under `app`.
+- Controllers and SSE registries belong under `trigger`.
 
-## 7. Testing Rules
-- every node change must cover one success-path contract case
-- every node change must cover at least one high-risk recovery or guardrail case
-- workflow changes must include a minimal but real verification command before merge
+## 8. State Ownership
 
-## 8. Prompt / DB Sync Rule
-- MySQL system prompts and Java harness contracts must cooperate, not compete
-- if Java output contract changes, verify MySQL prompt still matches role-only scope
-- do not duplicate schema definitions across DB prompt and Java harness
+- Runtime owns lifecycle phase, loop index, route policy, recovery counters, pending input state, transcript/event/trace recording, and failure finalization.
+- `MainAgentStateView` is the bounded state view passed into MainAgent.
+- Context preparation owns deterministic recent-message/summary loading and candidate preselection.
+- ContextPlanner owns context selection decisions, not execution.
+- Action handlers own deterministic effects for their action type.
+- Final delivery owns normal assistant message creation.
+- Debug traces and diagnostic logs must remain separate from normal messages.
+
+## 9. Repair Rules
+
+- `CONTRACT_REPAIR` repairs invalid JSON/contract shape only.
+- `FINAL_REPAIR` repairs a failed final user-facing answer only.
+- Contract repair must not solve the task, call tools, or add lifecycle fields.
+- Final repair must not expose prompts, contracts, traces, validation details, node names, raw tool receipts, or repair process details.
+- Repair budgets must be bounded.
+
+## 10. Testing Rules
+
+- Node, prompt, parser, contract, route-policy, pending-input, final-delivery, RAG/tool, or API/SSE changes require targeted tests for the affected behavior.
+- Workflow changes should include at least one state-machine or routing test.
+- Prompt/contract changes should include `PromptAssemblerTest`, parser/mapper tests, or pipeline tests as appropriate.
+- Before completion, run targeted tests plus `mvn -q -DskipTests compile` unless blocked, and report any skipped or timed-out verification honestly.
+
+## 11. Prompt / DB Sync Rule
+
+- MySQL prompts and Java contracts must cooperate, not compete.
+- If Java output contracts change, verify DB prompt rows still stay in role/style/boundary scope.
+- Do not duplicate schema definitions across DB prompt text and Java contracts.
