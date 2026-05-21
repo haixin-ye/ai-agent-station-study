@@ -23,12 +23,14 @@ import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO;
+import yhx.com.domain.agent.node.contextplanner.ContextPlannerNodeService;
+import yhx.com.domain.agent.node.mainagent.MainAgentNodeService;
+import yhx.com.domain.agent.node.ragverifier.RagVerifierNodeService;
 import yhx.com.domain.agent.service.artifact.ArtifactManager;
 import yhx.com.domain.agent.service.artifact.ArtifactPayloadLoader;
 import yhx.com.domain.agent.service.context.ContextBudgetManager;
 import yhx.com.domain.agent.service.context.ContextCandidatePreselector;
 import yhx.com.domain.agent.service.context.ContextMaterializer;
-import yhx.com.domain.agent.service.context.ContextPlannerNodeService;
 import yhx.com.domain.agent.service.context.ContextPlannerStatusHandler;
 import yhx.com.domain.agent.service.context.ContextPreparationService;
 import yhx.com.domain.agent.service.context.ContextSelectionValidator;
@@ -57,7 +59,6 @@ import yhx.com.domain.agent.service.rag.runtime.RagRuntime;
 import yhx.com.domain.agent.service.rag.runtime.RagRetrieverPort;
 import yhx.com.domain.agent.service.rag.runtime.RagVerificationRouter;
 import yhx.com.domain.agent.service.rag.runtime.RagVerifierInputBuilder;
-import yhx.com.domain.agent.service.rag.runtime.RagVerifierNodeService;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.DefaultAutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.DefaultRuntimeComponentPorts;
@@ -241,6 +242,13 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public MainAgentNodeService mainAgentNodeService(NodeInvocationPipeline nodeInvocationPipeline,
+                                                     NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new MainAgentNodeService(nodeInvocationPipeline,
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.MAIN_AGENT.name()));
+    }
+
+    @Bean
     public ContextPlannerStatusHandler contextPlannerStatusHandler(ContextMaterializer contextMaterializer,
                                                                    MainAgentStateViewBuilder stateViewBuilder) {
         return new ContextPlannerStatusHandler(contextMaterializer, stateViewBuilder);
@@ -250,13 +258,13 @@ public class AutoAgentRuntimeConfig {
     public RuntimeComponentPorts runtimeComponentPorts(ContextPreparationService contextPreparationService,
                                                        ContextPlannerNodeService contextPlannerNodeService,
                                                        ContextPlannerStatusHandler contextPlannerStatusHandler,
-                                                       NodeInvocationPipeline nodeInvocationPipeline,
+                                                       MainAgentNodeService mainAgentNodeService,
                                                        NodeRuntimeProfileResolver nodeRuntimeProfileResolver,
                                                        ObjectProvider<CapabilityRegistry> capabilityRegistryProvider) {
         return new DefaultRuntimeComponentPorts(contextPreparationService,
                 contextPlannerNodeService,
                 contextPlannerStatusHandler,
-                nodeInvocationPipeline,
+                mainAgentNodeService,
                 nodeRuntimeProfileResolver.resolveAllActive(),
                 capabilityCandidates(capabilityRegistryProvider.getIfAvailable()),
                 defaultTokenBudget());

@@ -5,7 +5,7 @@ import yhx.com.domain.agent.model.valobj.prompt.PromptLayer;
 
 import java.util.List;
 
-public class RepairPromptBuilder {
+public class ContractRepairPromptBuilder {
 
     public List<PromptLayer> build() {
         return List.of(

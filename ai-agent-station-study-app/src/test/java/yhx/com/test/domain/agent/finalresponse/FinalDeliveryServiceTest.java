@@ -13,8 +13,8 @@ import yhx.com.domain.agent.model.valobj.rag.RagVerificationRouteResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryResultVO;
+import yhx.com.domain.agent.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.finalresponse.FinalDeliveryService;
-import yhx.com.domain.agent.service.finalresponse.FinalRepairService;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseBuilder;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseGuard;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseGuardInputBuilder;
@@ -100,7 +100,7 @@ public class FinalDeliveryServiceTest {
 
     private FinalDeliveryService service(FinalResponseTestSupport.Repository repository,
                                          RagVerificationRouter router,
-                                         FinalRepairService repairService) {
+                                         FinalRepairNodeService repairService) {
         return new FinalDeliveryService(repository, router, new FinalResponseGuardInputBuilder(), new FinalResponseGuard(),
                 new FinalResponseBuilder(), repairService, new FixedSafeFallbackFactory(),
                 new FinalResponsePersistenceService(repository, repository, repository, repository),
@@ -152,7 +152,7 @@ public class FinalDeliveryServiceTest {
         }
     }
 
-    private static class StubFinalRepairService extends FinalRepairService {
+    private static class StubFinalRepairService extends FinalRepairNodeService {
         private final FinalAnswerCandidateVO repaired;
 
         StubFinalRepairService(FinalAnswerCandidateVO repaired) {

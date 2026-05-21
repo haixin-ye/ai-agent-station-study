@@ -8,7 +8,7 @@ import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationCommand;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
-import yhx.com.domain.agent.service.finalresponse.FinalRepairService;
+import yhx.com.domain.agent.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
 
 import java.util.Map;
@@ -18,7 +18,7 @@ public class FinalRepairServiceTest {
     @Test
     public void repair_invokes_final_repair_component() {
         FakePipeline pipeline = new FakePipeline(repairAction("fixed"));
-        FinalRepairService service = new FinalRepairService(pipeline);
+        FinalRepairNodeService service = new FinalRepairNodeService(pipeline);
 
         service.repair(context());
 
@@ -28,7 +28,7 @@ public class FinalRepairServiceTest {
     @Test
     public void repair_requires_repair_final_action() {
         FakePipeline pipeline = new FakePipeline(MainAgentActionVO.builder().action("FINAL").stateDelta(Map.of()).build());
-        FinalRepairService service = new FinalRepairService(pipeline);
+        FinalRepairNodeService service = new FinalRepairNodeService(pipeline);
 
         Assert.assertNull(service.repair(context()));
     }
@@ -36,7 +36,7 @@ public class FinalRepairServiceTest {
     @Test
     public void repair_prompt_excludes_raw_receipt_and_trace() {
         FakePipeline pipeline = new FakePipeline(repairAction("fixed"));
-        FinalRepairService service = new FinalRepairService(pipeline);
+        FinalRepairNodeService service = new FinalRepairNodeService(pipeline);
 
         service.repair(context());
 
@@ -48,7 +48,7 @@ public class FinalRepairServiceTest {
     @Test
     public void repair_output_does_not_explain_repair_process() {
         FakePipeline pipeline = new FakePipeline(repairAction("fixed answer"));
-        FinalRepairService service = new FinalRepairService(pipeline);
+        FinalRepairNodeService service = new FinalRepairNodeService(pipeline);
 
         FinalAnswerCandidateVO repaired = service.repair(context());
 

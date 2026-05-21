@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.rag.runtime;
+package yhx.com.domain.agent.node.ragverifier;
 
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEnumVO;

@@ -8,9 +8,9 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
+import yhx.com.domain.agent.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.finalresponse.FinalDeliveryService;
-import yhx.com.domain.agent.service.finalresponse.FinalRepairService;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseBuilder;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseGuard;
 import yhx.com.domain.agent.service.finalresponse.FinalResponseGuardInputBuilder;
@@ -55,9 +55,9 @@ public class AutoAgentFinalResponseConfig {
     }
 
     @Bean
-    public FinalRepairService finalRepairService(ObjectProvider<NodeInvocationPipeline> nodeInvocationPipelineProvider,
-                                                 NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
-        return new FinalRepairService(nodeInvocationPipelineProvider.getIfAvailable(),
+    public FinalRepairNodeService finalRepairNodeService(ObjectProvider<NodeInvocationPipeline> nodeInvocationPipelineProvider,
+                                                         NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new FinalRepairNodeService(nodeInvocationPipelineProvider.getIfAvailable(),
                 nodeRuntimeProfileResolver.resolveRequired("FINAL_REPAIR"));
     }
 
@@ -67,7 +67,7 @@ public class AutoAgentFinalResponseConfig {
                                                FinalResponseGuardInputBuilder guardInputBuilder,
                                                FinalResponseGuard finalResponseGuard,
                                                FinalResponseBuilder finalResponseBuilder,
-                                               FinalRepairService finalRepairService,
+                                               FinalRepairNodeService finalRepairNodeService,
                                                FixedSafeFallbackFactory fallbackFactory,
                                                FinalResponsePersistenceService persistenceService,
                                                ObjectProvider<RunEventPublisher> eventPublisherProvider) {
@@ -76,7 +76,7 @@ public class AutoAgentFinalResponseConfig {
                 guardInputBuilder,
                 finalResponseGuard,
                 finalResponseBuilder,
-                finalRepairService,
+                finalRepairNodeService,
                 fallbackFactory,
                 persistenceService,
                 new RuntimeFailureFactory(),

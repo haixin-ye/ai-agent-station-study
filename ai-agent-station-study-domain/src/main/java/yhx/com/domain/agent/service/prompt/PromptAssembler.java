@@ -106,9 +106,11 @@ public class PromptAssembler {
         if (AgentComponentCodeEnumVO.RAG_VERIFIER.name().equals(componentCode)) {
             return new RagVerifierPromptBuilder().build();
         }
-        if (AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)
-                || AgentComponentCodeEnumVO.CONTRACT_REPAIR.name().equals(componentCode)) {
-            return new RepairPromptBuilder().build();
+        if (AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)) {
+            return new FinalRepairPromptBuilder().build();
+        }
+        if (AgentComponentCodeEnumVO.CONTRACT_REPAIR.name().equals(componentCode)) {
+            return new ContractRepairPromptBuilder().build();
         }
         return List.of();
     }

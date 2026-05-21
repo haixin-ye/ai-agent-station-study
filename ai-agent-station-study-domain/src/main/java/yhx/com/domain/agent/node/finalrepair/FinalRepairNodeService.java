@@ -1,4 +1,4 @@
-package yhx.com.domain.agent.service.finalresponse;
+package yhx.com.domain.agent.node.finalrepair;
 
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEnumVO;
@@ -13,16 +13,16 @@ import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
 
 import java.util.Map;
 
-public class FinalRepairService {
+public class FinalRepairNodeService {
 
     private final NodeInvocationPipeline nodeInvocationPipeline;
     private final NodeInvocationProfileVO invocationProfile;
 
-    public FinalRepairService(NodeInvocationPipeline nodeInvocationPipeline) {
+    public FinalRepairNodeService(NodeInvocationPipeline nodeInvocationPipeline) {
         this(nodeInvocationPipeline, null);
     }
 
-    public FinalRepairService(NodeInvocationPipeline nodeInvocationPipeline, NodeInvocationProfileVO invocationProfile) {
+    public FinalRepairNodeService(NodeInvocationPipeline nodeInvocationPipeline, NodeInvocationProfileVO invocationProfile) {
         this.nodeInvocationPipeline = nodeInvocationPipeline;
         this.invocationProfile = invocationProfile;
     }

@@ -15,6 +15,7 @@ import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeSafeFailureVO;
+import yhx.com.domain.agent.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.rag.runtime.RagVerificationRouter;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
@@ -29,7 +30,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
     private final FinalResponseGuardInputBuilder guardInputBuilder;
     private final FinalResponseGuard finalResponseGuard;
     private final FinalResponseBuilder finalResponseBuilder;
-    private final FinalRepairService finalRepairService;
+    private final FinalRepairNodeService finalRepairNodeService;
     private final FixedSafeFallbackFactory fallbackFactory;
     private final FinalResponsePersistenceService persistenceService;
     private final RuntimeFailureFactory failureFactory;
@@ -40,7 +41,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
                                 FinalResponseGuardInputBuilder guardInputBuilder,
                                 FinalResponseGuard finalResponseGuard,
                                 FinalResponseBuilder finalResponseBuilder,
-                                FinalRepairService finalRepairService,
+                                FinalRepairNodeService finalRepairNodeService,
                                 FixedSafeFallbackFactory fallbackFactory,
                                 FinalResponsePersistenceService persistenceService,
                                 RuntimeFailureFactory failureFactory,
@@ -50,7 +51,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
         this.guardInputBuilder = guardInputBuilder;
         this.finalResponseGuard = finalResponseGuard;
         this.finalResponseBuilder = finalResponseBuilder;
-        this.finalRepairService = finalRepairService;
+        this.finalRepairNodeService = finalRepairNodeService;
         this.fallbackFactory = fallbackFactory;
         this.persistenceService = persistenceService;
         this.failureFactory = failureFactory;
@@ -86,8 +87,8 @@ public class FinalDeliveryService implements FinalDeliveryPort {
     }
 
     private FinalDeliveryResultVO repairOrFallback(FinalDeliveryCommandVO command, String failureCode, String detail) {
-        if (repairBudgetRemains(command) && finalRepairService != null) {
-            FinalAnswerCandidateVO repaired = finalRepairService.repair(FinalRepairPromptContextVO.builder()
+        if (repairBudgetRemains(command) && finalRepairNodeService != null) {
+            FinalAnswerCandidateVO repaired = finalRepairNodeService.repair(FinalRepairPromptContextVO.builder()
                     .runId(command.getRunId())
                     .agentId(command.getAgentId())
                     .loopIndex(command.getLoopIndex())
