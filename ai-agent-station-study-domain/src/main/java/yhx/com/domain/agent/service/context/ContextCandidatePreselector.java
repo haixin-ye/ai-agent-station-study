@@ -192,8 +192,8 @@ public class ContextCandidatePreselector {
                 .toList();
         List<MessageCandidateVO> messages = recentTurns.stream()
                 .flatMap(turn -> Stream.of(
-                        toTurnMessageCandidate(turn.getUserMessageId(), "USER", turn.getUserPayloadRef(), turn.getCompletedAt()),
-                        toTurnMessageCandidate(turn.getAssistantMessageId(), "ASSISTANT", turn.getAssistantPayloadRef(), turn.getCompletedAt())))
+                        toTurnMessageCandidate(turn.getTurnId(), turn.getUserMessageId(), "USER", turn.getUserPayloadRef(), turn.getTurnNo(), turn.getCompletedAt()),
+                        toTurnMessageCandidate(turn.getTurnId(), turn.getAssistantMessageId(), "ASSISTANT", turn.getAssistantPayloadRef(), turn.getTurnNo(), turn.getCompletedAt())))
                 .filter(Objects::nonNull)
                 .filter(message -> command.getUserMessageId() == null || !command.getUserMessageId().equals(message.getMessageId()))
                 .toList();
@@ -218,7 +218,7 @@ public class ContextCandidatePreselector {
         return new TurnContextWindow(messages, List.of(), summaries);
     }
 
-    private MessageCandidateVO toTurnMessageCandidate(String messageId, String role, String contentRef, java.time.LocalDateTime createdAt) {
+    private MessageCandidateVO toTurnMessageCandidate(String turnId, String messageId, String role, String contentRef, Long seq, java.time.LocalDateTime createdAt) {
         if (messageId == null || messageId.isBlank()) {
             return null;
         }
@@ -227,9 +227,11 @@ public class ContextCandidatePreselector {
                 .orElse(null);
         return MessageCandidateVO.builder()
                 .messageId(messageId)
+                .turnId(turnId)
                 .role(role)
                 .contentRef(contentRef)
                 .summary(summary)
+                .seq(seq)
                 .createdAt(createdAt)
                 .build();
     }
@@ -254,6 +256,7 @@ public class ContextCandidatePreselector {
                 .orElse(null);
         return MessageCandidateVO.builder()
                 .messageId(message.getMessageId())
+                .turnId(null)
                 .role(message.getRole() == null ? null : message.getRole().code())
                 .contentRef(message.getContentRef())
                 .summary(summary)

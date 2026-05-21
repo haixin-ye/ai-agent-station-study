@@ -14,8 +14,10 @@ import java.time.LocalDateTime;
 public class MessageCandidateVO {
 
     private String messageId;
+    private String turnId;
     private String role;
     private String contentRef;
     private String summary;
+    private Long seq;
     private LocalDateTime createdAt;
 }

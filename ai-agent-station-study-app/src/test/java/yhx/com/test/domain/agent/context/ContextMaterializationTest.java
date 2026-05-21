@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.valobj.context.ContextMaterializationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
+import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
@@ -124,6 +125,108 @@ public class ContextMaterializationTest {
         Assert.assertEquals("summary-2", stateView.getConversation().getSummaries().get(0).getSummaryId());
     }
 
+    @Test
+    public void duplicate_artifact_selections_keep_highest_context_level() {
+        MainAgentStateViewVO stateView = materializeWithSelections(List.of(
+                ContextSelectionVO.builder()
+                        .sourceType("ARTIFACT")
+                        .sourceId("artifact-1")
+                        .contextLevel(ContextLevelEnumVO.SUMMARY_ONLY)
+                        .priority(1)
+                        .build(),
+                ContextSelectionVO.builder()
+                        .sourceType("ARTIFACT")
+                        .sourceId("artifact-1")
+                        .contextLevel(ContextLevelEnumVO.FULL_TEXT)
+                        .priority(2)
+                        .build()), 1000);
+
+        Assert.assertEquals(1, stateView.getArtifactContent().size());
+        Assert.assertEquals(ContextLevelEnumVO.FULL_TEXT, stateView.getArtifactContent().get(0).getContextLevel());
+        Assert.assertTrue(stateView.getArtifactContent().get(0).getContent().contains("RAG article body"));
+    }
+
+    @Test
+    public void fixed_full_turn_wins_over_duplicate_selected_summary_for_same_turn() {
+        ContextTokenEstimator estimator = new ContextTokenEstimator();
+        ContextCandidateBundleVO candidates = ContextCandidateBundleVO.builder()
+                .fixedRecentMessages(List.of(MessageCandidateVO.builder()
+                        .messageId("msg-fixed-1")
+                        .turnId("turn-1")
+                        .role("USER")
+                        .summary("fixed full turn")
+                        .build()))
+                .recentMessages(List.of())
+                .sessionSummaries(List.of(SummaryCandidateVO.builder()
+                        .summaryId("summary-1")
+                        .turnId("turn-1")
+                        .messageStartSeq(1L)
+                        .messageEndSeq(1L)
+                        .summary("duplicate summary")
+                        .build()))
+                .artifactCandidates(List.of())
+                .memoryCandidates(List.of())
+                .evidenceCandidates(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(1000).build())
+                .build();
+        ContextMaterializer materializer = new ContextMaterializer(
+                new ContextSelectionValidator(),
+                null,
+                new EvidencePackBuilder(),
+                new ContextBudgetManager(estimator),
+                new MainAgentStateViewBuilder());
+
+        MainAgentStateViewVO stateView = materializer.materialize(ContextMaterializationCommand.builder()
+                .candidates(candidates)
+                .forcedSelections(List.of(ContextSelectionVO.builder()
+                        .sourceType("TURN_SUMMARY")
+                        .sourceId("summary-1")
+                        .contextLevel(ContextLevelEnumVO.SUMMARY_ONLY)
+                        .build()))
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+
+        Assert.assertEquals(1, stateView.getConversation().getRecentMessages().size());
+        Assert.assertTrue(stateView.getConversation().getSummaries().isEmpty());
+    }
+
+    @Test
+    public void selected_memory_is_materialized_as_full_short_memory() {
+        ContextTokenEstimator estimator = new ContextTokenEstimator();
+        ContextCandidateBundleVO candidates = ContextCandidateBundleVO.builder()
+                .fixedRecentMessages(List.of())
+                .recentMessages(List.of())
+                .sessionSummaries(List.of())
+                .artifactCandidates(List.of())
+                .memoryCandidates(List.of(MemoryCandidateVO.builder()
+                        .memoryId("memory-1")
+                        .memoryType("USER_PREFERENCE")
+                        .summary("User prefers detailed Chinese explanations.")
+                        .build()))
+                .evidenceCandidates(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(1000).build())
+                .build();
+        ContextMaterializer materializer = new ContextMaterializer(
+                new ContextSelectionValidator(),
+                null,
+                new EvidencePackBuilder(),
+                new ContextBudgetManager(estimator),
+                new MainAgentStateViewBuilder());
+
+        MainAgentStateViewVO stateView = materializer.materialize(ContextMaterializationCommand.builder()
+                .candidates(candidates)
+                .forcedSelections(List.of(ContextSelectionVO.builder()
+                        .sourceType("USER_PREFERENCE")
+                        .sourceId("memory-1")
+                        .contextLevel(ContextLevelEnumVO.METADATA_ONLY)
+                        .build()))
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+
+        Assert.assertEquals(1, stateView.getMemoryPack().size());
+        Assert.assertEquals("User prefers detailed Chinese explanations.", stateView.getMemoryPack().get(0).getSummary());
+    }
+
     private MainAgentStateViewVO materialize(ContextLevelEnumVO level, int maxInlineChars) {
         FakeContextRepositories repos = fixture();
         ContextCandidateBundleVO candidates = new ContextCandidatePreselector(repos, repos, repos, repos)
@@ -151,6 +254,33 @@ public class ContextMaterializationTest {
                         .sourceId("artifact-1")
                         .contextLevel(level)
                         .build()))
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+    }
+
+    private MainAgentStateViewVO materializeWithSelections(List<ContextSelectionVO> selections, int maxInlineChars) {
+        FakeContextRepositories repos = fixture();
+        ContextCandidateBundleVO candidates = new ContextCandidatePreselector(repos, repos, repos, repos)
+                .buildCandidates(ContextPreparationCommand.builder()
+                        .runId("run-1")
+                        .sessionId("session-1")
+                        .userId("user-1")
+                        .agentId("agent-1")
+                        .userMessageId("msg-current")
+                        .userInput("rewrite RAG article")
+                        .artifactSeeds(List.of(article()))
+                        .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(maxInlineChars).build())
+                        .build());
+        ContextTokenEstimator estimator = new ContextTokenEstimator();
+        ContextMaterializer materializer = new ContextMaterializer(
+                new ContextSelectionValidator(),
+                new ArtifactPayloadLoader(repos, estimator),
+                new EvidencePackBuilder(),
+                new ContextBudgetManager(estimator),
+                new MainAgentStateViewBuilder());
+        return materializer.materialize(ContextMaterializationCommand.builder()
+                .candidates(candidates)
+                .forcedSelections(selections)
                 .tokenBudget(candidates.getTokenBudget())
                 .build());
     }

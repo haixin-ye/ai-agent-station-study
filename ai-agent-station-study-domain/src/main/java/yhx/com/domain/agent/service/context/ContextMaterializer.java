@@ -1,6 +1,7 @@
 package yhx.com.domain.agent.service.context;
 
 import yhx.com.domain.agent.model.valobj.context.ArtifactCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextMaterializationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewBuildCommand;
@@ -22,6 +23,7 @@ import java.util.Objects;
 public class ContextMaterializer {
 
     private final ContextSelectionValidator selectionValidator;
+    private final ContextSelectionMergePolicy selectionMergePolicy;
     private final ArtifactPayloadLoader artifactPayloadLoader;
     private final EvidencePackBuilder evidencePackBuilder;
     private final ContextBudgetManager budgetManager;
@@ -33,6 +35,7 @@ public class ContextMaterializer {
                                ContextBudgetManager budgetManager,
                                MainAgentStateViewBuilder stateViewBuilder) {
         this.selectionValidator = selectionValidator;
+        this.selectionMergePolicy = new ContextSelectionMergePolicy();
         this.artifactPayloadLoader = artifactPayloadLoader;
         this.evidencePackBuilder = evidencePackBuilder;
         this.budgetManager = budgetManager;
@@ -43,34 +46,35 @@ public class ContextMaterializer {
         List<ContextSelectionVO> selections = command.getForcedSelections() == null
                 ? List.of()
                 : selectionValidator.validate(command.getForcedSelections(), command.getCandidates());
+        List<ContextSelectionVO> mergedSelections = selectionMergePolicy.merge(selections, command.getCandidates());
         TokenBudgetVO budget = command.getTokenBudget() == null ? command.getCandidates().getTokenBudget() : command.getTokenBudget();
         int maxInlineChars = budget.getMaxArtifactInlineChars() == null ? 4000 : budget.getMaxArtifactInlineChars();
 
-        List<MaterializedArtifactContentVO> artifacts = selections.stream()
+        List<MaterializedArtifactContentVO> artifacts = mergedSelections.stream()
                 .filter(selection -> "ARTIFACT".equals(selection.getSourceType()))
                 .sorted(Comparator.comparing(ContextSelectionVO::getPriority, Comparator.nullsLast(Integer::compareTo)))
                 .map(selection -> findArtifact(selection.getSourceId(), command))
                 .filter(Objects::nonNull)
-                .map(artifact -> artifactPayloadLoader.load(artifact, levelFor(artifact, selections), maxInlineChars))
+                .map(artifact -> artifactPayloadLoader.load(artifact, levelFor(artifact, mergedSelections), maxInlineChars))
                 .filter(Objects::nonNull)
                 .toList();
 
         List<MaterializedMemoryVO> memories = command.getCandidates().getMemoryCandidates() == null ? List.of() :
                 command.getCandidates().getMemoryCandidates().stream()
-                        .filter(memory -> selected("MEMORY", memory.getMemoryId(), selections))
+                        .filter(memory -> selectedAny(memory.getMemoryId(), mergedSelections, "MEMORY", "LONG_TERM_MEMORY", "USER_PREFERENCE"))
                         .map(this::toMemory)
                         .toList();
 
         List<MaterializedEvidenceVO> evidence = evidencePackBuilder.buildFromCandidates(
                 command.getCandidates().getEvidenceCandidates() == null ? List.of() :
                         command.getCandidates().getEvidenceCandidates().stream()
-                                .filter(item -> selected("EVIDENCE", item.getEvidenceId(), selections))
+                                .filter(item -> selectedAny(item.getEvidenceId(), mergedSelections, "EVIDENCE", "RAG", "RAG_CHUNK", "RAG_DOCUMENT"))
                                 .toList());
-        List<SummaryCandidateVO> summaries = selectedSummaries(command.getCandidates().getSessionSummaries(), selections);
+        List<SummaryCandidateVO> summaries = selectedSummaries(command.getCandidates().getSessionSummaries(), mergedSelections, command.getCandidates());
 
         MainAgentStateViewVO stateView = stateViewBuilder.build(MainAgentStateViewBuildCommand.builder()
                 .candidates(command.getCandidates())
-                .selections(selections)
+                .selections(mergedSelections)
                 .conversationSummaries(summaries)
                 .artifactContent(artifacts)
                 .memoryPack(memories)
@@ -103,7 +107,16 @@ public class ContextMaterializer {
         return selections.stream().anyMatch(selection -> sourceType.equals(selection.getSourceType()) && sourceId.equals(selection.getSourceId()));
     }
 
-    private List<SummaryCandidateVO> selectedSummaries(List<SummaryCandidateVO> summaries, List<ContextSelectionVO> selections) {
+    private boolean selectedAny(String sourceId, List<ContextSelectionVO> selections, String... sourceTypes) {
+        for (String sourceType : sourceTypes) {
+            if (selected(sourceType, sourceId, selections)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<SummaryCandidateVO> selectedSummaries(List<SummaryCandidateVO> summaries, List<ContextSelectionVO> selections, ContextCandidateBundleVO candidates) {
         if (summaries == null || summaries.isEmpty()) {
             return List.of();
         }
@@ -112,6 +125,7 @@ public class ContextMaterializer {
                         || selected("SESSION_SUMMARY", summary.getSummaryId(), selections)
                         || selected("SUMMARY", summary.getSummaryId(), selections)
                         || selected("TURN", summary.getTurnId(), selections))
+                .filter(summary -> !selectionMergePolicy.coveredByFixedContext(summary, candidates))
                 .toList();
     }
 
