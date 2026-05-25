@@ -91,6 +91,12 @@ Status: complete
 
 Status: in_progress
 
+- Shared vector indexing foundation is available for GC tasks:
+  - turn summaries -> `vec_turn_summary`
+  - rolling conversation summaries -> `vec_conversation_summary`
+  - long-term memories -> `vec_long_term_memory`
+  - user preferences -> `vec_user_preference`
+  - each upsert writes `agent_vector_index`
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.

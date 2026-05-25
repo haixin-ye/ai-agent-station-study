@@ -56,6 +56,9 @@ import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
 import yhx.com.domain.agent.service.memory.AsyncTurnSummaryProcessor;
+import yhx.com.domain.agent.service.memory.MemoryCandidatePreselector;
+import yhx.com.domain.agent.service.memory.MemoryManager;
+import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.memory.NoopVectorMemoryRepository;
 import yhx.com.domain.agent.service.memory.TurnCompletionPublisher;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
@@ -244,6 +247,19 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public MemoryVectorIndexingService memoryVectorIndexingService(IVectorMemoryRepository vectorMemoryRepository,
+                                                                   IVectorIndexRepository vectorIndexRepository,
+                                                                   IPayloadRepository payloadRepository) {
+        return new MemoryVectorIndexingService(vectorMemoryRepository, vectorIndexRepository, payloadRepository);
+    }
+
+    @Bean
+    public MemoryManager memoryManager(IMemoryRepository memoryRepository,
+                                       MemoryVectorIndexingService memoryVectorIndexingService) {
+        return new MemoryManager(memoryRepository, new MemoryCandidatePreselector(), memoryVectorIndexingService);
+    }
+
+    @Bean
     public VectorContextRecallPreselector vectorContextRecallPreselector(IVectorMemoryRepository vectorMemoryRepository,
                                                                          ITurnSummaryRepository turnSummaryRepository,
                                                                          IArtifactRepository artifactRepository,
@@ -417,16 +433,14 @@ public class AutoAgentRuntimeConfig {
                                                            IMemoryTaskRepository memoryTaskRepository,
                                                            IPayloadRepository payloadRepository,
                                                            TurnSummaryNodeService turnSummaryNodeService,
-                                                           IVectorMemoryRepository vectorMemoryRepository,
-                                                           IVectorIndexRepository vectorIndexRepository) {
+                                                           MemoryVectorIndexingService memoryVectorIndexingService) {
         return new AsyncTurnSummaryProcessor(memoryTaskExecutor,
                 turnRepository,
                 turnSummaryRepository,
                 memoryTaskRepository,
                 payloadRepository,
                 turnSummaryNodeService,
-                vectorMemoryRepository,
-                vectorIndexRepository);
+                memoryVectorIndexingService);
     }
 
     @Bean

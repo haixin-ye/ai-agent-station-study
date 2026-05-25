@@ -11,11 +11,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentMemoryTaskEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
-import yhx.com.domain.agent.model.entity.persistence.AgentVectorIndexEntity;
-import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
-import yhx.com.domain.agent.model.valobj.enums.memory.VectorSourceTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
-import yhx.com.domain.agent.model.valobj.memory.VectorIndexRecordVO;
 import yhx.com.domain.agent.model.valobj.memory.TurnSummaryInputVO;
 import yhx.com.domain.agent.model.valobj.memory.TurnSummaryOutputVO;
 import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
@@ -35,8 +31,7 @@ public class AsyncTurnSummaryProcessor implements TurnCompletionPublisher {
     private final IMemoryTaskRepository taskRepository;
     private final IPayloadRepository payloadRepository;
     private final TurnSummaryNodeService nodeService;
-    private final IVectorMemoryRepository vectorMemoryRepository;
-    private final IVectorIndexRepository vectorIndexRepository;
+    private final MemoryVectorIndexingService vectorIndexingService;
 
     public AsyncTurnSummaryProcessor(Executor executor,
                                      ITurnRepository turnRepository,
@@ -55,14 +50,24 @@ public class AsyncTurnSummaryProcessor implements TurnCompletionPublisher {
                                      TurnSummaryNodeService nodeService,
                                      IVectorMemoryRepository vectorMemoryRepository,
                                      IVectorIndexRepository vectorIndexRepository) {
+        this(executor, turnRepository, summaryRepository, taskRepository, payloadRepository, nodeService,
+                new MemoryVectorIndexingService(vectorMemoryRepository, vectorIndexRepository, payloadRepository));
+    }
+
+    public AsyncTurnSummaryProcessor(Executor executor,
+                                     ITurnRepository turnRepository,
+                                     ITurnSummaryRepository summaryRepository,
+                                     IMemoryTaskRepository taskRepository,
+                                     IPayloadRepository payloadRepository,
+                                     TurnSummaryNodeService nodeService,
+                                     MemoryVectorIndexingService vectorIndexingService) {
         this.executor = executor;
         this.turnRepository = turnRepository;
         this.summaryRepository = summaryRepository;
         this.taskRepository = taskRepository;
         this.payloadRepository = payloadRepository;
         this.nodeService = nodeService;
-        this.vectorMemoryRepository = vectorMemoryRepository;
-        this.vectorIndexRepository = vectorIndexRepository;
+        this.vectorIndexingService = vectorIndexingService;
     }
 
     @Override
@@ -131,35 +136,9 @@ public class AsyncTurnSummaryProcessor implements TurnCompletionPublisher {
     }
 
     private void upsertTurnSummaryVector(AgentTurnEntity turn, AgentTurnSummaryEntity summary, TurnSummaryOutputVO output) {
-        if (vectorMemoryRepository == null || vectorIndexRepository == null || output == null || output.getSummary() == null || output.getSummary().isBlank()) {
-            return;
+        if (vectorIndexingService != null) {
+            vectorIndexingService.indexTurnSummary(turn, summary, output);
         }
-        String vectorId = vectorMemoryRepository.upsert(VectorIndexRecordVO.builder()
-                .collectionType(VectorCollectionTypeEnumVO.TURN_SUMMARY)
-                .sourceType(VectorSourceTypeEnumVO.TURN_SUMMARY)
-                .sourceId(summary.getSummaryId())
-                .userId(summary.getUserId())
-                .sessionId(summary.getSessionId())
-                .text(output.getSummary())
-                .summary(output.getSummary())
-                .metadata(java.util.Map.of(
-                        "turnId", summary.getTurnId(),
-                        "runId", summary.getRunId(),
-                        "intent", output.getIntent() == null ? "" : output.getIntent(),
-                        "topics", output.getTopics() == null ? List.of() : output.getTopics(),
-                        "artifactRefs", output.getArtifactRefs() == null ? List.of() : output.getArtifactRefs()))
-                .occurredAt(turn.getCompletedAt() == null ? LocalDateTime.now() : turn.getCompletedAt())
-                .build());
-        vectorIndexRepository.saveOrUpdate(AgentVectorIndexEntity.builder()
-                .collectionType(VectorCollectionTypeEnumVO.TURN_SUMMARY.name())
-                .sourceType(VectorSourceTypeEnumVO.TURN_SUMMARY.name())
-                .sourceId(summary.getSummaryId())
-                .vectorId(vectorId)
-                .userId(summary.getUserId())
-                .sessionId(summary.getSessionId())
-                .status("ACTIVE")
-                .indexedAt(LocalDateTime.now())
-                .build());
     }
 
     private String loadPayloadContent(String payloadRef) {

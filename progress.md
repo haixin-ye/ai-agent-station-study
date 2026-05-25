@@ -122,3 +122,20 @@
   - targeted tests passed: 24 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
   - `git diff --check` passed with line-ending warnings only
+
+## 2026-05-25 Memory Vector Indexing Service
+
+- Added a reusable Memory GC indexing foundation:
+  - `MemoryVectorIndexingService` upserts source records into vector collections
+  - turn summaries index into `vec_turn_summary`
+  - rolling conversation summaries index into `vec_conversation_summary`
+  - long-term memories index into `vec_long_term_memory`
+  - user preferences index into `vec_user_preference`
+  - every successful vector upsert also saves/updates `agent_vector_index`
+- Refactored `AsyncTurnSummaryProcessor` to reuse the shared indexing service instead of owning
+  one-off vector upsert logic.
+- Wired the indexing service and `MemoryManager` in runtime config so later Memory GC tasks can reuse
+  the same path.
+- Verification:
+  - targeted tests passed: 5 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`
