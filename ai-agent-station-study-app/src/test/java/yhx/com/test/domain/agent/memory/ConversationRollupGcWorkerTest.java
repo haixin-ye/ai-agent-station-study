@@ -75,6 +75,8 @@ public class ConversationRollupGcWorkerTest {
         Assert.assertTrue(repositories.payloads.get(repositories.conversationSummaries.get(0).getSummaryRef()).getContent().contains("memory recall architecture"));
         Assert.assertEquals(1, repositories.vectorRecords.size());
         Assert.assertEquals(VectorCollectionTypeEnumVO.CONVERSATION_SUMMARY, repositories.vectorRecords.get(0).getCollectionType());
+        Assert.assertEquals("ROLLED_UP", repositories.turnSummaries.get(0).getStatus());
+        Assert.assertEquals("ROLLED_UP", repositories.turnSummaries.get(1).getStatus());
     }
 
     private static class StubConversationRollupNodeService extends ConversationRollupNodeService {
@@ -131,6 +133,13 @@ public class ConversationRollupGcWorkerTest {
         }
 
         @Override
+        public void markSummariesRolledUp(List<String> summaryIds) {
+            turnSummaries.stream()
+                    .filter(summary -> summaryIds.contains(summary.getSummaryId()))
+                    .forEach(summary -> summary.setStatus("ROLLED_UP"));
+        }
+
+        @Override
         public String createTask(AgentMemoryTaskEntity task) {
             if (task.getTaskId() == null) {
                 task.setTaskId("task-" + (tasks.size() + 1));
@@ -142,6 +151,14 @@ public class ConversationRollupGcWorkerTest {
         @Override
         public Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
             return tasks.stream().filter(task -> taskId.equals(task.getTaskId())).findFirst();
+        }
+
+        @Override
+        public boolean hasOpenTask(String taskType, String sessionId) {
+            return tasks.stream()
+                    .anyMatch(task -> taskType.equals(task.getTaskType())
+                            && sessionId.equals(task.getSessionId())
+                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
         }
 
         @Override

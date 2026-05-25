@@ -66,9 +66,110 @@ public class TurnSummaryGcWorkerTest {
         Assert.assertEquals(List.of("task-2"), extractionWorker.handledTaskIds);
     }
 
+    @Test
+    public void turn_summary_worker_dispatches_conversation_rollup_when_active_summary_threshold_is_reached() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-2", AgentTurnEntity.builder()
+                .turnId("turn-2")
+                .runId("run-2")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("Expand the previous MCP article.").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("Expanded article content.").build());
+        repositories.summaries.add(AgentTurnSummaryEntity.builder()
+                .summaryId("turn-summary-1")
+                .turnId("turn-1")
+                .sessionId("session-1")
+                .status("ACTIVE")
+                .build());
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-2")
+                .status("PENDING")
+                .build());
+        RecordingWorker rollupWorker = new RecordingWorker(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name());
+        MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
+                new MemoryGcTaskDispatcher(Runnable::run, List.of(rollupWorker)));
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new StubTurnSummaryNodeService(false),
+                null,
+                scheduler,
+                2);
+
+        worker.handleTurn("task-1", "turn-2");
+
+        Assert.assertEquals(2, repositories.tasks.size());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertEquals("session-1", repositories.tasks.get(1).getSessionId());
+        Assert.assertEquals(List.of("task-2"), rollupWorker.handledTaskIds);
+    }
+
+    @Test
+    public void turn_summary_worker_does_not_dispatch_duplicate_open_conversation_rollup() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-2", AgentTurnEntity.builder()
+                .turnId("turn-2")
+                .runId("run-2")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("Expand the previous MCP article.").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("Expanded article content.").build());
+        repositories.summaries.add(AgentTurnSummaryEntity.builder()
+                .summaryId("turn-summary-1")
+                .turnId("turn-1")
+                .sessionId("session-1")
+                .status("ACTIVE")
+                .build());
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-2")
+                .status("PENDING")
+                .build());
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-rollup-open")
+                .taskType(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name())
+                .sessionId("session-1")
+                .status("PENDING")
+                .build());
+        RecordingWorker rollupWorker = new RecordingWorker(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name());
+        MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
+                new MemoryGcTaskDispatcher(Runnable::run, List.of(rollupWorker)));
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new StubTurnSummaryNodeService(false),
+                null,
+                scheduler,
+                2);
+
+        worker.handleTurn("task-1", "turn-2");
+
+        Assert.assertEquals(2, repositories.tasks.size());
+        Assert.assertTrue(rollupWorker.handledTaskIds.isEmpty());
+    }
+
     private static class StubTurnSummaryNodeService extends TurnSummaryNodeService {
+        private final boolean requiresLongTermExtraction;
+
         private StubTurnSummaryNodeService() {
+            this(true);
+        }
+
+        private StubTurnSummaryNodeService(boolean requiresLongTermExtraction) {
             super(null);
+            this.requiresLongTermExtraction = requiresLongTermExtraction;
         }
 
         @Override
@@ -82,7 +183,7 @@ public class TurnSummaryGcWorkerTest {
                     .entities(List.of())
                     .artifactRefs(List.of())
                     .importanceScore(new BigDecimal("0.80"))
-                    .requiresLongTermExtraction(true)
+                    .requiresLongTermExtraction(requiresLongTermExtraction)
                     .build();
         }
     }
@@ -161,7 +262,18 @@ public class TurnSummaryGcWorkerTest {
 
         @Override
         public List<AgentTurnSummaryEntity> listRecentActiveSummaries(String sessionId, int limit) {
-            return List.of();
+            return summaries.stream()
+                    .filter(summary -> sessionId.equals(summary.getSessionId()))
+                    .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public void markSummariesRolledUp(List<String> summaryIds) {
+            summaries.stream()
+                    .filter(summary -> summaryIds.contains(summary.getSummaryId()))
+                    .forEach(summary -> summary.setStatus("ROLLED_UP"));
         }
 
         @Override
@@ -176,6 +288,14 @@ public class TurnSummaryGcWorkerTest {
         @Override
         public Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
             return tasks.stream().filter(task -> taskId.equals(task.getTaskId())).findFirst();
+        }
+
+        @Override
+        public boolean hasOpenTask(String taskType, String sessionId) {
+            return tasks.stream()
+                    .anyMatch(task -> taskType.equals(task.getTaskType())
+                            && sessionId.equals(task.getSessionId())
+                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
         }
 
         @Override

@@ -110,10 +110,14 @@ Status: in_progress
   - `ConversationRollupGcWorker` consumes active turn summaries for a session
   - `CONVERSATION_ROLLUP` node creates a compact session-level summary
   - saved rollups are indexed into `vec_conversation_summary`
+- Rolling conversation summary automatic trigger is available:
+  - `TurnSummaryGcWorker` schedules `CONVERSATION_ROLLUP` after the active summary threshold is reached
+  - open session-level rollup tasks are deduped
+  - successfully rolled-up turn summaries are marked `ROLLED_UP`
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.
-- On schedule or by threshold, generate rolling conversation summaries.
+- On threshold, generate rolling conversation summaries.
 - Upsert rolling summaries into `vec_conversation_summary`.
 - After each completed turn, extract long-term memory and user preference candidates when present.
 - Upsert long-term memories and user preferences into their dedicated vector collections.

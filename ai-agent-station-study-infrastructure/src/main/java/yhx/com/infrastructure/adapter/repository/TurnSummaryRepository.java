@@ -60,6 +60,14 @@ public class TurnSummaryRepository implements ITurnSummaryRepository {
         return agentTurnSummaryDao.listRecentActive(sessionId, limit).stream().map(this::toEntity).toList();
     }
 
+    @Override
+    public void markSummariesRolledUp(List<String> summaryIds) {
+        if (summaryIds == null || summaryIds.isEmpty()) {
+            return;
+        }
+        agentTurnSummaryDao.updateStatusBySummaryIds(summaryIds, "ROLLED_UP");
+    }
+
     private AgentTurnSummaryPO toPO(AgentTurnSummaryEntity entity) {
         return AgentTurnSummaryPO.builder()
                 .summaryId(entity.getSummaryId())

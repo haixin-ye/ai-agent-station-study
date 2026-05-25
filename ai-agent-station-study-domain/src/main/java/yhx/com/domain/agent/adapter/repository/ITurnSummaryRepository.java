@@ -16,4 +16,6 @@ public interface ITurnSummaryRepository {
     List<AgentTurnSummaryEntity> listByTurnIds(List<String> turnIds);
 
     List<AgentTurnSummaryEntity> listRecentActiveSummaries(String sessionId, int limit);
+
+    void markSummariesRolledUp(List<String> summaryIds);
 }

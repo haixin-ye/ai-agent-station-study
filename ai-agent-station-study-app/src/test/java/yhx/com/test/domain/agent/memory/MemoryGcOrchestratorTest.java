@@ -67,6 +67,14 @@ public class MemoryGcOrchestratorTest {
         }
 
         @Override
+        public boolean hasOpenTask(String taskType, String sessionId) {
+            return tasks.stream()
+                    .anyMatch(task -> taskType.equals(task.getTaskType())
+                            && sessionId.equals(task.getSessionId())
+                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
+        }
+
+        @Override
         public void markRunning(String taskId) {
         }
 

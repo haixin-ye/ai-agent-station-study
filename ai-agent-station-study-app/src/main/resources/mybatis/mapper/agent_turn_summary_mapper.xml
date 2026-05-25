@@ -73,4 +73,14 @@
         LIMIT #{limit}
     </select>
 
+    <update id="updateStatusBySummaryIds">
+        UPDATE agent_turn_summary
+        SET status = #{status},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE summary_id IN
+        <foreach collection="summaryIds" item="summaryId" open="(" separator="," close=")">
+            #{summaryId}
+        </foreach>
+    </update>
+
 </mapper>

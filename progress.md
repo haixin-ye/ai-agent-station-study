@@ -184,3 +184,20 @@
   automatic triggering are still future work.
 - Verification:
   - targeted tests passed: 12 tests, 0 failures
+
+## 2026-05-25 Conversation Rollup Auto Trigger
+
+- Added automatic conversation rollup scheduling from `TurnSummaryGcWorker`:
+  - after a turn summary is saved, active summaries for the session are counted up to the rollup threshold
+  - when the threshold is reached, GC creates a `CONVERSATION_ROLLUP` follow-up task
+  - open `PENDING`/`RUNNING` rollup tasks for the same session prevent duplicate scheduling
+- Added rollup compaction behavior:
+  - `ConversationRollupGcWorker` marks consumed turn summaries as `ROLLED_UP` after saving the rolling summary
+  - this keeps later rollup thresholds based on uncompressed active summaries
+- Infrastructure changes:
+  - `IMemoryTaskRepository.hasOpenTask`
+  - `ITurnSummaryRepository.markSummariesRolledUp`
+  - MyBatis mapper updates for open task counting and summary status updates
+  - MySQL index `idx_agent_memory_task_session_type`
+- Verification:
+  - targeted tests passed: 8 tests, 0 failures

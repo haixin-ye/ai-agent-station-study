@@ -81,6 +81,9 @@ public class ConversationRollupGcWorker implements MemoryGcTaskWorker {
                     .updatedAt(LocalDateTime.now())
                     .build();
             memoryManager.saveConversationSummary(summary);
+            turnSummaryRepository.markSummariesRolledUp(summaries.stream()
+                    .map(AgentTurnSummaryEntity::getSummaryId)
+                    .toList());
             taskRepository.markSucceeded(taskId, payloadRef);
         } catch (Exception e) {
             taskRepository.markFailed(taskId, "CONVERSATION_ROLLUP_FAILED", truncate(e.getMessage()));

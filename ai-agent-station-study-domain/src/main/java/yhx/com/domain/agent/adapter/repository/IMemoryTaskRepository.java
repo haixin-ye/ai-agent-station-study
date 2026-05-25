@@ -10,6 +10,8 @@ public interface IMemoryTaskRepository {
 
     Optional<AgentMemoryTaskEntity> findByTaskId(String taskId);
 
+    boolean hasOpenTask(String taskType, String sessionId);
+
     void markRunning(String taskId);
 
     void markSucceeded(String taskId, String outputRef);

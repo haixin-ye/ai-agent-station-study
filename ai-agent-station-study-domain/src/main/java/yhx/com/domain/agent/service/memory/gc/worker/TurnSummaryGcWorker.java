@@ -24,6 +24,7 @@ import java.util.UUID;
 public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
 
     private static final int MAX_FAILURE_MESSAGE_CHARS = 4000;
+    private static final int DEFAULT_ROLLUP_THRESHOLD = 12;
 
     private final ITurnRepository turnRepository;
     private final ITurnSummaryRepository summaryRepository;
@@ -32,6 +33,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
     private final TurnSummaryNodeService nodeService;
     private final MemoryVectorIndexingService vectorIndexingService;
     private final MemoryGcFollowupScheduler followupScheduler;
+    private final int rollupThreshold;
 
     public TurnSummaryGcWorker(ITurnRepository turnRepository,
                                ITurnSummaryRepository summaryRepository,
@@ -49,6 +51,24 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                                TurnSummaryNodeService nodeService,
                                MemoryVectorIndexingService vectorIndexingService,
                                MemoryGcFollowupScheduler followupScheduler) {
+        this(turnRepository,
+                summaryRepository,
+                taskRepository,
+                payloadRepository,
+                nodeService,
+                vectorIndexingService,
+                followupScheduler,
+                DEFAULT_ROLLUP_THRESHOLD);
+    }
+
+    public TurnSummaryGcWorker(ITurnRepository turnRepository,
+                               ITurnSummaryRepository summaryRepository,
+                               IMemoryTaskRepository taskRepository,
+                               IPayloadRepository payloadRepository,
+                               TurnSummaryNodeService nodeService,
+                               MemoryVectorIndexingService vectorIndexingService,
+                               MemoryGcFollowupScheduler followupScheduler,
+                               int rollupThreshold) {
         this.turnRepository = turnRepository;
         this.summaryRepository = summaryRepository;
         this.taskRepository = taskRepository;
@@ -56,6 +76,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
         this.nodeService = nodeService;
         this.vectorIndexingService = vectorIndexingService;
         this.followupScheduler = followupScheduler;
+        this.rollupThreshold = rollupThreshold <= 0 ? DEFAULT_ROLLUP_THRESHOLD : rollupThreshold;
     }
 
     @Override
@@ -132,6 +153,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
         }
         taskRepository.markSucceeded(taskId, summaryRef);
         scheduleExtractionIfNeeded(turn, output, summaryRef);
+        scheduleRollupIfNeeded(turn, summaryRef);
     }
 
     private void scheduleExtractionIfNeeded(AgentTurnEntity turn, TurnSummaryOutputVO output, String summaryRef) {
@@ -139,6 +161,21 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
             return;
         }
         followupScheduler.createAndDispatch(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(),
+                turn.getTurnId(),
+                turn.getRunId(),
+                turn.getSessionId(),
+                summaryRef);
+    }
+
+    private void scheduleRollupIfNeeded(AgentTurnEntity turn, String summaryRef) {
+        if (followupScheduler == null || turn.getSessionId() == null || turn.getSessionId().isBlank()) {
+            return;
+        }
+        List<AgentTurnSummaryEntity> activeSummaries = summaryRepository.listRecentActiveSummaries(turn.getSessionId(), rollupThreshold);
+        if (activeSummaries == null || activeSummaries.size() < rollupThreshold) {
+            return;
+        }
+        followupScheduler.createAndDispatchIfNoOpenSessionTask(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name(),
                 turn.getTurnId(),
                 turn.getRunId(),
                 turn.getSessionId(),

@@ -38,6 +38,14 @@
         LIMIT 1
     </select>
 
+    <select id="countOpenTask" resultType="int">
+        SELECT COUNT(1)
+        FROM agent_memory_task
+        WHERE task_type = #{taskType}
+          AND session_id = #{sessionId}
+          AND status IN ('PENDING', 'RUNNING')
+    </select>
+
     <update id="updateRunning">
         UPDATE agent_memory_task
         SET status = 'RUNNING',

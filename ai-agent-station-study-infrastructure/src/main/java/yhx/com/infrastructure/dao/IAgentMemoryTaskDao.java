@@ -11,6 +11,8 @@ public interface IAgentMemoryTaskDao {
 
     AgentMemoryTaskPO queryByTaskId(@Param("taskId") String taskId);
 
+    int countOpenTask(@Param("taskType") String taskType, @Param("sessionId") String sessionId);
+
     int updateRunning(@Param("taskId") String taskId);
 
     int updateSucceeded(@Param("taskId") String taskId, @Param("outputRef") String outputRef);

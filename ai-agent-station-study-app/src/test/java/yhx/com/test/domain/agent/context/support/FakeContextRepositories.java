@@ -201,6 +201,13 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
                 .toList();
     }
 
+    @Override
+    public void markSummariesRolledUp(List<String> summaryIds) {
+        turnSummaries.stream()
+                .filter(summary -> summaryIds.contains(summary.getSummaryId()))
+                .forEach(summary -> summary.setStatus("ROLLED_UP"));
+    }
+
     private long nullToZero(Long value) {
         return value == null ? 0L : value;
     }

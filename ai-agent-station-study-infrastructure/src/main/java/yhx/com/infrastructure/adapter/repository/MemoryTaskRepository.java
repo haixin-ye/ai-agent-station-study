@@ -38,6 +38,14 @@ public class MemoryTaskRepository implements IMemoryTaskRepository {
     }
 
     @Override
+    public boolean hasOpenTask(String taskType, String sessionId) {
+        if (taskType == null || taskType.isBlank() || sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countOpenTask(taskType, sessionId) > 0;
+    }
+
+    @Override
     public void markRunning(String taskId) {
         agentMemoryTaskDao.updateRunning(taskId);
     }

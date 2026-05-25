@@ -177,6 +177,13 @@ public class AsyncTurnSummaryProcessorTest {
         }
 
         @Override
+        public void markSummariesRolledUp(List<String> summaryIds) {
+            summaries.stream()
+                    .filter(summary -> summaryIds.contains(summary.getSummaryId()))
+                    .forEach(summary -> summary.setStatus("ROLLED_UP"));
+        }
+
+        @Override
         public String createTask(AgentMemoryTaskEntity task) {
             task.setTaskId("task-1");
             tasks.add(task);
@@ -186,6 +193,14 @@ public class AsyncTurnSummaryProcessorTest {
         @Override
         public Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
             return tasks.stream().filter(task -> taskId.equals(task.getTaskId())).findFirst();
+        }
+
+        @Override
+        public boolean hasOpenTask(String taskType, String sessionId) {
+            return tasks.stream()
+                    .anyMatch(task -> taskType.equals(task.getTaskType())
+                            && sessionId.equals(task.getSessionId())
+                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
         }
 
         @Override

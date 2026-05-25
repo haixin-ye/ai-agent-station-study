@@ -57,4 +57,15 @@ public class MemoryGcFollowupScheduler {
         }
         return taskId;
     }
+
+    public String createAndDispatchIfNoOpenSessionTask(String taskType,
+                                                       String turnId,
+                                                       String runId,
+                                                       String sessionId,
+                                                       String inputRef) {
+        if (taskRepository == null || taskRepository.hasOpenTask(taskType, sessionId)) {
+            return null;
+        }
+        return createAndDispatch(taskType, turnId, runId, sessionId, inputRef);
+    }
 }
