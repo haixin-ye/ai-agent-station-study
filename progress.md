@@ -216,3 +216,12 @@
 - Verification:
   - targeted GC tests passed: 9 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-25 Memory GC Manual Retry HTTP Entry
+
+- Added trigger-layer manual retry endpoint:
+  - `POST /agent/memory-gc/retry-failed?maxAttempts=3&limit=20`
+  - calls `MemoryGcRetryService.retryFailedTasks`
+  - returns only operational counters, not internal payloads or worker details
+- Verification:
+  - compile passed: `mvn -q -DskipTests compile`
