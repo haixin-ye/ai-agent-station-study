@@ -55,13 +55,16 @@ import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
-import yhx.com.domain.agent.service.memory.AsyncTurnSummaryProcessor;
 import yhx.com.domain.agent.service.memory.MemoryCandidatePreselector;
 import yhx.com.domain.agent.service.memory.MemoryManager;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.memory.NoopVectorMemoryRepository;
 import yhx.com.domain.agent.service.memory.TurnCompletionPublisher;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
+import yhx.com.domain.agent.service.memory.gc.MemoryGcOrchestrator;
+import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
+import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
+import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
 import yhx.com.domain.agent.service.prompt.PromptContentProvider;
@@ -427,20 +430,30 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public TurnCompletionPublisher turnCompletionPublisher(@Qualifier("autoAgentMemoryTaskExecutor") Executor memoryTaskExecutor,
-                                                           ITurnRepository turnRepository,
-                                                           ITurnSummaryRepository turnSummaryRepository,
-                                                           IMemoryTaskRepository memoryTaskRepository,
-                                                           IPayloadRepository payloadRepository,
-                                                           TurnSummaryNodeService turnSummaryNodeService,
-                                                           MemoryVectorIndexingService memoryVectorIndexingService) {
-        return new AsyncTurnSummaryProcessor(memoryTaskExecutor,
-                turnRepository,
+    public TurnSummaryGcWorker turnSummaryGcWorker(ITurnRepository turnRepository,
+                                                   ITurnSummaryRepository turnSummaryRepository,
+                                                   IMemoryTaskRepository memoryTaskRepository,
+                                                   IPayloadRepository payloadRepository,
+                                                   TurnSummaryNodeService turnSummaryNodeService,
+                                                   MemoryVectorIndexingService memoryVectorIndexingService) {
+        return new TurnSummaryGcWorker(turnRepository,
                 turnSummaryRepository,
                 memoryTaskRepository,
                 payloadRepository,
                 turnSummaryNodeService,
                 memoryVectorIndexingService);
+    }
+
+    @Bean
+    public MemoryGcTaskDispatcher memoryGcTaskDispatcher(@Qualifier("autoAgentMemoryTaskExecutor") Executor memoryTaskExecutor,
+                                                         List<MemoryGcTaskWorker> workers) {
+        return new MemoryGcTaskDispatcher(memoryTaskExecutor, workers);
+    }
+
+    @Bean
+    public TurnCompletionPublisher turnCompletionPublisher(IMemoryTaskRepository memoryTaskRepository,
+                                                           MemoryGcTaskDispatcher memoryGcTaskDispatcher) {
+        return new MemoryGcOrchestrator(memoryTaskRepository, memoryGcTaskDispatcher);
     }
 
     @Bean

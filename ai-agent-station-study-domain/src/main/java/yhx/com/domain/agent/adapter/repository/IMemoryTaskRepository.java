@@ -2,9 +2,13 @@ package yhx.com.domain.agent.adapter.repository;
 
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryTaskEntity;
 
+import java.util.Optional;
+
 public interface IMemoryTaskRepository {
 
     String createTask(AgentMemoryTaskEntity task);
+
+    Optional<AgentMemoryTaskEntity> findByTaskId(String taskId);
 
     void markRunning(String taskId);
 

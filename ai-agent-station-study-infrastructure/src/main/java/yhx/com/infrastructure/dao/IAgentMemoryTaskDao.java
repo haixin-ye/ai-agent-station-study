@@ -9,6 +9,8 @@ public interface IAgentMemoryTaskDao {
 
     int insert(AgentMemoryTaskPO task);
 
+    AgentMemoryTaskPO queryByTaskId(@Param("taskId") String taskId);
+
     int updateRunning(@Param("taskId") String taskId);
 
     int updateSucceeded(@Param("taskId") String taskId, @Param("outputRef") String outputRef);

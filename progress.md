@@ -139,3 +139,20 @@
 - Verification:
   - targeted tests passed: 5 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-25 Memory GC Orchestrator Skeleton
+
+- Added the first standalone Memory GC runtime skeleton:
+  - `MemoryGcOrchestrator` is now the `TurnCompletionPublisher` entry point
+  - `MemoryGcTaskDispatcher` dispatches memory tasks through the memory executor
+  - `MemoryGcTaskWorker` defines task worker extension points
+  - `TurnSummaryGcWorker` owns the turn-summary task behavior
+  - `MemoryTaskTypeEnumVO` defines the planned GC task types
+- Added `IMemoryTaskRepository.findByTaskId` and MyBatis query support so workers can resolve task
+  payloads instead of relying on out-of-band method arguments.
+- Runtime wiring now publishes completed turns to the GC orchestrator, not directly to the legacy async
+  summary processor.
+- Verification:
+  - targeted tests passed: 6 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`
+  - `git diff --check` passed with line-ending warnings only

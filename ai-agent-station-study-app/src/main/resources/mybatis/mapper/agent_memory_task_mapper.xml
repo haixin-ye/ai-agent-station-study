@@ -30,6 +30,14 @@
         )
     </insert>
 
+    <select id="queryByTaskId" resultMap="AgentMemoryTaskMap">
+        SELECT id, task_id, task_type, session_id, run_id, turn_id, status, attempt_count,
+               failure_code, failure_message, input_ref, output_ref, created_at, updated_at, completed_at
+        FROM agent_memory_task
+        WHERE task_id = #{taskId}
+        LIMIT 1
+    </select>
+
     <update id="updateRunning">
         UPDATE agent_memory_task
         SET status = 'RUNNING',

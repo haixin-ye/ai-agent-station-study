@@ -8,6 +8,7 @@ import yhx.com.infrastructure.dao.IAgentMemoryTaskDao;
 import yhx.com.infrastructure.dao.po.AgentMemoryTaskPO;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -29,6 +30,11 @@ public class MemoryTaskRepository implements IMemoryTaskRepository {
         }
         agentMemoryTaskDao.insert(toPO(task));
         return task.getTaskId();
+    }
+
+    @Override
+    public Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
+        return Optional.ofNullable(agentMemoryTaskDao.queryByTaskId(taskId)).map(this::toEntity);
     }
 
     @Override
@@ -62,6 +68,25 @@ public class MemoryTaskRepository implements IMemoryTaskRepository {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .completedAt(entity.getCompletedAt())
+                .build();
+    }
+
+    private AgentMemoryTaskEntity toEntity(AgentMemoryTaskPO po) {
+        return AgentMemoryTaskEntity.builder()
+                .taskId(po.getTaskId())
+                .taskType(po.getTaskType())
+                .sessionId(po.getSessionId())
+                .runId(po.getRunId())
+                .turnId(po.getTurnId())
+                .status(po.getStatus())
+                .attemptCount(po.getAttemptCount())
+                .failureCode(po.getFailureCode())
+                .failureMessage(po.getFailureMessage())
+                .inputRef(po.getInputRef())
+                .outputRef(po.getOutputRef())
+                .createdAt(po.getCreatedAt())
+                .updatedAt(po.getUpdatedAt())
+                .completedAt(po.getCompletedAt())
                 .build();
     }
 }

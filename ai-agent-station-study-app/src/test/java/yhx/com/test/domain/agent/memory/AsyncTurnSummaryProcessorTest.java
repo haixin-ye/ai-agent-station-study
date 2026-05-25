@@ -184,6 +184,11 @@ public class AsyncTurnSummaryProcessorTest {
         }
 
         @Override
+        public Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
+            return tasks.stream().filter(task -> taskId.equals(task.getTaskId())).findFirst();
+        }
+
+        @Override
         public void markRunning(String taskId) {
             tasks.get(0).setStatus("RUNNING");
         }
