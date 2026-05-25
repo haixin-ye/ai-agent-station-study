@@ -73,19 +73,19 @@ Status: complete
 
 ## Phase 4: Candidate Selection And MainNode Injection
 
-Status: in_progress
+Status: complete
 
 - Merge MySQL rule candidates and vector semantic candidates.
 - Deduplicate by source key and keep strongest context level.
 - Preserve source channel, score, reason, and timestamp for Planner/debug visibility.
 - Ensure ContextPlanner selects candidates and Materializer injects final full text, summaries, snippets,
   or chunks into MainNode.
-- Current implementation already joins MySQL/vector candidate sources before ContextPlanner. Remaining
-  work is deeper materialization alignment for future chunk/rolling-summary/RAG sources.
 - Artifact chunk candidate flow is supported:
   - vector chunk hit resolves parent artifact from metadata
   - chunk candidate is visible to ContextPlanner through `matchedChunks`
   - selected chunk IDs are accepted by validator and materialized into state view
+  - Planner prompt explains when to choose `ARTIFACT_CHUNK` versus parent `ARTIFACT`
+  - MySQL seed prompt is aligned with the Java-owned planner policy
 
 ## Phase 5: Complete Memory GC Machine
 

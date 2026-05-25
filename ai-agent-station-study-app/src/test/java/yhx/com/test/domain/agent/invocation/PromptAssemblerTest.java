@@ -41,6 +41,11 @@ public class PromptAssemblerTest {
         Assert.assertTrue(prompt.contains("sessionSummaries may include artifactRefs"));
         Assert.assertTrue(prompt.contains("select the referenced ARTIFACT candidate by artifactId"));
         Assert.assertTrue(prompt.contains("Do not select fixedRecentMessages"));
+        Assert.assertTrue(prompt.contains("sourceChannel"));
+        Assert.assertTrue(prompt.contains("sourceScore"));
+        Assert.assertTrue(prompt.contains("matchedChunks"));
+        Assert.assertTrue(prompt.contains("ARTIFACT_CHUNK"));
+        Assert.assertTrue(prompt.contains("chunkId/sourceId"));
     }
 
     @Test

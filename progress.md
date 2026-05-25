@@ -108,3 +108,17 @@
   - targeted tests passed: 15 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
   - `git diff --check` passed with line-ending warnings only
+
+## 2026-05-25 Planner Chunk Selection Policy
+
+- Closed the remaining Planner-facing policy gap for vector artifact chunks:
+  - ContextPlanner Java-owned prompt now explains `sourceChannel`, `sourceScore`, and `sourceReasons`
+  - ContextPlanner Java-owned prompt now explains `artifactCandidates.matchedChunks`
+  - Planner is instructed to select `ARTIFACT_CHUNK` by chunk id for local fragment tasks
+  - Planner is instructed to select parent `ARTIFACT` for whole-artifact rewrite, compare, expand,
+    publish, restructure, or update operations
+  - MySQL runtime seed prompt is synced with the same stable behavior principles
+- Verification:
+  - targeted tests passed: 24 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`
+  - `git diff --check` passed with line-ending warnings only
