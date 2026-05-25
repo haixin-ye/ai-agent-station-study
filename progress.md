@@ -40,3 +40,22 @@
   - compile passed: `mvn -q -DskipTests compile`
   - `git diff --check` passed with line-ending warnings only
 - Next step: commit this checkpoint, then continue materialization alignment and later Memory GC.
+
+## 2026-05-25 PgVector Adapter
+
+- Implemented real pgvector-backed vector memory repository:
+  - `PgVectorMemoryRepository implements IVectorMemoryRepository`
+  - uses existing `pgVectorJdbcTemplate`
+  - uses shared `autoAgentEmbeddingModel`
+  - writes/searches the dedicated `vec_*` collection tables
+  - returns `VectorRecallHitVO` with source type, source id, score, metadata, and snippet
+- Updated `AutoAgentRagVectorConfig`:
+  - exposes `autoAgentEmbeddingModel` as a reusable bean
+  - `PgVectorStore` and memory vector repository now share the same embedding configuration
+- Runtime behavior:
+  - if pgvector/embedding beans exist, Spring wires `PgVectorMemoryRepository`
+  - otherwise `AutoAgentRuntimeConfig` falls back to `NoopVectorMemoryRepository`
+- Verification:
+  - compile passed: `mvn -q -DskipTests compile`
+  - targeted tests passed: 5 tests, 0 failures
+  - `git diff --check` passed with line-ending warning only

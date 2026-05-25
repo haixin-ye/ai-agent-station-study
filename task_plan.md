@@ -55,6 +55,8 @@ Status: complete
   candidates.
 - Add domain repository ports for vector memory indexing/recall and vector index sync state.
 - Keep all provider-specific details out of domain.
+- Real pgvector adapter is implemented in infrastructure and reuses existing pgvector datasource plus
+  embedding model configuration.
 
 ## Phase 3: MySQL And Vector Candidate Preparers
 

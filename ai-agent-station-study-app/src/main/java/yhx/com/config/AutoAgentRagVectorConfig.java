@@ -2,6 +2,7 @@ package yhx.com.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.MetadataMode;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -27,7 +28,27 @@ public class AutoAgentRagVectorConfig {
     @Primary
     public PgVectorStore pgVectorStore(@Qualifier("pgVectorJdbcTemplate") JdbcTemplate jdbcTemplate,
                                        AutoAgentRagProperties properties,
-                                       IModelRuntimeRepository modelRuntimeRepository) {
+                                       @Qualifier("autoAgentEmbeddingModel") EmbeddingModel embeddingModel) {
+        PgVectorStore store = PgVectorStore.builder(jdbcTemplate, embeddingModel)
+                .vectorTableName(properties.getVectorName())
+                .dimensions(properties.getDimensions())
+                .initializeSchema(true)
+                .build();
+        try {
+            store.afterPropertiesSet();
+        } catch (Exception e) {
+            throw new IllegalStateException("PgVectorStore initialization failed. Check pgvector extension, table permissions, and embedding configuration.", e);
+        }
+        log.info("PgVectorStore initialized: model={}, dimensions={}, table={}",
+                properties.getEmbeddingModelName(),
+                properties.getDimensions(),
+                properties.getVectorName());
+        return store;
+    }
+
+    @Bean("autoAgentEmbeddingModel")
+    public EmbeddingModel autoAgentEmbeddingModel(AutoAgentRagProperties properties,
+                                                  IModelRuntimeRepository modelRuntimeRepository) {
         if (!StringUtils.hasText(properties.getEmbeddingApiId())) {
             throw new IllegalStateException("RAG vector store initialization failed: auto-agent.rag.embedding-api-id is required.");
         }
@@ -44,24 +65,12 @@ public class AutoAgentRagVectorConfig {
                 .model(properties.getEmbeddingModelName())
                 .dimensions(properties.getDimensions())
                 .build();
-        OpenAiEmbeddingModel embeddingModel = new OpenAiEmbeddingModel(openAiApi, MetadataMode.EMBED, options);
-        PgVectorStore store = PgVectorStore.builder(jdbcTemplate, embeddingModel)
-                .vectorTableName(properties.getVectorName())
-                .dimensions(properties.getDimensions())
-                .initializeSchema(true)
-                .build();
-        try {
-            store.afterPropertiesSet();
-        } catch (Exception e) {
-            throw new IllegalStateException("PgVectorStore initialization failed. Check pgvector extension, table permissions, and embedding configuration.", e);
-        }
-        log.info("PgVectorStore initialized: embeddingApiId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}, table={}",
+        log.info("AutoAgent embedding model initialized: embeddingApiId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}",
                 properties.getEmbeddingApiId(),
                 api.getBaseUrl(),
                 api.getEmbeddingsPath(),
                 properties.getEmbeddingModelName(),
-                properties.getDimensions(),
-                properties.getVectorName());
-        return store;
+                properties.getDimensions());
+        return new OpenAiEmbeddingModel(openAiApi, MetadataMode.EMBED, options);
     }
 }
