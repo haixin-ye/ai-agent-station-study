@@ -31,6 +31,7 @@ import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
 import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
+import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeService;
 import yhx.com.domain.agent.service.node.ragverifier.RagVerifierNodeService;
 import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
 import yhx.com.domain.agent.service.artifact.ArtifactManager;
@@ -62,8 +63,10 @@ import yhx.com.domain.agent.service.memory.NoopVectorMemoryRepository;
 import yhx.com.domain.agent.service.memory.TurnCompletionPublisher;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcOrchestrator;
+import yhx.com.domain.agent.service.memory.gc.MemoryGcFollowupScheduler;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
+import yhx.com.domain.agent.service.memory.gc.worker.LongTermMemoryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
@@ -420,8 +423,17 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public TurnSummaryNodeService turnSummaryNodeService(NodeInvocationPipeline nodeInvocationPipeline) {
-        return new TurnSummaryNodeService(nodeInvocationPipeline);
+    public TurnSummaryNodeService turnSummaryNodeService(NodeInvocationPipeline nodeInvocationPipeline,
+                                                         NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new TurnSummaryNodeService(nodeInvocationPipeline,
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.TURN_SUMMARY.name()));
+    }
+
+    @Bean
+    public MemoryExtractionNodeService memoryExtractionNodeService(NodeInvocationPipeline nodeInvocationPipeline,
+                                                                   NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new MemoryExtractionNodeService(nodeInvocationPipeline,
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.MEMORY_EXTRACTOR.name()));
     }
 
     @Bean("autoAgentMemoryTaskExecutor")
@@ -430,18 +442,42 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public MemoryGcFollowupScheduler memoryGcFollowupScheduler(IMemoryTaskRepository memoryTaskRepository,
+                                                               @Qualifier("autoAgentMemoryTaskExecutor") Executor memoryTaskExecutor,
+                                                               ObjectProvider<MemoryGcTaskWorker> workerProvider) {
+        return new MemoryGcFollowupScheduler(memoryTaskRepository,
+                memoryTaskExecutor,
+                () -> workerProvider.stream().toList());
+    }
+
+    @Bean
     public TurnSummaryGcWorker turnSummaryGcWorker(ITurnRepository turnRepository,
                                                    ITurnSummaryRepository turnSummaryRepository,
                                                    IMemoryTaskRepository memoryTaskRepository,
                                                    IPayloadRepository payloadRepository,
                                                    TurnSummaryNodeService turnSummaryNodeService,
-                                                   MemoryVectorIndexingService memoryVectorIndexingService) {
+                                                   MemoryVectorIndexingService memoryVectorIndexingService,
+                                                   MemoryGcFollowupScheduler memoryGcFollowupScheduler) {
         return new TurnSummaryGcWorker(turnRepository,
                 turnSummaryRepository,
                 memoryTaskRepository,
                 payloadRepository,
                 turnSummaryNodeService,
-                memoryVectorIndexingService);
+                memoryVectorIndexingService,
+                memoryGcFollowupScheduler);
+    }
+
+    @Bean
+    public LongTermMemoryGcWorker longTermMemoryGcWorker(ITurnRepository turnRepository,
+                                                         IMemoryTaskRepository memoryTaskRepository,
+                                                         IPayloadRepository payloadRepository,
+                                                         MemoryManager memoryManager,
+                                                         MemoryExtractionNodeService memoryExtractionNodeService) {
+        return new LongTermMemoryGcWorker(turnRepository,
+                memoryTaskRepository,
+                payloadRepository,
+                memoryManager,
+                memoryExtractionNodeService);
     }
 
     @Bean

@@ -14,6 +14,7 @@ import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.memory.TurnSummaryInputVO;
 import yhx.com.domain.agent.model.valobj.memory.TurnSummaryOutputVO;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
+import yhx.com.domain.agent.service.memory.gc.MemoryGcFollowupScheduler;
 import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
 
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
     private final IPayloadRepository payloadRepository;
     private final TurnSummaryNodeService nodeService;
     private final MemoryVectorIndexingService vectorIndexingService;
+    private final MemoryGcFollowupScheduler followupScheduler;
 
     public TurnSummaryGcWorker(ITurnRepository turnRepository,
                                ITurnSummaryRepository summaryRepository,
@@ -37,12 +39,23 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                                IPayloadRepository payloadRepository,
                                TurnSummaryNodeService nodeService,
                                MemoryVectorIndexingService vectorIndexingService) {
+        this(turnRepository, summaryRepository, taskRepository, payloadRepository, nodeService, vectorIndexingService, null);
+    }
+
+    public TurnSummaryGcWorker(ITurnRepository turnRepository,
+                               ITurnSummaryRepository summaryRepository,
+                               IMemoryTaskRepository taskRepository,
+                               IPayloadRepository payloadRepository,
+                               TurnSummaryNodeService nodeService,
+                               MemoryVectorIndexingService vectorIndexingService,
+                               MemoryGcFollowupScheduler followupScheduler) {
         this.turnRepository = turnRepository;
         this.summaryRepository = summaryRepository;
         this.taskRepository = taskRepository;
         this.payloadRepository = payloadRepository;
         this.nodeService = nodeService;
         this.vectorIndexingService = vectorIndexingService;
+        this.followupScheduler = followupScheduler;
     }
 
     @Override
@@ -118,6 +131,18 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
             vectorIndexingService.indexTurnSummary(turn, summary, output);
         }
         taskRepository.markSucceeded(taskId, summaryRef);
+        scheduleExtractionIfNeeded(turn, output, summaryRef);
+    }
+
+    private void scheduleExtractionIfNeeded(AgentTurnEntity turn, TurnSummaryOutputVO output, String summaryRef) {
+        if (followupScheduler == null || !Boolean.TRUE.equals(output.getRequiresLongTermExtraction())) {
+            return;
+        }
+        followupScheduler.createAndDispatch(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(),
+                turn.getTurnId(),
+                turn.getRunId(),
+                turn.getSessionId(),
+                summaryRef);
     }
 
     private String loadPayloadContent(String payloadRef) {

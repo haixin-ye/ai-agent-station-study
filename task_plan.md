@@ -102,6 +102,10 @@ Status: in_progress
   - `MemoryGcTaskDispatcher` dispatches task workers asynchronously
   - `TurnSummaryGcWorker` owns the existing turn summary task behavior
   - task workers resolve `agent_memory_task` by task id
+- Summary-driven memory extraction is available:
+  - `TurnSummaryGcWorker` creates `LONG_TERM_MEMORY_EXTRACTION` follow-up tasks when needed
+  - `LongTermMemoryGcWorker` saves extracted `LONG_TERM_MEMORY` and `USER_PREFERENCE` records
+  - `MEMORY_EXTRACTOR` node contract and prompt are registered
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.

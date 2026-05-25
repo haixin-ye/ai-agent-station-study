@@ -156,3 +156,18 @@
   - targeted tests passed: 6 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
   - `git diff --check` passed with line-ending warnings only
+
+## 2026-05-25 Memory Extraction GC Worker
+
+- Extended Memory GC from turn summary only to summary-driven memory extraction:
+  - `TURN_SUMMARY` now schedules `LONG_TERM_MEMORY_EXTRACTION` when the summary marks
+    `requiresLongTermExtraction=true`
+  - added `MemoryGcFollowupScheduler` for worker-created follow-up tasks
+  - added `LongTermMemoryGcWorker`
+  - added `MEMORY_EXTRACTOR` node service, prompt builder, contract renderer, and output mapper
+  - extracted `LONG_TERM_MEMORY` and `USER_PREFERENCE` records are saved through `MemoryManager`
+  - `MemoryManager` continues to route saved memories through `MemoryVectorIndexingService`
+- Runtime SQL seed now includes the `MEMORY_EXTRACTOR` model binding and DB prompt.
+- Verification:
+  - targeted tests passed: 18 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`

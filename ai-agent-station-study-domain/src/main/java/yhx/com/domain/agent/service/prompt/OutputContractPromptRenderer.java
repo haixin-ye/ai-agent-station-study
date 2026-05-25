@@ -17,6 +17,7 @@ public class OutputContractPromptRenderer {
             case "FINAL_RESPONSE_GUARD" -> renderFinalResponseGuardResultContract();
             case "CONTRACT_REPAIR" -> renderRepairContract(componentCode, contractVersion);
             case "TURN_SUMMARY" -> renderTurnSummaryContract();
+            case "MEMORY_EXTRACTOR" -> renderMemoryExtractionContract();
             default -> "Return one JSON object that satisfies component contract version " + contractVersion + ".";
         };
     }
@@ -110,6 +111,26 @@ public class OutputContractPromptRenderer {
 
                 Valid example:
                 {"summary":"User asked for an RAG article and the agent drafted a structured explanation.","intent":"create article","topics":["RAG","article"],"entities":[],"artifactRefs":["artifact-1"],"importanceScore":0.7,"requiresLongTermExtraction":false}
+                """;
+    }
+
+    public String renderMemoryExtractionContract() {
+        return """
+                Required contract version: memory-extraction-output-v1
+
+                Required top-level fields:
+                - memories: array
+
+                Each memories item:
+                - memoryType: LONG_TERM_MEMORY or USER_PREFERENCE
+                - summary: concise durable memory text
+                - content: optional fuller memory text
+                - score: number from 0.0 to 1.0
+                - reason: short diagnostic reason
+
+                Valid examples:
+                {"memories":[]}
+                {"memories":[{"memoryType":"USER_PREFERENCE","summary":"User prefers detailed Chinese engineering explanations.","content":"User explicitly asked for detailed Chinese engineering explanations in future work.","score":0.9,"reason":"Explicit stable preference."}]}
                 """;
     }
 

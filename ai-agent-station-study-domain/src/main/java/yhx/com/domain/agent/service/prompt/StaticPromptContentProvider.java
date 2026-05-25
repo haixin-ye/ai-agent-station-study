@@ -26,6 +26,9 @@ public class StaticPromptContentProvider implements PromptContentProvider {
         if (AgentComponentCodeEnumVO.TURN_SUMMARY.name().equals(componentCode)) {
             return List.of("You are TurnSummaryNode. You summarize one completed user-agent turn for future memory recall.");
         }
+        if (AgentComponentCodeEnumVO.MEMORY_EXTRACTOR.name().equals(componentCode)) {
+            return List.of("You are MemoryExtractor. You extract durable long-term memories and user preferences from completed turns.");
+        }
         return List.of("You are an AutoAgent bounded-step component.");
     }
 }

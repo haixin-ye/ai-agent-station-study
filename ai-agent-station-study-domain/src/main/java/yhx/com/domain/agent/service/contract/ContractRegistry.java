@@ -26,6 +26,7 @@ public class ContractRegistry {
         register(map, AgentComponentCodeEnumVO.FINAL_RESPONSE_GUARD, "FinalResponseGuardResultContract", "final-response-guard-result-v1");
         register(map, AgentComponentCodeEnumVO.FINAL_REPAIR, "MainAgentActionContract", "main-agent-action-v1");
         register(map, AgentComponentCodeEnumVO.TURN_SUMMARY, "TurnSummaryOutputContract", "turn-summary-output-v1");
+        register(map, AgentComponentCodeEnumVO.MEMORY_EXTRACTOR, "MemoryExtractionOutputContract", "memory-extraction-output-v1");
         register(map, AgentComponentCodeEnumVO.CONTRACT_REPAIR, "OriginalNodeContract", "original-node-contract");
         return new ContractRegistry(map);
     }

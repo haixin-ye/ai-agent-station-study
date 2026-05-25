@@ -10,6 +10,7 @@ public enum AgentComponentCodeEnumVO {
     FINAL_RESPONSE_GUARD,
     FINAL_REPAIR,
     TURN_SUMMARY,
+    MEMORY_EXTRACTOR,
     CONTRACT_REPAIR
 }
 

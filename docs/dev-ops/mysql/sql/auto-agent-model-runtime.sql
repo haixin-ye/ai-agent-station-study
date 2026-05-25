@@ -95,6 +95,7 @@ VALUES
 ('amr-bind-rag-verifier-001', 'RAG_VERIFIER', 'amr-model-verify-001', 'v1', 'verification-result-v1', 0.000, 1200, 1, 1),
 ('amr-bind-final-repair-001', 'FINAL_REPAIR', 'amr-model-repair-001', 'v1', 'main-agent-action-v1', 0.100, 1200, 1, 1),
 ('amr-bind-turn-summary-001', 'TURN_SUMMARY', 'amr-model-main-001', 'v1', 'turn-summary-output-v1', 0.100, 1200, 1, 1),
+('amr-bind-memory-extractor-001', 'MEMORY_EXTRACTOR', 'amr-model-main-001', 'v1', 'memory-extraction-output-v1', 0.000, 1200, 1, 1),
 ('amr-bind-contract-repair-001', 'CONTRACT_REPAIR', 'amr-model-repair-001', 'v1', 'contract-repair-v1', 0.000, 1200, 1, 1)
 ON DUPLICATE KEY UPDATE
   `model_profile_id` = VALUES(`model_profile_id`),
@@ -160,6 +161,17 @@ Read the user request and final answer. Produce a concise but specific summary, 
 Do not include hidden reasoning. Do not invent facts that are not present in the completed turn.
 Return only the required turn-summary-output-v1 JSON contract.',
 'TurnSummaryNode prompt v1', 0, 0),
+('amr-prompt-memory-extractor-v1', 'PROMPT_CONTENT', 'DB',
+'You are MemoryExtractor, a bounded Memory GC component inside AutoAgent.
+You extract durable long-term memories and user preferences from one completed user-agent turn.
+You do not answer the user, call tools, create conversation summaries, or modify runtime state.
+Read userInput, finalAnswer, and turnSummary. Extract only explicit, stable, reusable facts or preferences.
+Use memoryType LONG_TERM_MEMORY for stable project goals, user facts, constraints, or ongoing work.
+Use memoryType USER_PREFERENCE for stable preferences about language, answer style, tooling, workflow, or development habits.
+Return an empty memories array for trivial greetings, one-off tasks, temporary instructions, or weak guesses.
+Do not include hidden reasoning. Do not invent facts that are not present in the completed turn.
+Return only the required memory-extraction-output-v1 JSON contract.',
+'MemoryExtractor prompt v1', 0, 0),
 ('amr-prompt-contract-repair-v1', 'PROMPT_CONTENT', 'DB',
 'You are ContractRepairNode, a bounded structured-output repair component.
 You receive invalid raw output, contract information, and validation failures.
@@ -183,6 +195,7 @@ VALUES
 ('amr-node-prompt-rag-verifier-v1', 'GLOBAL', 'RAG_VERIFIER', 'v1', 'amr-prompt-rag-verifier-v1', 1),
 ('amr-node-prompt-final-repair-v1', 'GLOBAL', 'FINAL_REPAIR', 'v1', 'amr-prompt-final-repair-v1', 1),
 ('amr-node-prompt-turn-summary-v1', 'GLOBAL', 'TURN_SUMMARY', 'v1', 'amr-prompt-turn-summary-v1', 1),
+('amr-node-prompt-memory-extractor-v1', 'GLOBAL', 'MEMORY_EXTRACTOR', 'v1', 'amr-prompt-memory-extractor-v1', 1),
 ('amr-node-prompt-contract-repair-v1', 'GLOBAL', 'CONTRACT_REPAIR', 'v1', 'amr-prompt-contract-repair-v1', 1)
 ON DUPLICATE KEY UPDATE
   `agent_id` = VALUES(`agent_id`),

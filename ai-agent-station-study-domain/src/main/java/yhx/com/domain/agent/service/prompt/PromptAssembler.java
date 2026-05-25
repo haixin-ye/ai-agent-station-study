@@ -115,6 +115,9 @@ public class PromptAssembler {
         if (AgentComponentCodeEnumVO.TURN_SUMMARY.name().equals(componentCode)) {
             return new TurnSummaryPromptBuilder().build();
         }
+        if (AgentComponentCodeEnumVO.MEMORY_EXTRACTOR.name().equals(componentCode)) {
+            return new MemoryExtractionPromptBuilder().build();
+        }
         return List.of();
     }
 
