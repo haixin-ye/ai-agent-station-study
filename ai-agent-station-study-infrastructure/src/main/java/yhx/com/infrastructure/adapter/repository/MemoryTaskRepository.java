@@ -57,6 +57,16 @@ public class MemoryTaskRepository implements IMemoryTaskRepository {
     }
 
     @Override
+    public List<AgentMemoryTaskEntity> listTasks(String status, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return agentMemoryTaskDao.listTasks(status, limit).stream()
+                .map(this::toEntity)
+                .toList();
+    }
+
+    @Override
     public void markRunning(String taskId) {
         agentMemoryTaskDao.updateRunning(taskId);
     }

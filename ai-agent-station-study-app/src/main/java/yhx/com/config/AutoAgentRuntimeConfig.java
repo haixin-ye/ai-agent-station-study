@@ -66,6 +66,7 @@ import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcOrchestrator;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcFollowupScheduler;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcRetryService;
+import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskQueryService;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.ConversationRollupGcWorker;
@@ -514,6 +515,11 @@ public class AutoAgentRuntimeConfig {
     public MemoryGcRetryService memoryGcRetryService(IMemoryTaskRepository memoryTaskRepository,
                                                      MemoryGcTaskDispatcher memoryGcTaskDispatcher) {
         return new MemoryGcRetryService(memoryTaskRepository, memoryGcTaskDispatcher);
+    }
+
+    @Bean
+    public MemoryGcTaskQueryService memoryGcTaskQueryService(IMemoryTaskRepository memoryTaskRepository) {
+        return new MemoryGcTaskQueryService(memoryTaskRepository);
     }
 
     @Bean

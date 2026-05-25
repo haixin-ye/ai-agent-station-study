@@ -119,6 +119,9 @@ Status: in_progress
   - retry dispatch reuses `MemoryGcTaskDispatcher`
   - retry queries are indexed by status, attempt count, and update time
   - trigger layer exposes a manual retry endpoint for development and operations
+- GC task visibility entry is available:
+  - `MemoryGcTaskQueryService` lists recent tasks by optional status
+  - trigger layer exposes a task list endpoint for failure diagnosis
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.

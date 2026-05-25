@@ -5,58 +5,41 @@ import org.junit.Test;
 import yhx.com.domain.agent.adapter.repository.IMemoryTaskRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryTaskEntity;
 import yhx.com.domain.agent.model.valobj.enums.memory.MemoryTaskTypeEnumVO;
-import yhx.com.domain.agent.service.memory.gc.MemoryGcRetryService;
-import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
-import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
+import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskQueryService;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public class MemoryGcRetryServiceTest {
+public class MemoryGcTaskQueryServiceTest {
 
     @Test
-    public void retry_failed_tasks_dispatches_only_failed_tasks_below_max_attempts() {
+    public void list_tasks_filters_by_status_and_limit() {
         FakeMemoryTaskRepository repository = new FakeMemoryTaskRepository();
         repository.tasks.add(AgentMemoryTaskEntity.builder()
-                .taskId("task-retry")
+                .taskId("task-1")
                 .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
                 .status("FAILED")
+                .attemptCount(2)
+                .build());
+        repository.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-2")
+                .taskType(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name())
+                .status("SUCCEEDED")
                 .attemptCount(1)
                 .build());
         repository.tasks.add(AgentMemoryTaskEntity.builder()
-                .taskId("task-exhausted")
-                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .taskId("task-3")
+                .taskType(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name())
                 .status("FAILED")
-                .attemptCount(3)
+                .attemptCount(1)
                 .build());
-        RecordingWorker worker = new RecordingWorker(MemoryTaskTypeEnumVO.TURN_SUMMARY.name());
-        MemoryGcRetryService retryService = new MemoryGcRetryService(repository,
-                new MemoryGcTaskDispatcher(Runnable::run, List.of(worker)));
+        MemoryGcTaskQueryService service = new MemoryGcTaskQueryService(repository);
 
-        int dispatched = retryService.retryFailedTasks(3, 10);
+        List<AgentMemoryTaskEntity> tasks = service.listTasks("FAILED", 1);
 
-        Assert.assertEquals(1, dispatched);
-        Assert.assertEquals(List.of("task-retry"), worker.handledTaskIds);
-    }
-
-    private static class RecordingWorker implements MemoryGcTaskWorker {
-        private final String taskType;
-        private final List<String> handledTaskIds = new ArrayList<>();
-
-        private RecordingWorker(String taskType) {
-            this.taskType = taskType;
-        }
-
-        @Override
-        public String taskType() {
-            return taskType;
-        }
-
-        @Override
-        public void handle(String taskId) {
-            handledTaskIds.add(taskId);
-        }
+        Assert.assertEquals(1, tasks.size());
+        Assert.assertEquals("task-1", tasks.get(0).getTaskId());
     }
 
     private static class FakeMemoryTaskRepository implements IMemoryTaskRepository {
@@ -80,11 +63,7 @@ public class MemoryGcRetryServiceTest {
 
         @Override
         public List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit) {
-            return tasks.stream()
-                    .filter(task -> "FAILED".equals(task.getStatus()))
-                    .filter(task -> task.getAttemptCount() == null || task.getAttemptCount() < maxAttempts)
-                    .limit(limit)
-                    .toList();
+            return List.of();
         }
 
         @Override

@@ -223,5 +223,10 @@
   - `POST /agent/memory-gc/retry-failed?maxAttempts=3&limit=20`
   - calls `MemoryGcRetryService.retryFailedTasks`
   - returns only operational counters, not internal payloads or worker details
+- Added trigger-layer task visibility endpoint:
+  - `GET /agent/memory-gc/tasks?status=FAILED&limit=50`
+  - returns task type, status, run/session/turn ids, attempt count, failure code/message, and timing fields
+  - backed by `MemoryGcTaskQueryService`, keeping controller out of repository details
 - Verification:
+  - targeted tests passed: 2 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`

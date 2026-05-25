@@ -15,6 +15,8 @@ public interface IMemoryTaskRepository {
 
     List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit);
 
+    List<AgentMemoryTaskEntity> listTasks(String status, int limit);
+
     void markRunning(String taskId);
 
     void markSucceeded(String taskId, String outputRef);

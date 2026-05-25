@@ -171,6 +171,14 @@ public class ConversationRollupGcWorkerTest {
         }
 
         @Override
+        public List<AgentMemoryTaskEntity> listTasks(String status, int limit) {
+            return tasks.stream()
+                    .filter(task -> status == null || status.isBlank() || status.equals(task.getStatus()))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public void markRunning(String taskId) {
             findByTaskId(taskId).ifPresent(task -> task.setStatus("RUNNING"));
         }

@@ -17,6 +17,8 @@ public interface IAgentMemoryTaskDao {
 
     List<AgentMemoryTaskPO> listRetryableFailedTasks(@Param("maxAttempts") int maxAttempts, @Param("limit") int limit);
 
+    List<AgentMemoryTaskPO> listTasks(@Param("status") String status, @Param("limit") int limit);
+
     int updateRunning(@Param("taskId") String taskId);
 
     int updateSucceeded(@Param("taskId") String taskId, @Param("outputRef") String outputRef);

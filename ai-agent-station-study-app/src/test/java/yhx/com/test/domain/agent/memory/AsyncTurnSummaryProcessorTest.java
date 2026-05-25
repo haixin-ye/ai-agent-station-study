@@ -213,6 +213,14 @@ public class AsyncTurnSummaryProcessorTest {
         }
 
         @Override
+        public List<AgentMemoryTaskEntity> listTasks(String status, int limit) {
+            return tasks.stream()
+                    .filter(task -> status == null || status.isBlank() || status.equals(task.getStatus()))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public void markRunning(String taskId) {
             tasks.get(0).setStatus("RUNNING");
         }
