@@ -204,6 +204,15 @@ public class AsyncTurnSummaryProcessorTest {
         }
 
         @Override
+        public List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit) {
+            return tasks.stream()
+                    .filter(task -> "FAILED".equals(task.getStatus()))
+                    .filter(task -> task.getAttemptCount() == null || task.getAttemptCount() < maxAttempts)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public void markRunning(String taskId) {
             tasks.get(0).setStatus("RUNNING");
         }

@@ -2,6 +2,7 @@ package yhx.com.domain.agent.adapter.repository;
 
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryTaskEntity;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface IMemoryTaskRepository {
@@ -11,6 +12,8 @@ public interface IMemoryTaskRepository {
     Optional<AgentMemoryTaskEntity> findByTaskId(String taskId);
 
     boolean hasOpenTask(String taskType, String sessionId);
+
+    List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit);
 
     void markRunning(String taskId);
 

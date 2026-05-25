@@ -135,7 +135,8 @@ CREATE TABLE `agent_memory_task` (
   UNIQUE KEY `uk_agent_memory_task_id` (`task_id`),
   KEY `idx_agent_memory_task_status` (`status`, `created_at`),
   KEY `idx_agent_memory_task_turn` (`turn_id`),
-  KEY `idx_agent_memory_task_session_type` (`session_id`, `task_type`, `status`)
+  KEY `idx_agent_memory_task_session_type` (`session_id`, `task_type`, `status`),
+  KEY `idx_agent_memory_task_retry` (`status`, `attempt_count`, `updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent async memory task';
 
 CREATE TABLE `agent_vector_index` (

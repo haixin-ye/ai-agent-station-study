@@ -8,6 +8,7 @@ import yhx.com.infrastructure.dao.IAgentMemoryTaskDao;
 import yhx.com.infrastructure.dao.po.AgentMemoryTaskPO;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,6 +44,16 @@ public class MemoryTaskRepository implements IMemoryTaskRepository {
             return false;
         }
         return agentMemoryTaskDao.countOpenTask(taskType, sessionId) > 0;
+    }
+
+    @Override
+    public List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit) {
+        if (maxAttempts <= 0 || limit <= 0) {
+            return List.of();
+        }
+        return agentMemoryTaskDao.listRetryableFailedTasks(maxAttempts, limit).stream()
+                .map(this::toEntity)
+                .toList();
     }
 
     @Override

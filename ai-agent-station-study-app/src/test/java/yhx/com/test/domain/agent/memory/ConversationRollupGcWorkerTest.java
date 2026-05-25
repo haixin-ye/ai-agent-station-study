@@ -162,6 +162,15 @@ public class ConversationRollupGcWorkerTest {
         }
 
         @Override
+        public List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit) {
+            return tasks.stream()
+                    .filter(task -> "FAILED".equals(task.getStatus()))
+                    .filter(task -> task.getAttemptCount() == null || task.getAttemptCount() < maxAttempts)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public void markRunning(String taskId) {
             findByTaskId(taskId).ifPresent(task -> task.setStatus("RUNNING"));
         }

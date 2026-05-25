@@ -114,6 +114,10 @@ Status: in_progress
   - `TurnSummaryGcWorker` schedules `CONVERSATION_ROLLUP` after the active summary threshold is reached
   - open session-level rollup tasks are deduped
   - successfully rolled-up turn summaries are marked `ROLLED_UP`
+- Failed GC task retry entry is available:
+  - `MemoryGcRetryService` scans retryable failed tasks
+  - retry dispatch reuses `MemoryGcTaskDispatcher`
+  - retry queries are indexed by status, attempt count, and update time
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.
@@ -134,7 +138,7 @@ Status: in_progress
   - disable outdated records
   - keep vector indexes aligned with source state
 - Upsert MySQL source records and vector indexes.
-- Record task status, retries, and failure details in `agent_memory_task`.
+- Record task status, retry attempts, and failure details in `agent_memory_task`.
 
 ## Phase 6: Verification And Checkpoint
 

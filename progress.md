@@ -201,3 +201,18 @@
   - MySQL index `idx_agent_memory_task_session_type`
 - Verification:
   - targeted tests passed: 8 tests, 0 failures
+
+## 2026-05-25 Memory GC Retry Entry
+
+- Added a reusable failed-task retry entry:
+  - `MemoryGcRetryService.retryFailedTasks(maxAttempts, limit)` scans retryable failed tasks
+  - eligible tasks are `FAILED` with `attempt_count < maxAttempts`
+  - retry dispatch uses the existing `MemoryGcTaskDispatcher`, so workers keep their normal lifecycle
+- Infrastructure changes:
+  - `IMemoryTaskRepository.listRetryableFailedTasks`
+  - MyBatis query for retryable failed tasks ordered by oldest update time
+  - MySQL index `idx_agent_memory_task_retry`
+  - Spring bean registration in `AutoAgentRuntimeConfig`
+- Verification:
+  - targeted GC tests passed: 9 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`

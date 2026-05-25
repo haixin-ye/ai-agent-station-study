@@ -4,6 +4,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import yhx.com.infrastructure.dao.po.AgentMemoryTaskPO;
 
+import java.util.List;
+
 @Mapper
 public interface IAgentMemoryTaskDao {
 
@@ -12,6 +14,8 @@ public interface IAgentMemoryTaskDao {
     AgentMemoryTaskPO queryByTaskId(@Param("taskId") String taskId);
 
     int countOpenTask(@Param("taskType") String taskType, @Param("sessionId") String sessionId);
+
+    List<AgentMemoryTaskPO> listRetryableFailedTasks(@Param("maxAttempts") int maxAttempts, @Param("limit") int limit);
 
     int updateRunning(@Param("taskId") String taskId);
 

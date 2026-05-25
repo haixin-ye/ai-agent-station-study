@@ -5,33 +5,42 @@ import org.junit.Test;
 import yhx.com.domain.agent.adapter.repository.IMemoryTaskRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryTaskEntity;
 import yhx.com.domain.agent.model.valobj.enums.memory.MemoryTaskTypeEnumVO;
-import yhx.com.domain.agent.service.memory.gc.MemoryGcOrchestrator;
+import yhx.com.domain.agent.service.memory.gc.MemoryGcRetryService;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
-public class MemoryGcOrchestratorTest {
+public class MemoryGcRetryServiceTest {
 
     @Test
-    public void turn_completed_creates_turn_summary_task_and_dispatches_worker() {
+    public void retry_failed_tasks_dispatches_only_failed_tasks_below_max_attempts() {
         FakeMemoryTaskRepository repository = new FakeMemoryTaskRepository();
+        repository.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-retry")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .status("FAILED")
+                .attemptCount(1)
+                .build());
+        repository.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-exhausted")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .status("FAILED")
+                .attemptCount(3)
+                .build());
         RecordingWorker worker = new RecordingWorker(MemoryTaskTypeEnumVO.TURN_SUMMARY.name());
-        MemoryGcOrchestrator orchestrator = new MemoryGcOrchestrator(repository,
+        MemoryGcRetryService retryService = new MemoryGcRetryService(repository,
                 new MemoryGcTaskDispatcher(Runnable::run, List.of(worker)));
 
-        orchestrator.onTurnCompleted("turn-1");
+        int dispatched = retryService.retryFailedTasks(3, 10);
 
-        Assert.assertEquals(1, repository.tasks.size());
-        Assert.assertEquals(MemoryTaskTypeEnumVO.TURN_SUMMARY.name(), repository.tasks.get(0).getTaskType());
-        Assert.assertEquals("turn-1", repository.tasks.get(0).getTurnId());
-        Assert.assertEquals("PENDING", repository.tasks.get(0).getStatus());
-        Assert.assertEquals(List.of("task-1"), worker.handledTaskIds);
+        Assert.assertEquals(1, dispatched);
+        Assert.assertEquals(List.of("task-retry"), worker.handledTaskIds);
     }
 
     private static class RecordingWorker implements MemoryGcTaskWorker {
-
         private final String taskType;
         private final List<String> handledTaskIds = new ArrayList<>();
 
@@ -51,32 +60,31 @@ public class MemoryGcOrchestratorTest {
     }
 
     private static class FakeMemoryTaskRepository implements IMemoryTaskRepository {
-
         private final List<AgentMemoryTaskEntity> tasks = new ArrayList<>();
 
         @Override
         public String createTask(AgentMemoryTaskEntity task) {
-            task.setTaskId("task-" + (tasks.size() + 1));
             tasks.add(task);
             return task.getTaskId();
         }
 
         @Override
-        public java.util.Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
+        public Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
             return tasks.stream().filter(task -> taskId.equals(task.getTaskId())).findFirst();
         }
 
         @Override
         public boolean hasOpenTask(String taskType, String sessionId) {
-            return tasks.stream()
-                    .anyMatch(task -> taskType.equals(task.getTaskType())
-                            && sessionId.equals(task.getSessionId())
-                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
+            return false;
         }
 
         @Override
         public List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit) {
-            return List.of();
+            return tasks.stream()
+                    .filter(task -> "FAILED".equals(task.getStatus()))
+                    .filter(task -> task.getAttemptCount() == null || task.getAttemptCount() < maxAttempts)
+                    .limit(limit)
+                    .toList();
         }
 
         @Override
