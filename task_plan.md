@@ -106,6 +106,10 @@ Status: in_progress
   - `TurnSummaryGcWorker` creates `LONG_TERM_MEMORY_EXTRACTION` follow-up tasks when needed
   - `LongTermMemoryGcWorker` saves extracted `LONG_TERM_MEMORY` and `USER_PREFERENCE` records
   - `MEMORY_EXTRACTOR` node contract and prompt are registered
+- Rolling conversation summary worker is available:
+  - `ConversationRollupGcWorker` consumes active turn summaries for a session
+  - `CONVERSATION_ROLLUP` node creates a compact session-level summary
+  - saved rollups are indexed into `vec_conversation_summary`
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.

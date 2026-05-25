@@ -118,6 +118,9 @@ public class PromptAssembler {
         if (AgentComponentCodeEnumVO.MEMORY_EXTRACTOR.name().equals(componentCode)) {
             return new MemoryExtractionPromptBuilder().build();
         }
+        if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
+            return new ConversationRollupPromptBuilder().build();
+        }
         return List.of();
     }
 

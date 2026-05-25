@@ -30,6 +30,7 @@ import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
+import yhx.com.domain.agent.service.node.conversationrollup.ConversationRollupNodeService;
 import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
 import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeService;
 import yhx.com.domain.agent.service.node.ragverifier.RagVerifierNodeService;
@@ -66,6 +67,7 @@ import yhx.com.domain.agent.service.memory.gc.MemoryGcOrchestrator;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcFollowupScheduler;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
+import yhx.com.domain.agent.service.memory.gc.worker.ConversationRollupGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.LongTermMemoryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
@@ -436,6 +438,13 @@ public class AutoAgentRuntimeConfig {
                 nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.MEMORY_EXTRACTOR.name()));
     }
 
+    @Bean
+    public ConversationRollupNodeService conversationRollupNodeService(NodeInvocationPipeline nodeInvocationPipeline,
+                                                                       NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new ConversationRollupNodeService(nodeInvocationPipeline,
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name()));
+    }
+
     @Bean("autoAgentMemoryTaskExecutor")
     public Executor autoAgentMemoryTaskExecutor() {
         return Executors.newFixedThreadPool(2);
@@ -478,6 +487,20 @@ public class AutoAgentRuntimeConfig {
                 payloadRepository,
                 memoryManager,
                 memoryExtractionNodeService);
+    }
+
+    @Bean
+    public ConversationRollupGcWorker conversationRollupGcWorker(ITurnSummaryRepository turnSummaryRepository,
+                                                                 IMemoryTaskRepository memoryTaskRepository,
+                                                                 IPayloadRepository payloadRepository,
+                                                                 MemoryManager memoryManager,
+                                                                 ConversationRollupNodeService conversationRollupNodeService) {
+        return new ConversationRollupGcWorker(turnSummaryRepository,
+                memoryTaskRepository,
+                payloadRepository,
+                memoryManager,
+                conversationRollupNodeService,
+                12);
     }
 
     @Bean

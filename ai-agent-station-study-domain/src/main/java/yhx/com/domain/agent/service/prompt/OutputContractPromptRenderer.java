@@ -18,6 +18,7 @@ public class OutputContractPromptRenderer {
             case "CONTRACT_REPAIR" -> renderRepairContract(componentCode, contractVersion);
             case "TURN_SUMMARY" -> renderTurnSummaryContract();
             case "MEMORY_EXTRACTOR" -> renderMemoryExtractionContract();
+            case "CONVERSATION_ROLLUP" -> renderConversationRollupContract();
             default -> "Return one JSON object that satisfies component contract version " + contractVersion + ".";
         };
     }
@@ -131,6 +132,18 @@ public class OutputContractPromptRenderer {
                 Valid examples:
                 {"memories":[]}
                 {"memories":[{"memoryType":"USER_PREFERENCE","summary":"User prefers detailed Chinese engineering explanations.","content":"User explicitly asked for detailed Chinese engineering explanations in future work.","score":0.9,"reason":"Explicit stable preference."}]}
+                """;
+    }
+
+    public String renderConversationRollupContract() {
+        return """
+                Required contract version: conversation-rollup-output-v1
+
+                Required top-level fields:
+                - summary: concise rolling conversation summary string
+
+                Valid example:
+                {"summary":"User planned an AutoAgent memory architecture, approved MySQL/vector parallel recall, and the agent implemented vector indexing and GC worker foundations."}
                 """;
     }
 

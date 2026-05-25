@@ -171,3 +171,16 @@
 - Verification:
   - targeted tests passed: 18 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-25 Conversation Rollup GC Worker
+
+- Added rolling conversation summary capability:
+  - `ConversationRollupGcWorker` consumes active turn summaries for a session
+  - `CONVERSATION_ROLLUP` node compresses multiple turn summaries into one session-level summary
+  - rollup output is saved through `MemoryManager.saveConversationSummary`
+  - saved rollups are indexed through `MemoryVectorIndexingService` into `vec_conversation_summary`
+  - `CONVERSATION_ROLLUP` prompt, contract renderer, output mapper, runtime config, and SQL seed are registered
+- This is currently a worker capability that can be triggered by GC tasks; threshold and scheduled
+  automatic triggering are still future work.
+- Verification:
+  - targeted tests passed: 12 tests, 0 failures

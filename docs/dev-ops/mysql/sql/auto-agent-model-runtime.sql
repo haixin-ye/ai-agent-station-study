@@ -96,6 +96,7 @@ VALUES
 ('amr-bind-final-repair-001', 'FINAL_REPAIR', 'amr-model-repair-001', 'v1', 'main-agent-action-v1', 0.100, 1200, 1, 1),
 ('amr-bind-turn-summary-001', 'TURN_SUMMARY', 'amr-model-main-001', 'v1', 'turn-summary-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-memory-extractor-001', 'MEMORY_EXTRACTOR', 'amr-model-main-001', 'v1', 'memory-extraction-output-v1', 0.000, 1200, 1, 1),
+('amr-bind-conversation-rollup-001', 'CONVERSATION_ROLLUP', 'amr-model-main-001', 'v1', 'conversation-rollup-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-contract-repair-001', 'CONTRACT_REPAIR', 'amr-model-repair-001', 'v1', 'contract-repair-v1', 0.000, 1200, 1, 1)
 ON DUPLICATE KEY UPDATE
   `model_profile_id` = VALUES(`model_profile_id`),
@@ -172,6 +173,15 @@ Return an empty memories array for trivial greetings, one-off tasks, temporary i
 Do not include hidden reasoning. Do not invent facts that are not present in the completed turn.
 Return only the required memory-extraction-output-v1 JSON contract.',
 'MemoryExtractor prompt v1', 0, 0),
+('amr-prompt-conversation-rollup-v1', 'PROMPT_CONTENT', 'DB',
+'You are ConversationRollup, a bounded Memory GC component inside AutoAgent.
+You compress multiple completed turn summaries into one rolling conversation summary.
+You do not answer the user, create long-term memory directly, call tools, or modify runtime state.
+Read the ordered summaries. Preserve durable project direction, decisions, produced artifacts, unresolved follow-ups, and important changes over time.
+Omit trivial chit-chat, repeated details, and low-value wording. Mention chronology only when it helps distinguish old versus latest decisions.
+Do not include hidden reasoning. Do not invent facts that are not present in the summaries.
+Return only the required conversation-rollup-output-v1 JSON contract.',
+'ConversationRollup prompt v1', 0, 0),
 ('amr-prompt-contract-repair-v1', 'PROMPT_CONTENT', 'DB',
 'You are ContractRepairNode, a bounded structured-output repair component.
 You receive invalid raw output, contract information, and validation failures.
@@ -196,6 +206,7 @@ VALUES
 ('amr-node-prompt-final-repair-v1', 'GLOBAL', 'FINAL_REPAIR', 'v1', 'amr-prompt-final-repair-v1', 1),
 ('amr-node-prompt-turn-summary-v1', 'GLOBAL', 'TURN_SUMMARY', 'v1', 'amr-prompt-turn-summary-v1', 1),
 ('amr-node-prompt-memory-extractor-v1', 'GLOBAL', 'MEMORY_EXTRACTOR', 'v1', 'amr-prompt-memory-extractor-v1', 1),
+('amr-node-prompt-conversation-rollup-v1', 'GLOBAL', 'CONVERSATION_ROLLUP', 'v1', 'amr-prompt-conversation-rollup-v1', 1),
 ('amr-node-prompt-contract-repair-v1', 'GLOBAL', 'CONTRACT_REPAIR', 'v1', 'amr-prompt-contract-repair-v1', 1)
 ON DUPLICATE KEY UPDATE
   `agent_id` = VALUES(`agent_id`),

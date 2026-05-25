@@ -11,6 +11,7 @@ public enum AgentComponentCodeEnumVO {
     FINAL_REPAIR,
     TURN_SUMMARY,
     MEMORY_EXTRACTOR,
+    CONVERSATION_ROLLUP,
     CONTRACT_REPAIR
 }
 
