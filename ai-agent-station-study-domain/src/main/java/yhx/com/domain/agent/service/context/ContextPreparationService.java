@@ -3,6 +3,7 @@ package yhx.com.domain.agent.service.context;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.ArtifactCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.ArtifactChunkVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
@@ -98,7 +99,29 @@ public class ContextPreparationService {
             reasons.addAll(vector.getReasons());
         }
         existing.setReasons(reasons);
+        existing.setMatchedChunks(mergeChunks(existing.getMatchedChunks(), vector.getMatchedChunks()));
         return existing;
+    }
+
+    private List<ArtifactChunkVO> mergeChunks(List<ArtifactChunkVO> existing, List<ArtifactChunkVO> incoming) {
+        Map<String, ArtifactChunkVO> merged = new LinkedHashMap<>();
+        if (existing != null) {
+            existing.forEach(chunk -> merged.put(chunkKey(chunk), chunk));
+        }
+        if (incoming != null) {
+            incoming.forEach(chunk -> merged.putIfAbsent(chunkKey(chunk), chunk));
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private String chunkKey(ArtifactChunkVO chunk) {
+        if (chunk == null) {
+            return "";
+        }
+        if (chunk.getChunkId() != null && !chunk.getChunkId().isBlank()) {
+            return chunk.getChunkId();
+        }
+        return chunk.getSourceId() == null ? "" : chunk.getSourceId();
     }
 
     private List<MemoryCandidateVO> mergeMemories(List<MemoryCandidateVO> mysql, List<MemoryCandidateVO> vector) {

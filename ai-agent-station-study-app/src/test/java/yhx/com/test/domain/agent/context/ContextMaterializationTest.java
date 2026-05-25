@@ -8,6 +8,8 @@ import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextMaterializationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
+import yhx.com.domain.agent.model.valobj.context.ArtifactChunkVO;
+import yhx.com.domain.agent.model.valobj.context.ArtifactCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
@@ -225,6 +227,52 @@ public class ContextMaterializationTest {
 
         Assert.assertEquals(1, stateView.getMemoryPack().size());
         Assert.assertEquals("User prefers detailed Chinese explanations.", stateView.getMemoryPack().get(0).getSummary());
+    }
+
+    @Test
+    public void selected_artifact_chunk_injects_matched_chunk_without_loading_full_body() {
+        ContextTokenEstimator estimator = new ContextTokenEstimator();
+        ContextCandidateBundleVO candidates = ContextCandidateBundleVO.builder()
+                .fixedRecentMessages(List.of())
+                .recentMessages(List.of())
+                .sessionSummaries(List.of())
+                .artifactCandidates(List.of(ArtifactCandidateVO.builder()
+                        .artifactId("artifact-1")
+                        .artifactType("ARTICLE")
+                        .title("MCP Article")
+                        .summary("MCP article summary")
+                        .contentRef("payload-artifact")
+                        .matchedChunks(List.of(ArtifactChunkVO.builder()
+                                .chunkId("artifact-1:chunk:002")
+                                .sourceId("artifact-1:chunk:002")
+                                .index(2)
+                                .content("matched tools/resources chunk")
+                                .build()))
+                        .build()))
+                .memoryCandidates(List.of())
+                .evidenceCandidates(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(1000).build())
+                .build();
+        ContextMaterializer materializer = new ContextMaterializer(
+                new ContextSelectionValidator(),
+                new ArtifactPayloadLoader(fixture(), estimator),
+                new EvidencePackBuilder(),
+                new ContextBudgetManager(estimator),
+                new MainAgentStateViewBuilder());
+
+        MainAgentStateViewVO stateView = materializer.materialize(ContextMaterializationCommand.builder()
+                .candidates(candidates)
+                .forcedSelections(List.of(ContextSelectionVO.builder()
+                        .sourceType("ARTIFACT_CHUNK")
+                        .sourceId("artifact-1:chunk:002")
+                        .contextLevel(ContextLevelEnumVO.CHUNKED_CONTEXT)
+                        .build()))
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+
+        Assert.assertEquals(1, stateView.getArtifactContent().size());
+        Assert.assertNull(stateView.getArtifactContent().get(0).getContent());
+        Assert.assertEquals("matched tools/resources chunk", stateView.getArtifactContent().get(0).getChunks().get(0).getContent());
     }
 
     private MainAgentStateViewVO materialize(ContextLevelEnumVO level, int maxInlineChars) {

@@ -86,10 +86,29 @@ public class ContextSelectionMergePolicy {
         if ("LONG_TERM_MEMORY".equals(sourceType) || "USER_PREFERENCE".equals(sourceType)) {
             return "MEMORY:" + sourceId;
         }
+        if ("ARTIFACT".equals(sourceType) || "ARTIFACT_CHUNK".equals(sourceType)) {
+            return artifactKey(sourceType, sourceId, candidates);
+        }
         if ("RAG".equals(sourceType) || "RAG_CHUNK".equals(sourceType) || "RAG_DOCUMENT".equals(sourceType)) {
             return "RAG:" + sourceId;
         }
         return sourceType + ":" + sourceId;
+    }
+
+    private String artifactKey(String sourceType, String sourceId, ContextCandidateBundleVO candidates) {
+        if ("ARTIFACT".equals(sourceType)) {
+            return "ARTIFACT:" + sourceId;
+        }
+        if (candidates != null && candidates.getArtifactCandidates() != null) {
+            return candidates.getArtifactCandidates().stream()
+                    .filter(artifact -> artifact.getMatchedChunks() != null)
+                    .filter(artifact -> artifact.getMatchedChunks().stream()
+                            .anyMatch(chunk -> Objects.equals(sourceId, chunk.getChunkId()) || Objects.equals(sourceId, chunk.getSourceId())))
+                    .map(artifact -> "ARTIFACT:" + artifact.getArtifactId())
+                    .findFirst()
+                    .orElse("ARTIFACT_CHUNK:" + sourceId);
+        }
+        return "ARTIFACT_CHUNK:" + sourceId;
     }
 
     private String summaryKey(String summaryId, ContextCandidateBundleVO candidates) {

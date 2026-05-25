@@ -24,7 +24,15 @@ public class ContextSelectionValidator {
             });
         }
         if (candidates.getArtifactCandidates() != null) {
-            candidates.getArtifactCandidates().forEach(artifact -> validIds.add(artifact.getArtifactId()));
+            candidates.getArtifactCandidates().forEach(artifact -> {
+                validIds.add(artifact.getArtifactId());
+                if (artifact.getMatchedChunks() != null) {
+                    artifact.getMatchedChunks().forEach(chunk -> {
+                        validIds.add(chunk.getChunkId());
+                        validIds.add(chunk.getSourceId());
+                    });
+                }
+            });
         }
         if (candidates.getMemoryCandidates() != null) {
             candidates.getMemoryCandidates().forEach(memory -> validIds.add(memory.getMemoryId()));

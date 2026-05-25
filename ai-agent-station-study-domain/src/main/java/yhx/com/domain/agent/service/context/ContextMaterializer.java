@@ -51,9 +51,9 @@ public class ContextMaterializer {
         int maxInlineChars = budget.getMaxArtifactInlineChars() == null ? 4000 : budget.getMaxArtifactInlineChars();
 
         List<MaterializedArtifactContentVO> artifacts = mergedSelections.stream()
-                .filter(selection -> "ARTIFACT".equals(selection.getSourceType()))
+                .filter(selection -> "ARTIFACT".equals(selection.getSourceType()) || "ARTIFACT_CHUNK".equals(selection.getSourceType()))
                 .sorted(Comparator.comparing(ContextSelectionVO::getPriority, Comparator.nullsLast(Integer::compareTo)))
-                .map(selection -> findArtifact(selection.getSourceId(), command))
+                .map(selection -> findArtifact(selection, command))
                 .filter(Objects::nonNull)
                 .map(artifact -> artifactPayloadLoader.load(artifact, levelFor(artifact, mergedSelections), maxInlineChars))
                 .filter(Objects::nonNull)
@@ -84,23 +84,37 @@ public class ContextMaterializer {
         return budgetManager.shrinkToFit(stateView, budget);
     }
 
-    private ArtifactCandidateVO findArtifact(String artifactId, ContextMaterializationCommand command) {
+    private ArtifactCandidateVO findArtifact(ContextSelectionVO selection, ContextMaterializationCommand command) {
         if (command.getCandidates().getArtifactCandidates() == null) {
             return null;
         }
+        String sourceId = selection.getSourceId();
+        if ("ARTIFACT_CHUNK".equals(selection.getSourceType())) {
+            return command.getCandidates().getArtifactCandidates().stream()
+                    .filter(artifact -> artifact.getMatchedChunks() != null)
+                    .filter(artifact -> artifact.getMatchedChunks().stream()
+                            .anyMatch(chunk -> sourceId.equals(chunk.getChunkId()) || sourceId.equals(chunk.getSourceId())))
+                    .findFirst()
+                    .orElse(null);
+        }
         return command.getCandidates().getArtifactCandidates().stream()
-                .filter(artifact -> artifactId.equals(artifact.getArtifactId()))
+                .filter(artifact -> sourceId.equals(artifact.getArtifactId()))
                 .findFirst()
                 .orElse(null);
     }
 
     private ContextLevelEnumVO levelFor(ArtifactCandidateVO artifact, List<ContextSelectionVO> selections) {
         return selections.stream()
-                .filter(selection -> "ARTIFACT".equals(selection.getSourceType()))
-                .filter(selection -> artifact.getArtifactId().equals(selection.getSourceId()))
+                .filter(selection -> "ARTIFACT".equals(selection.getSourceType()) || "ARTIFACT_CHUNK".equals(selection.getSourceType()))
+                .filter(selection -> artifact.getArtifactId().equals(selection.getSourceId()) || hasSelectedChunk(artifact, selection.getSourceId()))
                 .map(ContextSelectionVO::getContextLevel)
                 .findFirst()
                 .orElse(ContextLevelEnumVO.SUMMARY_ONLY);
+    }
+
+    private boolean hasSelectedChunk(ArtifactCandidateVO artifact, String sourceId) {
+        return artifact.getMatchedChunks() != null && artifact.getMatchedChunks().stream()
+                .anyMatch(chunk -> sourceId.equals(chunk.getChunkId()) || sourceId.equals(chunk.getSourceId()));
     }
 
     private boolean selected(String sourceType, String sourceId, List<ContextSelectionVO> selections) {

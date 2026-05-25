@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class VectorContextRecallPreselectorTest {
 
@@ -79,6 +80,32 @@ public class VectorContextRecallPreselectorTest {
         Assert.assertTrue(bundle.getSessionSummaries().isEmpty());
         Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
         Assert.assertTrue(bundle.getMemoryCandidates().isEmpty());
+    }
+
+    @Test
+    public void artifact_chunk_hit_resolves_parent_artifact_from_metadata_and_keeps_matched_chunk() {
+        FakeContextRepositories repos = fixture();
+        FakeVectorMemoryRepository vector = new FakeVectorMemoryRepository(List.of(VectorRecallHitVO.builder()
+                .collectionType(VectorCollectionTypeEnumVO.ARTIFACT_CHUNK)
+                .sourceType(VectorSourceTypeEnumVO.ARTIFACT_CHUNK)
+                .sourceId("artifact-1:chunk:002")
+                .score(0.93)
+                .snippet("MCP tools and resources detailed section")
+                .metadata(Map.of("artifactId", "artifact-1", "chunkNo", 2))
+                .build()));
+
+        ContextCandidateBundleVO bundle = new VectorContextRecallPreselector(vector, repos, repos, repos, repos)
+                .recall(ContextPreparationCommand.builder()
+                        .userId("user-1")
+                        .sessionId("session-1")
+                        .userInput("MCP tools resources 那段")
+                        .build());
+
+        Assert.assertEquals(1, bundle.getArtifactCandidates().size());
+        Assert.assertEquals("artifact-1", bundle.getArtifactCandidates().get(0).getArtifactId());
+        Assert.assertEquals(1, bundle.getArtifactCandidates().get(0).getMatchedChunks().size());
+        Assert.assertEquals("artifact-1:chunk:002", bundle.getArtifactCandidates().get(0).getMatchedChunks().get(0).getChunkId());
+        Assert.assertEquals("MCP tools and resources detailed section", bundle.getArtifactCandidates().get(0).getMatchedChunks().get(0).getContent());
     }
 
     private FakeContextRepositories fixture() {

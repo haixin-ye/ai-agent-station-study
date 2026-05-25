@@ -11,6 +11,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 import yhx.com.domain.agent.model.valobj.context.ArtifactCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.ArtifactChunkVO;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
@@ -79,7 +80,8 @@ public class VectorContextRecallPreselector {
             }
             switch (hit.getSourceType()) {
                 case TURN_SUMMARY, CONVERSATION_SUMMARY -> resolveSummary(hit).ifPresent(summary -> summaries.putIfAbsent(summary.getSummaryId(), summary));
-                case ARTIFACT_SUMMARY, ARTIFACT_CHUNK -> resolveArtifact(hit).ifPresent(artifact -> artifacts.putIfAbsent(artifact.getArtifactId(), artifact));
+                case ARTIFACT_SUMMARY -> resolveArtifact(hit).ifPresent(artifact -> artifacts.putIfAbsent(artifact.getArtifactId(), artifact));
+                case ARTIFACT_CHUNK -> resolveArtifactChunk(hit).ifPresent(artifact -> artifacts.merge(artifact.getArtifactId(), artifact, this::mergeArtifactChunks));
                 case LONG_TERM_MEMORY, USER_PREFERENCE -> resolveMemory(hit).ifPresent(memory -> memories.putIfAbsent(memory.getMemoryId(), memory));
                 case RAG_DOCUMENT, RAG_CHUNK -> {
                     // RAG hits are resolved by the RAG pipeline; keep this preselector MySQL-backed for now.
@@ -129,6 +131,34 @@ public class VectorContextRecallPreselector {
                 });
     }
 
+    private Optional<ArtifactCandidateVO> resolveArtifactChunk(VectorRecallHitVO hit) {
+        if (artifactRepository == null) {
+            return Optional.empty();
+        }
+        String artifactId = metadataValue(hit, "artifactId");
+        if (isBlank(artifactId)) {
+            artifactId = metadataValue(hit, "artifact_id");
+        }
+        if (isBlank(artifactId)) {
+            artifactId = hit.getSourceId();
+        }
+        String finalArtifactId = artifactId;
+        return artifactRepository.findArtifact(finalArtifactId).map(this::toArtifactCandidate)
+                .map(candidate -> {
+                    candidate.setSourceChannel(ContextCandidateSourceChannelEnumVO.VECTOR_SEMANTIC.name());
+                    candidate.setSourceScore(hit.getScore());
+                    candidate.setTotalScore(hit.getScore());
+                    candidate.setReasons(List.of("vector-hit:" + safeName(hit.getCollectionType())));
+                    candidate.setMatchedChunks(List.of(ArtifactChunkVO.builder()
+                            .chunkId(hit.getSourceId())
+                            .sourceId(hit.getSourceId())
+                            .index(parseInteger(metadataValue(hit, "chunkNo")))
+                            .content(firstNonBlank(hit.getSnippet(), hit.getSummary()))
+                            .build()));
+                    return candidate;
+                });
+    }
+
     private Optional<MemoryCandidateVO> resolveMemory(VectorRecallHitVO hit) {
         if (memoryRepository == null) {
             return Optional.empty();
@@ -154,6 +184,21 @@ public class VectorContextRecallPreselector {
                 .updatedAt(artifact.getUpdatedAt())
                 .lastMentionedAt(artifact.getLastMentionedAt())
                 .build();
+    }
+
+    private ArtifactCandidateVO mergeArtifactChunks(ArtifactCandidateVO existing, ArtifactCandidateVO incoming) {
+        if (existing.getMatchedChunks() == null || existing.getMatchedChunks().isEmpty()) {
+            existing.setMatchedChunks(incoming.getMatchedChunks());
+            return existing;
+        }
+        if (incoming.getMatchedChunks() == null || incoming.getMatchedChunks().isEmpty()) {
+            return existing;
+        }
+        Map<String, ArtifactChunkVO> chunks = new LinkedHashMap<>();
+        existing.getMatchedChunks().forEach(chunk -> chunks.put(firstNonBlank(chunk.getChunkId(), chunk.getSourceId()), chunk));
+        incoming.getMatchedChunks().forEach(chunk -> chunks.putIfAbsent(firstNonBlank(chunk.getChunkId(), chunk.getSourceId()), chunk));
+        existing.setMatchedChunks(new ArrayList<>(chunks.values()));
+        return existing;
     }
 
     private MemoryCandidateVO toMemoryCandidate(AgentMemoryEntity memory) {
@@ -210,6 +255,22 @@ public class VectorContextRecallPreselector {
 
     private String firstNonBlank(String first, String second) {
         return isBlank(first) ? second : first;
+    }
+
+    private String metadataValue(VectorRecallHitVO hit, String key) {
+        Object value = hit.getMetadata() == null ? null : hit.getMetadata().get(key);
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Integer parseInteger(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private boolean isBlank(String value) {

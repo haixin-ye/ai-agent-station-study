@@ -24,6 +24,19 @@ public class ArtifactPayloadLoader {
         if (artifact == null) {
             return null;
         }
+        if (artifact.getMatchedChunks() != null && !artifact.getMatchedChunks().isEmpty()
+                && (level == ContextLevelEnumVO.CHUNKED_CONTEXT || level == ContextLevelEnumVO.SUMMARY_PLUS_SNIPPET)) {
+            List<ArtifactChunkVO> chunks = normalizeMatchedChunks(artifact.getMatchedChunks());
+            if (level == ContextLevelEnumVO.SUMMARY_PLUS_SNIPPET) {
+                String snippet = chunks.stream()
+                        .map(ArtifactChunkVO::getContent)
+                        .filter(content -> content != null && !content.isBlank())
+                        .findFirst()
+                        .orElse(null);
+                return base(artifact, level, snippet, List.of(), false);
+            }
+            return base(artifact, ContextLevelEnumVO.CHUNKED_CONTEXT, null, chunks, false);
+        }
         if (level == ContextLevelEnumVO.METADATA_ONLY || level == ContextLevelEnumVO.SUMMARY_ONLY) {
             return base(artifact, level, null, List.of(), false);
         }
@@ -39,6 +52,19 @@ public class ArtifactPayloadLoader {
         }
         List<ArtifactChunkVO> chunks = chunk(content, Math.max(200, maxInlineChars / 2), 3);
         return base(artifact, ContextLevelEnumVO.CHUNKED_CONTEXT, null, chunks, true);
+    }
+
+    private List<ArtifactChunkVO> normalizeMatchedChunks(List<ArtifactChunkVO> chunks) {
+        return chunks.stream()
+                .filter(chunk -> chunk != null && chunk.getContent() != null && !chunk.getContent().isBlank())
+                .map(chunk -> ArtifactChunkVO.builder()
+                        .chunkId(chunk.getChunkId())
+                        .sourceId(chunk.getSourceId())
+                        .index(chunk.getIndex())
+                        .content(chunk.getContent())
+                        .tokenCount(chunk.getTokenCount() == null ? tokenEstimator.estimateTextTokens(chunk.getContent()) : chunk.getTokenCount())
+                        .build())
+                .toList();
     }
 
     private MaterializedArtifactContentVO base(ArtifactCandidateVO artifact,
@@ -65,6 +91,8 @@ public class ArtifactPayloadLoader {
         for (int offset = 0; offset < content.length() && chunks.size() < maxChunks; offset += chunkChars) {
             String chunk = content.substring(offset, Math.min(offset + chunkChars, content.length()));
             chunks.add(ArtifactChunkVO.builder()
+                    .chunkId("inline:" + index)
+                    .sourceId("inline:" + index)
                     .index(index++)
                     .content(chunk)
                     .tokenCount(tokenEstimator.estimateTextTokens(chunk))

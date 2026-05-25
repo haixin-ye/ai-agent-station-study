@@ -33,4 +33,5 @@ public class ArtifactCandidateVO {
     private String sourceChannel;
     private Double sourceScore;
     private List<String> reasons;
+    private List<ArtifactChunkVO> matchedChunks;
 }

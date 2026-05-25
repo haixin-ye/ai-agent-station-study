@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ArtifactChunkVO {
 
+    private String chunkId;
+    private String sourceId;
     private Integer index;
     private String content;
     private Integer tokenCount;

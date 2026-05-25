@@ -83,3 +83,28 @@
   - targeted tests passed: 7 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
   - `git diff --check` passed with line-ending warnings only
+
+## 2026-05-25 Memory GC Replacement Design Note
+
+- Added design constraint for future GC work:
+  - summaries must be detailed index cards with intent/action/version/relation information
+  - GC must manage replacement relationships for history, artifacts, long-term memories, and preferences
+  - superseded records should be downgraded/marked, not blindly deleted, so comparison/history questions
+    still work
+  - vector indexes must stay aligned with source record state
+
+## 2026-05-25 Recall To Materialization Phase 4
+
+- Added artifact chunk candidate support in the recall-to-materialization chain:
+  - `ArtifactCandidateVO` can now carry `matchedChunks`
+  - `ArtifactChunkVO` carries `chunkId` and `sourceId`
+  - vector `ARTIFACT_CHUNK` hits resolve parent `artifactId` from metadata
+  - Planner selections can reference either artifact ID or chunk ID
+  - `ContextSelectionValidator` accepts matched chunk IDs
+  - `ContextSelectionMergePolicy` dedupes artifact chunk selections under the parent artifact key
+  - `ContextMaterializer` can materialize `ARTIFACT_CHUNK`
+  - `ArtifactPayloadLoader` injects matched chunks without loading full artifact body
+- Verification:
+  - targeted tests passed: 15 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`
+  - `git diff --check` passed with line-ending warnings only

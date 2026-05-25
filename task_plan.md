@@ -82,6 +82,10 @@ Status: in_progress
   or chunks into MainNode.
 - Current implementation already joins MySQL/vector candidate sources before ContextPlanner. Remaining
   work is deeper materialization alignment for future chunk/rolling-summary/RAG sources.
+- Artifact chunk candidate flow is supported:
+  - vector chunk hit resolves parent artifact from metadata
+  - chunk candidate is visible to ContextPlanner through `matchedChunks`
+  - selected chunk IDs are accepted by validator and materialized into state view
 
 ## Phase 5: Complete Memory GC Machine
 
@@ -97,6 +101,15 @@ Status: in_progress
 - Periodically merge, supersede, disable, or downgrade stale memories.
 - Generate artifact summaries/chunks and index them where needed.
 - Use chunk-specific source IDs for artifact chunks and keep parent `artifactId` in metadata.
+- Maintain artifact version replacement relationships:
+  - mark latest artifact summary
+  - preserve superseded versions for compare/history questions
+  - downgrade superseded versions for generic "latest/previous article" recall
+- Maintain long-term memory and preference replacement relationships:
+  - merge duplicate memories
+  - supersede stale memories
+  - disable outdated records
+  - keep vector indexes aligned with source state
 - Upsert MySQL source records and vector indexes.
 - Record task status, retries, and failure details in `agent_memory_task`.
 

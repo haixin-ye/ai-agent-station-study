@@ -98,7 +98,36 @@ recall is unavailable or slow.
 - Artifact chunk metadata must include the parent `artifactId` and `chunkNo`, so materialization can
   either inject the chunk or load the full artifact from MySQL when the user asks to edit the whole
   artifact.
+- Artifact chunk recall is now represented as `ArtifactCandidateVO.matchedChunks`; ContextPlanner can
+  select the parent artifact or the chunk source ID, and Materializer can inject the chunk without
+  loading the full artifact body.
 - RAG chunking is intentionally deferred. RAG may use a different storage and retrieval design later.
+
+## Memory GC Summary Quality Requirements
+
+- GC summaries are decision/index cards, not short content blurbs.
+- Turn summaries must preserve user intent, agent action, involved artifact IDs, version role, and
+  relation to previous versions when applicable.
+- Artifact summaries must preserve artifact ID, type, version, whether it is latest, relation to prior
+  versions, key differences, user requested change direction, and future recall hints.
+- Example of unacceptable summary: "A MCP introduction article."
+- Example of acceptable summary: "MCP article version 2, expanded from version 1 after the user said
+  the first draft was too short. It adds background, tools/resources/prompts, application scenarios,
+  and developer practice notes. This is the latest expanded version and should be recalled for 'the
+  expanded MCP article', 'the latest MCP article', or 'continue polishing the previous article'."
+
+## Memory GC Replacement Responsibilities
+
+- Memory GC is responsible for maintaining replacement/supersession relationships across historical
+  records, memories, and artifacts.
+- When an artifact is updated, GC should mark the new artifact summary as latest and relate it to the
+  previous version.
+- Old artifact summaries should not disappear blindly; they should be downgraded or marked superseded
+  so comparison questions can still find them.
+- Long-term memories and user preferences need merge/supersede/disable behavior so outdated memories
+  do not compete equally with current ones.
+- Vector indexes for superseded or disabled records should be updated, disabled, or down-weighted
+  according to the source record state.
 
 ## Implementation Boundary
 
