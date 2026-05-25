@@ -89,6 +89,17 @@ recall is unavailable or slow.
 - `vec_rag_document`: semantic search over external document summaries.
 - `vec_rag_chunk`: semantic search over external document chunks.
 
+## Chunking Decisions
+
+- Turn summaries, rolling summaries, long-term memories, user preferences, and artifact summaries are
+  already compact semantic units. They should not be chunked.
+- Artifact bodies should be chunked only when the body is long enough to justify section-level recall.
+- Artifact chunk vector `sourceId` must be chunk-specific, for example `artifact-123:chunk:001`.
+- Artifact chunk metadata must include the parent `artifactId` and `chunkNo`, so materialization can
+  either inject the chunk or load the full artifact from MySQL when the user asks to edit the whole
+  artifact.
+- RAG chunking is intentionally deferred. RAG may use a different storage and retrieval design later.
+
 ## Implementation Boundary
 
 - Domain defines ports, VOs, policies, and orchestration.

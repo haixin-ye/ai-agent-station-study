@@ -59,3 +59,27 @@
   - compile passed: `mvn -q -DskipTests compile`
   - targeted tests passed: 5 tests, 0 failures
   - `git diff --check` passed with line-ending warning only
+
+## 2026-05-25 Chunking Decision
+
+- Confirmed chunking design:
+  - no chunking for turn summaries, rolling summaries, long-term memories, user preferences, or artifact summaries
+  - chunk long artifact bodies into `vec_artifact_chunk`
+  - use chunk-specific vector source IDs, for example `artifact-123:chunk:001`
+  - include parent `artifactId` and `chunkNo` in metadata
+  - defer RAG chunk storage/retrieval details until RAG-specific design
+
+## 2026-05-25 Memory GC Phase 1
+
+- Upgraded the existing async turn summary processor into the first Memory GC task path.
+- After each completed turn:
+  - load turn user/assistant payloads
+  - call `TURN_SUMMARY`
+  - save summary payload
+  - save `agent_turn_summary`
+  - upsert summary into `vec_turn_summary`
+  - save/update `agent_vector_index`
+- Verification:
+  - targeted tests passed: 7 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`
+  - `git diff --check` passed with line-ending warnings only

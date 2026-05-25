@@ -24,6 +24,7 @@ import yhx.com.domain.agent.adapter.repository.IRunRepository;
 import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
+import yhx.com.domain.agent.adapter.repository.IVectorIndexRepository;
 import yhx.com.domain.agent.adapter.repository.IVectorMemoryRepository;
 import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
@@ -415,13 +416,17 @@ public class AutoAgentRuntimeConfig {
                                                            ITurnSummaryRepository turnSummaryRepository,
                                                            IMemoryTaskRepository memoryTaskRepository,
                                                            IPayloadRepository payloadRepository,
-                                                           TurnSummaryNodeService turnSummaryNodeService) {
+                                                           TurnSummaryNodeService turnSummaryNodeService,
+                                                           IVectorMemoryRepository vectorMemoryRepository,
+                                                           IVectorIndexRepository vectorIndexRepository) {
         return new AsyncTurnSummaryProcessor(memoryTaskExecutor,
                 turnRepository,
                 turnSummaryRepository,
                 memoryTaskRepository,
                 payloadRepository,
-                turnSummaryNodeService);
+                turnSummaryNodeService,
+                vectorMemoryRepository,
+                vectorIndexRepository);
     }
 
     @Bean

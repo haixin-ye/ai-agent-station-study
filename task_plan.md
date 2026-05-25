@@ -85,14 +85,18 @@ Status: in_progress
 
 ## Phase 5: Complete Memory GC Machine
 
-Status: pending
+Status: in_progress
 
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
+- Upsert generated turn summaries into `vec_turn_summary`.
 - On schedule or by threshold, generate rolling conversation summaries.
+- Upsert rolling summaries into `vec_conversation_summary`.
 - After each completed turn, extract long-term memory and user preference candidates when present.
+- Upsert long-term memories and user preferences into their dedicated vector collections.
 - Periodically merge, supersede, disable, or downgrade stale memories.
 - Generate artifact summaries/chunks and index them where needed.
+- Use chunk-specific source IDs for artifact chunks and keep parent `artifactId` in metadata.
 - Upsert MySQL source records and vector indexes.
 - Record task status, retries, and failure details in `agent_memory_task`.
 
