@@ -112,6 +112,11 @@ public class AsyncTurnSummaryProcessorTest {
         }
 
         @Override
+        public Optional<AgentTurnSummaryEntity> findSummaryById(String summaryId) {
+            return summaries.stream().filter(summary -> summaryId.equals(summary.getSummaryId())).findFirst();
+        }
+
+        @Override
         public Optional<AgentTurnSummaryEntity> findSummaryByTurnId(String turnId) {
             return summaries.stream().filter(summary -> turnId.equals(summary.getTurnId())).findFirst();
         }

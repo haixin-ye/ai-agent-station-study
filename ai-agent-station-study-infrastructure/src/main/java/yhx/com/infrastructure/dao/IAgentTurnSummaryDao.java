@@ -11,6 +11,8 @@ public interface IAgentTurnSummaryDao {
 
     int insert(AgentTurnSummaryPO summary);
 
+    AgentTurnSummaryPO queryBySummaryId(@Param("summaryId") String summaryId);
+
     AgentTurnSummaryPO queryByTurnId(@Param("turnId") String turnId);
 
     List<AgentTurnSummaryPO> listByTurnIds(@Param("turnIds") List<String> turnIds);

@@ -9,6 +9,8 @@ public interface ITurnSummaryRepository {
 
     String saveSummary(AgentTurnSummaryEntity summary);
 
+    Optional<AgentTurnSummaryEntity> findSummaryById(String summaryId);
+
     Optional<AgentTurnSummaryEntity> findSummaryByTurnId(String turnId);
 
     List<AgentTurnSummaryEntity> listByTurnIds(List<String> turnIds);

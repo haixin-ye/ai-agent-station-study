@@ -38,6 +38,11 @@ public class TurnSummaryRepository implements ITurnSummaryRepository {
     }
 
     @Override
+    public Optional<AgentTurnSummaryEntity> findSummaryById(String summaryId) {
+        return Optional.ofNullable(agentTurnSummaryDao.queryBySummaryId(summaryId)).map(this::toEntity);
+    }
+
+    @Override
     public Optional<AgentTurnSummaryEntity> findSummaryByTurnId(String turnId) {
         return Optional.ofNullable(agentTurnSummaryDao.queryByTurnId(turnId)).map(this::toEntity);
     }

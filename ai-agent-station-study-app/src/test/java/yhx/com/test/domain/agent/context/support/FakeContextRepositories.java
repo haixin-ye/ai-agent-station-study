@@ -100,6 +100,11 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
     }
 
     @Override
+    public Optional<AgentMemoryEntity> findMemory(String memoryId) {
+        return memories.stream().filter(memory -> memoryId.equals(memory.getMemoryId())).findFirst();
+    }
+
+    @Override
     public String saveConversationSummary(AgentConversationSummaryEntity summary) {
         return summary.getSummaryId();
     }
@@ -167,6 +172,11 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
     public String saveSummary(AgentTurnSummaryEntity summary) {
         turnSummaries.add(summary);
         return summary.getSummaryId();
+    }
+
+    @Override
+    public Optional<AgentTurnSummaryEntity> findSummaryById(String summaryId) {
+        return turnSummaries.stream().filter(summary -> summaryId.equals(summary.getSummaryId())).findFirst();
     }
 
     @Override

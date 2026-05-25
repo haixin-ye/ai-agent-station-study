@@ -19,4 +19,6 @@ public class MemoryCandidateVO {
     private String contentRef;
     private BigDecimal score;
     private Double relevanceScore;
+    private String sourceChannel;
+    private Double sourceScore;
 }

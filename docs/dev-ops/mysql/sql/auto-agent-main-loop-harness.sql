@@ -6,6 +6,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `agent_node_prompt`;
+DROP TABLE IF EXISTS `agent_vector_index`;
 DROP TABLE IF EXISTS `agent_memory_task`;
 DROP TABLE IF EXISTS `agent_turn_summary`;
 DROP TABLE IF EXISTS `agent_turn`;
@@ -135,6 +136,29 @@ CREATE TABLE `agent_memory_task` (
   KEY `idx_agent_memory_task_status` (`status`, `created_at`),
   KEY `idx_agent_memory_task_turn` (`turn_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent async memory task';
+
+CREATE TABLE `agent_vector_index` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `index_id` varchar(64) NOT NULL,
+  `collection_type` varchar(64) NOT NULL,
+  `source_type` varchar(64) NOT NULL,
+  `source_id` varchar(128) NOT NULL,
+  `vector_id` varchar(128) DEFAULT NULL,
+  `user_id` varchar(64) DEFAULT NULL,
+  `session_id` varchar(64) DEFAULT NULL,
+  `content_hash` varchar(128) DEFAULT NULL,
+  `status` varchar(64) NOT NULL DEFAULT 'ACTIVE',
+  `failure_message` text,
+  `indexed_at` datetime DEFAULT NULL,
+  `disabled_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_vector_index_id` (`index_id`),
+  UNIQUE KEY `uk_agent_vector_index_source` (`collection_type`, `source_type`, `source_id`),
+  KEY `idx_agent_vector_index_user` (`user_id`, `collection_type`, `status`),
+  KEY `idx_agent_vector_index_session` (`session_id`, `collection_type`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent vector index sync state';
 
 CREATE TABLE `agent_run` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,

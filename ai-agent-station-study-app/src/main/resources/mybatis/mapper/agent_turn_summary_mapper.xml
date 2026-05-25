@@ -33,6 +33,15 @@
         )
     </insert>
 
+    <select id="queryBySummaryId" resultMap="AgentTurnSummaryMap">
+        SELECT id, summary_id, turn_id, session_id, run_id, user_id, summary_ref, intent,
+               topics_json, entities_json, artifact_refs_json, importance_score,
+               requires_long_term_extraction, status, created_at, updated_at
+        FROM agent_turn_summary
+        WHERE summary_id = #{summaryId}
+        LIMIT 1
+    </select>
+
     <select id="queryByTurnId" resultMap="AgentTurnSummaryMap">
         SELECT id, summary_id, turn_id, session_id, run_id, user_id, summary_ref, intent,
                topics_json, entities_json, artifact_refs_json, importance_score,

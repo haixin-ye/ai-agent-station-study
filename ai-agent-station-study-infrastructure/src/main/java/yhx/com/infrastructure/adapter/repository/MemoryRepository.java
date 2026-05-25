@@ -15,6 +15,7 @@ import yhx.com.infrastructure.dao.po.AgentMemoryEventPO;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -32,6 +33,11 @@ public class MemoryRepository implements IMemoryRepository {
     @Override
     public List<AgentMemoryEntity> findMemoryCandidates(String userId, String sessionId, String query, int limit) {
         return agentLongTermMemoryDao.listCandidates(userId, sessionId, limit).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public Optional<AgentMemoryEntity> findMemory(String memoryId) {
+        return Optional.ofNullable(agentLongTermMemoryDao.queryByMemoryId(memoryId)).map(this::toEntity);
     }
 
     @Override

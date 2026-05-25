@@ -20,6 +20,9 @@ public class SummaryCandidateVO {
     private String summaryRef;
     private List<String> artifactRefs;
     private Double relevanceScore;
+    private String sourceChannel;
+    private Double sourceScore;
+    private List<String> sourceReasons;
     private Long messageStartSeq;
     private Long messageEndSeq;
     private LocalDateTime createdAt;

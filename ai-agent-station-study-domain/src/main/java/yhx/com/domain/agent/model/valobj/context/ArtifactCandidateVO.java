@@ -30,5 +30,7 @@ public class ArtifactCandidateVO {
     private Double aliasScore;
     private Double titleScore;
     private Double totalScore;
+    private String sourceChannel;
+    private Double sourceScore;
     private List<String> reasons;
 }

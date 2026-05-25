@@ -1,52 +1,42 @@
-# AutoAgent Current Progress
+# AutoAgent Vector Memory Progress
 
-This file records the current implementation state. Older detailed checkpoint history lives in `docs/superpowers/progress.md` and Git history. Old Node1-4, `DynamicContext`, `ToolExecutionNode`, and `UserInputResolverNode` notes are historical only and are not current implementation guidance.
+## 2026-05-25
 
-## Current Branch
-
-- `feature/auto-agent-main-loop-harness`
-
-## Recent Checkpoints
-
-- `de13af9 agent: checkpoint user ask and runtime diagnostics`
-  - Frontend ASK_USER/debug usability, async diagnostic logging, safer failure reporting, and SQL/runtime length patches.
-- `944a744 agent: refine runtime context routing`
-  - Split initial `prepareContext` from continued-loop `refreshContext`.
-- `a0d1cfd agent: resume user ask from checkpoints`
-  - Pending-input handlers honor continuation checkpoints and tool approvals resume from the correct phase.
-- Runtime route policy refinement completed.
-  - `RuntimeRoutePolicy` centralizes continued-loop phase decisions.
-- `daafebb agent: organize llm node entrypoints`
-  - Extracted MainAgent node entry and split FinalRepair/ContractRepair prompt builders.
-- `91e8375 agent: move node entrypoints under service`
-  - Moved node entry services to `domain/agent/service/node/<node>/`.
-
-## Current Implemented State
-
-- Runtime main-loop architecture is active.
-- LLM node entry services are grouped under `domain/agent/service/node`.
-- Prompt assembly uses Java-owned layered prompts plus DB role prompts.
-- `CONTRACT_REPAIR` and `FINAL_REPAIR` are separate prompt builders and behaviors.
-- Context planning is initial/explicit; continued loops refresh state view unless forced replanning is requested.
-- USER_ASK uses Runtime pending input and checkpoint resume.
-- RAG verification is fact-triggered by actual RAG usage.
-- Tool approval is deterministic approve/reject, no free-text authorization for high-risk tools.
-- Final delivery owns assistant-message persistence and guard/repair/fallback.
-- Normal frontend/debug boundaries are separated.
-
-## Current Verification Baseline
-
-Recently verified:
-
-- `mvn -q -pl ai-agent-station-study-app -am '-Dtest=PromptAssemblerTest,FinalRepairServiceTest,FinalDeliveryServiceTest,RagVerifierRoutingTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
-- `mvn -q -DskipTests compile`
-
-Known verification note:
-
-- A full `mvn -q -pl ai-agent-station-study-app -am -DskipTests=false test` run timed out after 300 seconds during the memory/governance cleanup session. Treat full-suite verification as needing a split test matrix.
-
-## Next Work
-
-1. Implement memory phase 1 structured turns using the current `service/node/<node>` structure.
-2. Add async turn summary processing and deterministic recent-turn context injection.
-3. Continue RAG and MCP production testing after memory baseline is stable.
+- Started vector memory foundation planning.
+- Confirmed the user-approved architecture: MySQL and vector database are parallel recall sources.
+- Confirmed that neither MySQL nor vector recall should feed MainNode directly.
+- Created persistent plan files for plan-execute-replan workflow.
+- Re-aligned plan after user clarification:
+  - existing recent full turns and summary recall belong to MySQL candidate preparation
+  - existing async summary generation is transitional and should move under Memory GC
+  - implementation order is now table/infrastructure foundation, two candidate preparers, planner-to-main
+    injection, then full Memory GC
+- Added performance requirement: MySQL candidate preparation and vector candidate preparation must run
+  concurrently with timeout/fallback behavior, rather than sequentially.
+- Implemented vector memory domain foundation:
+  - vector collection/source/status enums
+  - vector record/query/filter/hit VOs
+  - vector memory and vector index repository ports
+  - Noop vector memory repository
+- Implemented vector hit source resolution:
+  - vector hits resolve back through turn summary, artifact, and memory repositories before Planner
+  - unresolved hits are dropped
+  - RAG hits are intentionally left for the RAG pipeline
+- Added MySQL vector index sync state:
+  - `agent_vector_index` DDL
+  - DAO, PO, mapper, and repository adapter
+- Added pgvector collection DDL for:
+  - `vec_turn_summary`
+  - `vec_conversation_summary`
+  - `vec_long_term_memory`
+  - `vec_user_preference`
+  - `vec_artifact_summary`
+  - `vec_artifact_chunk`
+  - `vec_rag_document`
+  - `vec_rag_chunk`
+- Updated context preparation to run MySQL and vector candidate preparation concurrently.
+- Verification:
+  - targeted tests passed: 23 tests, 0 failures
+  - compile passed: `mvn -q -DskipTests compile`
+  - `git diff --check` passed with line-ending warnings only
+- Next step: commit this checkpoint, then continue materialization alignment and later Memory GC.

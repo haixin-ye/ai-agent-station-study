@@ -1,61 +1,97 @@
-# AutoAgent Current Findings
+# AutoAgent Vector Memory Findings
 
-This file records current implementation guidance. Historical Node1-4 and `DynamicContext` notes are archived in older specs and should not be treated as active development rules.
+## Current Architecture Understanding
 
-## Current Architecture
+- Runtime owns lifecycle, routing, persistence, SSE events, pending input, final delivery, and recovery behavior.
+- MainAgentNode emits structured actions. It should not receive raw recall results.
+- ContextPlanner judges candidate relevance. It should receive candidate content and metadata, not final injected context.
+- Materialization turns selected candidates into final MainNode context.
 
-- AutoAgent uses a deterministic Java Runtime main loop.
-- `MainAgentNode` emits one structured `MainAgentAction`; Runtime routes the action to deterministic handlers.
-- `ContextPlannerNode` is used for initial context planning and selected explicit replanning, not as a mandatory step before every MainAgent call.
-- Continued-loop routing is centralized in `RuntimeRoutePolicy`.
-- RAG/tool/artifact modules return evidence, receipts, or state updates to Runtime; Runtime then returns to state-view building or MainAgent according to route policy.
-- `ASK_USER` is a Runtime pending-input pause/resume mechanism. It should resume from the stored checkpoint, not restart the user request from scratch.
-- Final answers are delivered only through final delivery and guard services. Trace/debug/verifier/tool data must not become normal assistant messages.
+## Memory System Understanding
 
-## Current Node Layout
+- `agent_turn` stores full completed question/answer turns.
+- `agent_turn_summary` stores per-turn summaries generated asynchronously.
+- `agent_memory_task` is the base task table for future memory work.
+- Recent full turns are fixed context. Older summaries and recalled candidates are planning candidates.
+- The latest 6 full turns are default materialization inputs, not something Planner needs to rediscover.
+- Existing recent full turns and summary recall should be treated as the MySQL candidate preparation
+  path.
+- Existing async turn summary generation is transitional. Long term it should become part of the Memory
+  GC machine.
 
-- Node entry services belong under `domain/agent/service/node/<node>/`.
-- Current node entry services:
-  - `service/node/contextplanner/ContextPlannerNodeService.java`
-  - `service/node/mainagent/MainAgentNodeService.java`
-  - `service/node/ragverifier/RagVerifierNodeService.java`
-  - `service/node/finalrepair/FinalRepairNodeService.java`
-- Future LLM node entry services should follow the same location, for example `service/node/turnsummary/TurnSummaryNodeService.java`.
-- Node entry services call `NodeInvocationPipeline`; they should not own shared parsing, contract validation, prompt assembly, or persistence logic.
+## MySQL Recall Role
 
-## DDD Package Rules
+MySQL recall is deterministic and rule based:
 
-- `service/**` contains behavior: services, handlers, routers, policies, builders, validators, pipelines, and node entry services.
-- Data carriers belong in `model/**`, not `service/**`.
-- `*VO`, `*Command`, `*Result`, `*Request`, `*Response`, and enums belong under `model/valobj/**` or `model/valobj/enums/**`.
-- Persistence entities belong under `model/entity/**`.
-- Domain repository ports belong under `adapter/repository/**`.
-- DAO, PO, mapper XML, and repository adapter implementations belong in `infrastructure`.
-- Spring bean assembly belongs in `app/config`.
-- HTTP/SSE controllers and web registries belong in `trigger`.
+- recent full turns by session/user/time
+- older summaries by session/user/time
+- active long-term memories by user/status
+- active user preferences by user/status
+- recent artifacts by session/user/time
+- later: keyword/type hints from user input can adjust scores and add candidate pools
 
-## Prompt And Contract Boundary
+MySQL recall can use fixed base scores because it has no semantic similarity score.
 
-- Java-owned contracts are the source of truth for structured outputs.
-- Database prompts are role/style/behavior configuration only.
-- `PromptAssembler` composes DB role prompts, shared Java-owned prompt layers, component prompt builders, output contracts, input view, and output-only instructions.
-- `CONTRACT_REPAIR` repairs JSON/contract shape only.
-- `FINAL_REPAIR` repairs the final user-facing answer only.
-- Do not merge `FinalRepairPromptBuilder` and `ContractRepairPromptBuilder` back into one generic repair prompt.
+## Vector Recall Role
 
-## Runtime And UI Boundary
+Vector recall is semantic:
 
-- Normal frontend consumes safe messages, user-visible run events, pending input, artifacts, and final response.
-- Debug details belong in debug APIs/logs/traces only.
-- Backend failures must produce terminal run events or safe failure output instead of leaving the frontend waiting indefinitely.
-- SSE reconnect/replay should preserve user view state and should not force-close expanded thinking/debug panels.
+- convert user input to embedding
+- search selected collections
+- return source type, source ID, score, and metadata
+- resolve the source ID through MySQL or RAG storage
+- produce the same candidate shape as MySQL recall
 
-## Memory Direction
+Vector storage is an index, not the business source of truth.
 
-- MySQL is the source of truth for conversation turns, summaries, artifacts, memory lifecycle, status, audit, and recovery.
-- Vector storage is semantic index only, never the only copy of important memory.
-- Recent context should be injected deterministically from MySQL before semantic recall:
-  - latest completed turns as full text;
-  - older recent turns as summaries.
-- ContextPlanner selects additional relevant artifacts, summaries, memory items, and evidence; MainAgent receives clean context with selection reasons.
-- Memory extraction, rolling summaries, vector indexing, merge, and GC should run asynchronously outside the user-facing critical path.
+## Candidate Flow
+
+The correct flow is:
+
+```text
+User input
+ -> MySQL rule recall
+ -> Vector semantic recall and source resolution
+ -> unified candidate list
+ -> candidate merge/dedupe/score normalization
+ -> ContextPlanner selection
+ -> Materializer final context loading
+ -> MainNode
+```
+
+MySQL recall and vector recall are parallel branches. They should run concurrently with bounded
+threads, timeouts, and branch-level fallback. MySQL deterministic recall should still proceed if vector
+recall is unavailable or slow.
+
+## Updated Development Sequence
+
+1. Complete MySQL and vector table/infrastructure foundations.
+2. Complete two parallel candidate preparers: MySQL candidate preparer and vector candidate preparer.
+   These two preparers must execute concurrently, then join into one candidate merge step.
+3. Complete candidate merge, ContextPlanner selection, and Materializer injection into MainNode.
+4. Build the full Memory GC machine:
+   - persist raw completed turns
+   - generate turn summaries after each completed turn
+   - generate rolling summaries by schedule or threshold
+   - extract long-term memories and user preferences after turns
+   - periodically merge, supersede, disable, or downgrade stale memories
+   - create artifact summaries/chunks
+   - synchronize MySQL source data with vector indexes
+
+## Collection Intent
+
+- `vec_turn_summary`: semantic search over individual turn summaries.
+- `vec_conversation_summary`: semantic search over rolling multi-turn summaries.
+- `vec_long_term_memory`: semantic search over stable user/project facts.
+- `vec_user_preference`: semantic search over response and workflow preferences.
+- `vec_artifact_summary`: semantic search over generated artifacts.
+- `vec_artifact_chunk`: semantic search inside large generated artifacts.
+- `vec_rag_document`: semantic search over external document summaries.
+- `vec_rag_chunk`: semantic search over external document chunks.
+
+## Implementation Boundary
+
+- Domain defines ports, VOs, policies, and orchestration.
+- Infrastructure implements MySQL and vector adapters.
+- App wires concrete beans.
+- Tests should focus on behavior at the domain/app boundary.

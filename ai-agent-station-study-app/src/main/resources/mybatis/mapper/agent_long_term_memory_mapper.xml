@@ -23,6 +23,13 @@
         )
     </insert>
 
+    <select id="queryByMemoryId" resultMap="AgentLongTermMemoryMap">
+        SELECT id, memory_id, user_id, session_id, memory_type, summary, content_ref, score, created_at, updated_at
+        FROM agent_long_term_memory
+        WHERE memory_id = #{memoryId}
+        LIMIT 1
+    </select>
+
     <select id="listCandidates" resultMap="AgentLongTermMemoryMap">
         SELECT id, memory_id, user_id, session_id, memory_type, summary, content_ref, score, created_at, updated_at
         FROM agent_long_term_memory
