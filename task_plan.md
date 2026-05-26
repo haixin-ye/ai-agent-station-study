@@ -91,6 +91,17 @@ Status: complete
 
 Status: in_progress
 
+- Memory redesign baseline is approved:
+  - rolling conversation summaries are replaced by session task summaries
+  - artifact context is logically deprecated for the new flow
+  - implementation plan is tracked in `docs/superpowers/plans/2026-05-26-auto-agent-memory-system-redesign.md`
+- Session task summary persistence foundation is available:
+  - `agent_session_task_summary`
+  - `AgentSessionTaskSummaryEntity`
+  - `ISessionTaskSummaryRepository`
+  - infrastructure DAO/mapper/repository adapter
+- Long-term memory lifecycle/source fields are available in schema and mapping.
+
 - Shared vector indexing foundation is available for GC tasks:
   - turn summaries -> `vec_turn_summary`
   - rolling conversation summaries -> `vec_conversation_summary`

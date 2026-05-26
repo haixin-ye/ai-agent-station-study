@@ -230,3 +230,17 @@
 - Verification:
   - targeted tests passed: 2 tests, 0 failures
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-26 Memory Redesign Implementation Start
+
+- Added implementation plan:
+  - `docs/superpowers/plans/2026-05-26-auto-agent-memory-system-redesign.md`
+- Completed Checkpoint 1 foundation:
+  - extended `agent_long_term_memory` with lifecycle/source fields
+  - added `agent_session_task_summary` table
+  - added `AgentSessionTaskSummaryEntity`
+  - added `ISessionTaskSummaryRepository`
+  - added session task summary DAO/PO/MyBatis mapper/repository adapter
+  - updated long-term memory PO/mapper/repository mapping for new lifecycle fields
+- Verification:
+  - compile passed: `mvn -q -DskipTests compile`

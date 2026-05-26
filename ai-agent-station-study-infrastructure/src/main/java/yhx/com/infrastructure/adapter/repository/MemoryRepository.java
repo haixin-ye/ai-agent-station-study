@@ -68,6 +68,9 @@ public class MemoryRepository implements IMemoryRepository {
         if (memory.getUpdatedAt() == null) {
             memory.setUpdatedAt(now);
         }
+        if (memory.getStatus() == null || memory.getStatus().isBlank()) {
+            memory.setStatus("ACTIVE");
+        }
         agentLongTermMemoryDao.insert(toPO(memory));
         return memory.getMemoryId();
     }
@@ -106,6 +109,13 @@ public class MemoryRepository implements IMemoryRepository {
                 .summary(entity.getSummary())
                 .contentRef(entity.getContentRef())
                 .score(entity.getScore())
+                .status(entity.getStatus())
+                .sourceRunId(entity.getSourceRunId())
+                .sourceTurnId(entity.getSourceTurnId())
+                .lastSeenAt(entity.getLastSeenAt())
+                .disabledAt(entity.getDisabledAt())
+                .supersededBy(entity.getSupersededBy())
+                .metadataJson(entity.getMetadataJson())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -132,6 +142,13 @@ public class MemoryRepository implements IMemoryRepository {
                 .summary(po.getSummary())
                 .contentRef(po.getContentRef())
                 .score(po.getScore())
+                .status(po.getStatus())
+                .sourceRunId(po.getSourceRunId())
+                .sourceTurnId(po.getSourceTurnId())
+                .lastSeenAt(po.getLastSeenAt())
+                .disabledAt(po.getDisabledAt())
+                .supersededBy(po.getSupersededBy())
+                .metadataJson(po.getMetadataJson())
                 .createdAt(po.getCreatedAt())
                 .updatedAt(po.getUpdatedAt())
                 .build();

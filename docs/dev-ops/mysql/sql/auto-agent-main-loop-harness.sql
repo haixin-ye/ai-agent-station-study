@@ -26,6 +26,7 @@ DROP TABLE IF EXISTS `agent_artifact`;
 DROP TABLE IF EXISTS `agent_payload`;
 DROP TABLE IF EXISTS `agent_memory_event`;
 DROP TABLE IF EXISTS `agent_long_term_memory`;
+DROP TABLE IF EXISTS `agent_session_task_summary`;
 DROP TABLE IF EXISTS `agent_conversation_summary`;
 DROP TABLE IF EXISTS `agent_session_memory`;
 DROP TABLE IF EXISTS `agent_run_transcript`;
@@ -245,15 +246,41 @@ CREATE TABLE `agent_long_term_memory` (
   `session_id` varchar(64) DEFAULT NULL,
   `memory_type` varchar(64) NOT NULL,
   `summary` varchar(512) DEFAULT NULL,
-  `content_ref` varchar(64) NOT NULL,
+  `content_ref` varchar(64) DEFAULT NULL,
   `score` decimal(8,4) DEFAULT NULL,
+  `status` varchar(64) NOT NULL DEFAULT 'ACTIVE',
+  `source_run_id` varchar(64) DEFAULT NULL,
+  `source_turn_id` varchar(64) DEFAULT NULL,
+  `last_seen_at` datetime DEFAULT NULL,
+  `disabled_at` datetime DEFAULT NULL,
+  `superseded_by` varchar(64) DEFAULT NULL,
+  `metadata_json` json DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_agent_long_term_memory_id` (`memory_id`),
-  KEY `idx_agent_long_term_memory_user` (`user_id`, `memory_type`),
-  KEY `idx_agent_long_term_memory_session` (`session_id`)
+  KEY `idx_agent_long_term_memory_user` (`user_id`, `memory_type`, `status`),
+  KEY `idx_agent_long_term_memory_session` (`session_id`, `status`),
+  KEY `idx_agent_long_term_memory_source_turn` (`source_turn_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent long-term memory';
+
+CREATE TABLE `agent_session_task_summary` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `summary_id` varchar(64) NOT NULL,
+  `session_id` varchar(64) NOT NULL,
+  `user_id` varchar(64) DEFAULT NULL,
+  `summary_ref` varchar(64) NOT NULL,
+  `version_no` int NOT NULL DEFAULT 1,
+  `source_turn_count` int DEFAULT NULL,
+  `source_latest_turn_id` varchar(64) DEFAULT NULL,
+  `source_latest_turn_no` bigint DEFAULT NULL,
+  `status` varchar(64) NOT NULL DEFAULT 'ACTIVE',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_session_task_summary_id` (`summary_id`),
+  KEY `idx_agent_session_task_summary_session` (`session_id`, `status`, `version_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent session task summary';
 
 CREATE TABLE `agent_memory_event` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,

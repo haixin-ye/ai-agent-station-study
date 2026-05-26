@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentSessionTaskSummaryDao">
+
+    <resultMap id="AgentSessionTaskSummaryMap" type="yhx.com.infrastructure.dao.po.AgentSessionTaskSummaryPO">
+        <id column="id" property="id"/>
+        <result column="summary_id" property="summaryId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="user_id" property="userId"/>
+        <result column="summary_ref" property="summaryRef"/>
+        <result column="version_no" property="versionNo"/>
+        <result column="source_turn_count" property="sourceTurnCount"/>
+        <result column="source_latest_turn_id" property="sourceLatestTurnId"/>
+        <result column="source_latest_turn_no" property="sourceLatestTurnNo"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentSessionTaskSummaryPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_session_task_summary (
+            summary_id, session_id, user_id, summary_ref, version_no,
+            source_turn_count, source_latest_turn_id, source_latest_turn_no,
+            status, created_at, updated_at
+        ) VALUES (
+            #{summaryId}, #{sessionId}, #{userId}, #{summaryRef}, #{versionNo},
+            #{sourceTurnCount}, #{sourceLatestTurnId}, #{sourceLatestTurnNo},
+            #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="queryActiveBySessionId" resultMap="AgentSessionTaskSummaryMap">
+        SELECT id, summary_id, session_id, user_id, summary_ref, version_no,
+               source_turn_count, source_latest_turn_id, source_latest_turn_no,
+               status, created_at, updated_at
+        FROM agent_session_task_summary
+        WHERE session_id = #{sessionId}
+          AND status = 'ACTIVE'
+        ORDER BY version_no DESC, updated_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="queryMaxVersionNo" resultType="int">
+        SELECT COALESCE(MAX(version_no), 0)
+        FROM agent_session_task_summary
+        WHERE session_id = #{sessionId}
+    </select>
+
+    <update id="updateActiveSuperseded">
+        UPDATE agent_session_task_summary
+        SET status = 'SUPERSEDED',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = #{sessionId}
+          AND status = 'ACTIVE'
+    </update>
+
+</mapper>
