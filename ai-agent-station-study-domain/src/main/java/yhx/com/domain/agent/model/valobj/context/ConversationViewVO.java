@@ -14,5 +14,6 @@ import java.util.List;
 public class ConversationViewVO {
 
     private List<MessageCandidateVO> recentMessages;
+    private SessionTaskSummaryViewVO sessionTaskSummary;
     private List<SummaryCandidateVO> summaries;
 }

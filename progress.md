@@ -272,3 +272,22 @@
   - optional extracted `content` is stored as a payload and referenced by `contentRef`
 - Verification:
   - targeted test passed: `LongTermMemoryGcWorkerTest`
+
+## 2026-05-26 Context Preparation Memory Redesign Alignment
+
+- Added `SessionTaskSummaryViewVO` and injected active session task summary into:
+  - `ContextCandidateBundleVO` for ContextPlanner input
+  - `ConversationViewVO` for MainAgent state view
+- Updated MySQL context preparation:
+  - active session task summary is loaded by `ISessionTaskSummaryRepository`
+  - latest 6 full turns and older 6 turn summaries remain in the turn window path
+  - artifact candidates are no longer produced by the new context preselector path
+- Updated vector recall:
+  - recall collections are limited to turn summaries, long-term memories, and user preferences
+  - artifact hits are ignored by the memory recall path
+- Updated ContextPlanner Java prompt and SQL seed prompt:
+  - session task summary is described as default task-state context
+  - artifact candidate guidance is marked deprecated/removed from selection policy
+- Verification:
+  - targeted tests passed: `ContextCandidatePreselectorTest`, `ContextMaterializationTest`, `VectorContextRecallPreselectorTest`, `PromptAssemblerTest`, `ContextPreparationServiceTest`
+  - compile passed: `mvn -q -DskipTests compile`

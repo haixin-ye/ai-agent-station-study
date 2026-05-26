@@ -50,8 +50,7 @@ public class ContextPreparationServiceTest {
             ContextCandidateBundleVO result = future.get(2, TimeUnit.SECONDS);
 
             Assert.assertEquals(2, result.getSessionSummaries().size());
-            Assert.assertEquals(1, result.getArtifactCandidates().size());
-            Assert.assertEquals(0.9, result.getArtifactCandidates().get(0).getSourceScore(), 0.001);
+            Assert.assertTrue(result.getArtifactCandidates().isEmpty());
             Assert.assertEquals(1, result.getMemoryCandidates().size());
         } finally {
             release.countDown();

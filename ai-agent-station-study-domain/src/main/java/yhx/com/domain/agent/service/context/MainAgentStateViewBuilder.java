@@ -18,6 +18,7 @@ public class MainAgentStateViewBuilder {
                 .userInput(command.getCandidates().getUserInput())
                 .conversation(ConversationViewVO.builder()
                         .recentMessages(mergedMessages(command))
+                        .sessionTaskSummary(command.getCandidates().getSessionTaskSummary())
                         .summaries(command.getConversationSummaries() == null ? List.of() : command.getConversationSummaries())
                         .build())
                 .memoryPack(command.getMemoryPack() == null ? List.of() : command.getMemoryPack())

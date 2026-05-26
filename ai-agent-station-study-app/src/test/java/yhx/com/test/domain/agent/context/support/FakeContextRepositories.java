@@ -5,6 +5,7 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.adapter.repository.ISessionTaskSummaryRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
@@ -15,6 +16,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEventEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentSessionEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentSessionTaskSummaryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 
@@ -24,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class FakeContextRepositories implements IConversationRepository, IArtifactRepository, IEvidenceRepository, IMemoryRepository, IPayloadRepository, ITurnRepository, ITurnSummaryRepository {
+public class FakeContextRepositories implements IConversationRepository, IArtifactRepository, IEvidenceRepository, IMemoryRepository, IPayloadRepository, ITurnRepository, ITurnSummaryRepository, ISessionTaskSummaryRepository {
 
     public final Map<String, AgentPayloadEntity> payloads = new HashMap<>();
     public final Map<String, AgentArtifactEntity> artifacts = new HashMap<>();
@@ -33,6 +35,7 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
     public final List<AgentMemoryEntity> memories = new ArrayList<>();
     public final List<AgentTurnEntity> turns = new ArrayList<>();
     public final List<AgentTurnSummaryEntity> turnSummaries = new ArrayList<>();
+    public final List<AgentSessionTaskSummaryEntity> sessionTaskSummaries = new ArrayList<>();
 
     @Override
     public String createSession(AgentSessionEntity session) {
@@ -206,6 +209,33 @@ public class FakeContextRepositories implements IConversationRepository, IArtifa
         turnSummaries.stream()
                 .filter(summary -> summaryIds.contains(summary.getSummaryId()))
                 .forEach(summary -> summary.setStatus("ROLLED_UP"));
+    }
+
+    @Override
+    public String saveSummary(AgentSessionTaskSummaryEntity summary) {
+        sessionTaskSummaries.add(summary);
+        return summary.getSummaryId();
+    }
+
+    @Override
+    public Optional<AgentSessionTaskSummaryEntity> findActiveBySessionId(String sessionId) {
+        return sessionTaskSummaries.stream()
+                .filter(summary -> sessionId == null || sessionId.equals(summary.getSessionId()))
+                .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                .findFirst();
+    }
+
+    @Override
+    public int nextVersionNo(String sessionId) {
+        return sessionTaskSummaries.size() + 1;
+    }
+
+    @Override
+    public void markActiveSuperseded(String sessionId) {
+        sessionTaskSummaries.stream()
+                .filter(summary -> sessionId == null || sessionId.equals(summary.getSessionId()))
+                .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                .forEach(summary -> summary.setStatus("SUPERSEDED"));
     }
 
     private long nullToZero(Long value) {

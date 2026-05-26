@@ -7,6 +7,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentEvidenceEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentSessionTaskSummaryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
@@ -31,31 +32,58 @@ public class ContextCandidatePreselectorTest {
         ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command(List.of(article("artifact-1", "RAG Article", "payload-artifact"))));
 
         Assert.assertEquals(1, bundle.getRecentMessages().size());
-        Assert.assertEquals(1, bundle.getArtifactCandidates().size());
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
         Assert.assertEquals(1, bundle.getMemoryCandidates().size());
         Assert.assertEquals(1, bundle.getEvidenceCandidates().size());
     }
 
     @Test
-    public void artifact_candidates_are_ranked_by_alias_title_and_recency() {
+    public void build_candidates_includes_active_session_task_summary_and_deprecates_artifact_candidates() {
+        FakeContextRepositories repos = fixture();
+        repos.artifacts.put("artifact-1", article("artifact-1", "RAG Article", "payload-artifact"));
+        repos.payloads.put("payload-session-task", AgentPayloadEntity.builder()
+                .payloadId("payload-session-task")
+                .content("{\"currentTask\":\"Complete AutoAgent memory redesign\"}")
+                .preview("Complete AutoAgent memory redesign")
+                .build());
+        repos.sessionTaskSummaries.add(AgentSessionTaskSummaryEntity.builder()
+                .summaryId("session-task-summary-1")
+                .sessionId("session-1")
+                .userId("user-1")
+                .summaryRef("payload-session-task")
+                .versionNo(1)
+                .status("ACTIVE")
+                .build());
+
+        ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos, repos, repos, repos)
+                .buildCandidates(command(List.of(article("artifact-seed", "Seed Article", "payload-artifact"))));
+
+        Assert.assertNotNull(bundle.getSessionTaskSummary());
+        Assert.assertEquals("session-task-summary-1", bundle.getSessionTaskSummary().getSummaryId());
+        Assert.assertTrue(bundle.getSessionTaskSummary().getSummary().contains("currentTask"));
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
+    }
+
+    @Test
+    public void artifact_candidates_are_deprecated_even_when_seeded() {
         FakeContextRepositories repos = fixture();
 
         ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command(List.of(
                 article("artifact-1", "Other", "payload-artifact"),
                 article("artifact-2", "RAG Article", "payload-artifact"))));
 
-        Assert.assertEquals("artifact-2", bundle.getArtifactCandidates().get(0).getArtifactId());
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
     }
 
     @Test
-    public void artifact_candidates_can_load_from_repository() {
+    public void artifact_candidates_are_deprecated_even_when_repository_has_matches() {
         FakeContextRepositories repos = fixture();
         repos.artifacts.put("artifact-1", article("artifact-1", "RAG Article", "payload-artifact"));
 
         ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos)
                 .buildCandidates(command(List.of()));
 
-        Assert.assertEquals("artifact-1", bundle.getArtifactCandidates().get(0).getArtifactId());
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
     }
 
     @Test
@@ -64,7 +92,7 @@ public class ContextCandidatePreselectorTest {
 
         ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command(List.of(article("artifact-1", "RAG Article", "payload-artifact"))));
 
-        Assert.assertNull(bundle.getArtifactCandidates().get(0).getStatus());
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
         Assert.assertFalse(bundle.toString().contains("FULL_ARTIFACT_BODY_SHOULD_NOT_APPEAR"));
     }
 
@@ -187,8 +215,7 @@ public class ContextCandidatePreselectorTest {
                         && summary.getArtifactRefs().contains("artifact-rag-1")));
         Assert.assertTrue(bundle.getFixedRecentMessages().isEmpty());
         Assert.assertTrue(bundle.getRecentMessages().isEmpty());
-        Assert.assertTrue(bundle.getArtifactCandidates().stream()
-                .anyMatch(artifact -> "artifact-rag-1".equals(artifact.getArtifactId())));
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
         Assert.assertFalse(bundle.toString().contains("FULL_RAG_ARTICLE_BODY_SHOULD_NOT_APPEAR_IN_CANDIDATES"));
     }
 

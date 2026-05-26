@@ -58,7 +58,7 @@ public class ContextPreparationService {
             return mysqlBundle;
         }
         mysqlBundle.setSessionSummaries(mergeSummaries(mysqlBundle.getSessionSummaries(), vectorBundle.getSessionSummaries()));
-        mysqlBundle.setArtifactCandidates(mergeArtifacts(mysqlBundle.getArtifactCandidates(), vectorBundle.getArtifactCandidates()));
+        mysqlBundle.setArtifactCandidates(List.of());
         mysqlBundle.setMemoryCandidates(mergeMemories(mysqlBundle.getMemoryCandidates(), vectorBundle.getMemoryCandidates()));
         if (mysqlBundle.getTokenBudget() != null) {
             mysqlBundle.getTokenBudget().setCurrentCandidateTokens(new ContextTokenEstimator().estimateObjectTokens(mysqlBundle));

@@ -277,17 +277,7 @@ public class ContextMaterializationTest {
 
     private MainAgentStateViewVO materialize(ContextLevelEnumVO level, int maxInlineChars) {
         FakeContextRepositories repos = fixture();
-        ContextCandidateBundleVO candidates = new ContextCandidatePreselector(repos, repos, repos, repos)
-                .buildCandidates(ContextPreparationCommand.builder()
-                        .runId("run-1")
-                        .sessionId("session-1")
-                        .userId("user-1")
-                        .agentId("agent-1")
-                        .userMessageId("msg-current")
-                        .userInput("rewrite RAG article")
-                        .artifactSeeds(List.of(article()))
-                        .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(maxInlineChars).build())
-                        .build());
+        ContextCandidateBundleVO candidates = artifactCandidates(maxInlineChars);
         ContextTokenEstimator estimator = new ContextTokenEstimator();
         ContextMaterializer materializer = new ContextMaterializer(
                 new ContextSelectionValidator(),
@@ -308,17 +298,7 @@ public class ContextMaterializationTest {
 
     private MainAgentStateViewVO materializeWithSelections(List<ContextSelectionVO> selections, int maxInlineChars) {
         FakeContextRepositories repos = fixture();
-        ContextCandidateBundleVO candidates = new ContextCandidatePreselector(repos, repos, repos, repos)
-                .buildCandidates(ContextPreparationCommand.builder()
-                        .runId("run-1")
-                        .sessionId("session-1")
-                        .userId("user-1")
-                        .agentId("agent-1")
-                        .userMessageId("msg-current")
-                        .userInput("rewrite RAG article")
-                        .artifactSeeds(List.of(article()))
-                        .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(maxInlineChars).build())
-                        .build());
+        ContextCandidateBundleVO candidates = artifactCandidates(maxInlineChars);
         ContextTokenEstimator estimator = new ContextTokenEstimator();
         ContextMaterializer materializer = new ContextMaterializer(
                 new ContextSelectionValidator(),
@@ -331,6 +311,24 @@ public class ContextMaterializationTest {
                 .forcedSelections(selections)
                 .tokenBudget(candidates.getTokenBudget())
                 .build());
+    }
+
+    private ContextCandidateBundleVO artifactCandidates(int maxInlineChars) {
+        return ContextCandidateBundleVO.builder()
+                .fixedRecentMessages(List.of())
+                .recentMessages(List.of())
+                .sessionSummaries(List.of())
+                .artifactCandidates(List.of(ArtifactCandidateVO.builder()
+                        .artifactId("artifact-1")
+                        .artifactType("ARTICLE")
+                        .title("RAG Article")
+                        .summary("RAG summary")
+                        .contentRef("payload-artifact")
+                        .build()))
+                .memoryCandidates(List.of())
+                .evidenceCandidates(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(maxInlineChars).build())
+                .build();
     }
 
     private AgentArtifactEntity article() {

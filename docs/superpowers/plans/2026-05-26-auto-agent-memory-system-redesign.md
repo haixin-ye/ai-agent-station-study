@@ -66,7 +66,7 @@ Use minimal necessary tests:
 - [x] Ensure extracted memory stores source run/turn and status `ACTIVE`.
 - [x] Add one focused prompt/worker test that ordinary Q&A output with empty memory list succeeds without saving memory.
 - [x] Compile.
-- [ ] Commit `agent: tighten long term memory extraction`.
+- [x] Commit `agent: tighten long term memory extraction`.
 
 ## Checkpoint 4: Context Preparation Without Artifacts
 
@@ -78,14 +78,14 @@ Use minimal necessary tests:
 - Modify `ContextPlannerPromptBuilder`.
 - Modify SQL seed prompt for `CONTEXT_PLANNER`.
 
-- [ ] Load latest active session task summary by session id.
-- [ ] Inject session task summary into planning context/state view.
-- [ ] Keep latest 6 full turns and 7-12 turn summaries.
-- [ ] Keep vector turn summary and long-term memory recall.
-- [ ] Stop producing artifact candidates in new context preparation path.
-- [ ] Remove artifact guidance from ContextPlanner prompt.
-- [ ] Add one context preparation test for session task summary injection and artifact candidate empty list.
-- [ ] Compile.
+- [x] Load latest active session task summary by session id.
+- [x] Inject session task summary into planning context/state view.
+- [x] Keep latest 6 full turns and 7-12 turn summaries.
+- [x] Keep vector turn summary and long-term memory recall.
+- [x] Stop producing artifact candidates in new context preparation path.
+- [x] Remove artifact guidance from ContextPlanner prompt.
+- [x] Add one context preparation test for session task summary injection and artifact candidate empty list.
+- [x] Compile.
 - [ ] Commit `agent: align context preparation with memory redesign`.
 
 ## Checkpoint 5: LLM Memory Governance Skeleton

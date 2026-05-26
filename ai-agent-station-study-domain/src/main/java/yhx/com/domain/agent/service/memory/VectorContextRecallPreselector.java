@@ -72,7 +72,6 @@ public class VectorContextRecallPreselector {
             return emptyBundle();
         }
         Map<String, SummaryCandidateVO> summaries = new LinkedHashMap<>();
-        Map<String, ArtifactCandidateVO> artifacts = new LinkedHashMap<>();
         Map<String, MemoryCandidateVO> memories = new LinkedHashMap<>();
         for (VectorRecallHitVO hit : hits) {
             if (hit == null || hit.getSourceType() == null || isBlank(hit.getSourceId())) {
@@ -80,8 +79,9 @@ public class VectorContextRecallPreselector {
             }
             switch (hit.getSourceType()) {
                 case TURN_SUMMARY, CONVERSATION_SUMMARY -> resolveSummary(hit).ifPresent(summary -> summaries.putIfAbsent(summary.getSummaryId(), summary));
-                case ARTIFACT_SUMMARY -> resolveArtifact(hit).ifPresent(artifact -> artifacts.putIfAbsent(artifact.getArtifactId(), artifact));
-                case ARTIFACT_CHUNK -> resolveArtifactChunk(hit).ifPresent(artifact -> artifacts.merge(artifact.getArtifactId(), artifact, this::mergeArtifactChunks));
+                case ARTIFACT_SUMMARY, ARTIFACT_CHUNK -> {
+                    // Artifact context is logically deprecated in the redesigned memory path.
+                }
                 case LONG_TERM_MEMORY, USER_PREFERENCE -> resolveMemory(hit).ifPresent(memory -> memories.putIfAbsent(memory.getMemoryId(), memory));
                 case RAG_DOCUMENT, RAG_CHUNK -> {
                     // RAG hits are resolved by the RAG pipeline; keep this preselector MySQL-backed for now.
@@ -90,7 +90,7 @@ public class VectorContextRecallPreselector {
         }
         return ContextCandidateBundleVO.builder()
                 .sessionSummaries(new ArrayList<>(summaries.values()))
-                .artifactCandidates(new ArrayList<>(artifacts.values()))
+                .artifactCandidates(List.of())
                 .memoryCandidates(new ArrayList<>(memories.values()))
                 .build();
     }
@@ -224,13 +224,8 @@ public class VectorContextRecallPreselector {
     private List<VectorCollectionTypeEnumVO> defaultCollections() {
         return List.of(
                 VectorCollectionTypeEnumVO.TURN_SUMMARY,
-                VectorCollectionTypeEnumVO.CONVERSATION_SUMMARY,
                 VectorCollectionTypeEnumVO.LONG_TERM_MEMORY,
-                VectorCollectionTypeEnumVO.USER_PREFERENCE,
-                VectorCollectionTypeEnumVO.ARTIFACT_SUMMARY,
-                VectorCollectionTypeEnumVO.ARTIFACT_CHUNK,
-                VectorCollectionTypeEnumVO.RAG_DOCUMENT,
-                VectorCollectionTypeEnumVO.RAG_CHUNK);
+                VectorCollectionTypeEnumVO.USER_PREFERENCE);
     }
 
     private ContextCandidateBundleVO emptyBundle() {

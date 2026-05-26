@@ -5,16 +5,19 @@ import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IEvidenceRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.adapter.repository.ISessionTaskSummaryRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentSessionTaskSummaryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.RunMetaVO;
+import yhx.com.domain.agent.model.valobj.context.SessionTaskSummaryViewVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
@@ -52,6 +55,7 @@ public class ContextCandidatePreselector {
     private final IPayloadRepository payloadRepository;
     private final ITurnRepository turnRepository;
     private final ITurnSummaryRepository turnSummaryRepository;
+    private final ISessionTaskSummaryRepository sessionTaskSummaryRepository;
     private final ContextTokenEstimator tokenEstimator;
     private final ArtifactCandidateRanker artifactCandidateRanker;
     private final MemoryCandidatePreselector memoryCandidatePreselector;
@@ -70,7 +74,7 @@ public class ContextCandidatePreselector {
                                        IMemoryRepository memoryRepository,
                                        IEvidenceRepository evidenceRepository,
                                        IPayloadRepository payloadRepository) {
-        this(conversationRepository, artifactRepository, memoryRepository, evidenceRepository, payloadRepository, null, null);
+        this(conversationRepository, artifactRepository, memoryRepository, evidenceRepository, payloadRepository, null, null, null);
     }
 
     public ContextCandidatePreselector(IConversationRepository conversationRepository,
@@ -80,6 +84,17 @@ public class ContextCandidatePreselector {
                                        IPayloadRepository payloadRepository,
                                        ITurnRepository turnRepository,
                                        ITurnSummaryRepository turnSummaryRepository) {
+        this(conversationRepository, artifactRepository, memoryRepository, evidenceRepository, payloadRepository, turnRepository, turnSummaryRepository, null);
+    }
+
+    public ContextCandidatePreselector(IConversationRepository conversationRepository,
+                                       IArtifactRepository artifactRepository,
+                                       IMemoryRepository memoryRepository,
+                                       IEvidenceRepository evidenceRepository,
+                                       IPayloadRepository payloadRepository,
+                                       ITurnRepository turnRepository,
+                                       ITurnSummaryRepository turnSummaryRepository,
+                                       ISessionTaskSummaryRepository sessionTaskSummaryRepository) {
         this.conversationRepository = conversationRepository;
         this.artifactRepository = artifactRepository;
         this.memoryRepository = memoryRepository;
@@ -87,6 +102,7 @@ public class ContextCandidatePreselector {
         this.payloadRepository = payloadRepository;
         this.turnRepository = turnRepository;
         this.turnSummaryRepository = turnSummaryRepository;
+        this.sessionTaskSummaryRepository = sessionTaskSummaryRepository;
         this.tokenEstimator = new ContextTokenEstimator();
         this.artifactCandidateRanker = new ArtifactCandidateRanker(tokenEstimator);
         this.memoryCandidatePreselector = new MemoryCandidatePreselector();
@@ -118,8 +134,9 @@ public class ContextCandidatePreselector {
                         .build())
                 .fixedRecentMessages(turnWindow.fixedMessages())
                 .recentMessages(turnWindow.planningMessages())
+                .sessionTaskSummary(activeSessionTaskSummary(command.getSessionId()))
                 .sessionSummaries(sessionSummaries)
-                .artifactCandidates(artifactCandidateRanker.rank(command.getUserInput(), artifactCandidates(command, artifactLimit, sessionSummaries), artifactLimit))
+                .artifactCandidates(List.of())
                 .memoryCandidates(memoryCandidatePreselector.select(command.getUserInput(),
                         memoryRepository.findMemoryCandidates(command.getUserId(), command.getSessionId(), command.getUserInput(), memoryLimit), memoryLimit))
                 .evidenceCandidates(evidenceCandidatePreselector.select(command.getUserInput(),
@@ -130,6 +147,29 @@ public class ContextCandidatePreselector {
                 .build();
         bundle.getTokenBudget().setCurrentCandidateTokens(tokenEstimator.estimateObjectTokens(bundle));
         return bundle;
+    }
+
+    private SessionTaskSummaryViewVO activeSessionTaskSummary(String sessionId) {
+        if (sessionTaskSummaryRepository == null) {
+            return null;
+        }
+        return sessionTaskSummaryRepository.findActiveBySessionId(sessionId)
+                .map(this::toSessionTaskSummaryView)
+                .orElse(null);
+    }
+
+    private SessionTaskSummaryViewVO toSessionTaskSummaryView(AgentSessionTaskSummaryEntity summary) {
+        String text = summary.getSummaryRef() == null ? null : payloadRepository.findPayload(summary.getSummaryRef())
+                .map(payload -> compactVisibleMessage(payload.getContent(), payload.getPreview()))
+                .orElse(null);
+        return SessionTaskSummaryViewVO.builder()
+                .summaryId(summary.getSummaryId())
+                .summary(text)
+                .summaryRef(summary.getSummaryRef())
+                .versionNo(summary.getVersionNo())
+                .sourceTurnCount(summary.getSourceTurnCount())
+                .sourceLatestTurnId(summary.getSourceLatestTurnId())
+                .build();
     }
 
     private List<AgentArtifactEntity> artifactCandidates(ContextPreparationCommand command, int artifactLimit, List<SummaryCandidateVO> sessionSummaries) {

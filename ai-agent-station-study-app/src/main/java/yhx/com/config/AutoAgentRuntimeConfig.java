@@ -243,14 +243,16 @@ public class AutoAgentRuntimeConfig {
                                                                    IEvidenceRepository evidenceRepository,
                                                                    IPayloadRepository payloadRepository,
                                                                    ITurnRepository turnRepository,
-                                                                   ITurnSummaryRepository turnSummaryRepository) {
+                                                                   ITurnSummaryRepository turnSummaryRepository,
+                                                                   ISessionTaskSummaryRepository sessionTaskSummaryRepository) {
         return new ContextCandidatePreselector(conversationRepository,
                 artifactRepository,
                 memoryRepository,
                 evidenceRepository,
                 payloadRepository,
                 turnRepository,
-                turnSummaryRepository);
+                turnSummaryRepository,
+                sessionTaskSummaryRepository);
     }
 
     @Bean

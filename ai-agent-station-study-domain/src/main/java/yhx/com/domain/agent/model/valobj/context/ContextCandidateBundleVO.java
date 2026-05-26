@@ -17,6 +17,7 @@ public class ContextCandidateBundleVO {
     private UserInputVO userInput;
     private List<MessageCandidateVO> fixedRecentMessages;
     private List<MessageCandidateVO> recentMessages;
+    private SessionTaskSummaryViewVO sessionTaskSummary;
     private List<SummaryCandidateVO> sessionSummaries;
     private List<ArtifactCandidateVO> artifactCandidates;
     private List<MemoryCandidateVO> memoryCandidates;

@@ -20,6 +20,8 @@ candidates for ContextPlanner. Nothing from recall is injected directly into Mai
 - ContextPlanner is not supposed to decide whether the latest 6 full turns exist.
 - ContextSelectionMergePolicy keeps the strongest context level for the same source.
 - Recent full turns suppress duplicate summaries from the same turn.
+- Active session task summary is loaded by MySQL context preparation and injected into Planner/MainNode context.
+- Artifact candidates are logically deprecated in the redesigned memory path and are no longer produced by context preparation.
 
 ## Design Decisions
 

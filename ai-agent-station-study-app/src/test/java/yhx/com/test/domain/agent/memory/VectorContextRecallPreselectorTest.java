@@ -40,7 +40,6 @@ public class VectorContextRecallPreselectorTest {
         FakeContextRepositories repos = fixture();
         FakeVectorMemoryRepository vector = new FakeVectorMemoryRepository(List.of(
                 hit(VectorCollectionTypeEnumVO.TURN_SUMMARY, VectorSourceTypeEnumVO.TURN_SUMMARY, "summary-1", 0.91),
-                hit(VectorCollectionTypeEnumVO.ARTIFACT_SUMMARY, VectorSourceTypeEnumVO.ARTIFACT_SUMMARY, "artifact-1", 0.88),
                 hit(VectorCollectionTypeEnumVO.LONG_TERM_MEMORY, VectorSourceTypeEnumVO.LONG_TERM_MEMORY, "memory-1", 0.77)));
 
         ContextCandidateBundleVO bundle = new VectorContextRecallPreselector(vector, repos, repos, repos, repos)
@@ -55,11 +54,11 @@ public class VectorContextRecallPreselectorTest {
         Assert.assertEquals(1, bundle.getSessionSummaries().size());
         Assert.assertEquals("summary payload about MCP article", bundle.getSessionSummaries().get(0).getSummary());
         Assert.assertEquals(ContextCandidateSourceChannelEnumVO.VECTOR_SEMANTIC.name(), bundle.getSessionSummaries().get(0).getSourceChannel());
-        Assert.assertEquals(1, bundle.getArtifactCandidates().size());
-        Assert.assertEquals("artifact-1", bundle.getArtifactCandidates().get(0).getArtifactId());
-        Assert.assertEquals(0.88, bundle.getArtifactCandidates().get(0).getSourceScore(), 0.001);
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
         Assert.assertEquals(1, bundle.getMemoryCandidates().size());
         Assert.assertEquals("memory-1", bundle.getMemoryCandidates().get(0).getMemoryId());
+        Assert.assertFalse(vector.queries.get(0).getFilter().getCollectionTypes().contains(VectorCollectionTypeEnumVO.ARTIFACT_SUMMARY));
+        Assert.assertFalse(vector.queries.get(0).getFilter().getCollectionTypes().contains(VectorCollectionTypeEnumVO.ARTIFACT_CHUNK));
     }
 
     @Test
@@ -83,7 +82,7 @@ public class VectorContextRecallPreselectorTest {
     }
 
     @Test
-    public void artifact_chunk_hit_resolves_parent_artifact_from_metadata_and_keeps_matched_chunk() {
+    public void artifact_chunk_hits_are_ignored_by_memory_recall() {
         FakeContextRepositories repos = fixture();
         FakeVectorMemoryRepository vector = new FakeVectorMemoryRepository(List.of(VectorRecallHitVO.builder()
                 .collectionType(VectorCollectionTypeEnumVO.ARTIFACT_CHUNK)
@@ -101,11 +100,7 @@ public class VectorContextRecallPreselectorTest {
                         .userInput("MCP tools resources 那段")
                         .build());
 
-        Assert.assertEquals(1, bundle.getArtifactCandidates().size());
-        Assert.assertEquals("artifact-1", bundle.getArtifactCandidates().get(0).getArtifactId());
-        Assert.assertEquals(1, bundle.getArtifactCandidates().get(0).getMatchedChunks().size());
-        Assert.assertEquals("artifact-1:chunk:002", bundle.getArtifactCandidates().get(0).getMatchedChunks().get(0).getChunkId());
-        Assert.assertEquals("MCP tools and resources detailed section", bundle.getArtifactCandidates().get(0).getMatchedChunks().get(0).getContent());
+        Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
     }
 
     private FakeContextRepositories fixture() {
