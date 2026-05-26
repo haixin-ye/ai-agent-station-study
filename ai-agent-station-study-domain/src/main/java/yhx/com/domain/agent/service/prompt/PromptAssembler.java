@@ -121,6 +121,9 @@ public class PromptAssembler {
         if (AgentComponentCodeEnumVO.SESSION_TASK_SUMMARY.name().equals(componentCode)) {
             return new SessionTaskSummaryPromptBuilder().build();
         }
+        if (AgentComponentCodeEnumVO.MEMORY_GOVERNANCE.name().equals(componentCode)) {
+            return new MemoryGovernancePromptBuilder().build();
+        }
         if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
             return new ConversationRollupPromptBuilder().build();
         }

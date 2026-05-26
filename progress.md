@@ -291,3 +291,23 @@
 - Verification:
   - targeted tests passed: `ContextCandidatePreselectorTest`, `ContextMaterializationTest`, `VectorContextRecallPreselectorTest`, `PromptAssemblerTest`, `ContextPreparationServiceTest`
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-26 Memory Governance GC Skeleton
+
+- Added `MEMORY_GOVERNANCE` component and Memory GC task type.
+- Added governance node service, prompt builder, output contract, output mapper, runtime config, and SQL seed rows.
+- Added governance VO contract:
+  - input: active session memories
+  - output: conservative actions for `KEEP`, `DISABLE`, `SUPERSEDE`, and `NOOP`
+- Added `MemoryGovernanceGcWorker`:
+  - loads active memories by session
+  - ignores unknown memory ids from LLM output
+  - updates MySQL memory lifecycle before disabling vector indexes
+  - records governance memory events
+- Infrastructure:
+  - `IMemoryRepository.listActiveMemoriesBySession`
+  - `IMemoryRepository.updateMemoryLifecycle`
+  - MyBatis DAO/mapper support for active session memory scan and lifecycle update
+- Verification:
+  - targeted test passed: `MemoryGovernanceGcWorkerTest`
+  - compile passed: `mvn -q -DskipTests compile`

@@ -19,6 +19,7 @@ public class OutputContractPromptRenderer {
             case "TURN_SUMMARY" -> renderTurnSummaryContract();
             case "MEMORY_EXTRACTOR" -> renderMemoryExtractionContract();
             case "SESSION_TASK_SUMMARY" -> renderSessionTaskSummaryContract();
+            case "MEMORY_GOVERNANCE" -> renderMemoryGovernanceContract();
             case "CONVERSATION_ROLLUP" -> renderConversationRollupContract();
             default -> "Return one JSON object that satisfies component contract version " + contractVersion + ".";
         };
@@ -164,6 +165,26 @@ public class OutputContractPromptRenderer {
                 Valid examples:
                 {"shouldUpdate":false,"mainTasks":[],"currentTask":null,"importantDecisions":[],"latestProgress":[],"openQuestions":[],"obsoleteTasks":[]}
                 {"shouldUpdate":true,"mainTasks":["Redesign AutoAgent memory system"],"currentTask":"Implement session task summary GC worker","importantDecisions":["Use MySQL for session task summary state"],"latestProgress":["Session task summary persistence exists"],"openQuestions":[],"obsoleteTasks":["Rolling conversation summary design"]}
+                """;
+    }
+
+    public String renderMemoryGovernanceContract() {
+        return """
+                Required contract version: memory-governance-output-v1
+
+                Required top-level fields:
+                - actions: array
+
+                Each actions item:
+                - action: KEEP, DISABLE, SUPERSEDE, or NOOP
+                - memoryId: memory id from input
+                - targetMemoryId: required only for SUPERSEDE
+                - reason: short diagnostic reason
+
+                Valid examples:
+                {"actions":[]}
+                {"actions":[{"action":"DISABLE","memoryId":"memory-1","targetMemoryId":null,"reason":"One-off task, not durable memory."}]}
+                {"actions":[{"action":"SUPERSEDE","memoryId":"memory-old","targetMemoryId":"memory-new","reason":"Newer memory replaces older preference."}]}
                 """;
     }
 

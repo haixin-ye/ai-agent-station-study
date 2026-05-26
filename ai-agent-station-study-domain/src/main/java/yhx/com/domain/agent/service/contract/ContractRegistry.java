@@ -28,6 +28,7 @@ public class ContractRegistry {
         register(map, AgentComponentCodeEnumVO.TURN_SUMMARY, "TurnSummaryOutputContract", "turn-summary-output-v1");
         register(map, AgentComponentCodeEnumVO.MEMORY_EXTRACTOR, "MemoryExtractionOutputContract", "memory-extraction-output-v1");
         register(map, AgentComponentCodeEnumVO.SESSION_TASK_SUMMARY, "SessionTaskSummaryOutputContract", "session-task-summary-output-v1");
+        register(map, AgentComponentCodeEnumVO.MEMORY_GOVERNANCE, "MemoryGovernanceOutputContract", "memory-governance-output-v1");
         register(map, AgentComponentCodeEnumVO.CONVERSATION_ROLLUP, "ConversationRollupOutputContract", "conversation-rollup-output-v1");
         register(map, AgentComponentCodeEnumVO.CONTRACT_REPAIR, "OriginalNodeContract", "original-node-contract");
         return new ContractRegistry(map);

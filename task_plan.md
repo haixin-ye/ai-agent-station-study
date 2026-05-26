@@ -142,6 +142,11 @@ Status: in_progress
 - GC task visibility entry is available:
   - `MemoryGcTaskQueryService` lists recent tasks by optional status
   - trigger layer exposes a task list endpoint for failure diagnosis
+- Memory governance skeleton is available:
+  - `MEMORY_GOVERNANCE` node and GC worker exist
+  - active session memories can be scanned for governance
+  - stale/invalid memories can be disabled or superseded with vector indexes disabled
+  - unknown LLM-referenced memory ids are ignored safely
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.

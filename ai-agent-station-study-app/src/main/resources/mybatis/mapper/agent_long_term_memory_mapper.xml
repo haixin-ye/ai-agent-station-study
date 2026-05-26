@@ -67,4 +67,24 @@
         LIMIT #{limit}
     </select>
 
+    <select id="listActiveBySession" resultMap="AgentLongTermMemoryMap">
+        SELECT id, memory_id, user_id, session_id, memory_type, summary, content_ref, score,
+               status, source_run_id, source_turn_id, last_seen_at, disabled_at, superseded_by, metadata_json,
+               created_at, updated_at
+        FROM agent_long_term_memory
+        WHERE session_id = #{sessionId}
+          AND status = 'ACTIVE'
+        ORDER BY updated_at DESC, score DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="updateLifecycle">
+        UPDATE agent_long_term_memory
+        SET status = #{status},
+            superseded_by = #{supersededBy},
+            disabled_at = CASE WHEN #{status} = 'DISABLED' THEN CURRENT_TIMESTAMP ELSE disabled_at END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE memory_id = #{memoryId}
+    </update>
+
 </mapper>

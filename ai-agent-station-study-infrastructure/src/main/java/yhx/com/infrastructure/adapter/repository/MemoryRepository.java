@@ -41,6 +41,11 @@ public class MemoryRepository implements IMemoryRepository {
     }
 
     @Override
+    public List<AgentMemoryEntity> listActiveMemoriesBySession(String sessionId, int limit) {
+        return agentLongTermMemoryDao.listActiveBySession(sessionId, limit).stream().map(this::toEntity).toList();
+    }
+
+    @Override
     public String saveConversationSummary(AgentConversationSummaryEntity summary) {
         if (summary.getSummaryId() == null || summary.getSummaryId().isBlank()) {
             summary.setSummaryId("summary-" + UUID.randomUUID());
@@ -73,6 +78,11 @@ public class MemoryRepository implements IMemoryRepository {
         }
         agentLongTermMemoryDao.insert(toPO(memory));
         return memory.getMemoryId();
+    }
+
+    @Override
+    public void updateMemoryLifecycle(String memoryId, String status, String supersededBy) {
+        agentLongTermMemoryDao.updateLifecycle(memoryId, status, supersededBy);
     }
 
     @Override

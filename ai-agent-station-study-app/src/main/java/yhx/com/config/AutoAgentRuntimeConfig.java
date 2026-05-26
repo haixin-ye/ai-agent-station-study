@@ -33,6 +33,7 @@ import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
 import yhx.com.domain.agent.service.node.conversationrollup.ConversationRollupNodeService;
 import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
+import yhx.com.domain.agent.service.node.memorygovernance.MemoryGovernanceNodeService;
 import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeService;
 import yhx.com.domain.agent.service.node.ragverifier.RagVerifierNodeService;
 import yhx.com.domain.agent.service.node.sessiontasksummary.SessionTaskSummaryNodeService;
@@ -73,6 +74,7 @@ import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.ConversationRollupGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.LongTermMemoryGcWorker;
+import yhx.com.domain.agent.service.memory.gc.worker.MemoryGovernanceGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.SessionTaskSummaryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
@@ -453,6 +455,13 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public MemoryGovernanceNodeService memoryGovernanceNodeService(NodeInvocationPipeline nodeInvocationPipeline,
+                                                                   NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new MemoryGovernanceNodeService(nodeInvocationPipeline,
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.MEMORY_GOVERNANCE.name()));
+    }
+
+    @Bean
     public ConversationRollupNodeService conversationRollupNodeService(NodeInvocationPipeline nodeInvocationPipeline,
                                                                        NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
         return new ConversationRollupNodeService(nodeInvocationPipeline,
@@ -515,6 +524,20 @@ public class AutoAgentRuntimeConfig {
                 sessionTaskSummaryRepository,
                 sessionTaskSummaryNodeService,
                 12);
+    }
+
+    @Bean
+    public MemoryGovernanceGcWorker memoryGovernanceGcWorker(IMemoryRepository memoryRepository,
+                                                             IMemoryTaskRepository memoryTaskRepository,
+                                                             IVectorMemoryRepository vectorMemoryRepository,
+                                                             IVectorIndexRepository vectorIndexRepository,
+                                                             MemoryGovernanceNodeService memoryGovernanceNodeService) {
+        return new MemoryGovernanceGcWorker(memoryRepository,
+                memoryTaskRepository,
+                vectorMemoryRepository,
+                vectorIndexRepository,
+                memoryGovernanceNodeService,
+                50);
     }
 
     @Bean

@@ -32,6 +32,9 @@ public class StaticPromptContentProvider implements PromptContentProvider {
         if (AgentComponentCodeEnumVO.SESSION_TASK_SUMMARY.name().equals(componentCode)) {
             return List.of("You are SessionTaskSummary. You maintain the latest task state for one chat session.");
         }
+        if (AgentComponentCodeEnumVO.MEMORY_GOVERNANCE.name().equals(componentCode)) {
+            return List.of("You are MemoryGovernance. You conservatively retire or supersede stale long-term memories.");
+        }
         if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
             return List.of("You are ConversationRollup. You compress multiple turn summaries into one rolling session summary.");
         }

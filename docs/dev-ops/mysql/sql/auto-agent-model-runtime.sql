@@ -97,6 +97,7 @@ VALUES
 ('amr-bind-turn-summary-001', 'TURN_SUMMARY', 'amr-model-main-001', 'v1', 'turn-summary-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-memory-extractor-001', 'MEMORY_EXTRACTOR', 'amr-model-main-001', 'v1', 'memory-extraction-output-v1', 0.000, 1200, 1, 1),
 ('amr-bind-session-task-summary-001', 'SESSION_TASK_SUMMARY', 'amr-model-main-001', 'v1', 'session-task-summary-output-v1', 0.100, 1200, 1, 1),
+('amr-bind-memory-governance-001', 'MEMORY_GOVERNANCE', 'amr-model-main-001', 'v1', 'memory-governance-output-v1', 0.000, 1200, 1, 1),
 ('amr-bind-conversation-rollup-001', 'CONVERSATION_ROLLUP', 'amr-model-main-001', 'v1', 'conversation-rollup-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-contract-repair-001', 'CONTRACT_REPAIR', 'amr-model-repair-001', 'v1', 'contract-repair-v1', 0.000, 1200, 1, 1)
 ON DUPLICATE KEY UPDATE
@@ -185,6 +186,17 @@ Prefer the latest user intent when older and newer tasks conflict. Keep fields c
 Do not create a rolling transcript summary. Do not include hidden reasoning. Do not invent facts not supported by the input.
 Return only the required session-task-summary-output-v1 JSON contract.',
 'SessionTaskSummary prompt v1', 0, 0),
+('amr-prompt-memory-governance-v1', 'PROMPT_CONTENT', 'DB',
+'You are MemoryGovernance, a bounded Memory GC component inside AutoAgent.
+You inspect existing long-term memories and preferences for one session.
+You do not answer the user, create new memories, or modify runtime state directly.
+Use KEEP when a memory is still useful and not conflicting.
+Use DISABLE when a memory is wrong, obsolete, duplicate noise, or not actually long-term.
+Use SUPERSEDE when one memory is replaced by a newer memory and targetMemoryId identifies the newer active memory.
+Only reference memoryId values present in the input. Do not invent ids.
+Be conservative: disabling a useful memory is worse than leaving it for a later governance pass.
+Return only the required memory-governance-output-v1 JSON contract.',
+'MemoryGovernance prompt v1', 0, 0),
 ('amr-prompt-conversation-rollup-v1', 'PROMPT_CONTENT', 'DB',
 'You are ConversationRollup, a bounded Memory GC component inside AutoAgent.
 You compress multiple completed turn summaries into one rolling conversation summary.
@@ -219,6 +231,7 @@ VALUES
 ('amr-node-prompt-turn-summary-v1', 'GLOBAL', 'TURN_SUMMARY', 'v1', 'amr-prompt-turn-summary-v1', 1),
 ('amr-node-prompt-memory-extractor-v1', 'GLOBAL', 'MEMORY_EXTRACTOR', 'v1', 'amr-prompt-memory-extractor-v1', 1),
 ('amr-node-prompt-session-task-summary-v1', 'GLOBAL', 'SESSION_TASK_SUMMARY', 'v1', 'amr-prompt-session-task-summary-v1', 1),
+('amr-node-prompt-memory-governance-v1', 'GLOBAL', 'MEMORY_GOVERNANCE', 'v1', 'amr-prompt-memory-governance-v1', 1),
 ('amr-node-prompt-conversation-rollup-v1', 'GLOBAL', 'CONVERSATION_ROLLUP', 'v1', 'amr-prompt-conversation-rollup-v1', 1),
 ('amr-node-prompt-contract-repair-v1', 'GLOBAL', 'CONTRACT_REPAIR', 'v1', 'amr-prompt-contract-repair-v1', 1)
 ON DUPLICATE KEY UPDATE

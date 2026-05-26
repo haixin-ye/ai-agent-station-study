@@ -13,9 +13,16 @@ public interface IMemoryRepository {
 
     Optional<AgentMemoryEntity> findMemory(String memoryId);
 
+    default List<AgentMemoryEntity> listActiveMemoriesBySession(String sessionId, int limit) {
+        return List.of();
+    }
+
     String saveConversationSummary(AgentConversationSummaryEntity summary);
 
     String saveLongTermMemory(AgentMemoryEntity memory);
+
+    default void updateMemoryLifecycle(String memoryId, String status, String supersededBy) {
+    }
 
     String recordMemoryEvent(AgentMemoryEventEntity event);
 }

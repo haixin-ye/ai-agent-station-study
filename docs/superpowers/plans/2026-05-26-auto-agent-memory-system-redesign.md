@@ -86,7 +86,7 @@ Use minimal necessary tests:
 - [x] Remove artifact guidance from ContextPlanner prompt.
 - [x] Add one context preparation test for session task summary injection and artifact candidate empty list.
 - [x] Compile.
-- [ ] Commit `agent: align context preparation with memory redesign`.
+- [x] Commit `agent: align context preparation with memory redesign`.
 
 ## Checkpoint 5: LLM Memory Governance Skeleton
 
@@ -97,12 +97,12 @@ Use minimal necessary tests:
 - Add `MemoryGovernanceGcWorker`.
 - Extend repository methods to update memory status and disable vector indexes.
 
-- [ ] Add LLM-driven governance contract with `KEEP`, `MERGE`, `SUPERSEDE`, `DISABLE`, `UPDATE`, `NOOP`.
-- [ ] Validate referenced memory ids before applying actions.
-- [ ] Update MySQL status first, then vector index state.
-- [ ] Write memory events.
-- [ ] Add one worker test for unknown memory id being rejected/ignored safely.
-- [ ] Compile.
+- [x] Add LLM-driven governance contract with `KEEP`, `SUPERSEDE`, `DISABLE`, and `NOOP`.
+- [x] Validate referenced memory ids before applying actions.
+- [x] Update MySQL status first, then vector index state.
+- [x] Write memory events.
+- [x] Add one worker test for unknown memory id being rejected/ignored safely.
+- [x] Compile.
 - [ ] Commit `agent: add memory governance gc skeleton`.
 
 ## Checkpoint 6: Verification
