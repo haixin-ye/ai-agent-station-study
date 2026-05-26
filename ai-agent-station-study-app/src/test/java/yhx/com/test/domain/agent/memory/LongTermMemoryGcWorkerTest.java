@@ -61,6 +61,44 @@ public class LongTermMemoryGcWorkerTest {
         Assert.assertEquals("USER_PREFERENCE", repositories.memories.get(1).getMemoryType());
         Assert.assertTrue(repositories.memories.get(0).getSummary().contains("AutoAgent memory system"));
         Assert.assertTrue(repositories.memories.get(1).getSummary().contains("detailed Chinese"));
+        Assert.assertEquals("ACTIVE", repositories.memories.get(0).getStatus());
+        Assert.assertEquals("run-1", repositories.memories.get(0).getSourceRunId());
+        Assert.assertEquals("turn-1", repositories.memories.get(0).getSourceTurnId());
+        Assert.assertNotNull(repositories.memories.get(0).getLastSeenAt());
+        Assert.assertNotNull(repositories.memories.get(0).getContentRef());
+    }
+
+    @Test
+    public void long_term_memory_worker_succeeds_without_saving_memory_when_extraction_is_empty() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType("LONG_TERM_MEMORY_EXTRACTION")
+                .turnId("turn-1")
+                .inputRef("payload-summary")
+                .status("PENDING")
+                .build());
+        repositories.turns.put("turn-1", AgentTurnEntity.builder()
+                .turnId("turn-1")
+                .runId("run-1")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("What is HTTP?").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("HTTP is an application-layer protocol.").build());
+        repositories.payloads.put("payload-summary", AgentPayloadEntity.builder().payloadId("payload-summary").content("{\"summary\":\"User asked a public-knowledge question about HTTP.\"}").build());
+        LongTermMemoryGcWorker worker = new LongTermMemoryGcWorker(repositories,
+                repositories,
+                repositories,
+                new MemoryManager(repositories),
+                new EmptyMemoryExtractionNodeService());
+
+        worker.handle("task-1");
+
+        Assert.assertEquals("SUCCEEDED", repositories.tasks.get(0).getStatus());
+        Assert.assertTrue(repositories.memories.isEmpty());
     }
 
     private static class StubMemoryExtractionNodeService extends MemoryExtractionNodeService {
@@ -77,6 +115,7 @@ public class LongTermMemoryGcWorkerTest {
                             ExtractedMemoryVO.builder()
                                     .memoryType("LONG_TERM_MEMORY")
                                     .summary("User is developing an AutoAgent memory system.")
+                                    .content("The user is developing an AutoAgent memory system and expects memory-related work to align with that project.")
                                     .score(new BigDecimal("0.85"))
                                     .build(),
                             ExtractedMemoryVO.builder()
@@ -85,6 +124,19 @@ public class LongTermMemoryGcWorkerTest {
                                     .score(new BigDecimal("0.90"))
                                     .build()))
                     .build();
+        }
+    }
+
+    private static class EmptyMemoryExtractionNodeService extends MemoryExtractionNodeService {
+        private EmptyMemoryExtractionNodeService() {
+            super(null);
+        }
+
+        @Override
+        public MemoryExtractionOutputVO extract(yhx.com.domain.agent.model.valobj.memory.MemoryExtractionInputVO input,
+                                                String agentId,
+                                                yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO profile) {
+            return MemoryExtractionOutputVO.builder().memories(List.of()).build();
         }
     }
 

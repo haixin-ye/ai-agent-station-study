@@ -260,3 +260,15 @@
 - Verification:
   - targeted tests passed: `TurnSummaryGcWorkerTest`, `SessionTaskSummaryGcWorkerTest`
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-26 Strict Long-Term Memory Extraction
+
+- Tightened MemoryExtractor Java prompt and SQL seed prompt:
+  - only profile, preference, habit, project background, constraints, identity, and stable ongoing-work facts qualify
+  - ordinary public-knowledge Q&A, generated content, one-off tasks, temporary instructions, and weak guesses must return `memories: []`
+- Updated `LongTermMemoryGcWorker` persistence:
+  - extracted memories now carry `status=ACTIVE`
+  - extracted memories carry `sourceRunId`, `sourceTurnId`, and `lastSeenAt`
+  - optional extracted `content` is stored as a payload and referenced by `contentRef`
+- Verification:
+  - targeted test passed: `LongTermMemoryGcWorkerTest`

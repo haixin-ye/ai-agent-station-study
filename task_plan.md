@@ -122,6 +122,8 @@ Status: in_progress
   - `TurnSummaryGcWorker` creates `LONG_TERM_MEMORY_EXTRACTION` follow-up tasks when needed
   - `LongTermMemoryGcWorker` saves extracted `LONG_TERM_MEMORY` and `USER_PREFERENCE` records
   - `MEMORY_EXTRACTOR` node contract and prompt are registered
+  - extractor prompt is strict: ordinary Q&A and one-off tasks should not become long-term memory
+  - saved memories include active status and source run/turn metadata
 - Rolling conversation summary worker is available:
   - `ConversationRollupGcWorker` consumes active turn summaries for a session
   - `CONVERSATION_ROLLUP` node creates a compact session-level summary

@@ -5,8 +5,10 @@ import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryTaskEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.valobj.enums.memory.MemoryTaskTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.memory.ExtractedMemoryVO;
 import yhx.com.domain.agent.model.valobj.memory.MemoryExtractionInputVO;
 import yhx.com.domain.agent.model.valobj.memory.MemoryExtractionOutputVO;
@@ -14,6 +16,7 @@ import yhx.com.domain.agent.service.memory.MemoryManager;
 import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeService;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class LongTermMemoryGcWorker implements MemoryGcTaskWorker {
@@ -80,9 +83,26 @@ public class LongTermMemoryGcWorker implements MemoryGcTaskWorker {
                     .sessionId(turn.getSessionId())
                     .memoryType(memoryType)
                     .summary(item.getSummary())
+                    .contentRef(saveContentIfPresent(item))
                     .score(item.getScore() == null ? new BigDecimal("0.50") : item.getScore())
+                    .status("ACTIVE")
+                    .sourceRunId(turn.getRunId())
+                    .sourceTurnId(turn.getTurnId())
+                    .lastSeenAt(LocalDateTime.now())
                     .build());
         }
+    }
+
+    private String saveContentIfPresent(ExtractedMemoryVO item) {
+        if (payloadRepository == null || item == null || isBlank(item.getContent())) {
+            return null;
+        }
+        return payloadRepository.savePayload(AgentPayloadEntity.builder()
+                .payloadType(PayloadTypeEnumVO.TEXT)
+                .content(item.getContent())
+                .preview(preview(item.getContent()))
+                .createdAt(LocalDateTime.now())
+                .build());
     }
 
     private String normalizeMemoryType(String memoryType) {
@@ -103,6 +123,13 @@ public class LongTermMemoryGcWorker implements MemoryGcTaskWorker {
             return null;
         }
         return message.length() <= MAX_FAILURE_MESSAGE_CHARS ? message : message.substring(0, MAX_FAILURE_MESSAGE_CHARS);
+    }
+
+    private String preview(String content) {
+        if (content == null) {
+            return null;
+        }
+        return content.length() <= 200 ? content : content.substring(0, 200);
     }
 
     private String firstNonBlank(String first, String second) {

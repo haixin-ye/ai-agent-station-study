@@ -52,7 +52,7 @@ Use minimal necessary tests:
 - [x] Stop scheduling `CONVERSATION_ROLLUP`.
 - [x] Keep old conversation rollup code present but unused.
 - [x] Compile.
-- [ ] Commit `agent: add session task summary gc`.
+- [x] Commit `agent: add session task summary gc`.
 
 ## Checkpoint 3: Strict Long-Term Memory Extraction
 
@@ -62,10 +62,10 @@ Use minimal necessary tests:
 - Modify `LongTermMemoryGcWorker`.
 - Modify `MemoryManager` / repository to store source fields and default status.
 
-- [ ] Tighten extractor prompt to profile/preference/project-background only.
-- [ ] Ensure extracted memory stores source run/turn and status `ACTIVE`.
-- [ ] Add one focused prompt/worker test that ordinary Q&A output with empty memory list succeeds without saving memory.
-- [ ] Compile.
+- [x] Tighten extractor prompt to profile/preference/project-background only.
+- [x] Ensure extracted memory stores source run/turn and status `ACTIVE`.
+- [x] Add one focused prompt/worker test that ordinary Q&A output with empty memory list succeeds without saving memory.
+- [x] Compile.
 - [ ] Commit `agent: tighten long term memory extraction`.
 
 ## Checkpoint 4: Context Preparation Without Artifacts
