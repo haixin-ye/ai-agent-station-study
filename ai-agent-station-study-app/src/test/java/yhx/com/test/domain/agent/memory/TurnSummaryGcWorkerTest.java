@@ -101,7 +101,8 @@ public class TurnSummaryGcWorkerTest {
                 new StubTurnSummaryNodeService(false),
                 null,
                 scheduler,
-                2);
+                2,
+                15);
 
         worker.handleTurn("task-1", "turn-2");
 
@@ -152,12 +153,63 @@ public class TurnSummaryGcWorkerTest {
                 new StubTurnSummaryNodeService(false),
                 null,
                 scheduler,
-                2);
+                2,
+                15);
 
         worker.handleTurn("task-1", "turn-2");
 
         Assert.assertEquals(2, repositories.tasks.size());
         Assert.assertTrue(rollupWorker.handledTaskIds.isEmpty());
+    }
+
+    @Test
+    public void turn_summary_worker_dispatches_session_task_summary_every_five_turns_and_governance_every_fifteen_turns() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-15", AgentTurnEntity.builder()
+                .turnId("turn-15")
+                .runId("run-15")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("turn 15 user").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("turn 15 answer").build());
+        for (int i = 1; i <= 14; i++) {
+            repositories.summaries.add(AgentTurnSummaryEntity.builder()
+                    .summaryId("turn-summary-" + i)
+                    .turnId("turn-" + i)
+                    .sessionId("session-1")
+                    .status("ACTIVE")
+                    .build());
+        }
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-15")
+                .status("PENDING")
+                .build());
+        RecordingWorker sessionTaskWorker = new RecordingWorker(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name());
+        RecordingWorker governanceWorker = new RecordingWorker(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name());
+        MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
+                new MemoryGcTaskDispatcher(Runnable::run, List.of(sessionTaskWorker, governanceWorker)));
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new StubTurnSummaryNodeService(false),
+                null,
+                scheduler,
+                5,
+                15);
+
+        worker.handleTurn("task-1", "turn-15");
+
+        Assert.assertEquals(3, repositories.tasks.size());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name(), repositories.tasks.get(2).getTaskType());
+        Assert.assertEquals(List.of("task-2"), sessionTaskWorker.handledTaskIds);
+        Assert.assertEquals(List.of("task-3"), governanceWorker.handledTaskIds);
     }
 
     private static class StubTurnSummaryNodeService extends TurnSummaryNodeService {
@@ -267,6 +319,14 @@ public class TurnSummaryGcWorkerTest {
                     .filter(summary -> "ACTIVE".equals(summary.getStatus()))
                     .limit(limit)
                     .toList();
+        }
+
+        @Override
+        public int countActiveSummaries(String sessionId) {
+            return (int) summaries.stream()
+                    .filter(summary -> sessionId.equals(summary.getSessionId()))
+                    .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                    .count();
         }
 
         @Override

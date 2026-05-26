@@ -17,5 +17,9 @@ public interface ITurnSummaryRepository {
 
     List<AgentTurnSummaryEntity> listRecentActiveSummaries(String sessionId, int limit);
 
+    default int countActiveSummaries(String sessionId) {
+        return listRecentActiveSummaries(sessionId, Integer.MAX_VALUE).size();
+    }
+
     void markSummariesRolledUp(List<String> summaryIds);
 }

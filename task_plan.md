@@ -147,6 +147,10 @@ Status: in_progress
   - active session memories can be scanned for governance
   - stale/invalid memories can be disabled or superseded with vector indexes disabled
   - unknown LLM-referenced memory ids are ignored safely
+- Memory GC automatic scheduling is available:
+  - `SESSION_TASK_SUMMARY` is scheduled every 5 active turn summaries
+  - `MEMORY_GOVERNANCE` is scheduled every 15 active turn summaries
+  - session task summary input uses `min(max(30, ceil(total * 0.7)), total)` active summaries
 - Move turn persistence and turn summary generation behind Memory GC orchestration where appropriate.
 - After each completed turn, persist raw turn and generate/store turn summary.
 - Upsert generated turn summaries into `vec_turn_summary`.

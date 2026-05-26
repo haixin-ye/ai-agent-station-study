@@ -523,7 +523,7 @@ public class AutoAgentRuntimeConfig {
                 payloadRepository,
                 sessionTaskSummaryRepository,
                 sessionTaskSummaryNodeService,
-                12);
+                30);
     }
 
     @Bean

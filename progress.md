@@ -311,3 +311,17 @@
 - Verification:
   - targeted test passed: `MemoryGovernanceGcWorkerTest`
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-26 Memory GC Scheduling Policy
+
+- Updated automatic Memory GC follow-up scheduling:
+  - every 5 active turn summaries triggers `SESSION_TASK_SUMMARY`
+  - every 15 active turn summaries triggers `MEMORY_GOVERNANCE`
+  - open same-session follow-up tasks are still deduped by `MemoryGcFollowupScheduler`
+- Updated `SessionTaskSummaryGcWorker` summary selection window:
+  - limit formula is `min(max(30, ceil(activeTurnSummaryCount * 0.7)), activeTurnSummaryCount)`
+  - Spring runtime config now uses 30 as the minimum summary window
+- Added active turn summary counting through repository/DAO/MyBatis.
+- Verification:
+  - targeted tests passed: `TurnSummaryGcWorkerTest`, `SessionTaskSummaryGcWorkerTest`
+  - compile passed: `mvn -q -DskipTests compile`

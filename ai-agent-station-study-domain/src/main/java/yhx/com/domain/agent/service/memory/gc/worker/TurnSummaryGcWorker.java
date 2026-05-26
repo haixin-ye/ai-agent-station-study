@@ -24,7 +24,8 @@ import java.util.UUID;
 public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
 
     private static final int MAX_FAILURE_MESSAGE_CHARS = 4000;
-    private static final int DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD = 12;
+    private static final int DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD = 5;
+    private static final int DEFAULT_MEMORY_GOVERNANCE_THRESHOLD = 15;
 
     private final ITurnRepository turnRepository;
     private final ITurnSummaryRepository summaryRepository;
@@ -34,6 +35,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
     private final MemoryVectorIndexingService vectorIndexingService;
     private final MemoryGcFollowupScheduler followupScheduler;
     private final int sessionTaskSummaryThreshold;
+    private final int memoryGovernanceThreshold;
 
     public TurnSummaryGcWorker(ITurnRepository turnRepository,
                                ITurnSummaryRepository summaryRepository,
@@ -58,7 +60,8 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                 nodeService,
                 vectorIndexingService,
                 followupScheduler,
-                DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD);
+                DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD,
+                DEFAULT_MEMORY_GOVERNANCE_THRESHOLD);
     }
 
     public TurnSummaryGcWorker(ITurnRepository turnRepository,
@@ -69,6 +72,26 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                                MemoryVectorIndexingService vectorIndexingService,
                                MemoryGcFollowupScheduler followupScheduler,
                                int sessionTaskSummaryThreshold) {
+        this(turnRepository,
+                summaryRepository,
+                taskRepository,
+                payloadRepository,
+                nodeService,
+                vectorIndexingService,
+                followupScheduler,
+                sessionTaskSummaryThreshold,
+                DEFAULT_MEMORY_GOVERNANCE_THRESHOLD);
+    }
+
+    public TurnSummaryGcWorker(ITurnRepository turnRepository,
+                               ITurnSummaryRepository summaryRepository,
+                               IMemoryTaskRepository taskRepository,
+                               IPayloadRepository payloadRepository,
+                               TurnSummaryNodeService nodeService,
+                               MemoryVectorIndexingService vectorIndexingService,
+                               MemoryGcFollowupScheduler followupScheduler,
+                               int sessionTaskSummaryThreshold,
+                               int memoryGovernanceThreshold) {
         this.turnRepository = turnRepository;
         this.summaryRepository = summaryRepository;
         this.taskRepository = taskRepository;
@@ -77,6 +100,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
         this.vectorIndexingService = vectorIndexingService;
         this.followupScheduler = followupScheduler;
         this.sessionTaskSummaryThreshold = sessionTaskSummaryThreshold <= 0 ? DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD : sessionTaskSummaryThreshold;
+        this.memoryGovernanceThreshold = memoryGovernanceThreshold <= 0 ? DEFAULT_MEMORY_GOVERNANCE_THRESHOLD : memoryGovernanceThreshold;
     }
 
     @Override
@@ -153,7 +177,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
         }
         taskRepository.markSucceeded(taskId, summaryRef);
         scheduleExtractionIfNeeded(turn, output, summaryRef);
-        scheduleSessionTaskSummaryIfNeeded(turn, summaryRef);
+        scheduleFollowupsByTurnCount(turn, summaryRef);
     }
 
     private void scheduleExtractionIfNeeded(AgentTurnEntity turn, TurnSummaryOutputVO output, String summaryRef) {
@@ -167,19 +191,29 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                 summaryRef);
     }
 
-    private void scheduleSessionTaskSummaryIfNeeded(AgentTurnEntity turn, String summaryRef) {
+    private void scheduleFollowupsByTurnCount(AgentTurnEntity turn, String summaryRef) {
         if (followupScheduler == null || turn.getSessionId() == null || turn.getSessionId().isBlank()) {
             return;
         }
-        List<AgentTurnSummaryEntity> activeSummaries = summaryRepository.listRecentActiveSummaries(turn.getSessionId(), sessionTaskSummaryThreshold);
-        if (activeSummaries == null || activeSummaries.size() < sessionTaskSummaryThreshold) {
-            return;
+        int activeCount = summaryRepository.countActiveSummaries(turn.getSessionId());
+        if (shouldSchedule(activeCount, sessionTaskSummaryThreshold)) {
+            followupScheduler.createAndDispatchIfNoOpenSessionTask(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(),
+                    turn.getTurnId(),
+                    turn.getRunId(),
+                    turn.getSessionId(),
+                    summaryRef);
         }
-        followupScheduler.createAndDispatchIfNoOpenSessionTask(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(),
-                turn.getTurnId(),
-                turn.getRunId(),
-                turn.getSessionId(),
-                summaryRef);
+        if (shouldSchedule(activeCount, memoryGovernanceThreshold)) {
+            followupScheduler.createAndDispatchIfNoOpenSessionTask(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name(),
+                    turn.getTurnId(),
+                    turn.getRunId(),
+                    turn.getSessionId(),
+                    summaryRef);
+        }
+    }
+
+    private boolean shouldSchedule(int activeCount, int threshold) {
+        return threshold > 0 && activeCount > 0 && activeCount % threshold == 0;
     }
 
     private String loadPayloadContent(String payloadRef) {

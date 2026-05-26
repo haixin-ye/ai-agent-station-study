@@ -61,6 +61,11 @@ public class TurnSummaryRepository implements ITurnSummaryRepository {
     }
 
     @Override
+    public int countActiveSummaries(String sessionId) {
+        return agentTurnSummaryDao.countActive(sessionId);
+    }
+
+    @Override
     public void markSummariesRolledUp(List<String> summaryIds) {
         if (summaryIds == null || summaryIds.isEmpty()) {
             return;

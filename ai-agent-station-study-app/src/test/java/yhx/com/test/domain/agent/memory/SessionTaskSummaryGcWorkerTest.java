@@ -78,6 +78,45 @@ public class SessionTaskSummaryGcWorkerTest {
         Assert.assertTrue(repositories.payloads.get(saved.getSummaryRef()).getContent().contains("currentTask"));
     }
 
+    @Test
+    public void session_task_summary_worker_uses_dynamic_summary_window() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType("SESSION_TASK_SUMMARY")
+                .runId("run-1")
+                .sessionId("session-1")
+                .turnId("turn-50")
+                .status("PENDING")
+                .build());
+        for (int i = 1; i <= 50; i++) {
+            repositories.turnSummaries.add(AgentTurnSummaryEntity.builder()
+                    .summaryId("turn-summary-" + i)
+                    .turnId("turn-" + i)
+                    .sessionId("session-1")
+                    .userId("user-1")
+                    .summaryRef("payload-summary-" + i)
+                    .status("ACTIVE")
+                    .build());
+            repositories.payloads.put("payload-summary-" + i, AgentPayloadEntity.builder()
+                    .payloadId("payload-summary-" + i)
+                    .content("summary " + i)
+                    .build());
+        }
+        RecordingSessionTaskSummaryNodeService nodeService = new RecordingSessionTaskSummaryNodeService();
+        SessionTaskSummaryGcWorker worker = new SessionTaskSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                nodeService,
+                30);
+
+        worker.handle("task-1");
+
+        Assert.assertEquals("SUCCEEDED", repositories.tasks.get(0).getStatus());
+        Assert.assertEquals(35, nodeService.lastInput.getSummaries().size());
+    }
+
     private static class StubSessionTaskSummaryNodeService extends SessionTaskSummaryNodeService {
         private StubSessionTaskSummaryNodeService() {
             super(null);
@@ -96,6 +135,18 @@ public class SessionTaskSummaryGcWorkerTest {
                     .openQuestions(List.of())
                     .obsoleteTasks(List.of())
                     .build();
+        }
+    }
+
+    private static class RecordingSessionTaskSummaryNodeService extends StubSessionTaskSummaryNodeService {
+        private yhx.com.domain.agent.model.valobj.memory.SessionTaskSummaryInputVO lastInput;
+
+        @Override
+        public SessionTaskSummaryOutputVO summarize(yhx.com.domain.agent.model.valobj.memory.SessionTaskSummaryInputVO input,
+                                                    String agentId,
+                                                    yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO profile) {
+            this.lastInput = input;
+            return super.summarize(input, agentId, profile);
         }
     }
 
@@ -133,6 +184,14 @@ public class SessionTaskSummaryGcWorkerTest {
                     .filter(summary -> "ACTIVE".equals(summary.getStatus()))
                     .limit(limit)
                     .toList();
+        }
+
+        @Override
+        public int countActiveSummaries(String sessionId) {
+            return (int) turnSummaries.stream()
+                    .filter(summary -> sessionId.equals(summary.getSessionId()))
+                    .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                    .count();
         }
 
         @Override

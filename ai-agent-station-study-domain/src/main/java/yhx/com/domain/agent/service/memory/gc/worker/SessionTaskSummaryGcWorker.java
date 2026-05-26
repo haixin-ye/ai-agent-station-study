@@ -23,26 +23,27 @@ import java.util.UUID;
 public class SessionTaskSummaryGcWorker implements MemoryGcTaskWorker {
 
     private static final int MAX_FAILURE_MESSAGE_CHARS = 4000;
+    private static final int DEFAULT_MIN_SUMMARY_WINDOW = 30;
 
     private final ITurnSummaryRepository turnSummaryRepository;
     private final IMemoryTaskRepository taskRepository;
     private final IPayloadRepository payloadRepository;
     private final ISessionTaskSummaryRepository sessionTaskSummaryRepository;
     private final SessionTaskSummaryNodeService nodeService;
-    private final int summaryLimit;
+    private final int minSummaryWindow;
 
     public SessionTaskSummaryGcWorker(ITurnSummaryRepository turnSummaryRepository,
                                       IMemoryTaskRepository taskRepository,
                                       IPayloadRepository payloadRepository,
                                       ISessionTaskSummaryRepository sessionTaskSummaryRepository,
                                       SessionTaskSummaryNodeService nodeService,
-                                      int summaryLimit) {
+                                      int minSummaryWindow) {
         this.turnSummaryRepository = turnSummaryRepository;
         this.taskRepository = taskRepository;
         this.payloadRepository = payloadRepository;
         this.sessionTaskSummaryRepository = sessionTaskSummaryRepository;
         this.nodeService = nodeService;
-        this.summaryLimit = summaryLimit <= 0 ? 12 : summaryLimit;
+        this.minSummaryWindow = minSummaryWindow <= 0 ? DEFAULT_MIN_SUMMARY_WINDOW : minSummaryWindow;
     }
 
     @Override
@@ -56,6 +57,8 @@ public class SessionTaskSummaryGcWorker implements MemoryGcTaskWorker {
             taskRepository.markRunning(taskId);
             AgentMemoryTaskEntity task = taskRepository.findByTaskId(taskId)
                     .orElseThrow(() -> new IllegalArgumentException("Memory task not found: " + taskId));
+            int activeCount = turnSummaryRepository.countActiveSummaries(task.getSessionId());
+            int summaryLimit = summaryLimit(activeCount);
             List<AgentTurnSummaryEntity> summaries = turnSummaryRepository.listRecentActiveSummaries(task.getSessionId(), summaryLimit);
             if (summaries == null || summaries.isEmpty()) {
                 throw new IllegalStateException("No active turn summaries for session task summary: " + task.getSessionId());
@@ -111,6 +114,14 @@ public class SessionTaskSummaryGcWorker implements MemoryGcTaskWorker {
                 .summary(loadPayloadContent(summary.getSummaryRef()))
                 .intent(summary.getIntent())
                 .build();
+    }
+
+    private int summaryLimit(int activeCount) {
+        if (activeCount <= 0) {
+            return minSummaryWindow;
+        }
+        int seventyPercent = (int) Math.ceil(activeCount * 0.7d);
+        return Math.min(Math.max(minSummaryWindow, seventyPercent), activeCount);
     }
 
     private String loadPayloadContent(String payloadRef) {

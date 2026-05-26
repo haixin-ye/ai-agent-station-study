@@ -19,5 +19,7 @@ public interface IAgentTurnSummaryDao {
 
     List<AgentTurnSummaryPO> listRecentActive(@Param("sessionId") String sessionId, @Param("limit") int limit);
 
+    int countActive(@Param("sessionId") String sessionId);
+
     int updateStatusBySummaryIds(@Param("summaryIds") List<String> summaryIds, @Param("status") String status);
 }

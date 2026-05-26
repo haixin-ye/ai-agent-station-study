@@ -73,6 +73,13 @@
         LIMIT #{limit}
     </select>
 
+    <select id="countActive" resultType="int">
+        SELECT COUNT(1)
+        FROM agent_turn_summary
+        WHERE session_id = #{sessionId}
+          AND status = 'ACTIVE'
+    </select>
+
     <update id="updateStatusBySummaryIds">
         UPDATE agent_turn_summary
         SET status = #{status},
