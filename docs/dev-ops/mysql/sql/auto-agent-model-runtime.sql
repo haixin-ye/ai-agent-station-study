@@ -96,6 +96,7 @@ VALUES
 ('amr-bind-final-repair-001', 'FINAL_REPAIR', 'amr-model-repair-001', 'v1', 'main-agent-action-v1', 0.100, 1200, 1, 1),
 ('amr-bind-turn-summary-001', 'TURN_SUMMARY', 'amr-model-main-001', 'v1', 'turn-summary-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-memory-extractor-001', 'MEMORY_EXTRACTOR', 'amr-model-main-001', 'v1', 'memory-extraction-output-v1', 0.000, 1200, 1, 1),
+('amr-bind-session-task-summary-001', 'SESSION_TASK_SUMMARY', 'amr-model-main-001', 'v1', 'session-task-summary-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-conversation-rollup-001', 'CONVERSATION_ROLLUP', 'amr-model-main-001', 'v1', 'conversation-rollup-output-v1', 0.100, 1200, 1, 1),
 ('amr-bind-contract-repair-001', 'CONTRACT_REPAIR', 'amr-model-repair-001', 'v1', 'contract-repair-v1', 0.000, 1200, 1, 1)
 ON DUPLICATE KEY UPDATE
@@ -173,6 +174,16 @@ Return an empty memories array for trivial greetings, one-off tasks, temporary i
 Do not include hidden reasoning. Do not invent facts that are not present in the completed turn.
 Return only the required memory-extraction-output-v1 JSON contract.',
 'MemoryExtractor prompt v1', 0, 0),
+('amr-prompt-session-task-summary-v1', 'PROMPT_CONTENT', 'DB',
+'You are SessionTaskSummary, a bounded Memory GC component inside AutoAgent.
+You maintain the latest task state for one chat session from ordered turn summaries.
+You do not answer the user, create long-term memory directly, call tools, or modify runtime state.
+Read previousTaskSummary and the ordered turn summaries. Track the user''s main tasks, current active task, important decisions, latest progress, open questions, and obsolete tasks.
+Set shouldUpdate=false only when the new summaries add no meaningful task-state change.
+Prefer the latest user intent when older and newer tasks conflict. Keep fields compact, concrete, and useful for future context planning.
+Do not create a rolling transcript summary. Do not include hidden reasoning. Do not invent facts not supported by the input.
+Return only the required session-task-summary-output-v1 JSON contract.',
+'SessionTaskSummary prompt v1', 0, 0),
 ('amr-prompt-conversation-rollup-v1', 'PROMPT_CONTENT', 'DB',
 'You are ConversationRollup, a bounded Memory GC component inside AutoAgent.
 You compress multiple completed turn summaries into one rolling conversation summary.
@@ -206,6 +217,7 @@ VALUES
 ('amr-node-prompt-final-repair-v1', 'GLOBAL', 'FINAL_REPAIR', 'v1', 'amr-prompt-final-repair-v1', 1),
 ('amr-node-prompt-turn-summary-v1', 'GLOBAL', 'TURN_SUMMARY', 'v1', 'amr-prompt-turn-summary-v1', 1),
 ('amr-node-prompt-memory-extractor-v1', 'GLOBAL', 'MEMORY_EXTRACTOR', 'v1', 'amr-prompt-memory-extractor-v1', 1),
+('amr-node-prompt-session-task-summary-v1', 'GLOBAL', 'SESSION_TASK_SUMMARY', 'v1', 'amr-prompt-session-task-summary-v1', 1),
 ('amr-node-prompt-conversation-rollup-v1', 'GLOBAL', 'CONVERSATION_ROLLUP', 'v1', 'amr-prompt-conversation-rollup-v1', 1),
 ('amr-node-prompt-contract-repair-v1', 'GLOBAL', 'CONTRACT_REPAIR', 'v1', 'amr-prompt-contract-repair-v1', 1)
 ON DUPLICATE KEY UPDATE

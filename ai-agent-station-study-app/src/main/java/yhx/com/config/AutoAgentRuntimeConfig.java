@@ -22,6 +22,7 @@ import yhx.com.domain.agent.adapter.repository.IRagExecutionRepository;
 import yhx.com.domain.agent.adapter.repository.IRunDiagnosticRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
 import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
+import yhx.com.domain.agent.adapter.repository.ISessionTaskSummaryRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
 import yhx.com.domain.agent.adapter.repository.IVectorIndexRepository;
@@ -34,6 +35,7 @@ import yhx.com.domain.agent.service.node.conversationrollup.ConversationRollupNo
 import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
 import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeService;
 import yhx.com.domain.agent.service.node.ragverifier.RagVerifierNodeService;
+import yhx.com.domain.agent.service.node.sessiontasksummary.SessionTaskSummaryNodeService;
 import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
 import yhx.com.domain.agent.service.artifact.ArtifactManager;
 import yhx.com.domain.agent.service.artifact.ArtifactPayloadLoader;
@@ -71,6 +73,7 @@ import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.ConversationRollupGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.LongTermMemoryGcWorker;
+import yhx.com.domain.agent.service.memory.gc.worker.SessionTaskSummaryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
@@ -441,6 +444,13 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public SessionTaskSummaryNodeService sessionTaskSummaryNodeService(NodeInvocationPipeline nodeInvocationPipeline,
+                                                                       NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new SessionTaskSummaryNodeService(nodeInvocationPipeline,
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.SESSION_TASK_SUMMARY.name()));
+    }
+
+    @Bean
     public ConversationRollupNodeService conversationRollupNodeService(NodeInvocationPipeline nodeInvocationPipeline,
                                                                        NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
         return new ConversationRollupNodeService(nodeInvocationPipeline,
@@ -489,6 +499,20 @@ public class AutoAgentRuntimeConfig {
                 payloadRepository,
                 memoryManager,
                 memoryExtractionNodeService);
+    }
+
+    @Bean
+    public SessionTaskSummaryGcWorker sessionTaskSummaryGcWorker(ITurnSummaryRepository turnSummaryRepository,
+                                                                 IMemoryTaskRepository memoryTaskRepository,
+                                                                 IPayloadRepository payloadRepository,
+                                                                 ISessionTaskSummaryRepository sessionTaskSummaryRepository,
+                                                                 SessionTaskSummaryNodeService sessionTaskSummaryNodeService) {
+        return new SessionTaskSummaryGcWorker(turnSummaryRepository,
+                memoryTaskRepository,
+                payloadRepository,
+                sessionTaskSummaryRepository,
+                sessionTaskSummaryNodeService,
+                12);
     }
 
     @Bean

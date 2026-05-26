@@ -24,7 +24,7 @@ import java.util.UUID;
 public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
 
     private static final int MAX_FAILURE_MESSAGE_CHARS = 4000;
-    private static final int DEFAULT_ROLLUP_THRESHOLD = 12;
+    private static final int DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD = 12;
 
     private final ITurnRepository turnRepository;
     private final ITurnSummaryRepository summaryRepository;
@@ -33,7 +33,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
     private final TurnSummaryNodeService nodeService;
     private final MemoryVectorIndexingService vectorIndexingService;
     private final MemoryGcFollowupScheduler followupScheduler;
-    private final int rollupThreshold;
+    private final int sessionTaskSummaryThreshold;
 
     public TurnSummaryGcWorker(ITurnRepository turnRepository,
                                ITurnSummaryRepository summaryRepository,
@@ -58,7 +58,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                 nodeService,
                 vectorIndexingService,
                 followupScheduler,
-                DEFAULT_ROLLUP_THRESHOLD);
+                DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD);
     }
 
     public TurnSummaryGcWorker(ITurnRepository turnRepository,
@@ -68,7 +68,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                                TurnSummaryNodeService nodeService,
                                MemoryVectorIndexingService vectorIndexingService,
                                MemoryGcFollowupScheduler followupScheduler,
-                               int rollupThreshold) {
+                               int sessionTaskSummaryThreshold) {
         this.turnRepository = turnRepository;
         this.summaryRepository = summaryRepository;
         this.taskRepository = taskRepository;
@@ -76,7 +76,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
         this.nodeService = nodeService;
         this.vectorIndexingService = vectorIndexingService;
         this.followupScheduler = followupScheduler;
-        this.rollupThreshold = rollupThreshold <= 0 ? DEFAULT_ROLLUP_THRESHOLD : rollupThreshold;
+        this.sessionTaskSummaryThreshold = sessionTaskSummaryThreshold <= 0 ? DEFAULT_SESSION_TASK_SUMMARY_THRESHOLD : sessionTaskSummaryThreshold;
     }
 
     @Override
@@ -153,7 +153,7 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
         }
         taskRepository.markSucceeded(taskId, summaryRef);
         scheduleExtractionIfNeeded(turn, output, summaryRef);
-        scheduleRollupIfNeeded(turn, summaryRef);
+        scheduleSessionTaskSummaryIfNeeded(turn, summaryRef);
     }
 
     private void scheduleExtractionIfNeeded(AgentTurnEntity turn, TurnSummaryOutputVO output, String summaryRef) {
@@ -167,15 +167,15 @@ public class TurnSummaryGcWorker implements MemoryGcTaskWorker {
                 summaryRef);
     }
 
-    private void scheduleRollupIfNeeded(AgentTurnEntity turn, String summaryRef) {
+    private void scheduleSessionTaskSummaryIfNeeded(AgentTurnEntity turn, String summaryRef) {
         if (followupScheduler == null || turn.getSessionId() == null || turn.getSessionId().isBlank()) {
             return;
         }
-        List<AgentTurnSummaryEntity> activeSummaries = summaryRepository.listRecentActiveSummaries(turn.getSessionId(), rollupThreshold);
-        if (activeSummaries == null || activeSummaries.size() < rollupThreshold) {
+        List<AgentTurnSummaryEntity> activeSummaries = summaryRepository.listRecentActiveSummaries(turn.getSessionId(), sessionTaskSummaryThreshold);
+        if (activeSummaries == null || activeSummaries.size() < sessionTaskSummaryThreshold) {
             return;
         }
-        followupScheduler.createAndDispatchIfNoOpenSessionTask(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name(),
+        followupScheduler.createAndDispatchIfNoOpenSessionTask(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(),
                 turn.getTurnId(),
                 turn.getRunId(),
                 turn.getSessionId(),

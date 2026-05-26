@@ -244,3 +244,19 @@
   - updated long-term memory PO/mapper/repository mapping for new lifecycle fields
 - Verification:
   - compile passed: `mvn -q -DskipTests compile`
+
+## 2026-05-26 Session Task Summary GC
+
+- Added `SESSION_TASK_SUMMARY` as a node component and Memory GC task type.
+- Added session task summary node contract, prompt builder, node service, output mapper, static fallback prompt, and runtime SQL seed rows.
+- Added `SessionTaskSummaryGcWorker`:
+  - reads recent active turn summaries for the session
+  - includes the previous active session task summary when present
+  - calls the bounded `SESSION_TASK_SUMMARY` node
+  - supersedes the old active session task summary and saves a new active version when `shouldUpdate=true`
+- Updated `TurnSummaryGcWorker`:
+  - threshold follow-up now schedules `SESSION_TASK_SUMMARY`
+  - old `CONVERSATION_ROLLUP` worker/code remains available but is no longer scheduled from turn summary GC
+- Verification:
+  - targeted tests passed: `TurnSummaryGcWorkerTest`, `SessionTaskSummaryGcWorkerTest`
+  - compile passed: `mvn -q -DskipTests compile`

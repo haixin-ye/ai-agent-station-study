@@ -67,7 +67,7 @@ public class TurnSummaryGcWorkerTest {
     }
 
     @Test
-    public void turn_summary_worker_dispatches_conversation_rollup_when_active_summary_threshold_is_reached() {
+    public void turn_summary_worker_dispatches_session_task_summary_when_active_summary_threshold_is_reached() {
         FakeRepositories repositories = new FakeRepositories();
         repositories.turns.put("turn-2", AgentTurnEntity.builder()
                 .turnId("turn-2")
@@ -91,7 +91,7 @@ public class TurnSummaryGcWorkerTest {
                 .turnId("turn-2")
                 .status("PENDING")
                 .build());
-        RecordingWorker rollupWorker = new RecordingWorker(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name());
+        RecordingWorker rollupWorker = new RecordingWorker(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name());
         MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
                 new MemoryGcTaskDispatcher(Runnable::run, List.of(rollupWorker)));
         TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
@@ -106,13 +106,13 @@ public class TurnSummaryGcWorkerTest {
         worker.handleTurn("task-1", "turn-2");
 
         Assert.assertEquals(2, repositories.tasks.size());
-        Assert.assertEquals(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(), repositories.tasks.get(1).getTaskType());
         Assert.assertEquals("session-1", repositories.tasks.get(1).getSessionId());
         Assert.assertEquals(List.of("task-2"), rollupWorker.handledTaskIds);
     }
 
     @Test
-    public void turn_summary_worker_does_not_dispatch_duplicate_open_conversation_rollup() {
+    public void turn_summary_worker_does_not_dispatch_duplicate_open_session_task_summary() {
         FakeRepositories repositories = new FakeRepositories();
         repositories.turns.put("turn-2", AgentTurnEntity.builder()
                 .turnId("turn-2")
@@ -138,11 +138,11 @@ public class TurnSummaryGcWorkerTest {
                 .build());
         repositories.tasks.add(AgentMemoryTaskEntity.builder()
                 .taskId("task-rollup-open")
-                .taskType(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name())
+                .taskType(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name())
                 .sessionId("session-1")
                 .status("PENDING")
                 .build());
-        RecordingWorker rollupWorker = new RecordingWorker(MemoryTaskTypeEnumVO.CONVERSATION_ROLLUP.name());
+        RecordingWorker rollupWorker = new RecordingWorker(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name());
         MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
                 new MemoryGcTaskDispatcher(Runnable::run, List.of(rollupWorker)));
         TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,

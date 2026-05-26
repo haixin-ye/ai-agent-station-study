@@ -10,6 +10,7 @@ import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.invocation.VerificationResultVO;
 import yhx.com.domain.agent.model.valobj.memory.ConversationRollupOutputVO;
 import yhx.com.domain.agent.model.valobj.memory.MemoryExtractionOutputVO;
+import yhx.com.domain.agent.model.valobj.memory.SessionTaskSummaryOutputVO;
 import yhx.com.domain.agent.model.valobj.memory.TurnSummaryOutputVO;
 
 public class NodeOutputMapper {
@@ -37,6 +38,9 @@ public class NodeOutputMapper {
         }
         if (AgentComponentCodeEnumVO.MEMORY_EXTRACTOR.name().equals(componentCode)) {
             return jsonObject.toJavaObject(MemoryExtractionOutputVO.class);
+        }
+        if (AgentComponentCodeEnumVO.SESSION_TASK_SUMMARY.name().equals(componentCode)) {
+            return jsonObject.toJavaObject(SessionTaskSummaryOutputVO.class);
         }
         if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
             return jsonObject.toJavaObject(ConversationRollupOutputVO.class);

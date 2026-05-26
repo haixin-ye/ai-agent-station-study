@@ -101,6 +101,11 @@ Status: in_progress
   - `ISessionTaskSummaryRepository`
   - infrastructure DAO/mapper/repository adapter
 - Long-term memory lifecycle/source fields are available in schema and mapping.
+- Session task summary GC is available:
+  - `SESSION_TASK_SUMMARY` component and memory task type are registered
+  - `SessionTaskSummaryNodeService` and prompt/contract mapping are registered
+  - `SessionTaskSummaryGcWorker` saves active session task summary versions
+  - `TurnSummaryGcWorker` now schedules session task summary follow-up tasks instead of conversation rollups
 
 - Shared vector indexing foundation is available for GC tasks:
   - turn summaries -> `vec_turn_summary`

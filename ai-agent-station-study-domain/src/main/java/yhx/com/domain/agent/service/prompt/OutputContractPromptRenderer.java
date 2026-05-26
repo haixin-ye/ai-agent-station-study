@@ -18,6 +18,7 @@ public class OutputContractPromptRenderer {
             case "CONTRACT_REPAIR" -> renderRepairContract(componentCode, contractVersion);
             case "TURN_SUMMARY" -> renderTurnSummaryContract();
             case "MEMORY_EXTRACTOR" -> renderMemoryExtractionContract();
+            case "SESSION_TASK_SUMMARY" -> renderSessionTaskSummaryContract();
             case "CONVERSATION_ROLLUP" -> renderConversationRollupContract();
             default -> "Return one JSON object that satisfies component contract version " + contractVersion + ".";
         };
@@ -144,6 +145,25 @@ public class OutputContractPromptRenderer {
 
                 Valid example:
                 {"summary":"User planned an AutoAgent memory architecture, approved MySQL/vector parallel recall, and the agent implemented vector indexing and GC worker foundations."}
+                """;
+    }
+
+    public String renderSessionTaskSummaryContract() {
+        return """
+                Required contract version: session-task-summary-output-v1
+
+                Required top-level fields:
+                - shouldUpdate: boolean
+                - mainTasks: array of strings
+                - currentTask: nullable string
+                - importantDecisions: array of strings
+                - latestProgress: array of strings
+                - openQuestions: array of strings
+                - obsoleteTasks: array of strings
+
+                Valid examples:
+                {"shouldUpdate":false,"mainTasks":[],"currentTask":null,"importantDecisions":[],"latestProgress":[],"openQuestions":[],"obsoleteTasks":[]}
+                {"shouldUpdate":true,"mainTasks":["Redesign AutoAgent memory system"],"currentTask":"Implement session task summary GC worker","importantDecisions":["Use MySQL for session task summary state"],"latestProgress":["Session task summary persistence exists"],"openQuestions":[],"obsoleteTasks":["Rolling conversation summary design"]}
                 """;
     }
 

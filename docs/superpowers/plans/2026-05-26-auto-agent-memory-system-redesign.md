@@ -34,7 +34,7 @@ Use minimal necessary tests:
 - [x] Add domain entity and repository port.
 - [x] Add infra repository and mapper.
 - [x] Add one repository-focused test or compile-only verification if mapper coverage is too heavy.
-- [ ] Commit `agent: add session task summary persistence`.
+- [x] Commit `agent: add session task summary persistence`.
 
 ## Checkpoint 2: Session Task Summary Node And Worker
 
@@ -47,11 +47,11 @@ Use minimal necessary tests:
 - Modify `AutoAgentRuntimeConfig`.
 - Modify `docs/dev-ops/mysql/sql/auto-agent-model-runtime.sql`.
 
-- [ ] Add `SESSION_TASK_SUMMARY` component and memory task enum.
-- [ ] Add minimal worker test: threshold creates session task summary task and worker saves active version.
-- [ ] Stop scheduling `CONVERSATION_ROLLUP`.
-- [ ] Keep old conversation rollup code present but unused.
-- [ ] Compile.
+- [x] Add `SESSION_TASK_SUMMARY` component and memory task enum.
+- [x] Add minimal worker test: threshold creates session task summary task and worker saves active version.
+- [x] Stop scheduling `CONVERSATION_ROLLUP`.
+- [x] Keep old conversation rollup code present but unused.
+- [x] Compile.
 - [ ] Commit `agent: add session task summary gc`.
 
 ## Checkpoint 3: Strict Long-Term Memory Extraction
