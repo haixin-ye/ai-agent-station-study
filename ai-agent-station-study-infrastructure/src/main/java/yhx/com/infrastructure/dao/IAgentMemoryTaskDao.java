@@ -15,6 +15,12 @@ public interface IAgentMemoryTaskDao {
 
     int countOpenTask(@Param("taskType") String taskType, @Param("sessionId") String sessionId);
 
+    int countOpenTaskByType(@Param("taskType") String taskType);
+
+    int countTaskByTypeAndTurn(@Param("taskType") String taskType, @Param("turnId") String turnId);
+
+    int countOpenTaskByTypeAndTurn(@Param("taskType") String taskType, @Param("turnId") String turnId);
+
     List<AgentMemoryTaskPO> listRetryableFailedTasks(@Param("maxAttempts") int maxAttempts, @Param("limit") int limit);
 
     List<AgentMemoryTaskPO> listTasks(@Param("status") String status, @Param("limit") int limit);

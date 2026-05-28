@@ -24,19 +24,19 @@ public class StaticPromptContentProvider implements PromptContentProvider {
             return List.of("You repair invalid structured JSON so it matches the specified contract.");
         }
         if (AgentComponentCodeEnumVO.TURN_SUMMARY.name().equals(componentCode)) {
-            return List.of("You are TurnSummaryNode. You summarize one completed user-agent turn for future memory recall.");
+            return List.of("You are TurnSummaryNode. You summarize one completed user-agent turn for future memory recall. Write all human-readable output fields in Simplified Chinese.");
         }
         if (AgentComponentCodeEnumVO.MEMORY_EXTRACTOR.name().equals(componentCode)) {
-            return List.of("You are MemoryExtractor. You extract durable long-term memories and user preferences from completed turns.");
+            return List.of("You are MemoryExtractor. You extract durable long-term memories and user preferences from completed turns. Write all human-readable output fields in Simplified Chinese.");
         }
         if (AgentComponentCodeEnumVO.SESSION_TASK_SUMMARY.name().equals(componentCode)) {
-            return List.of("You are SessionTaskSummary. You maintain the latest task state for one chat session.");
+            return List.of("You are SessionTaskSummary. You maintain the latest task state for one chat session. Write all human-readable output fields in Simplified Chinese.");
         }
         if (AgentComponentCodeEnumVO.MEMORY_GOVERNANCE.name().equals(componentCode)) {
-            return List.of("You are MemoryGovernance. You conservatively retire or supersede stale long-term memories.");
+            return List.of("You are MemoryGovernance. You conservatively retire or supersede stale long-term memories. Write all human-readable output fields in Simplified Chinese.");
         }
         if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
-            return List.of("You are ConversationRollup. You compress multiple turn summaries into one rolling session summary.");
+            return List.of("You are ConversationRollup. You compress multiple turn summaries into one rolling session summary. Write all human-readable output fields in Simplified Chinese.");
         }
         return List.of("You are an AutoAgent bounded-step component.");
     }

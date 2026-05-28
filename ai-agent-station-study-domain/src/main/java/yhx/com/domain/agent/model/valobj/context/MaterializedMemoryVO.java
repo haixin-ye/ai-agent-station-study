@@ -14,4 +14,5 @@ public class MaterializedMemoryVO {
     private String memoryId;
     private String memoryType;
     private String summary;
+    private String content;
 }

@@ -1,5 +1,6 @@
 package yhx.com.domain.agent.service.memory.gc.worker;
 
+import com.alibaba.fastjson.JSON;
 import yhx.com.domain.agent.adapter.repository.IMemoryTaskRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
@@ -17,11 +18,18 @@ import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeSe
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class LongTermMemoryGcWorker implements MemoryGcTaskWorker {
 
     private static final int MAX_FAILURE_MESSAGE_CHARS = 4000;
+    private static final Pattern EXPLICIT_USER_NAME_PATTERN = Pattern.compile(
+            "(?:我叫|我的名字是|我的昵称是|我的称呼是|叫我)([^，。,.!?！？\\s]{1,32})");
 
     private final ITurnRepository turnRepository;
     private final IMemoryTaskRepository taskRepository;
@@ -54,19 +62,61 @@ public class LongTermMemoryGcWorker implements MemoryGcTaskWorker {
                     .orElseThrow(() -> new IllegalArgumentException("Memory task not found: " + taskId));
             AgentTurnEntity turn = turnRepository.findByTurnId(task.getTurnId())
                     .orElseThrow(() -> new IllegalArgumentException("Turn not found: " + task.getTurnId()));
+            String userInput = loadPayloadContent(turn.getUserPayloadRef());
+            String finalAnswer = loadPayloadContent(turn.getAssistantPayloadRef());
+            String turnSummary = loadPayloadContent(task.getInputRef());
             MemoryExtractionOutputVO output = nodeService.extract(MemoryExtractionInputVO.builder()
                     .runId(turn.getRunId())
                     .sessionId(turn.getSessionId())
                     .turnId(turn.getTurnId())
-                    .userInput(loadPayloadContent(turn.getUserPayloadRef()))
-                    .finalAnswer(loadPayloadContent(turn.getAssistantPayloadRef()))
-                    .turnSummary(loadPayloadContent(task.getInputRef()))
+                    .userInput(userInput)
+                    .finalAnswer(finalAnswer)
+                    .turnSummary(turnSummary)
                     .build(), turn.getAgentId(), null);
-            saveMemories(turn, output == null ? List.of() : output.getMemories());
+            List<ExtractedMemoryVO> memories = output == null ? List.of() : output.getMemories();
+            saveMemories(turn, enrichWithDeterministicIdentityFallback(userInput, memories));
             taskRepository.markSucceeded(taskId, null);
         } catch (Exception e) {
             taskRepository.markFailed(taskId, "LONG_TERM_MEMORY_EXTRACTION_FAILED", truncate(e.getMessage()));
         }
+    }
+
+    private List<ExtractedMemoryVO> enrichWithDeterministicIdentityFallback(String userInput, List<ExtractedMemoryVO> memories) {
+        if (memories != null && memories.stream().anyMatch(memory -> memory != null && !isBlank(memory.getSummary()))) {
+            return memories;
+        }
+        String displayName = explicitDisplayName(userInput);
+        if (isBlank(displayName)) {
+            return memories == null ? List.of() : memories;
+        }
+        List<ExtractedMemoryVO> enriched = new ArrayList<>();
+        if (memories != null) {
+            enriched.addAll(memories);
+        }
+        enriched.add(ExtractedMemoryVO.builder()
+                .memoryType("LONG_TERM_MEMORY")
+                .summary("用户的称呼或昵称是" + displayName + "。")
+                .content("用户明确表示自己叫" + displayName + "，后续可以用该称呼识别用户。")
+                .recallText("用户姓名、名字、称呼、昵称、我叫什么、我的名字是" + displayName + "。用户希望被称为" + displayName + "。")
+                .score(new BigDecimal("0.90"))
+                .reason("用户输入中包含明确的自我称呼表达。")
+                .build());
+        return enriched;
+    }
+
+    private String explicitDisplayName(String userInput) {
+        if (isBlank(userInput)) {
+            return null;
+        }
+        Matcher matcher = EXPLICIT_USER_NAME_PATTERN.matcher(userInput);
+        if (!matcher.find()) {
+            return null;
+        }
+        String name = matcher.group(1);
+        if (name == null) {
+            return null;
+        }
+        return name.trim();
     }
 
     private void saveMemories(AgentTurnEntity turn, List<ExtractedMemoryVO> memories) {
@@ -89,20 +139,52 @@ public class LongTermMemoryGcWorker implements MemoryGcTaskWorker {
                     .sourceRunId(turn.getRunId())
                     .sourceTurnId(turn.getTurnId())
                     .lastSeenAt(LocalDateTime.now())
+                    .metadataJson(metadataJson(item))
                     .build());
         }
     }
 
     private String saveContentIfPresent(ExtractedMemoryVO item) {
-        if (payloadRepository == null || item == null || isBlank(item.getContent())) {
+        String content = firstNonBlank(item == null ? null : item.getContent(), item == null ? null : item.getSummary());
+        if (payloadRepository == null || item == null || isBlank(content)) {
             return null;
         }
         return payloadRepository.savePayload(AgentPayloadEntity.builder()
                 .payloadType(PayloadTypeEnumVO.TEXT)
-                .content(item.getContent())
-                .preview(preview(item.getContent()))
+                .content(content)
+                .preview(preview(content))
                 .createdAt(LocalDateTime.now())
                 .build());
+    }
+
+    private String metadataJson(ExtractedMemoryVO item) {
+        if (item == null) {
+            return null;
+        }
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("recallText", recallText(item));
+        if (!isBlank(item.getReason())) {
+            metadata.put("reason", item.getReason());
+        }
+        return metadata.isEmpty() ? null : JSON.toJSONString(metadata);
+    }
+
+    private String recallText(ExtractedMemoryVO item) {
+        String recallText = item == null ? null : item.getRecallText();
+        if (!isBlank(recallText)) {
+            return recallText;
+        }
+        String summary = item == null ? null : item.getSummary();
+        String content = item == null ? null : item.getContent();
+        String memoryType = normalizeMemoryType(item == null ? null : item.getMemoryType());
+        String base = firstNonBlank(summary, content);
+        if (isBlank(base)) {
+            return null;
+        }
+        if ("USER_PREFERENCE".equals(memoryType)) {
+            return "用户偏好、回答风格、喜欢、希望以后、默认回答方式：" + base;
+        }
+        return "用户信息、用户画像、身份、称呼、名字、家乡、居住地、所在城市、来自哪里、个人背景：" + base;
     }
 
     private String normalizeMemoryType(String memoryType) {

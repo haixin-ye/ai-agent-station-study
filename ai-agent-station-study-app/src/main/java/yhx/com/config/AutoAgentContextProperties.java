@@ -14,4 +14,5 @@ public class AutoAgentContextProperties {
     private int maxSelectedMemories = 8;
     private int maxSelectedEvidence = 8;
     private int maxContextCompression = 2;
+    private long vectorRecallTimeoutMillis = 8000;
 }

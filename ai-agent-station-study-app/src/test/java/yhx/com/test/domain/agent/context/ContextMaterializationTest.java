@@ -4,6 +4,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextMaterializationCommand;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
@@ -128,6 +129,72 @@ public class ContextMaterializationTest {
     }
 
     @Test
+    public void full_text_turn_summary_materializes_original_user_and_assistant_messages() {
+        ContextTokenEstimator estimator = new ContextTokenEstimator();
+        FakeContextRepositories repos = fixture();
+        repos.payloads.put("payload-user-turn-1", AgentPayloadEntity.builder()
+                .payloadId("payload-user-turn-1")
+                .payloadType(PayloadTypeEnumVO.TEXT)
+                .content("用户原始问题全文：请介绍故事里出现的西安地标。")
+                .preview("用户原始问题预览")
+                .build());
+        repos.payloads.put("payload-assistant-turn-1", AgentPayloadEntity.builder()
+                .payloadId("payload-assistant-turn-1")
+                .payloadType(PayloadTypeEnumVO.TEXT)
+                .content("助手原始回答全文：西安城墙、钟楼和大雁塔分别是...")
+                .preview("助手原始回答预览")
+                .build());
+        repos.turns.add(AgentTurnEntity.builder()
+                .turnId("turn-1")
+                .sessionId("session-1")
+                .userMessageId("msg-user-turn-1")
+                .assistantMessageId("msg-assistant-turn-1")
+                .userPayloadRef("payload-user-turn-1")
+                .assistantPayloadRef("payload-assistant-turn-1")
+                .status("COMPLETED")
+                .turnNo(1L)
+                .build());
+        ContextCandidateBundleVO candidates = ContextCandidateBundleVO.builder()
+                .fixedRecentMessages(List.of())
+                .recentMessages(List.of())
+                .sessionSummaries(List.of(SummaryCandidateVO.builder()
+                        .summaryId("summary-1")
+                        .turnId("turn-1")
+                        .summary("用户要求介绍故事里出现的西安地标。")
+                        .build()))
+                .artifactCandidates(List.of())
+                .memoryCandidates(List.of())
+                .evidenceCandidates(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(1000).build())
+                .build();
+        ContextMaterializer materializer = new ContextMaterializer(
+                new ContextSelectionValidator(),
+                null,
+                new EvidencePackBuilder(),
+                new ContextBudgetManager(estimator),
+                new MainAgentStateViewBuilder(),
+                repos,
+                repos);
+
+        MainAgentStateViewVO stateView = materializer.materialize(ContextMaterializationCommand.builder()
+                .candidates(candidates)
+                .forcedSelections(List.of(ContextSelectionVO.builder()
+                        .sourceType("TURN_SUMMARY")
+                        .sourceId("summary-1")
+                        .contextLevel(ContextLevelEnumVO.FULL_TEXT)
+                        .build()))
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+
+        Assert.assertTrue(stateView.getConversation().getSummaries().isEmpty());
+        Assert.assertEquals(2, stateView.getConversation().getRecentMessages().size());
+        Assert.assertEquals("USER", stateView.getConversation().getRecentMessages().get(0).getRole());
+        Assert.assertTrue(stateView.getConversation().getRecentMessages().get(0).getSummary().contains("用户原始问题全文"));
+        Assert.assertEquals("ASSISTANT", stateView.getConversation().getRecentMessages().get(1).getRole());
+        Assert.assertTrue(stateView.getConversation().getRecentMessages().get(1).getSummary().contains("助手原始回答全文"));
+    }
+
+    @Test
     public void duplicate_artifact_selections_keep_highest_context_level() {
         MainAgentStateViewVO stateView = materializeWithSelections(List.of(
                 ContextSelectionVO.builder()
@@ -227,6 +294,40 @@ public class ContextMaterializationTest {
 
         Assert.assertEquals(1, stateView.getMemoryPack().size());
         Assert.assertEquals("User prefers detailed Chinese explanations.", stateView.getMemoryPack().get(0).getSummary());
+    }
+
+    @Test
+    public void vector_memory_candidate_requires_planner_selection_to_materialize() {
+        ContextTokenEstimator estimator = new ContextTokenEstimator();
+        ContextCandidateBundleVO candidates = ContextCandidateBundleVO.builder()
+                .fixedRecentMessages(List.of())
+                .recentMessages(List.of())
+                .sessionSummaries(List.of())
+                .artifactCandidates(List.of())
+                .memoryCandidates(List.of(MemoryCandidateVO.builder()
+                        .memoryId("memory-1")
+                        .memoryType("LONG_TERM_MEMORY")
+                        .summary("用户居住在西安。")
+                        .content("用户住所、住址、位置、在哪里、家住在西安。")
+                        .sourceChannel("VECTOR_SEMANTIC")
+                        .build()))
+                .evidenceCandidates(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(1000).build())
+                .build();
+        ContextMaterializer materializer = new ContextMaterializer(
+                new ContextSelectionValidator(),
+                null,
+                new EvidencePackBuilder(),
+                new ContextBudgetManager(estimator),
+                new MainAgentStateViewBuilder());
+
+        MainAgentStateViewVO stateView = materializer.materialize(ContextMaterializationCommand.builder()
+                .candidates(candidates)
+                .forcedSelections(List.of())
+                .tokenBudget(candidates.getTokenBudget())
+                .build());
+
+        Assert.assertTrue(stateView.getMemoryPack().isEmpty());
     }
 
     @Test

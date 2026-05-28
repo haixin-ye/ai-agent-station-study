@@ -1,5 +1,7 @@
 package yhx.com.domain.agent.service.memory;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IVectorIndexRepository;
 import yhx.com.domain.agent.adapter.repository.IVectorMemoryRepository;
@@ -80,7 +82,7 @@ public class MemoryVectorIndexingService {
         if (memory == null || isBlank(memory.getMemoryId())) {
             return;
         }
-        String text = firstNonBlank(memory.getSummary(), loadPayloadText(memory.getContentRef()));
+        String text = firstNonBlank(recallText(memory), firstNonBlank(loadPayloadText(memory.getContentRef()), memory.getSummary()));
         if (isBlank(text)) {
             return;
         }
@@ -95,7 +97,7 @@ public class MemoryVectorIndexingService {
                 memory.getUserId(),
                 memory.getSessionId(),
                 text,
-                preview(text),
+                preview(memory.getSummary()),
                 metadata,
                 firstNonNull(memory.getUpdatedAt(), memory.getCreatedAt(), LocalDateTime.now()));
     }
@@ -154,6 +156,18 @@ public class MemoryVectorIndexingService {
         return payloadRepository.findPayload(payloadRef)
                 .map(payload -> firstNonBlank(payload.getContent(), payload.getPreview()))
                 .orElse(null);
+    }
+
+    private String recallText(AgentMemoryEntity memory) {
+        if (memory == null || isBlank(memory.getMetadataJson())) {
+            return null;
+        }
+        try {
+            JSONObject object = JSON.parseObject(memory.getMetadataJson());
+            return object == null ? null : object.getString("recallText");
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String preview(String content) {

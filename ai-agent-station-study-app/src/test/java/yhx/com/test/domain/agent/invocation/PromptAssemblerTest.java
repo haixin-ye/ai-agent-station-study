@@ -25,9 +25,11 @@ public class PromptAssemblerTest {
     public void assemble_main_agent_prompt_contains_all_action_names() {
         String prompt = assembler().assemble(command(AgentComponentCodeEnumVO.MAIN_AGENT.name())).assembledPrompt();
 
-        for (String action : new String[]{"FINAL", "CREATE_ARTIFACT", "UPDATE_ARTIFACT", "RETRIEVE_RAG", "CALL_TOOL", "ASK_USER", "PLAN", "CONTINUE", "REPAIR_FINAL", "FAIL"}) {
+        for (String action : new String[]{"FINAL", "RETRIEVE_RAG", "CALL_TOOL", "ASK_USER", "PLAN", "CONTINUE", "REPAIR_FINAL", "FAIL"}) {
             Assert.assertTrue(prompt.contains(action));
         }
+        Assert.assertFalse(prompt.contains("CREATE_ARTIFACT"));
+        Assert.assertFalse(prompt.contains("UPDATE_ARTIFACT"));
     }
 
     @Test
@@ -39,11 +41,10 @@ public class PromptAssemblerTest {
         Assert.assertTrue(prompt.contains("latest revised draft"));
         Assert.assertTrue(prompt.contains("Do not ask for clarification when recentMessages contain enough context"));
         Assert.assertTrue(prompt.contains("sessionTaskSummary"));
-        Assert.assertTrue(prompt.contains("artifactCandidates: deprecated"));
         Assert.assertTrue(prompt.contains("Do not select fixedRecentMessages"));
         Assert.assertTrue(prompt.contains("sourceChannel"));
         Assert.assertTrue(prompt.contains("sourceScore"));
-        Assert.assertTrue(prompt.contains("Do not select artifact candidates"));
+        Assert.assertFalse(prompt.contains("artifactCandidates: deprecated"));
     }
 
     @Test
@@ -51,7 +52,24 @@ public class PromptAssemblerTest {
         String prompt = assembler().assemble(command(AgentComponentCodeEnumVO.MAIN_AGENT.name())).assembledPrompt();
 
         Assert.assertTrue(prompt.contains("two versions"));
-        Assert.assertTrue(prompt.contains("Do not offer two options that both describe only the same article"));
+        Assert.assertTrue(prompt.contains("distinct target set"));
+    }
+
+    @Test
+    public void main_agent_prompt_explains_state_view_context_architecture() {
+        String prompt = assembler().assemble(command(AgentComponentCodeEnumVO.MAIN_AGENT.name())).assembledPrompt();
+
+        Assert.assertTrue(prompt.contains("MainAgentStateView is the complete information architecture"));
+        Assert.assertTrue(prompt.contains("userInput is the current user request"));
+        Assert.assertTrue(prompt.contains("conversation.recentMessages contains the selected original dialogue"));
+        Assert.assertTrue(prompt.contains("conversation.summaries contains selected historical turn summaries"));
+        Assert.assertTrue(prompt.contains("conversation.sessionTaskSummary contains the session-level task state"));
+        Assert.assertTrue(prompt.contains("memoryPack contains selected long-term user memory"));
+        Assert.assertTrue(prompt.contains("userClarifications contains authoritative answers"));
+        Assert.assertTrue(prompt.contains("Your primary task is to answer or advance this current request"));
+        Assert.assertTrue(prompt.contains("Before ASK_USER, inspect all relevant MainAgentStateView sections"));
+        Assert.assertFalse(prompt.contains("小美"));
+        Assert.assertFalse(prompt.contains("小帅哥"));
     }
 
     @Test
@@ -88,6 +106,7 @@ public class PromptAssemblerTest {
         Assert.assertTrue(prompt.contains("memory extraction component"));
         Assert.assertTrue(prompt.contains("LONG_TERM_MEMORY"));
         Assert.assertTrue(prompt.contains("USER_PREFERENCE"));
+        Assert.assertTrue(prompt.contains("- recallText: required"));
         Assert.assertTrue(prompt.contains("memory-extraction-output-v1"));
     }
 

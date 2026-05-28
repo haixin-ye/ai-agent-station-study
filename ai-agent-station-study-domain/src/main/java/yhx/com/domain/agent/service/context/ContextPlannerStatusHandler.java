@@ -44,8 +44,23 @@ public class ContextPlannerStatusHandler {
     }
 
     public ContextPlannerHandlingResult refreshWithoutPlanner(ContextCandidateBundleVO candidates) {
+        return refreshWithoutPlanner(candidates, List.of());
+    }
+
+    public ContextPlannerHandlingResult refreshWithoutPlanner(ContextCandidateBundleVO candidates, List<ContextSelectionVO> selections) {
         if (candidates == null) {
             return failure(SAFE_FAILURE, "CONTEXT_CANDIDATES_MISSING", "Context candidates are missing.");
+        }
+        if (selections != null && !selections.isEmpty()) {
+            return ContextPlannerHandlingResult.builder()
+                    .nextStep(BUILD_STATE_VIEW)
+                    .stateView(contextMaterializer.materialize(ContextMaterializationCommand.builder()
+                            .candidates(candidates)
+                            .forcedSelections(selections)
+                            .tokenBudget(candidates.getTokenBudget())
+                            .build()))
+                    .effectiveSelections(selections)
+                    .build();
         }
         return ContextPlannerHandlingResult.builder()
                 .nextStep(BUILD_MINIMAL_STATE_VIEW)
@@ -144,6 +159,21 @@ public class ContextPlannerStatusHandler {
                 .toList();
     }
 
+    private List<yhx.com.domain.agent.model.valobj.context.MaterializedMemoryVO> materializeMemory(ContextCandidateBundleVO candidates) {
+        if (candidates == null || candidates.getMemoryCandidates() == null || candidates.getMemoryCandidates().isEmpty()) {
+            return List.of();
+        }
+        return candidates.getMemoryCandidates().stream()
+                .filter(memory -> memory != null && memory.getMemoryId() != null)
+                .map(memory -> yhx.com.domain.agent.model.valobj.context.MaterializedMemoryVO.builder()
+                        .memoryId(memory.getMemoryId())
+                        .memoryType(memory.getMemoryType())
+                        .summary(memory.getSummary())
+                        .content(memory.getContent())
+                        .build())
+                .toList();
+    }
+
     private String truncate(String value, ContextCandidateBundleVO candidates) {
         if (value == null) {
             return null;
@@ -160,7 +190,14 @@ public class ContextPlannerStatusHandler {
         }
         return output.getSelectedContext().stream().map(item -> ContextSelectionVO.builder()
                 .sourceType(stringValue(item, "sourceType"))
-                .sourceId(firstNonBlank(stringValue(item, "sourceId"), stringValue(item, "artifactId"), stringValue(item, "memoryId"), stringValue(item, "evidenceId"), stringValue(item, "messageId")))
+                .sourceId(firstNonBlank(
+                        stringValue(item, "sourceId"),
+                        stringValue(item, "summaryId"),
+                        stringValue(item, "turnId"),
+                        stringValue(item, "artifactId"),
+                        stringValue(item, "memoryId"),
+                        stringValue(item, "evidenceId"),
+                        stringValue(item, "messageId")))
                 .contextLevel(ContextLevelEnumVO.ofCode(firstNonBlank(stringValue(item, "contextLevel"), stringValue(item, "useLevel"))).orElse(ContextLevelEnumVO.SUMMARY_ONLY))
                 .priority(intValue(item, "priority"))
                 .confidence(doubleValue(item, "confidence"))

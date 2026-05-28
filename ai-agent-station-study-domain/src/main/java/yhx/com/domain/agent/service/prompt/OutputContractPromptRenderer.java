@@ -38,11 +38,10 @@ public class OutputContractPromptRenderer {
 
                 Valid examples:
                 {"action":"FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Answer text for the user."}}}
-                {"action":"CREATE_ARTIFACT","stateDelta":{"artifactDraft":{"artifactType":"ARTICLE","title":"RAG notes","content":"..."},"finalAnswerCandidate":{"content":"Article draft created."}}}
-                {"action":"UPDATE_ARTIFACT","stateDelta":{"artifactPatch":{"artifactId":"artifact-1","patchType":"REPLACE_CONTENT","content":"..."}}}
                 {"action":"RETRIEVE_RAG","stateDelta":{"ragRequest":{"query":"Find the uploaded project document section about deployment rules.","topK":5}}}
-                {"action":"CALL_TOOL","stateDelta":{"toolIntent":{"toolName":"csdn.publish","intent":"Publish selected artifact.","arguments":{"artifactId":"artifact-1"}}}}
-                {"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"Which article should I use?","inputMode":"SINGLE_CHOICE","options":[{"optionId":"article-1","label":"Latest article","value":{"artifactId":"artifact-1"}}]}}}
+                {"action":"CALL_TOOL","stateDelta":{"toolIntent":{"toolName":"csdn.publish","intent":"Publish approved content.","arguments":{"contentRef":"payload-1"}}}}
+                {"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"Which topic should I use?","inputMode":"SINGLE_CHOICE","options":[{"optionId":"topic_1","label":"MCP deployment","value":{"topic":"MCP deployment"}}]}}}
+                {"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"What is your hometown?","inputMode":"FREE_TEXT","allowFreeText":true,"options":[]}}}
                 {"action":"PLAN","stateDelta":{"planDraft":{"steps":["retrieve evidence","write answer"]}}}
                 {"action":"CONTINUE","stateDelta":{"nextActionHint":{"reason":"Need another loop after context update."}}}
                 {"action":"REPAIR_FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Repaired clean answer."}}}
@@ -63,8 +62,9 @@ public class OutputContractPromptRenderer {
                 - CHUNKED_CONTEXT
 
                 Valid examples:
-                {"status":"READY","selectedContext":[{"sourceType":"ARTIFACT","artifactId":"artifact-1","useLevel":"FULL_TEXT","reason":"User asked to rewrite the article."}]}
-                {"status":"NEEDS_USER_CLARIFICATION","clarificationRequest":{"question":"Which article do you want to use?","inputMode":"SINGLE_CHOICE_OR_FREE_TEXT","options":[{"optionId":"article-1","label":"Latest article","value":{"artifactId":"artifact-1"}}]}}
+                {"status":"READY","selectedContext":[{"sourceType":"SESSION_SUMMARY","summaryId":"turn-summary-1","useLevel":"FULL_TEXT","reason":"User asked to reuse the previous draft."}]}
+                {"status":"NEEDS_USER_CLARIFICATION","clarificationRequest":{"question":"Which previous draft do you mean?","inputMode":"SINGLE_CHOICE_OR_FREE_TEXT","options":[{"optionId":"summary_1","label":"Latest story draft","value":{"summaryId":"turn-summary-1"}}]}}
+                {"status":"NEEDS_USER_CLARIFICATION","clarificationRequest":{"question":"What is your hometown?","inputMode":"FREE_TEXT","allowFreeText":true,"options":[]}}
                 """.formatted(contextStatusCodes());
     }
 
@@ -108,12 +108,12 @@ public class OutputContractPromptRenderer {
                 - intent: concise string
                 - topics: array of strings
                 - entities: array of objects
-                - artifactRefs: array of strings
+                - artifactRefs: array of strings, normally empty because AutoAgent no longer uses artifact actions
                 - importanceScore: number from 0.0 to 1.0
                 - requiresLongTermExtraction: boolean
 
                 Valid example:
-                {"summary":"User asked for an RAG article and the agent drafted a structured explanation.","intent":"create article","topics":["RAG","article"],"entities":[],"artifactRefs":["artifact-1"],"importanceScore":0.7,"requiresLongTermExtraction":false}
+                {"summary":"User asked for an RAG article and the agent drafted a structured explanation.","intent":"write article","topics":["RAG","article"],"entities":[],"artifactRefs":[],"importanceScore":0.7,"requiresLongTermExtraction":false}
                 """;
     }
 
@@ -127,13 +127,15 @@ public class OutputContractPromptRenderer {
                 Each memories item:
                 - memoryType: LONG_TERM_MEMORY or USER_PREFERENCE
                 - summary: concise durable memory text
-                - content: optional fuller memory text
+                - content: required fuller factual memory text for MainAgent
+                - recallText: required semantic-search text with likely future query aliases and user wording
                 - score: number from 0.0 to 1.0
                 - reason: short diagnostic reason
 
                 Valid examples:
                 {"memories":[]}
-                {"memories":[{"memoryType":"USER_PREFERENCE","summary":"User prefers detailed Chinese engineering explanations.","content":"User explicitly asked for detailed Chinese engineering explanations in future work.","score":0.9,"reason":"Explicit stable preference."}]}
+                {"memories":[{"memoryType":"USER_PREFERENCE","summary":"用户偏好详细的中文工程解释。","content":"用户明确要求后续回答使用详细的中文工程解释。","recallText":"用户偏好、回答风格、喜欢、希望以后、默认回答方式是详细中文工程解释。","score":0.9,"reason":"用户明确表达了稳定回答偏好。"}]}
+                {"memories":[{"memoryType":"LONG_TERM_MEMORY","summary":"用户居住在西安。","content":"用户明确表示自己居住在西安。","recallText":"用户家乡、故乡、老家、居住地、所在城市、住在哪里、来自哪里、本地、当地、家乡美食、当地特色是西安。","score":0.9,"reason":"用户明确表达了稳定居住地信息。"}]}
                 """;
     }
 

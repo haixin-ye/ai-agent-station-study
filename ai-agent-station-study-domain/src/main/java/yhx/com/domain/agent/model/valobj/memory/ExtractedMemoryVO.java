@@ -16,6 +16,7 @@ public class ExtractedMemoryVO {
     private String memoryType;
     private String summary;
     private String content;
+    private String recallText;
     private BigDecimal score;
     private String reason;
 }

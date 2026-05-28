@@ -33,7 +33,7 @@ import java.util.UUID;
 public class PgVectorMemoryRepository implements IVectorMemoryRepository {
 
     private static final int DEFAULT_TOP_K = 8;
-    private static final double DEFAULT_MIN_SCORE = 0.0D;
+    private static final double DEFAULT_MIN_SCORE = 0.3D;
 
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingModel embeddingModel;
@@ -52,7 +52,7 @@ public class PgVectorMemoryRepository implements IVectorMemoryRepository {
         String text = firstNonBlank(record.getText(), record.getSummary());
         String embedding = vectorLiteral(embeddingModel.embed(text));
         String metadataJson = metadataJson(record);
-        jdbcTemplate.update("""
+        return jdbcTemplate.queryForObject("""
                         INSERT INTO public.%s (
                             id, source_type, source_id, user_id, session_id, content, summary,
                             metadata, occurred_at, embedding
@@ -65,7 +65,9 @@ public class PgVectorMemoryRepository implements IVectorMemoryRepository {
                             metadata = EXCLUDED.metadata,
                             occurred_at = EXCLUDED.occurred_at,
                             embedding = EXCLUDED.embedding
+                        RETURNING id::text
                         """.formatted(tableName),
+                String.class,
                 vectorId,
                 record.getSourceType().name(),
                 record.getSourceId(),
@@ -76,7 +78,6 @@ public class PgVectorMemoryRepository implements IVectorMemoryRepository {
                 metadataJson,
                 toTimestamp(record.getOccurredAt()),
                 embedding);
-        return vectorId;
     }
 
     @Override

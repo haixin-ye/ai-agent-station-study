@@ -1,6 +1,8 @@
 package yhx.com.domain.agent.service.memory;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.adapter.repository.IArtifactRepository;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
@@ -22,6 +24,7 @@ import yhx.com.domain.agent.model.valobj.enums.memory.VectorSourceTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallFilterVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
+import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,9 +32,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 public class VectorContextRecallPreselector {
 
     private static final int DEFAULT_TOP_K = 12;
+    private static final double DEFAULT_MIN_SCORE = 0.3D;
 
     private final IVectorMemoryRepository vectorMemoryRepository;
     private final ITurnSummaryRepository turnSummaryRepository;
@@ -55,16 +60,47 @@ public class VectorContextRecallPreselector {
         if (command == null || isBlank(command.getUserInput()) || vectorMemoryRepository == null) {
             return emptyBundle();
         }
-        List<VectorRecallHitVO> hits = vectorMemoryRepository.search(VectorRecallQueryVO.builder()
+        long startedAt = System.currentTimeMillis();
+        List<VectorRecallHitVO> hits = new ArrayList<>();
+        List<VectorRecallHitVO> sessionHits = vectorMemoryRepository.search(VectorRecallQueryVO.builder()
                 .queryText(command.getUserInput())
                 .topK(DEFAULT_TOP_K)
+                .minScore(DEFAULT_MIN_SCORE)
                 .filter(VectorRecallFilterVO.builder()
                         .userId(command.getUserId())
                         .sessionId(command.getSessionId())
-                        .collectionTypes(defaultCollections())
+                        .collectionTypes(sessionScopedCollections())
                         .build())
                 .build());
-        return resolveHits(hits);
+        hits.addAll(sessionHits);
+        List<VectorRecallHitVO> memoryHits = vectorMemoryRepository.search(VectorRecallQueryVO.builder()
+                .queryText(command.getUserInput())
+                .topK(DEFAULT_TOP_K)
+                .minScore(DEFAULT_MIN_SCORE)
+                .filter(VectorRecallFilterVO.builder()
+                        .userId(command.getUserId())
+                        .collectionTypes(userScopedMemoryCollections())
+                        .build())
+                .build());
+        hits.addAll(memoryHits);
+        ContextCandidateBundleVO bundle = resolveHits(hits);
+        log.info("[AutoAgent][memory-vector-recall] runId={}, sessionId={}, userId={}, query={}, sessionHits={}, memoryHits={}, resolvedSummaries={}, resolvedMemories={}, elapsedMs={}",
+                command.getRunId(),
+                command.getSessionId(),
+                command.getUserId(),
+                preview(command.getUserInput()),
+                sessionHits.size(),
+                memoryHits.size(),
+                bundle.getSessionSummaries() == null ? 0 : bundle.getSessionSummaries().size(),
+                bundle.getMemoryCandidates() == null ? 0 : bundle.getMemoryCandidates().size(),
+                System.currentTimeMillis() - startedAt);
+        AutoAgentHumanLog.stage("向量记忆召回", command.getRunId(), "召回完成：sessionHits="
+                + sessionHits.size()
+                + "，memoryHits=" + memoryHits.size()
+                + "，可用摘要=" + (bundle.getSessionSummaries() == null ? 0 : bundle.getSessionSummaries().size())
+                + "，可用长期记忆=" + (bundle.getMemoryCandidates() == null ? 0 : bundle.getMemoryCandidates().size())
+                + "，耗时=" + (System.currentTimeMillis() - startedAt) + "ms。");
+        return bundle;
     }
 
     private ContextCandidateBundleVO resolveHits(List<VectorRecallHitVO> hits) {
@@ -106,7 +142,7 @@ public class VectorContextRecallPreselector {
         return entity.map(summary -> SummaryCandidateVO.builder()
                 .summaryId(summary.getSummaryId())
                 .turnId(summary.getTurnId())
-                .summary(resolvePayloadText(summary.getSummaryRef(), firstNonBlank(hit.getSummary(), hit.getSnippet())))
+                .summary(readablePayloadText(resolvePayloadText(summary.getSummaryRef(), firstNonBlank(hit.getSummary(), hit.getSnippet())), firstNonBlank(hit.getSummary(), hit.getSnippet())))
                 .summaryRef(summary.getSummaryRef())
                 .artifactRefs(parseStringList(summary.getArtifactRefsJson()))
                 .relevanceScore(hit.getScore())
@@ -206,6 +242,7 @@ public class VectorContextRecallPreselector {
                 .memoryId(memory.getMemoryId())
                 .memoryType(memory.getMemoryType())
                 .summary(memory.getSummary())
+                .content(resolvePayloadText(memory.getContentRef(), null))
                 .contentRef(memory.getContentRef())
                 .score(memory.getScore())
                 .build();
@@ -221,9 +258,30 @@ public class VectorContextRecallPreselector {
                 .orElse(fallback);
     }
 
-    private List<VectorCollectionTypeEnumVO> defaultCollections() {
+    private String readablePayloadText(String content, String fallback) {
+        String text = firstNonBlank(content, fallback);
+        if (isBlank(text)) {
+            return null;
+        }
+        try {
+            JSONObject object = JSON.parseObject(text);
+            if (object == null) {
+                return text;
+            }
+            String summary = object.getString("summary");
+            return isBlank(summary) ? text : summary;
+        } catch (Exception ignored) {
+            return text;
+        }
+    }
+
+    private List<VectorCollectionTypeEnumVO> sessionScopedCollections() {
         return List.of(
-                VectorCollectionTypeEnumVO.TURN_SUMMARY,
+                VectorCollectionTypeEnumVO.TURN_SUMMARY);
+    }
+
+    private List<VectorCollectionTypeEnumVO> userScopedMemoryCollections() {
+        return List.of(
                 VectorCollectionTypeEnumVO.LONG_TERM_MEMORY,
                 VectorCollectionTypeEnumVO.USER_PREFERENCE);
     }
@@ -270,6 +328,13 @@ public class VectorContextRecallPreselector {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String preview(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= 80 ? value : value.substring(0, 80);
     }
 
     private String safeName(VectorCollectionTypeEnumVO collectionType) {

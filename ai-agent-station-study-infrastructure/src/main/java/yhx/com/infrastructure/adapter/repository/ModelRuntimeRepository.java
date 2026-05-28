@@ -70,6 +70,7 @@ public class ModelRuntimeRepository implements IModelRuntimeRepository {
                 .modelType(po.getModelType())
                 .defaultTemperature(po.getDefaultTemperature())
                 .defaultMaxOutputTokens(po.getDefaultMaxOutputTokens())
+                .embeddingDimensions(po.getEmbeddingDimensions())
                 .timeoutMs(po.getTimeoutMs())
                 .enabled(po.getEnabled() != null && po.getEnabled() == 1)
                 .createdAt(po.getCreatedAt())

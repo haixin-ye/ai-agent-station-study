@@ -13,6 +13,18 @@ public interface IMemoryTaskRepository {
 
     boolean hasOpenTask(String taskType, String sessionId);
 
+    default boolean hasOpenTaskType(String taskType) {
+        return false;
+    }
+
+    default boolean hasTaskForTurn(String taskType, String turnId) {
+        return false;
+    }
+
+    default boolean hasOpenTaskForTurn(String taskType, String turnId) {
+        return hasTaskForTurn(taskType, turnId);
+    }
+
     List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit);
 
     List<AgentMemoryTaskEntity> listTasks(String status, int limit);

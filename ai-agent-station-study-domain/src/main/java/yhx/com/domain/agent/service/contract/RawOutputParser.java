@@ -15,7 +15,7 @@ public class RawOutputParser {
             return failed("EMPTY_OUTPUT", "Model output is empty.");
         }
 
-        String normalized = normalize(rawOutput);
+        String normalized = repairMissingTrailingObjectBraces(normalize(rawOutput));
         if (!normalized.startsWith("{") || !normalized.endsWith("}")) {
             return failed("INVALID_JSON", "Model output must be exactly one JSON object.");
         }
@@ -48,6 +48,53 @@ public class RawOutputParser {
             text = text.trim();
         }
         return text;
+    }
+
+    private String repairMissingTrailingObjectBraces(String text) {
+        if (text == null || text.isBlank() || !text.startsWith("{")) {
+            return text;
+        }
+        int objectDepth = 0;
+        int arrayDepth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int index = 0; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (current == '\\' && inString) {
+                escaped = true;
+                continue;
+            }
+            if (current == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) {
+                continue;
+            }
+            if (current == '{') {
+                objectDepth++;
+            } else if (current == '}') {
+                objectDepth--;
+                if (objectDepth < 0) {
+                    return text;
+                }
+            } else if (current == '[') {
+                arrayDepth++;
+            } else if (current == ']') {
+                arrayDepth--;
+                if (arrayDepth < 0) {
+                    return text;
+                }
+            }
+        }
+        if (inString || arrayDepth != 0 || objectDepth <= 0 || objectDepth > 3) {
+            return text;
+        }
+        return text + "}".repeat(objectDepth);
     }
 
     private RawOutputParseResult failed(String code, String message) {

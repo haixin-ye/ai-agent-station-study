@@ -17,6 +17,7 @@ import yhx.com.domain.agent.model.valobj.memory.SessionTaskSummaryOutputVO;
 import yhx.com.domain.agent.service.node.sessiontasksummary.SessionTaskSummaryNodeService;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,7 +60,7 @@ public class SessionTaskSummaryGcWorker implements MemoryGcTaskWorker {
                     .orElseThrow(() -> new IllegalArgumentException("Memory task not found: " + taskId));
             int activeCount = turnSummaryRepository.countActiveSummaries(task.getSessionId());
             int summaryLimit = summaryLimit(activeCount);
-            List<AgentTurnSummaryEntity> summaries = turnSummaryRepository.listRecentActiveSummaries(task.getSessionId(), summaryLimit);
+            List<AgentTurnSummaryEntity> summaries = chronological(turnSummaryRepository.listRecentActiveSummaries(task.getSessionId(), summaryLimit));
             if (summaries == null || summaries.isEmpty()) {
                 throw new IllegalStateException("No active turn summaries for session task summary: " + task.getSessionId());
             }
@@ -114,6 +115,15 @@ public class SessionTaskSummaryGcWorker implements MemoryGcTaskWorker {
                 .summary(loadPayloadContent(summary.getSummaryRef()))
                 .intent(summary.getIntent())
                 .build();
+    }
+
+    private List<AgentTurnSummaryEntity> chronological(List<AgentTurnSummaryEntity> summaries) {
+        if (summaries == null || summaries.size() <= 1 || summaries.stream().noneMatch(summary -> summary.getCreatedAt() != null)) {
+            return summaries;
+        }
+        return summaries.stream()
+                .sorted(Comparator.comparing(AgentTurnSummaryEntity::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 
     private int summaryLimit(int activeCount) {

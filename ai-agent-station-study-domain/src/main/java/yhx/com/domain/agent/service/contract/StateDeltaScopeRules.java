@@ -16,8 +16,6 @@ public class StateDeltaScopeRules {
 
     static {
         allow(MainAgentActionTypeEnumVO.FINAL, StateDeltaFieldEnumVO.FINAL_ANSWER_CANDIDATE);
-        allow(MainAgentActionTypeEnumVO.CREATE_ARTIFACT, StateDeltaFieldEnumVO.ARTIFACT_DRAFT, StateDeltaFieldEnumVO.FINAL_ANSWER_CANDIDATE);
-        allow(MainAgentActionTypeEnumVO.UPDATE_ARTIFACT, StateDeltaFieldEnumVO.ARTIFACT_PATCH, StateDeltaFieldEnumVO.FINAL_ANSWER_CANDIDATE);
         allow(MainAgentActionTypeEnumVO.RETRIEVE_RAG, StateDeltaFieldEnumVO.RAG_REQUEST);
         allow(MainAgentActionTypeEnumVO.CALL_TOOL, StateDeltaFieldEnumVO.TOOL_INTENT);
         allow(MainAgentActionTypeEnumVO.ASK_USER, StateDeltaFieldEnumVO.ASK_USER_REQUEST);

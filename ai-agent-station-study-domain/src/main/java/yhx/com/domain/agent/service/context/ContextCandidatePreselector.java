@@ -25,7 +25,6 @@ import yhx.com.domain.agent.model.valobj.context.UserInputVO;
 import yhx.com.domain.agent.service.artifact.ArtifactCandidateRanker;
 import yhx.com.domain.agent.service.evidence.EvidenceCandidatePreselector;
 import yhx.com.domain.agent.service.memory.MemoryCandidatePreselector;
-import yhx.com.domain.agent.service.memory.TurnSummaryRecallPreselector;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,14 +34,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 
 public class ContextCandidatePreselector {
 
     private static final int DEFAULT_RECENT_MESSAGE_LIMIT = 16;
     private static final int DEFAULT_FULL_TURN_LIMIT = 6;
     private static final int DEFAULT_SUMMARY_TURN_LIMIT = 6;
-    private static final int DEFAULT_RECALL_SUMMARY_SCAN_LIMIT = 40;
-    private static final int DEFAULT_RECALL_SUMMARY_LIMIT = 6;
     private static final int DEFAULT_ARTIFACT_LIMIT = 5;
     private static final int DEFAULT_MEMORY_LIMIT = 5;
     private static final int DEFAULT_EVIDENCE_LIMIT = 5;
@@ -59,7 +58,6 @@ public class ContextCandidatePreselector {
     private final ContextTokenEstimator tokenEstimator;
     private final ArtifactCandidateRanker artifactCandidateRanker;
     private final MemoryCandidatePreselector memoryCandidatePreselector;
-    private final TurnSummaryRecallPreselector turnSummaryRecallPreselector;
     private final EvidenceCandidatePreselector evidenceCandidatePreselector;
 
     public ContextCandidatePreselector(IConversationRepository conversationRepository,
@@ -106,7 +104,6 @@ public class ContextCandidatePreselector {
         this.tokenEstimator = new ContextTokenEstimator();
         this.artifactCandidateRanker = new ArtifactCandidateRanker(tokenEstimator);
         this.memoryCandidatePreselector = new MemoryCandidatePreselector();
-        this.turnSummaryRecallPreselector = new TurnSummaryRecallPreselector(payloadRepository);
         this.evidenceCandidatePreselector = new EvidenceCandidatePreselector();
     }
 
@@ -117,8 +114,7 @@ public class ContextCandidatePreselector {
         int evidenceLimit = defaultIfNull(command.getEvidenceCandidateLimit(), DEFAULT_EVIDENCE_LIMIT);
 
         TurnContextWindow turnWindow = buildTurnContextWindow(command, messageLimit);
-        List<SummaryCandidateVO> sessionSummaries = mergeSummaries(turnWindow.summaries(),
-                recallRelevantSummaries(command, turnWindow.summaries()));
+        List<SummaryCandidateVO> sessionSummaries = turnWindow.summaries();
 
         ContextCandidateBundleVO bundle = ContextCandidateBundleVO.builder()
                 .runMeta(RunMetaVO.builder()
@@ -137,8 +133,7 @@ public class ContextCandidatePreselector {
                 .sessionTaskSummary(activeSessionTaskSummary(command.getSessionId()))
                 .sessionSummaries(sessionSummaries)
                 .artifactCandidates(List.of())
-                .memoryCandidates(memoryCandidatePreselector.select(command.getUserInput(),
-                        memoryRepository.findMemoryCandidates(command.getUserId(), command.getSessionId(), command.getUserInput(), memoryLimit), memoryLimit))
+                .memoryCandidates(List.of())
                 .evidenceCandidates(evidenceCandidatePreselector.select(command.getUserInput(),
                         evidenceRepository.listRunEvidence(command.getRunId()), evidenceLimit))
                 .userClarifications(userClarifications(command.getRuntimeFacts()))
@@ -164,7 +159,7 @@ public class ContextCandidatePreselector {
                 .orElse(null);
         return SessionTaskSummaryViewVO.builder()
                 .summaryId(summary.getSummaryId())
-                .summary(text)
+                .summary(readablePayloadText(text, null))
                 .summaryRef(summary.getSummaryRef())
                 .versionNo(summary.getVersionNo())
                 .sourceTurnCount(summary.getSourceTurnCount())
@@ -188,31 +183,6 @@ public class ContextCandidatePreselector {
         }
         if (command.getArtifactSeeds() != null) {
             command.getArtifactSeeds().forEach(artifact -> merged.putIfAbsent(artifact.getArtifactId(), artifact));
-        }
-        return new ArrayList<>(merged.values());
-    }
-
-    private List<SummaryCandidateVO> recallRelevantSummaries(ContextPreparationCommand command, List<SummaryCandidateVO> fixedSummaries) {
-        if (turnSummaryRepository == null) {
-            return List.of();
-        }
-        Set<String> excludedIds = fixedSummaries == null ? Set.of() : fixedSummaries.stream()
-                .map(SummaryCandidateVO::getSummaryId)
-                .filter(Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
-        return turnSummaryRecallPreselector.select(command.getUserInput(),
-                turnSummaryRepository.listRecentActiveSummaries(command.getSessionId(), DEFAULT_RECALL_SUMMARY_SCAN_LIMIT),
-                excludedIds,
-                DEFAULT_RECALL_SUMMARY_LIMIT);
-    }
-
-    private List<SummaryCandidateVO> mergeSummaries(List<SummaryCandidateVO> fixedSummaries, List<SummaryCandidateVO> recalledSummaries) {
-        Map<String, SummaryCandidateVO> merged = new LinkedHashMap<>();
-        if (fixedSummaries != null) {
-            fixedSummaries.forEach(summary -> merged.put(summary.getSummaryId(), summary));
-        }
-        if (recalledSummaries != null) {
-            recalledSummaries.forEach(summary -> merged.putIfAbsent(summary.getSummaryId(), summary));
         }
         return new ArrayList<>(merged.values());
     }
@@ -283,7 +253,7 @@ public class ContextCandidatePreselector {
         return SummaryCandidateVO.builder()
                 .summaryId(summary.getSummaryId())
                 .turnId(summary.getTurnId())
-                .summary(text)
+                .summary(readablePayloadText(text, null))
                 .summaryRef(summary.getSummaryRef())
                 .artifactRefs(parseStringList(summary.getArtifactRefsJson()))
                 .createdAt(summary.getCreatedAt())
@@ -314,6 +284,45 @@ public class ContextCandidatePreselector {
             return normalized;
         }
         return normalized.substring(0, MAX_MESSAGE_CONTEXT_CHARS) + "... [truncated]";
+    }
+
+    private String readablePayloadText(String content, String preview) {
+        String text = firstNonBlank(content, preview);
+        if (text == null) {
+            return null;
+        }
+        try {
+            JSONObject object = JSON.parseObject(text);
+            if (object == null) {
+                return text;
+            }
+            String summary = object.getString("summary");
+            if (summary != null && !summary.isBlank()) {
+                return summary;
+            }
+            List<String> parts = new ArrayList<>();
+            addIfPresent(parts, "currentTask", object.getString("currentTask"));
+            addListIfPresent(parts, "mainTasks", object.getJSONArray("mainTasks"));
+            addListIfPresent(parts, "importantDecisions", object.getJSONArray("importantDecisions"));
+            addListIfPresent(parts, "latestProgress", object.getJSONArray("latestProgress"));
+            addListIfPresent(parts, "openQuestions", object.getJSONArray("openQuestions"));
+            addListIfPresent(parts, "obsoleteTasks", object.getJSONArray("obsoleteTasks"));
+            return parts.isEmpty() ? text : String.join("\n", parts);
+        } catch (Exception ignored) {
+            return text;
+        }
+    }
+
+    private void addIfPresent(List<String> parts, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            parts.add(label + ": " + value);
+        }
+    }
+
+    private void addListIfPresent(List<String> parts, String label, com.alibaba.fastjson.JSONArray values) {
+        if (values != null && !values.isEmpty()) {
+            parts.add(label + ": " + String.join("; ", values.toJavaList(String.class)));
+        }
     }
 
     private TokenBudgetVO defaultBudget(TokenBudgetVO budget) {

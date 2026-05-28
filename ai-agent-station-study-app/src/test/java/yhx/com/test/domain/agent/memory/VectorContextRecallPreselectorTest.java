@@ -46,17 +46,24 @@ public class VectorContextRecallPreselectorTest {
                 .recall(ContextPreparationCommand.builder()
                         .userId("user-1")
                         .sessionId("session-1")
-                        .userInput("把上次那篇 MCP 文章改得适合初学者")
+                        .userInput("where do I live?")
                         .build());
 
-        Assert.assertEquals(1, vector.queries.size());
-        Assert.assertEquals("把上次那篇 MCP 文章改得适合初学者", vector.queries.get(0).getQueryText());
+        Assert.assertEquals(2, vector.queries.size());
+        Assert.assertEquals(Double.valueOf(0.3D), vector.queries.get(0).getMinScore());
+        Assert.assertEquals(Double.valueOf(0.3D), vector.queries.get(1).getMinScore());
+        Assert.assertTrue(vector.queries.get(0).getFilter().getCollectionTypes().contains(VectorCollectionTypeEnumVO.TURN_SUMMARY));
+        Assert.assertEquals("session-1", vector.queries.get(0).getFilter().getSessionId());
+        Assert.assertTrue(vector.queries.get(1).getFilter().getCollectionTypes().contains(VectorCollectionTypeEnumVO.LONG_TERM_MEMORY));
+        Assert.assertTrue(vector.queries.get(1).getFilter().getCollectionTypes().contains(VectorCollectionTypeEnumVO.USER_PREFERENCE));
+        Assert.assertNull(vector.queries.get(1).getFilter().getSessionId());
         Assert.assertEquals(1, bundle.getSessionSummaries().size());
         Assert.assertEquals("summary payload about MCP article", bundle.getSessionSummaries().get(0).getSummary());
         Assert.assertEquals(ContextCandidateSourceChannelEnumVO.VECTOR_SEMANTIC.name(), bundle.getSessionSummaries().get(0).getSourceChannel());
         Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
         Assert.assertEquals(1, bundle.getMemoryCandidates().size());
         Assert.assertEquals("memory-1", bundle.getMemoryCandidates().get(0).getMemoryId());
+        Assert.assertEquals("memory human content", bundle.getMemoryCandidates().get(0).getContent());
         Assert.assertFalse(vector.queries.get(0).getFilter().getCollectionTypes().contains(VectorCollectionTypeEnumVO.ARTIFACT_SUMMARY));
         Assert.assertFalse(vector.queries.get(0).getFilter().getCollectionTypes().contains(VectorCollectionTypeEnumVO.ARTIFACT_CHUNK));
     }
@@ -97,7 +104,7 @@ public class VectorContextRecallPreselectorTest {
                 .recall(ContextPreparationCommand.builder()
                         .userId("user-1")
                         .sessionId("session-1")
-                        .userInput("MCP tools resources 那段")
+                        .userInput("MCP tools resources")
                         .build());
 
         Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
@@ -118,6 +125,10 @@ public class VectorContextRecallPreselectorTest {
                 .payloadId("payload-summary-1")
                 .content("summary payload about MCP article")
                 .build());
+        repos.payloads.put("payload-memory-1", AgentPayloadEntity.builder()
+                .payloadId("payload-memory-1")
+                .content("memory human content")
+                .build());
         repos.artifacts.put("artifact-1", AgentArtifactEntity.builder()
                 .artifactId("artifact-1")
                 .sessionId("session-1")
@@ -134,6 +145,7 @@ public class VectorContextRecallPreselectorTest {
                 .userId("user-1")
                 .memoryType("LONG_TERM_MEMORY")
                 .summary("User is building AutoAgent memory recall.")
+                .contentRef("payload-memory-1")
                 .score(BigDecimal.ONE)
                 .build());
         return repos;

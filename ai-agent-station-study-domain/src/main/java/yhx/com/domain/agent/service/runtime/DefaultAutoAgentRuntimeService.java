@@ -35,6 +35,7 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.service.interaction.ContextPlannerPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
+import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -284,6 +285,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         }
         if (continuation.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
             context.setRunStatus(RunStatusEnumVO.RUNNING);
+            runRepository.updateRunStatus(context.getRunId(), RunStatusEnumVO.RUNNING, null);
             context.setCurrentPhase(RuntimePhaseEnumVO.RESOLVING_USER_ANSWER);
             RuntimeSafeFailureVO resumeTransition = enterPhase(context, continuation.getNextPhase());
             if (resumeTransition != null) {
@@ -397,24 +399,28 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
 
             MainAgentActionVO action = componentPorts.invokeMainAgent(context);
 
-            RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.VALIDATING_ACTION);
-            if (transitionFailure != null) {
-                return failRun(context, transitionFailure);
-            }
-            MainAgentActionTypeEnumVO actionType = action == null ? null : MainAgentActionTypeEnumVO.ofCode(action.getAction()).orElse(null);
-            if (actionType == null) {
-                return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.MAIN_ACTION_CONTRACT_FAILED,
-                        RuntimePhaseEnumVO.VALIDATING_ACTION, "MainAgentAction action type is missing or unknown.", true));
-            }
-            context.setLastAction(action);
+        RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.VALIDATING_ACTION);
+        if (transitionFailure != null) {
+            return failRun(context, transitionFailure);
+        }
+        MainAgentActionTypeEnumVO actionType = action == null ? null : MainAgentActionTypeEnumVO.ofCode(action.getAction()).orElse(null);
+        if (actionType == null) {
+            AutoAgentHumanLog.stage("动作校验", context.getRunId(), "检查失败：MainAgent 输出动作为空或未知，原始 action="
+                    + (action == null ? null : action.getAction()));
+            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.MAIN_ACTION_CONTRACT_FAILED,
+                    RuntimePhaseEnumVO.VALIDATING_ACTION, "MainAgentAction action type is missing or unknown.", true));
+        }
+        AutoAgentHumanLog.stage("动作校验", context.getRunId(), "检查通过：action=" + actionType.code());
+        context.setLastAction(action);
             traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), actionType, null);
             transcriptRecorder.appendAssistantAction(context.getRunId(), context.getLoopIndex(), action, null);
 
-            transitionFailure = enterPhase(context, RuntimePhaseEnumVO.HANDLING_ACTION);
-            if (transitionFailure != null) {
-                return failRun(context, transitionFailure);
-            }
-            MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
+        transitionFailure = enterPhase(context, RuntimePhaseEnumVO.HANDLING_ACTION);
+        if (transitionFailure != null) {
+            return failRun(context, transitionFailure);
+        }
+        AutoAgentHumanLog.stage("动作路由", context.getRunId(), "准备处理 action=" + actionType.code());
+        MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
             RuntimeStepResult stepResult = routeActionResult(context, action, actionResult);
             if (stepResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
                 context.countersOrInitial().incrementLoop();
@@ -540,6 +546,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             }
         }
         context.setLastStateView(result.getStateView());
+        context.setLastContextSelections(result.getEffectiveSelections());
         transcriptRecorder.appendStateViewSummary(context.getRunId(), context.getLoopIndex(), result.getStateView(), null);
         RuntimeSafeFailureVO transitionFailure = context.getCurrentPhase() == RuntimePhaseEnumVO.CALLING_MAIN_NODE
                 ? null
@@ -593,6 +600,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             if (verifyingFailure != null) {
                 return failure(context.getRunId(), context.getSessionId(), verifyingFailure);
             }
+            AutoAgentHumanLog.stage("最终检查", context.getRunId(), "最终回答检查通过，准备进入完成阶段。");
             RuntimeSafeFailureVO completedFailure = enterPhase(context, RuntimePhaseEnumVO.COMPLETED);
             if (completedFailure != null) {
                 return failure(context.getRunId(), context.getSessionId(), completedFailure);
@@ -672,7 +680,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                         .sourceComponent(handlerCode)
                         .relatedRunId(context.getRunId())
                         .relatedLoopIndex(context.getLoopIndex())
-                        .payload(Map.of())
+                        .payload(checkpointPayload(context))
                         .build())
                 .build());
         if (!Boolean.TRUE.equals(pending.getCreated())) {
@@ -700,6 +708,13 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return RuntimePhaseEnumVO.BUILDING_STATE_VIEW;
         }
         return RuntimePhaseEnumVO.PREPARING_CONTEXT;
+    }
+
+    private Map<String, Object> checkpointPayload(RuntimeExecutionContext context) {
+        if (context == null || context.getLastContextSelections() == null || context.getLastContextSelections().isEmpty()) {
+            return Map.of();
+        }
+        return Map.of("contextSelections", context.getLastContextSelections());
     }
 
     private RuntimeSafeFailureVO enterPhase(RuntimeExecutionContext context, RuntimePhaseEnumVO nextPhase) {
@@ -771,6 +786,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     }
 
     private RuntimeStepResult failRun(RuntimeExecutionContext context, RuntimeSafeFailureVO failure) {
+        AutoAgentHumanLog.failure(context == null ? null : context.getRunId(), "运行失败", failure);
         diagnostic(context == null ? null : context.getRunId(), "RUNTIME_FAILURE", diagnosticMap(
                 "sessionId", context == null ? null : context.getSessionId(),
                 "loopIndex", context == null ? null : context.getLoopIndex(),

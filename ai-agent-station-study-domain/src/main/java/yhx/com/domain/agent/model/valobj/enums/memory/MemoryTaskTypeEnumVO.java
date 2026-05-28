@@ -3,6 +3,7 @@ package yhx.com.domain.agent.model.valobj.enums.memory;
 public enum MemoryTaskTypeEnumVO {
 
     TURN_SUMMARY,
+    TURN_SUMMARY_SELF_CHECK,
     LONG_TERM_MEMORY_EXTRACTION,
     USER_PREFERENCE_EXTRACTION,
     ARTIFACT_SUMMARY,

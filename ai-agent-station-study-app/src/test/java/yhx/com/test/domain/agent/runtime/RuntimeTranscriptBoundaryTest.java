@@ -7,6 +7,7 @@ import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.TranscriptBlockTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
@@ -119,6 +120,52 @@ public class RuntimeTranscriptBoundaryTest {
         Assert.assertEquals("original question", resumedContext.get().getUserInput());
         Assert.assertNotNull(resumedContext.get().getUserMessageId());
         Assert.assertTrue(resumedContext.get().getRuntimeFacts().containsKey("userClarifications"));
+    }
+
+    @Test
+    public void resume_persists_run_status_as_running_before_continuation_loop() {
+        RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
+        AtomicInteger invocationCount = new AtomicInteger();
+        AutoAgentRuntimeService runtime = RuntimeTestSupport.runtime(repository, new RuntimeComponentPorts() {
+            @Override
+            public ContextPlannerHandlingResult prepareContext(RuntimeExecutionContext context) {
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
+            public ContextPlannerHandlingResult refreshContext(RuntimeExecutionContext context) {
+                return ContextPlannerHandlingResult.builder()
+                        .stateView(MainAgentStateViewVO.builder().build())
+                        .effectiveSelections(List.of())
+                        .build();
+            }
+
+            @Override
+            public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
+                if (invocationCount.getAndIncrement() == 1) {
+                    Assert.assertEquals(RunStatusEnumVO.RUNNING, repository.runs.get(context.getRunId()).getStatus());
+                }
+                return invocationCount.get() == 1 ? askUserAction() : finalAction();
+            }
+        }, true, new RuntimeLoopPolicy());
+
+        RuntimeStepResult waiting = runtime.start(RuntimeStartCommand.builder()
+                .runId("run-007")
+                .sessionId("sess-007")
+                .userId("u1")
+                .userInput("which one")
+                .build());
+
+        runtime.resume(RuntimeResumeCommand.builder()
+                .runId("run-007")
+                .pendingId(waiting.getPendingInputId())
+                .freeText("continue")
+                .build());
+
+        Assert.assertEquals(2, invocationCount.get());
     }
 
     @Test

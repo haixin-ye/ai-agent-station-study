@@ -42,6 +42,15 @@ public class PromptContractBoundaryTest {
         Assert.assertTrue(prompt.contains("external side effects"));
     }
 
+    @Test
+    public void main_agent_call_tool_example_includes_capability_code() {
+        String prompt = promptWithRole("Main role.");
+
+        Assert.assertTrue(prompt.contains("\"action\":\"CALL_TOOL\""));
+        Assert.assertTrue(prompt.contains("\"capabilityCode\""));
+        Assert.assertTrue(prompt.contains("\"goal\""));
+    }
+
     private String promptWithRole(String rolePrompt) {
         PromptAssembler assembler = new PromptAssembler(new InMemoryPromptContentProvider()
                 .put(AgentComponentCodeEnumVO.MAIN_AGENT.name(), rolePrompt));

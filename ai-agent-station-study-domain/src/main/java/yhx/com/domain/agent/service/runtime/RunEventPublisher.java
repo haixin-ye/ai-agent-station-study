@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentRunEventEntity;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.RunEventTypeEnumVO;
+import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -38,6 +39,10 @@ public class RunEventPublisher {
     }
 
     public void phase(String runId, String title, String summary) {
+        String humanTitle = humanPhase(title);
+        if (humanTitle != null) {
+            AutoAgentHumanLog.stage(humanTitle, runId, "进入阶段：" + title + "，" + humanSummary(title, summary));
+        }
         append(runId, RunEventTypeEnumVO.STATUS_CHANGED, payload(title, summary, null, null));
     }
 
@@ -64,6 +69,7 @@ public class RunEventPublisher {
     }
 
     public void failed(String runId, String userSafeSummary) {
+        AutoAgentHumanLog.stage("任务失败", runId, "任务进入失败状态，用户提示=" + userSafeSummary);
         append(runId, RunEventTypeEnumVO.RUN_FAILED, payload("failed", userSafeSummary, null, null));
     }
 
@@ -105,5 +111,43 @@ public class RunEventPublisher {
         payload.put("pendingInputId", pendingInputId);
         payload.put("finalMessageId", finalMessageId);
         return payload;
+    }
+
+    private String humanPhase(String title) {
+        if (title == null) {
+            return null;
+        }
+        return switch (title) {
+            case "PREPARING_CONTEXT" -> "上下文准备";
+            case "PLANNING_CONTEXT" -> "上下文规划";
+            case "BUILDING_STATE_VIEW" -> "状态视图";
+            case "CALLING_MAIN_NODE" -> "调用主Node";
+            case "VALIDATING_ACTION" -> "动作校验";
+            case "HANDLING_ACTION" -> "动作路由";
+            case "VERIFYING_FINAL" -> "最终检查";
+            case "REPAIRING_FINAL" -> "最终修复";
+            case "WAITING_USER" -> "等待用户";
+            case "RESOLVING_USER_ANSWER" -> "处理用户回答";
+            case "COMPLETED" -> "任务完成";
+            case "FAILED" -> "任务失败";
+            default -> null;
+        };
+    }
+
+    private String humanSummary(String title, String summary) {
+        return switch (title == null ? "" : title) {
+            case "PREPARING_CONTEXT" -> "正在读取 MySQL 固定上下文并并行召回向量记忆。";
+            case "PLANNING_CONTEXT" -> "正在让 ContextPlanner 判断哪些候选需要注入 MainAgent。";
+            case "BUILDING_STATE_VIEW" -> "正在把通过规划的内容组装为 MainAgentStateView。";
+            case "CALLING_MAIN_NODE" -> "正在调用 MainAgent 做语义决策或生成回答。";
+            case "VALIDATING_ACTION" -> "正在解析并校验 MainAgent 输出的动作 JSON。";
+            case "HANDLING_ACTION" -> "正在把动作路由给对应的确定性模块。";
+            case "VERIFYING_FINAL" -> "正在进行最终回答检查。";
+            case "WAITING_USER" -> "已经暂停运行，等待用户回答。";
+            case "RESOLVING_USER_ANSWER" -> "正在解析用户刚刚提交的回答，并从断点继续。";
+            case "COMPLETED" -> "最终回答已落库，任务完成。";
+            case "FAILED" -> "任务已经失败，查看后续失败日志获取原因。";
+            default -> summary;
+        };
     }
 }

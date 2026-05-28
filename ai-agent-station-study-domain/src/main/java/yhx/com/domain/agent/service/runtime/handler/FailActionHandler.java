@@ -57,6 +57,7 @@ public class FailActionHandler extends MainActionHandlerSupport implements MainA
                     .sourceAction(MainAgentActionTypeEnumVO.FAIL)
                     .finalAnswerCandidate(candidate)
                     .failure(failure)
+                    .userClarifications(userClarifications(context))
                     .finalRepairCount(context.countersOrInitial().finalRepairCountValue())
                     .build());
             if (delivery != null && delivery.getStatus() == FinalDeliveryStatusEnumVO.DELIVERED) {
@@ -69,7 +70,7 @@ public class FailActionHandler extends MainActionHandlerSupport implements MainA
                                 .build())
                         .finalMessageId(delivery.getFinalMessageId())
                         .finalAnswerRef(delivery.getFinalAnswerRef())
-                        .message(delivery.getMessage())
+                        .message(failure.getMessage())
                         .build();
             }
             return safeFailure(context, RuntimeFailureCodeEnumVO.FINAL_INTERNAL_LEAK,

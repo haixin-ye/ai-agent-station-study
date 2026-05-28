@@ -5,8 +5,6 @@ import java.util.Optional;
 
 public enum MainAgentActionTypeEnumVO {
     FINAL("FINAL", "Return a guarded final answer candidate."),
-    CREATE_ARTIFACT("CREATE_ARTIFACT", "Create a new artifact."),
-    UPDATE_ARTIFACT("UPDATE_ARTIFACT", "Update an existing artifact."),
     RETRIEVE_RAG("RETRIEVE_RAG", "Request RAG retrieval."),
     CALL_TOOL("CALL_TOOL", "Request runtime-owned tool execution."),
     ASK_USER("ASK_USER", "Ask the user for clarification or approval."),

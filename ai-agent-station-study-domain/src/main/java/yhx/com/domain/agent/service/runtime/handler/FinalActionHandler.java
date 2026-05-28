@@ -59,6 +59,7 @@ public class FinalActionHandler extends MainActionHandlerSupport implements Main
                 .loopIndex(context.getLoopIndex())
                 .sourceAction(sourceAction)
                 .finalAnswerCandidate(candidate)
+                .userClarifications(userClarifications(context))
                 .finalRepairCount(context.countersOrInitial().finalRepairCountValue())
                 .build());
         if (result == null || result.getStatus() == null) {

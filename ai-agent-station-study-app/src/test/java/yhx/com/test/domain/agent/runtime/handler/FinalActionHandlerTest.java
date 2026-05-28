@@ -2,14 +2,18 @@ package yhx.com.test.domain.agent.runtime.handler;
 
 import org.junit.Assert;
 import org.junit.Test;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.FinalDeliveryStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.test.domain.agent.runtime.handler.support.ActionHandlerTestSupport;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class FinalActionHandlerTest {
@@ -37,6 +41,25 @@ public class FinalActionHandlerTest {
         dispatcher.dispatch(ActionHandlerTestSupport.context(), finalAction());
 
         Assert.assertTrue(repository.messages.isEmpty());
+    }
+
+    @Test
+    public void final_action_passes_user_clarifications_to_final_delivery() {
+        ActionHandlerTestSupport.FakeFinalDeliveryPort finalPort = new ActionHandlerTestSupport.FakeFinalDeliveryPort();
+        MainActionDispatcher dispatcher = dispatcher(finalPort);
+        RuntimeExecutionContext context = ActionHandlerTestSupport.context();
+        context.setRuntimeFacts(new LinkedHashMap<>());
+        context.getRuntimeFacts().put("userClarifications", List.of(UserClarificationVO.builder()
+                .question("请问你想介绍哪个金庸角色？")
+                .freeText("小龙女")
+                .value("小龙女")
+                .build()));
+
+        dispatcher.dispatch(context, finalAction());
+
+        Assert.assertEquals(1, finalPort.calls.size());
+        Assert.assertEquals(1, finalPort.calls.get(0).getUserClarifications().size());
+        Assert.assertEquals("小龙女", finalPort.calls.get(0).getUserClarifications().get(0).getFreeText());
     }
 
     @Test

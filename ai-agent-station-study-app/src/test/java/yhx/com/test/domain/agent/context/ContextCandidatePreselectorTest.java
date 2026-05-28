@@ -26,14 +26,14 @@ import java.util.Map;
 public class ContextCandidatePreselectorTest {
 
     @Test
-    public void build_candidates_includes_recent_messages_artifacts_memories_evidence() {
+    public void build_candidates_uses_mysql_for_fixed_context_not_long_term_memory_candidates() {
         FakeContextRepositories repos = fixture();
 
         ContextCandidateBundleVO bundle = preselector(repos).buildCandidates(command(List.of(article("artifact-1", "RAG Article", "payload-artifact"))));
 
         Assert.assertEquals(1, bundle.getRecentMessages().size());
         Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());
-        Assert.assertEquals(1, bundle.getMemoryCandidates().size());
+        Assert.assertTrue(bundle.getMemoryCandidates().isEmpty());
         Assert.assertEquals(1, bundle.getEvidenceCandidates().size());
     }
 
@@ -166,7 +166,7 @@ public class ContextCandidatePreselectorTest {
                     .summaryRef("payload-summary-" + i)
                     .status("ACTIVE")
                     .build());
-            repos.payloads.put("payload-summary-" + i, AgentPayloadEntity.builder().payloadId("payload-summary-" + i).content("summary " + i).build());
+            repos.payloads.put("payload-summary-" + i, AgentPayloadEntity.builder().payloadId("payload-summary-" + i).content("{\"summary\":\"summary " + i + "\"}").build());
         }
 
         ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos, repos, repos)
@@ -182,7 +182,7 @@ public class ContextCandidatePreselectorTest {
     }
 
     @Test
-    public void recalled_turn_summary_exposes_artifact_reference_without_inlining_artifact_body_to_planner() {
+    public void mysql_branch_does_not_keyword_recall_old_turn_summaries() {
         FakeContextRepositories repos = fixture();
         repos.messages.clear();
         repos.payloads.clear();
@@ -210,9 +210,7 @@ public class ContextCandidatePreselectorTest {
         ContextCandidateBundleVO bundle = new ContextCandidatePreselector(repos, repos, repos, repos, repos, repos, repos)
                 .buildCandidates(command(List.of()));
 
-        Assert.assertTrue(bundle.getSessionSummaries().stream()
-                .anyMatch(summary -> "summary-rag-old".equals(summary.getSummaryId())
-                        && summary.getArtifactRefs().contains("artifact-rag-1")));
+        Assert.assertTrue(bundle.getSessionSummaries().isEmpty());
         Assert.assertTrue(bundle.getFixedRecentMessages().isEmpty());
         Assert.assertTrue(bundle.getRecentMessages().isEmpty());
         Assert.assertTrue(bundle.getArtifactCandidates().isEmpty());

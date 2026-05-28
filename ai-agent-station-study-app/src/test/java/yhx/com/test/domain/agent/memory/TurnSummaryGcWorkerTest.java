@@ -12,6 +12,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 import yhx.com.domain.agent.model.valobj.enums.memory.MemoryTaskTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.memory.TurnSummaryOutputVO;
+import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcFollowupScheduler;
 import yhx.com.domain.agent.service.memory.gc.MemoryGcTaskDispatcher;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGcTaskWorker;
@@ -106,10 +107,49 @@ public class TurnSummaryGcWorkerTest {
 
         worker.handleTurn("task-1", "turn-2");
 
+        Assert.assertEquals(3, repositories.tasks.size());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(), repositories.tasks.get(2).getTaskType());
+        Assert.assertEquals("session-1", repositories.tasks.get(2).getSessionId());
+        Assert.assertEquals(List.of("task-3"), rollupWorker.handledTaskIds);
+    }
+
+    @Test
+    public void turn_summary_worker_always_dispatches_long_term_extraction_after_summary() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-2", AgentTurnEntity.builder()
+                .turnId("turn-2")
+                .runId("run-2")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("What is HTTP?").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("HTTP is an application-layer protocol.").build());
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-2")
+                .status("PENDING")
+                .build());
+        RecordingWorker extractionWorker = new RecordingWorker(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name());
+        MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
+                new MemoryGcTaskDispatcher(Runnable::run, List.of(extractionWorker)));
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new StubTurnSummaryNodeService(false),
+                null,
+                scheduler);
+
+        worker.handleTurn("task-1", "turn-2");
+
         Assert.assertEquals(2, repositories.tasks.size());
-        Assert.assertEquals(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(), repositories.tasks.get(1).getTaskType());
-        Assert.assertEquals("session-1", repositories.tasks.get(1).getSessionId());
-        Assert.assertEquals(List.of("task-2"), rollupWorker.handledTaskIds);
+        Assert.assertEquals(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertEquals(repositories.tasks.get(0).getOutputRef(), repositories.tasks.get(1).getInputRef());
+        Assert.assertEquals(List.of("task-2"), extractionWorker.handledTaskIds);
     }
 
     @Test
@@ -158,35 +198,36 @@ public class TurnSummaryGcWorkerTest {
 
         worker.handleTurn("task-1", "turn-2");
 
-        Assert.assertEquals(2, repositories.tasks.size());
+        Assert.assertEquals(3, repositories.tasks.size());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(), repositories.tasks.get(2).getTaskType());
         Assert.assertTrue(rollupWorker.handledTaskIds.isEmpty());
     }
 
     @Test
-    public void turn_summary_worker_dispatches_session_task_summary_every_five_turns_and_governance_every_fifteen_turns() {
+    public void turn_summary_worker_dispatches_session_task_summary_every_five_turns_and_global_governance_every_ten_turns() {
         FakeRepositories repositories = new FakeRepositories();
-        repositories.turns.put("turn-15", AgentTurnEntity.builder()
-                .turnId("turn-15")
-                .runId("run-15")
+        repositories.turns.put("turn-10", AgentTurnEntity.builder()
+                .turnId("turn-10")
+                .runId("run-10")
                 .sessionId("session-1")
                 .userId("user-1")
                 .userPayloadRef("payload-user")
                 .assistantPayloadRef("payload-assistant")
                 .build());
-        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("turn 15 user").build());
-        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("turn 15 answer").build());
-        for (int i = 1; i <= 14; i++) {
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("turn 10 user").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("turn 10 answer").build());
+        for (int i = 1; i <= 9; i++) {
             repositories.summaries.add(AgentTurnSummaryEntity.builder()
                     .summaryId("turn-summary-" + i)
                     .turnId("turn-" + i)
-                    .sessionId("session-1")
+                    .sessionId(i <= 4 ? "session-1" : "session-2")
                     .status("ACTIVE")
                     .build());
         }
         repositories.tasks.add(AgentMemoryTaskEntity.builder()
                 .taskId("task-1")
                 .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
-                .turnId("turn-15")
+                .turnId("turn-10")
                 .status("PENDING")
                 .build());
         RecordingWorker sessionTaskWorker = new RecordingWorker(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name());
@@ -201,15 +242,160 @@ public class TurnSummaryGcWorkerTest {
                 null,
                 scheduler,
                 5,
-                15);
+                10);
 
-        worker.handleTurn("task-1", "turn-15");
+        worker.handleTurn("task-1", "turn-10");
+
+        Assert.assertEquals(4, repositories.tasks.size());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(), repositories.tasks.get(2).getTaskType());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name(), repositories.tasks.get(3).getTaskType());
+        Assert.assertEquals(List.of("task-3"), sessionTaskWorker.handledTaskIds);
+        Assert.assertEquals(List.of("task-4"), governanceWorker.handledTaskIds);
+    }
+
+    @Test
+    public void turn_summary_worker_does_not_dispatch_global_governance_before_ten_active_summaries() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-8", AgentTurnEntity.builder()
+                .turnId("turn-8")
+                .runId("run-8")
+                .sessionId("session-2")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("turn 8 user").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("turn 8 answer").build());
+        for (int i = 1; i <= 7; i++) {
+            repositories.summaries.add(AgentTurnSummaryEntity.builder()
+                    .summaryId("turn-summary-" + i)
+                    .turnId("turn-" + i)
+                    .sessionId(i <= 4 ? "session-1" : "session-2")
+                    .status("ACTIVE")
+                    .build());
+        }
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-8")
+                .status("PENDING")
+                .build());
+        RecordingWorker governanceWorker = new RecordingWorker(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name());
+        MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
+                new MemoryGcTaskDispatcher(Runnable::run, List.of(governanceWorker)));
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new StubTurnSummaryNodeService(false),
+                null,
+                scheduler,
+                5,
+                10);
+
+        worker.handleTurn("task-1", "turn-8");
+
+        Assert.assertEquals(2, repositories.tasks.size());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertTrue(governanceWorker.handledTaskIds.isEmpty());
+    }
+
+    @Test
+    public void turn_summary_worker_dispatches_summary_self_check_every_three_active_summaries() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-3", AgentTurnEntity.builder()
+                .turnId("turn-3")
+                .runId("run-3")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("turn 3 user").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("turn 3 answer").build());
+        for (int i = 1; i <= 2; i++) {
+            repositories.summaries.add(AgentTurnSummaryEntity.builder()
+                    .summaryId("turn-summary-" + i)
+                    .turnId("turn-" + i)
+                    .sessionId("session-1")
+                    .status("ACTIVE")
+                    .build());
+        }
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-3")
+                .status("PENDING")
+                .build());
+        RecordingWorker selfCheckWorker = new RecordingWorker(MemoryTaskTypeEnumVO.TURN_SUMMARY_SELF_CHECK.name());
+        MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
+                new MemoryGcTaskDispatcher(Runnable::run, List.of(selfCheckWorker)));
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new StubTurnSummaryNodeService(false),
+                null,
+                scheduler,
+                5,
+                10,
+                3);
+
+        worker.handleTurn("task-1", "turn-3");
 
         Assert.assertEquals(3, repositories.tasks.size());
-        Assert.assertEquals(MemoryTaskTypeEnumVO.SESSION_TASK_SUMMARY.name(), repositories.tasks.get(1).getTaskType());
-        Assert.assertEquals(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name(), repositories.tasks.get(2).getTaskType());
-        Assert.assertEquals(List.of("task-2"), sessionTaskWorker.handledTaskIds);
-        Assert.assertEquals(List.of("task-3"), governanceWorker.handledTaskIds);
+        Assert.assertEquals(MemoryTaskTypeEnumVO.LONG_TERM_MEMORY_EXTRACTION.name(), repositories.tasks.get(1).getTaskType());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.TURN_SUMMARY_SELF_CHECK.name(), repositories.tasks.get(2).getTaskType());
+        Assert.assertEquals("turn-3", repositories.tasks.get(2).getTurnId());
+        Assert.assertEquals(List.of("task-3"), selfCheckWorker.handledTaskIds);
+    }
+
+    @Test
+    public void turn_summary_worker_retry_reuses_existing_summary_for_same_turn() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-1", AgentTurnEntity.builder()
+                .turnId("turn-1")
+                .runId("run-1")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.summaries.add(AgentTurnSummaryEntity.builder()
+                .summaryId("turn-summary-existing")
+                .turnId("turn-1")
+                .sessionId("session-1")
+                .runId("run-1")
+                .userId("user-1")
+                .summaryRef("payload-summary-existing")
+                .status("ACTIVE")
+                .build());
+        repositories.payloads.put("payload-summary-existing", AgentPayloadEntity.builder()
+                .payloadId("payload-summary-existing")
+                .content("{\"summary\":\"existing summary\",\"intent\":\"existing intent\"}")
+                .build());
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-1")
+                .status("FAILED")
+                .build());
+        RecordingVectorIndexingService vectorIndexingService = new RecordingVectorIndexingService();
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new FailingTurnSummaryNodeService(),
+                vectorIndexingService,
+                null);
+
+        worker.handleTurn("task-1", "turn-1");
+
+        Assert.assertEquals("SUCCEEDED", repositories.tasks.get(0).getStatus());
+        Assert.assertEquals("payload-summary-existing", repositories.tasks.get(0).getOutputRef());
+        Assert.assertEquals(1, repositories.summaries.size());
+        Assert.assertEquals(List.of("turn-summary-existing"), vectorIndexingService.indexedSummaryIds);
     }
 
     private static class StubTurnSummaryNodeService extends TurnSummaryNodeService {
@@ -237,6 +423,32 @@ public class TurnSummaryGcWorkerTest {
                     .importanceScore(new BigDecimal("0.80"))
                     .requiresLongTermExtraction(requiresLongTermExtraction)
                     .build();
+        }
+    }
+
+    private static class FailingTurnSummaryNodeService extends TurnSummaryNodeService {
+        private FailingTurnSummaryNodeService() {
+            super(null);
+        }
+
+        @Override
+        public TurnSummaryOutputVO summarize(yhx.com.domain.agent.model.valobj.memory.TurnSummaryInputVO input,
+                                             String agentId,
+                                             yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO profile) {
+            throw new AssertionError("existing summary retry should not invoke LLM again");
+        }
+    }
+
+    private static class RecordingVectorIndexingService extends MemoryVectorIndexingService {
+        private final List<String> indexedSummaryIds = new ArrayList<>();
+
+        private RecordingVectorIndexingService() {
+            super(null, null, null);
+        }
+
+        @Override
+        public void indexTurnSummary(AgentTurnEntity turn, AgentTurnSummaryEntity summary, TurnSummaryOutputVO output) {
+            indexedSummaryIds.add(summary.getSummaryId());
         }
     }
 
@@ -330,6 +542,13 @@ public class TurnSummaryGcWorkerTest {
         }
 
         @Override
+        public int countAllActiveSummaries() {
+            return (int) summaries.stream()
+                    .filter(summary -> "ACTIVE".equals(summary.getStatus()))
+                    .count();
+        }
+
+        @Override
         public void markSummariesRolledUp(List<String> summaryIds) {
             summaries.stream()
                     .filter(summary -> summaryIds.contains(summary.getSummaryId()))
@@ -355,6 +574,13 @@ public class TurnSummaryGcWorkerTest {
             return tasks.stream()
                     .anyMatch(task -> taskType.equals(task.getTaskType())
                             && sessionId.equals(task.getSessionId())
+                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
+        }
+
+        @Override
+        public boolean hasOpenTaskType(String taskType) {
+            return tasks.stream()
+                    .anyMatch(task -> taskType.equals(task.getTaskType())
                             && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
         }
 

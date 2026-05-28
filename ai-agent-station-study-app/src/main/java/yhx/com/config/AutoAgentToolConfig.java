@@ -1,6 +1,10 @@
 package yhx.com.config;
 
+import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
+import io.modelcontextprotocol.client.transport.ServerParameters;
+import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
@@ -40,6 +44,7 @@ import yhx.com.domain.agent.service.tool.port.McpToolInvokerPort;
 import yhx.com.infrastructure.adapter.port.SpringAiMcpToolDiscoveryAdapter;
 import yhx.com.infrastructure.adapter.port.SpringAiMcpToolInvokerAdapter;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,15 +61,21 @@ public class AutoAgentToolConfig {
         return new CapabilityRegistry(capabilities);
     }
 
-    @Bean
+    @Bean(destroyMethod = "close")
     public McpClientRegistry mcpClientRegistry(AutoAgentMcpProperties properties, ApplicationContext applicationContext) {
         Map<String, McpSyncClient> clients = applicationContext.getBeansOfType(McpSyncClient.class);
         Map<String, Object> handles = new LinkedHashMap<>();
+        if (!properties.isEnabled()) {
+            return new McpClientRegistry(handles);
+        }
         for (AutoAgentMcpProperties.McpServerProperties server : properties.getServers()) {
             if (!server.isEnabled() || server.getServerId() == null) {
                 continue;
             }
             McpSyncClient client = clients.get(server.getServerId());
+            if (client == null) {
+                client = createConfiguredClient(server);
+            }
             if (client != null) {
                 handles.put(server.getServerId(), client);
             }
@@ -74,6 +85,9 @@ public class AutoAgentToolConfig {
 
     @Bean
     public McpToolRegistry mcpToolRegistry(AutoAgentMcpProperties properties) {
+        if (!properties.isEnabled()) {
+            return new McpToolRegistry(List.of());
+        }
         List<McpToolSpecVO> tools = properties.getServers().stream()
                 .filter(AutoAgentMcpProperties.McpServerProperties::isEnabled)
                 .flatMap(server -> server.getTools().stream().map(tool -> toMcpToolSpec(server, tool)))
@@ -240,5 +254,63 @@ public class AutoAgentToolConfig {
 
     private String normalize(String value) {
         return value == null ? null : value.trim().toUpperCase();
+    }
+
+    private McpSyncClient createConfiguredClient(AutoAgentMcpProperties.McpServerProperties server) {
+        McpTransportTypeEnumVO transportType = enumValue(server.getTransport(), McpTransportTypeEnumVO.UNKNOWN);
+        return switch (transportType) {
+            case STDIO -> createStdioClient(server);
+            case SSE -> createSseClient(server);
+            default -> throw new IllegalArgumentException("Unsupported MCP transport for server "
+                    + server.getServerId() + ": " + server.getTransport());
+        };
+    }
+
+    private McpSyncClient createStdioClient(AutoAgentMcpProperties.McpServerProperties server) {
+        if (isBlank(server.getCommand())) {
+            throw new IllegalArgumentException("MCP stdio server command is required: " + server.getServerId());
+        }
+        ServerParameters.Builder builder = ServerParameters.builder(server.getCommand());
+        if (server.getArgs() != null && !server.getArgs().isEmpty()) {
+            builder.args(server.getArgs().toArray(new String[0]));
+        }
+        if (server.getEnv() != null && !server.getEnv().isEmpty()) {
+            builder.env(server.getEnv());
+        }
+        McpSyncClient client = McpClient.sync(new StdioClientTransport(builder.build()))
+                .requestTimeout(resolveRequestTimeout(server))
+                .build();
+        initializeIfNeeded(server, client);
+        return client;
+    }
+
+    private McpSyncClient createSseClient(AutoAgentMcpProperties.McpServerProperties server) {
+        if (isBlank(server.getUrl())) {
+            throw new IllegalArgumentException("MCP SSE server url is required: " + server.getServerId());
+        }
+        HttpClientSseClientTransport.Builder builder = HttpClientSseClientTransport.builder(server.getUrl());
+        if (!isBlank(server.getSseEndpoint())) {
+            builder.sseEndpoint(server.getSseEndpoint());
+        }
+        McpSyncClient client = McpClient.sync(builder.build())
+                .requestTimeout(resolveRequestTimeout(server))
+                .build();
+        initializeIfNeeded(server, client);
+        return client;
+    }
+
+    private Duration resolveRequestTimeout(AutoAgentMcpProperties.McpServerProperties server) {
+        long seconds = server.getRequestTimeoutSeconds() <= 0 ? 100 : server.getRequestTimeoutSeconds();
+        return Duration.ofSeconds(seconds);
+    }
+
+    private void initializeIfNeeded(AutoAgentMcpProperties.McpServerProperties server, McpSyncClient client) {
+        if (server.isAutoInitialize()) {
+            client.initialize();
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

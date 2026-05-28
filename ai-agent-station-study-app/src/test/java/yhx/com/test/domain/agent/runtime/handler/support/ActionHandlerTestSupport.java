@@ -15,7 +15,6 @@ import yhx.com.domain.agent.model.valobj.runtime.RagRuntimeResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionResultVO;
-import yhx.com.domain.agent.service.artifact.ArtifactManager;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 import yhx.com.domain.agent.service.interaction.ContextPlannerPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.FinalRepairPendingInputHandler;
@@ -36,7 +35,6 @@ import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
 import yhx.com.domain.agent.service.runtime.handler.AskUserActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.CallToolActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.ContinueActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.CreateArtifactActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.DefaultMainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.handler.FailActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FinalActionHandler;
@@ -44,7 +42,6 @@ import yhx.com.domain.agent.service.runtime.handler.MainActionHandlerRegistry;
 import yhx.com.domain.agent.service.runtime.handler.PlanActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.RepairFinalActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.RetrieveRagActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.UpdateArtifactActionHandler;
 import yhx.com.domain.agent.service.runtime.port.FinalDeliveryPort;
 import yhx.com.domain.agent.service.runtime.port.PlanStatePort;
 import yhx.com.domain.agent.service.runtime.port.RagRuntimePort;
@@ -92,9 +89,8 @@ public class ActionHandlerTestSupport {
                 eventPublisher,
                 transcriptRecorder,
                 failureFactory);
-        ArtifactManager artifactManager = new ArtifactManager(repository, repository);
         List<MainActionHandler> handlers = handlers(repository, finalPort, ragPort, toolPort, planPort,
-                failureFactory, traceRecorder, eventPublisher, interactionManager, artifactManager);
+                failureFactory, traceRecorder, eventPublisher, interactionManager);
         return new DefaultMainActionDispatcher(new MainActionHandlerRegistry(handlers),
                 ContractValidator.defaultValidator(), failureFactory, traceRecorder);
     }
@@ -121,7 +117,7 @@ public class ActionHandlerTestSupport {
                 new RunTranscriptRecorder(repository, repository),
                 failureFactory);
         return new MainActionHandlerRegistry(handlers(repository, finalPort, ragPort, toolPort, planPort,
-                failureFactory, traceRecorder, eventPublisher, interactionManager, new ArtifactManager(repository, repository)));
+                failureFactory, traceRecorder, eventPublisher, interactionManager));
     }
 
     private static List<MainActionHandler> handlers(FullRepository repository,
@@ -132,12 +128,9 @@ public class ActionHandlerTestSupport {
                                                     RuntimeFailureFactory failureFactory,
                                                     DeveloperTraceRecorder traceRecorder,
                                                     RunEventPublisher eventPublisher,
-                                                    UserInteractionManager interactionManager,
-                                                    ArtifactManager artifactManager) {
+                                                    UserInteractionManager interactionManager) {
         return List.of(
                 new FinalActionHandler(finalPort, failureFactory, traceRecorder),
-                new CreateArtifactActionHandler(artifactManager, finalPort, failureFactory, traceRecorder, eventPublisher),
-                new UpdateArtifactActionHandler(artifactManager, finalPort, failureFactory, traceRecorder, eventPublisher),
                 new AskUserActionHandler(interactionManager, failureFactory, traceRecorder),
                 new RetrieveRagActionHandler(repository, ragPort, eventPublisher, failureFactory, traceRecorder),
                 new CallToolActionHandler(toolPort, failureFactory, traceRecorder),

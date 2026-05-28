@@ -10,6 +10,7 @@
         <result column="model_type" property="modelType"/>
         <result column="default_temperature" property="defaultTemperature"/>
         <result column="default_max_output_tokens" property="defaultMaxOutputTokens"/>
+        <result column="embedding_dimensions" property="embeddingDimensions"/>
         <result column="timeout_ms" property="timeoutMs"/>
         <result column="enabled" property="enabled"/>
         <result column="created_at" property="createdAt"/>
@@ -18,7 +19,7 @@
 
     <select id="queryActiveByProfileId" resultMap="AgentModelProfileMap">
         SELECT id, model_profile_id, api_id, model_name, model_type,
-               default_temperature, default_max_output_tokens, timeout_ms,
+               default_temperature, default_max_output_tokens, embedding_dimensions, timeout_ms,
                enabled, created_at, updated_at
         FROM agent_model_profile
         WHERE model_profile_id = #{modelProfileId}

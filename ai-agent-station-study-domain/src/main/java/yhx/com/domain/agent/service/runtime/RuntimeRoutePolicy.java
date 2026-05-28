@@ -13,9 +13,7 @@ public class RuntimeRoutePolicy {
 
     private static final EnumSet<MainAgentActionTypeEnumVO> EXECUTION_ACTIONS = EnumSet.of(
             MainAgentActionTypeEnumVO.RETRIEVE_RAG,
-            MainAgentActionTypeEnumVO.CALL_TOOL,
-            MainAgentActionTypeEnumVO.CREATE_ARTIFACT,
-            MainAgentActionTypeEnumVO.UPDATE_ARTIFACT
+            MainAgentActionTypeEnumVO.CALL_TOOL
     );
 
     public RuntimePhaseEnumVO nextLoopPhase(RuntimeExecutionContext context, RuntimeStepResult stepResult) {

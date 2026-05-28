@@ -46,6 +46,11 @@ public class MemoryRepository implements IMemoryRepository {
     }
 
     @Override
+    public List<AgentMemoryEntity> listActiveMemoriesForGovernance(int limit) {
+        return agentLongTermMemoryDao.listActiveForGovernance(limit).stream().map(this::toEntity).toList();
+    }
+
+    @Override
     public String saveConversationSummary(AgentConversationSummaryEntity summary) {
         if (summary.getSummaryId() == null || summary.getSummaryId().isBlank()) {
             summary.setSummaryId("summary-" + UUID.randomUUID());

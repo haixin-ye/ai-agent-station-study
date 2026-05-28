@@ -21,5 +21,9 @@ public interface ITurnSummaryRepository {
         return listRecentActiveSummaries(sessionId, Integer.MAX_VALUE).size();
     }
 
+    default int countAllActiveSummaries() {
+        return 0;
+    }
+
     void markSummariesRolledUp(List<String> summaryIds);
 }

@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 public class SessionTaskSummaryGcWorkerTest {
 
@@ -115,6 +116,65 @@ public class SessionTaskSummaryGcWorkerTest {
 
         Assert.assertEquals("SUCCEEDED", repositories.tasks.get(0).getStatus());
         Assert.assertEquals(35, nodeService.lastInput.getSummaries().size());
+    }
+
+    @Test
+    public void session_task_summary_worker_orders_recent_summaries_chronologically() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType("SESSION_TASK_SUMMARY")
+                .runId("run-1")
+                .sessionId("session-1")
+                .turnId("turn-3")
+                .status("PENDING")
+                .build());
+        repositories.turnSummaries.add(AgentTurnSummaryEntity.builder()
+                .summaryId("turn-summary-3")
+                .turnId("turn-3")
+                .sessionId("session-1")
+                .userId("user-1")
+                .summaryRef("payload-summary-3")
+                .status("ACTIVE")
+                .createdAt(LocalDateTime.now().plusMinutes(3))
+                .build());
+        repositories.turnSummaries.add(AgentTurnSummaryEntity.builder()
+                .summaryId("turn-summary-2")
+                .turnId("turn-2")
+                .sessionId("session-1")
+                .userId("user-1")
+                .summaryRef("payload-summary-2")
+                .status("ACTIVE")
+                .createdAt(LocalDateTime.now().plusMinutes(2))
+                .build());
+        repositories.turnSummaries.add(AgentTurnSummaryEntity.builder()
+                .summaryId("turn-summary-1")
+                .turnId("turn-1")
+                .sessionId("session-1")
+                .userId("user-1")
+                .summaryRef("payload-summary-1")
+                .status("ACTIVE")
+                .createdAt(LocalDateTime.now().plusMinutes(1))
+                .build());
+        for (int i = 1; i <= 3; i++) {
+            repositories.payloads.put("payload-summary-" + i, AgentPayloadEntity.builder()
+                    .payloadId("payload-summary-" + i)
+                    .content("summary " + i)
+                    .build());
+        }
+        RecordingSessionTaskSummaryNodeService nodeService = new RecordingSessionTaskSummaryNodeService();
+        SessionTaskSummaryGcWorker worker = new SessionTaskSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                nodeService,
+                3);
+
+        worker.handle("task-1");
+
+        Assert.assertEquals("turn-1", nodeService.lastInput.getSummaries().get(0).getTurnId());
+        Assert.assertEquals("turn-3", nodeService.lastInput.getSummaries().get(2).getTurnId());
+        Assert.assertEquals("turn-3", repositories.sessionTaskSummaries.get(0).getSourceLatestTurnId());
     }
 
     private static class StubSessionTaskSummaryNodeService extends SessionTaskSummaryNodeService {

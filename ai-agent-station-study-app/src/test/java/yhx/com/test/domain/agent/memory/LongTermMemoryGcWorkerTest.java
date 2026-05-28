@@ -66,6 +66,8 @@ public class LongTermMemoryGcWorkerTest {
         Assert.assertEquals("turn-1", repositories.memories.get(0).getSourceTurnId());
         Assert.assertNotNull(repositories.memories.get(0).getLastSeenAt());
         Assert.assertNotNull(repositories.memories.get(0).getContentRef());
+        Assert.assertTrue(repositories.memories.get(0).getMetadataJson().contains("recallText"));
+        Assert.assertTrue(repositories.memories.get(1).getMetadataJson().contains("用户偏好"));
     }
 
     @Test
@@ -99,6 +101,82 @@ public class LongTermMemoryGcWorkerTest {
 
         Assert.assertEquals("SUCCEEDED", repositories.tasks.get(0).getStatus());
         Assert.assertTrue(repositories.memories.isEmpty());
+    }
+
+    @Test
+    public void long_term_memory_worker_falls_back_for_explicit_user_display_name() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType("LONG_TERM_MEMORY_EXTRACTION")
+                .turnId("turn-1")
+                .inputRef("payload-summary")
+                .status("PENDING")
+                .build());
+        repositories.turns.put("turn-1", AgentTurnEntity.builder()
+                .turnId("turn-1")
+                .runId("run-1")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("\u6211\u53eb\u5c0f\u5e05\u54e5").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("\u4f60\u597d\uff0c\u5c0f\u5e05\u54e5\uff01").build());
+        repositories.payloads.put("payload-summary", AgentPayloadEntity.builder().payloadId("payload-summary").content("{\"summary\":\"\u7528\u6237\u81ea\u6211\u4ecb\u7ecd\u4e3a\u5c0f\u5e05\u54e5\"}").build());
+        LongTermMemoryGcWorker worker = new LongTermMemoryGcWorker(repositories,
+                repositories,
+                repositories,
+                new MemoryManager(repositories),
+                new EmptyMemoryExtractionNodeService());
+
+        worker.handle("task-1");
+
+        Assert.assertEquals("SUCCEEDED", repositories.tasks.get(0).getStatus());
+        Assert.assertEquals(1, repositories.memories.size());
+        Assert.assertEquals("LONG_TERM_MEMORY", repositories.memories.get(0).getMemoryType());
+        Assert.assertTrue(repositories.memories.get(0).getSummary().contains("\u5c0f\u5e05\u54e5"));
+        Assert.assertNotNull(repositories.memories.get(0).getContentRef());
+        Assert.assertTrue(repositories.memories.get(0).getMetadataJson().contains("\u6211\u53eb\u4ec0\u4e48"));
+    }
+
+    @Test
+    public void long_term_memory_worker_saves_human_content_and_keeps_recall_text_in_metadata() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType("LONG_TERM_MEMORY_EXTRACTION")
+                .turnId("turn-1")
+                .inputRef("payload-summary")
+                .status("PENDING")
+                .build());
+        repositories.turns.put("turn-1", AgentTurnEntity.builder()
+                .turnId("turn-1")
+                .runId("run-1")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("我叫张三。").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("好的。").build());
+        repositories.payloads.put("payload-summary", AgentPayloadEntity.builder().payloadId("payload-summary").content("{\"summary\":\"User provided their name.\"}").build());
+        LongTermMemoryGcWorker worker = new LongTermMemoryGcWorker(repositories,
+                repositories,
+                repositories,
+                new MemoryManager(repositories),
+                new RecallTextMemoryExtractionNodeService());
+
+        worker.handle("task-1");
+
+        Assert.assertEquals("用户姓名是张三。", repositories.memories.get(0).getSummary());
+        String contentPayloadRef = repositories.memories.get(0).getContentRef();
+        Assert.assertNotNull(contentPayloadRef);
+        Assert.assertEquals("User explicitly said their name is Zhang San.",
+                repositories.payloads.get(contentPayloadRef).getContent());
+        Assert.assertTrue(repositories.memories.get(0).getMetadataJson().contains("recallText"));
+        Assert.assertTrue(repositories.memories.get(0).getMetadataJson().contains("张三"));
+        Assert.assertFalse(repositories.payloads.get(contentPayloadRef).getContent().contains("用户的名字、姓名、称呼"));
     }
 
     private static class StubMemoryExtractionNodeService extends MemoryExtractionNodeService {
@@ -137,6 +215,27 @@ public class LongTermMemoryGcWorkerTest {
                                                 String agentId,
                                                 yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO profile) {
             return MemoryExtractionOutputVO.builder().memories(List.of()).build();
+        }
+    }
+
+    private static class RecallTextMemoryExtractionNodeService extends MemoryExtractionNodeService {
+        private RecallTextMemoryExtractionNodeService() {
+            super(null);
+        }
+
+        @Override
+        public MemoryExtractionOutputVO extract(yhx.com.domain.agent.model.valobj.memory.MemoryExtractionInputVO input,
+                                                String agentId,
+                                                yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO profile) {
+            return MemoryExtractionOutputVO.builder()
+                    .memories(List.of(ExtractedMemoryVO.builder()
+                            .memoryType("LONG_TERM_MEMORY")
+                            .summary("用户姓名是张三。")
+                            .content("User explicitly said their name is Zhang San.")
+                            .recallText("用户的名字、姓名、称呼、个人姓名是张三。用户提到“我的名字”时指张三。")
+                            .score(new BigDecimal("0.95"))
+                            .build()))
+                    .build();
         }
     }
 

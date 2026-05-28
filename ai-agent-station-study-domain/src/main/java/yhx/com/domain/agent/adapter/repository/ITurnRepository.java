@@ -15,5 +15,9 @@ public interface ITurnRepository {
 
     List<AgentTurnEntity> listRecentCompletedTurns(String sessionId, int limit);
 
+    default List<AgentTurnEntity> listRecentCompletedTurns(int limit) {
+        return List.of();
+    }
+
     List<AgentTurnEntity> listCompletedTurnsBefore(String sessionId, Long beforeTurnNo, int limit);
 }

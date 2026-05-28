@@ -38,6 +38,7 @@ public class UserInteractionManager {
     private final RunEventPublisher eventPublisher;
     private final RunTranscriptRecorder transcriptRecorder;
     private final RuntimeFailureFactory failureFactory;
+    private final AskUserRequestPolicy askUserRequestPolicy = new AskUserRequestPolicy();
 
     public UserInteractionManager(PendingInputManager pendingInputManager,
                                   UserReplyProcessor userReplyProcessor,
@@ -139,16 +140,7 @@ public class UserInteractionManager {
     }
 
     private String validate(AskUserRequestVO request) {
-        if (request == null) {
-            return "AskUserRequest is missing.";
-        }
-        if (request.getQuestion() == null || request.getQuestion().isBlank()) {
-            return "AskUserRequest.question is required.";
-        }
-        if (request.getInputMode() == null || request.getInputMode().isBlank()) {
-            return "AskUserRequest.inputMode is required.";
-        }
-        return null;
+        return askUserRequestPolicy.normalizeAndValidate(request);
     }
 
     private String savePayload(Object value) {

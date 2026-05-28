@@ -19,6 +19,7 @@ import yhx.com.domain.agent.model.valobj.prompt.PromptAssemblyResult;
 import yhx.com.domain.agent.service.contract.ContractRegistry;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 import yhx.com.domain.agent.service.contract.RawOutputParser;
+import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
 import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
 
@@ -83,6 +84,10 @@ public class NodeInvocationPipeline {
                 command == null ? null : command.getPromptVersion(),
                 command == null ? null : command.getModelCode(),
                 command == null ? null : command.getMaxRepairAttempts());
+        AutoAgentHumanLog.stage("节点调用", command == null ? null : command.getRunId(), "准备调用 "
+                + (command == null ? null : command.getComponentCode())
+                + "，模型=" + (command == null ? null : command.getModelCode())
+                + "，契约=" + (command == null ? null : command.getContractVersion()));
         diagnostic(command == null ? null : command.getRunId(), "NODE_INVOKE", diagnosticMap(
                 "componentCode", command == null ? null : command.getComponentCode(),
                 "contractVersion", command == null ? null : command.getContractVersion(),
@@ -133,6 +138,10 @@ public class NodeInvocationPipeline {
         String prompt = promptResult.assembledPrompt();
         log.info("[AutoAgent][node-call] runId={}, component={}, attemptNo={}, repairAttempt={}, promptChars={}",
                 command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, prompt == null ? 0 : prompt.length());
+        AutoAgentHumanLog.stage("节点调用", command.getRunId(), "调用 "
+                + command.getComponentCode() + "：attempt=" + attemptNo
+                + "，repair=" + repairAttempt
+                + "，promptChars=" + (prompt == null ? 0 : prompt.length()));
         diagnostic(command.getRunId(), "NODE_CALL", diagnosticMap(
                 "componentCode", command.getComponentCode(),
                 "attemptNo", attemptNo,
@@ -155,6 +164,8 @@ public class NodeInvocationPipeline {
         } catch (Exception e) {
             log.error("[AutoAgent][node-client-error] runId={}, component={}, attemptNo={}, repairAttempt={}",
                     command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, e);
+            AutoAgentHumanLog.stage("节点调用", command.getRunId(), command.getComponentCode()
+                    + " 调用失败：客户端异常，原因=" + e.getMessage());
             diagnosticError(command.getRunId(), "NODE_CLIENT_ERROR", e, diagnosticMap(
                     "componentCode", command.getComponentCode(),
                     "attemptNo", attemptNo,
@@ -202,6 +213,8 @@ public class NodeInvocationPipeline {
         if (success) {
             log.info("[AutoAgent][node-success] runId={}, component={}, attemptNo={}, repairAttempt={}, rawOutput={}",
                     command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, preview(rawOutput));
+            AutoAgentHumanLog.stage("节点调用", command.getRunId(), command.getComponentCode()
+                    + " 输出合法：attempt=" + attemptNo + "，repair=" + repairAttempt);
             diagnostic(command.getRunId(), "NODE_SUCCESS", diagnosticMap(
                     "componentCode", command.getComponentCode(),
                     "attemptNo", attemptNo,
@@ -211,6 +224,8 @@ public class NodeInvocationPipeline {
         } else {
             log.warn("[AutoAgent][node-invalid] runId={}, component={}, attemptNo={}, repairAttempt={}, failureType={}, failureMessage={}, rawOutput={}",
                     command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, failureType, failureMessage, preview(rawOutput));
+            AutoAgentHumanLog.stage("节点调用", command.getRunId(),
+                    AutoAgentHumanLog.nodeInvalidSummary(command.getComponentCode(), failureType, failureMessage, rawOutput));
             diagnostic(command.getRunId(), "NODE_INVALID", diagnosticMap(
                     "level", "WARN",
                     "componentCode", command.getComponentCode(),

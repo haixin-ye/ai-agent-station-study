@@ -47,6 +47,30 @@ public class MemoryTaskRepository implements IMemoryTaskRepository {
     }
 
     @Override
+    public boolean hasOpenTaskType(String taskType) {
+        if (taskType == null || taskType.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countOpenTaskByType(taskType) > 0;
+    }
+
+    @Override
+    public boolean hasTaskForTurn(String taskType, String turnId) {
+        if (taskType == null || taskType.isBlank() || turnId == null || turnId.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countTaskByTypeAndTurn(taskType, turnId) > 0;
+    }
+
+    @Override
+    public boolean hasOpenTaskForTurn(String taskType, String turnId) {
+        if (taskType == null || taskType.isBlank() || turnId == null || turnId.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countOpenTaskByTypeAndTurn(taskType, turnId) > 0;
+    }
+
+    @Override
     public List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit) {
         if (maxAttempts <= 0 || limit <= 0) {
             return List.of();

@@ -44,6 +44,7 @@ public class MainAgentStateViewBuilder {
         Map<String, MessageCandidateVO> merged = new LinkedHashMap<>();
         addMessages(merged, command.getCandidates().getFixedRecentMessages());
         addMessages(merged, command.getCandidates().getRecentMessages());
+        addMessages(merged, command.getMaterializedMessages());
         return List.copyOf(merged.values());
     }
 

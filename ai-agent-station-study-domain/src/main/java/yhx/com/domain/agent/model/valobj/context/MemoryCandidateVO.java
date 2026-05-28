@@ -16,6 +16,7 @@ public class MemoryCandidateVO {
     private String memoryId;
     private String memoryType;
     private String summary;
+    private String content;
     private String contentRef;
     private BigDecimal score;
     private Double relevanceScore;

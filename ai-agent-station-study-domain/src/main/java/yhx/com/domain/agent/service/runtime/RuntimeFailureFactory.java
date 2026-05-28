@@ -6,7 +6,7 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeSafeFailureVO;
 
 public class RuntimeFailureFactory {
 
-    private static final String DEFAULT_USER_MESSAGE = "The task could not be completed safely. Please try again or adjust your request.";
+    private static final String DEFAULT_USER_MESSAGE = "抱歉，这次任务没有被安全完成。请稍后重试，或调整问题后再试。";
 
     public RuntimeSafeFailureVO create(RuntimeFailureCodeEnumVO code, RuntimePhaseEnumVO phase, String developerMessage, boolean retryable) {
         return RuntimeSafeFailureVO.builder()
@@ -43,10 +43,10 @@ public class RuntimeFailureFactory {
 
     private String userMessage(RuntimeFailureCodeEnumVO code) {
         if (code == RuntimeFailureCodeEnumVO.MAX_LOOP_REACHED) {
-            return "The task required too many steps to complete safely. Please narrow the request and try again.";
+            return "这次任务需要的步骤过多，系统已安全停止。请缩小问题范围后再试。";
         }
         if (code == RuntimeFailureCodeEnumVO.INVALID_PENDING_ANSWER) {
-            return "The submitted answer could not be applied to the current question. Please answer again.";
+            return "你的回答无法应用到当前问题，请重新回答。";
         }
         return DEFAULT_USER_MESSAGE;
     }

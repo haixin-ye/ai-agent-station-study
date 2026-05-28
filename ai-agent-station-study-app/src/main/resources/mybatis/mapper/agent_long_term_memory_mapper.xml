@@ -78,6 +78,16 @@
         LIMIT #{limit}
     </select>
 
+    <select id="listActiveForGovernance" resultMap="AgentLongTermMemoryMap">
+        SELECT id, memory_id, user_id, session_id, memory_type, summary, content_ref, score,
+               status, source_run_id, source_turn_id, last_seen_at, disabled_at, superseded_by, metadata_json,
+               created_at, updated_at
+        FROM agent_long_term_memory
+        WHERE status = 'ACTIVE'
+        ORDER BY updated_at DESC, score DESC
+        LIMIT #{limit}
+    </select>
+
     <update id="updateLifecycle">
         UPDATE agent_long_term_memory
         SET status = #{status},

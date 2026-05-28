@@ -77,6 +77,7 @@ import yhx.com.domain.agent.service.memory.gc.worker.LongTermMemoryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.MemoryGovernanceGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.SessionTaskSummaryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
+import yhx.com.domain.agent.service.memory.gc.worker.TurnSummarySelfCheckGcWorker;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
 import yhx.com.domain.agent.service.prompt.PromptContentProvider;
@@ -106,7 +107,6 @@ import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
 import yhx.com.domain.agent.service.runtime.handler.AskUserActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.CallToolActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.ContinueActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.CreateArtifactActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.DefaultMainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.handler.FailActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FinalActionHandler;
@@ -114,7 +114,6 @@ import yhx.com.domain.agent.service.runtime.handler.MainActionHandlerRegistry;
 import yhx.com.domain.agent.service.runtime.handler.PlanActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.RepairFinalActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.RetrieveRagActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.UpdateArtifactActionHandler;
 import yhx.com.domain.agent.service.runtime.port.FinalDeliveryPort;
 import yhx.com.domain.agent.service.runtime.port.PlanStatePort;
 import yhx.com.domain.agent.service.runtime.port.RagRuntimePort;
@@ -132,7 +131,7 @@ import java.util.concurrent.Executors;
 
 @Configuration
 @ConditionalOnProperty(prefix = "auto-agent.runtime", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({AutoAgentRuntimeProperties.class, AutoAgentContextProperties.class})
+@EnableConfigurationProperties({AutoAgentRuntimeProperties.class, AutoAgentContextProperties.class, AutoAgentRagProperties.class})
 public class AutoAgentRuntimeConfig {
 
     @Bean
@@ -297,11 +296,12 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public ContextPreparationService contextPreparationService(ContextCandidatePreselector preselector,
                                                                VectorContextRecallPreselector vectorContextRecallPreselector,
-                                                               @Qualifier("autoAgentContextRecallExecutor") Executor contextRecallExecutor) {
+                                                               @Qualifier("autoAgentContextRecallExecutor") Executor contextRecallExecutor,
+                                                               AutoAgentContextProperties contextProperties) {
         return new ContextPreparationService(preselector,
                 vectorContextRecallPreselector,
                 contextRecallExecutor,
-                Duration.ofMillis(1200));
+                Duration.ofMillis(Math.max(0, contextProperties.getVectorRecallTimeoutMillis())));
     }
 
     @Bean
@@ -312,12 +312,16 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public ContextMaterializer contextMaterializer(ArtifactPayloadLoader artifactPayloadLoader,
                                                    ContextBudgetManager budgetManager,
-                                                   MainAgentStateViewBuilder stateViewBuilder) {
+                                                   MainAgentStateViewBuilder stateViewBuilder,
+                                                   ITurnRepository turnRepository,
+                                                   IPayloadRepository payloadRepository) {
         return new ContextMaterializer(new ContextSelectionValidator(),
                 artifactPayloadLoader,
                 new EvidencePackBuilder(),
                 budgetManager,
-                stateViewBuilder);
+                stateViewBuilder,
+                turnRepository,
+                payloadRepository);
     }
 
     @Bean
@@ -404,7 +408,8 @@ public class AutoAgentRuntimeConfig {
                                          RagRetrieverPort ragRetrieverPort,
                                          RunEventPublisher eventPublisher,
                                          DeveloperTraceRecorder traceRecorder,
-                                         RuntimeFailureFactory failureFactory) {
+                                         RuntimeFailureFactory failureFactory,
+                                         AutoAgentRagProperties ragProperties) {
         return new RagRuntime(runRepository,
                 ragExecutionRepository,
                 payloadRepository,
@@ -414,9 +419,9 @@ public class AutoAgentRuntimeConfig {
                 eventPublisher,
                 traceRecorder,
                 failureFactory,
-                5,
-                10,
-                1200);
+                ragProperties.getMaxHitsPerQuery(),
+                ragProperties.getMaxHitsPerQuery(),
+                ragProperties.getMaxEvidenceSnippetChars());
     }
 
     @Bean
@@ -500,6 +505,18 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public TurnSummarySelfCheckGcWorker turnSummarySelfCheckGcWorker(ITurnRepository turnRepository,
+                                                                     ITurnSummaryRepository turnSummaryRepository,
+                                                                     IMemoryTaskRepository memoryTaskRepository,
+                                                                     MemoryGcFollowupScheduler memoryGcFollowupScheduler) {
+        return new TurnSummarySelfCheckGcWorker(turnRepository,
+                turnSummaryRepository,
+                memoryTaskRepository,
+                memoryGcFollowupScheduler,
+                50);
+    }
+
+    @Bean
     public LongTermMemoryGcWorker longTermMemoryGcWorker(ITurnRepository turnRepository,
                                                          IMemoryTaskRepository memoryTaskRepository,
                                                          IPayloadRepository payloadRepository,
@@ -529,11 +546,13 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public MemoryGovernanceGcWorker memoryGovernanceGcWorker(IMemoryRepository memoryRepository,
                                                              IMemoryTaskRepository memoryTaskRepository,
+                                                             IPayloadRepository payloadRepository,
                                                              IVectorMemoryRepository vectorMemoryRepository,
                                                              IVectorIndexRepository vectorIndexRepository,
                                                              MemoryGovernanceNodeService memoryGovernanceNodeService) {
         return new MemoryGovernanceGcWorker(memoryRepository,
                 memoryTaskRepository,
+                payloadRepository,
                 vectorMemoryRepository,
                 vectorIndexRepository,
                 memoryGovernanceNodeService,
@@ -602,24 +621,6 @@ public class AutoAgentRuntimeConfig {
                                                  RuntimeFailureFactory failureFactory,
                                                  DeveloperTraceRecorder traceRecorder) {
         return new FinalActionHandler(finalDeliveryPort, failureFactory, traceRecorder);
-    }
-
-    @Bean
-    public CreateArtifactActionHandler createArtifactActionHandler(ArtifactManager artifactManager,
-                                                                   FinalDeliveryPort finalDeliveryPort,
-                                                                   RuntimeFailureFactory failureFactory,
-                                                                   DeveloperTraceRecorder traceRecorder,
-                                                                   RunEventPublisher eventPublisher) {
-        return new CreateArtifactActionHandler(artifactManager, finalDeliveryPort, failureFactory, traceRecorder, eventPublisher);
-    }
-
-    @Bean
-    public UpdateArtifactActionHandler updateArtifactActionHandler(ArtifactManager artifactManager,
-                                                                   FinalDeliveryPort finalDeliveryPort,
-                                                                   RuntimeFailureFactory failureFactory,
-                                                                   DeveloperTraceRecorder traceRecorder,
-                                                                   RunEventPublisher eventPublisher) {
-        return new UpdateArtifactActionHandler(artifactManager, finalDeliveryPort, failureFactory, traceRecorder, eventPublisher);
     }
 
     @Bean

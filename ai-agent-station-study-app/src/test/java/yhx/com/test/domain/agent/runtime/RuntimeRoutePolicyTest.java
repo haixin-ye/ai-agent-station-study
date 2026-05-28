@@ -32,13 +32,6 @@ public class RuntimeRoutePolicyTest {
     }
 
     @Test
-    public void artifact_action_returns_to_state_view_before_main_node() {
-        RuntimePhaseEnumVO next = policy.nextLoopPhase(contextWithStateView(), continueStep("CREATE_ARTIFACT", RuntimePhaseEnumVO.CALLING_MAIN_NODE));
-
-        Assert.assertEquals(RuntimePhaseEnumVO.BUILDING_STATE_VIEW, next);
-    }
-
-    @Test
     public void existing_state_view_prevents_unforced_context_replan() {
         RuntimePhaseEnumVO next = policy.nextLoopPhase(contextWithStateView(), continueStep("CONTINUE", RuntimePhaseEnumVO.PREPARING_CONTEXT));
 

@@ -20,6 +20,7 @@ public class AgentModelProfilePO {
     private String modelType;
     private Double defaultTemperature;
     private Integer defaultMaxOutputTokens;
+    private Integer embeddingDimensions;
     private Integer timeoutMs;
     private Integer enabled;
     private LocalDateTime createdAt;

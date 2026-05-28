@@ -18,12 +18,14 @@ import yhx.com.domain.agent.model.valobj.enums.persistence.TraceTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.finalresponse.FinalResponseVO;
 import yhx.com.domain.agent.model.valobj.invocation.FinalResponseGuardResultVO;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryCommandVO;
 import yhx.com.domain.agent.service.memory.NoopTurnCompletionPublisher;
 import yhx.com.domain.agent.service.memory.TurnCompletionPublisher;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -138,11 +140,74 @@ public class FinalResponsePersistenceService {
                 .agentId(command.getAgentId())
                 .userMessageId(command.getUserMessageId())
                 .assistantMessageId(assistantMessageId)
-                .userPayloadRef(findUserPayloadRef(command.getUserMessageId()))
+                .userPayloadRef(completedTurnUserPayloadRef(command))
                 .assistantPayloadRef(assistantPayloadRef)
                 .status("COMPLETED")
                 .completedAt(LocalDateTime.now())
                 .build());
+    }
+
+    private String completedTurnUserPayloadRef(FinalDeliveryCommandVO command) {
+        String originalPayloadRef = findUserPayloadRef(command.getUserMessageId());
+        if (!hasUserClarifications(command)) {
+            return originalPayloadRef;
+        }
+        String content = originalUserContent(originalPayloadRef, command.getUserInput());
+        String enhanced = completedTurnUserPayload(content, command.getUserClarifications());
+        String enhancedPayloadRef = savePayload(PayloadTypeEnumVO.TEXT, enhanced, "completed-turn-user-context");
+        return enhancedPayloadRef == null ? originalPayloadRef : enhancedPayloadRef;
+    }
+
+    private boolean hasUserClarifications(FinalDeliveryCommandVO command) {
+        return command != null
+                && command.getUserClarifications() != null
+                && command.getUserClarifications().stream().anyMatch(this::hasClarificationContent);
+    }
+
+    private boolean hasClarificationContent(UserClarificationVO clarification) {
+        return clarification != null
+                && (!isBlank(clarification.getQuestion())
+                || !isBlank(clarification.getFreeText())
+                || clarification.getValue() != null
+                || !isBlank(clarification.getSelectedOptionId()));
+    }
+
+    private String originalUserContent(String originalPayloadRef, String fallback) {
+        if (payloadRepository != null && originalPayloadRef != null && !originalPayloadRef.isBlank()) {
+            return payloadRepository.findContent(originalPayloadRef).orElse(fallback);
+        }
+        return fallback;
+    }
+
+    private String completedTurnUserPayload(String originalUserContent, List<UserClarificationVO> clarifications) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Original user question:\n");
+        builder.append(isBlank(originalUserContent) ? "" : originalUserContent.trim());
+        builder.append("\n\nUser clarification answers in this run:");
+        int index = 1;
+        for (UserClarificationVO clarification : clarifications) {
+            if (!hasClarificationContent(clarification)) {
+                continue;
+            }
+            builder.append("\n").append(index++).append(". Question: ");
+            builder.append(isBlank(clarification.getQuestion()) ? "" : clarification.getQuestion().trim());
+            builder.append("\n   Answer: ");
+            builder.append(clarificationAnswer(clarification));
+        }
+        return builder.toString();
+    }
+
+    private String clarificationAnswer(UserClarificationVO clarification) {
+        if (!isBlank(clarification.getFreeText())) {
+            return clarification.getFreeText().trim();
+        }
+        if (clarification.getValue() != null) {
+            return clarification.getValue() instanceof String text ? text.trim() : JSON.toJSONString(clarification.getValue());
+        }
+        if (!isBlank(clarification.getSelectedOptionId())) {
+            return clarification.getSelectedOptionId().trim();
+        }
+        return "";
     }
 
     private String findUserPayloadRef(String userMessageId) {
@@ -172,5 +237,9 @@ public class FinalResponsePersistenceService {
             return fallback;
         }
         return content.length() <= 200 ? content : content.substring(0, 200);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

@@ -21,5 +21,7 @@ public interface IAgentTurnSummaryDao {
 
     int countActive(@Param("sessionId") String sessionId);
 
+    int countAllActive();
+
     int updateStatusBySummaryIds(@Param("summaryIds") List<String> summaryIds, @Param("status") String status);
 }

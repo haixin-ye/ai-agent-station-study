@@ -17,6 +17,10 @@ public interface IMemoryRepository {
         return List.of();
     }
 
+    default List<AgentMemoryEntity> listActiveMemoriesForGovernance(int limit) {
+        return List.of();
+    }
+
     String saveConversationSummary(AgentConversationSummaryEntity summary);
 
     String saveLongTermMemory(AgentMemoryEntity memory);

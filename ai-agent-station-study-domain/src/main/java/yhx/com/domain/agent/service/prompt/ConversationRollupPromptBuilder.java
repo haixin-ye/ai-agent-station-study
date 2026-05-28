@@ -13,11 +13,13 @@ public class ConversationRollupPromptBuilder {
                         You are a conversation rollup component inside AutoAgent Memory GC.
                         You compress multiple completed turn summaries into one rolling conversation summary.
                         You do not answer the user, create long-term memory, or modify runtime state.
+                        All human-readable output fields must be written in Simplified Chinese.
                         """),
                 layer(PromptLayerTypeEnumVO.TASK_PROCEDURE, "Task Procedure", """
                         Read the ordered summaries.
                         Preserve durable project direction, decisions, produced artifacts, unresolved follow-ups, and important changes over time.
                         Omit trivial chit-chat, repeated details, and low-value wording.
+                        Write summaries, decisions, progress, unresolved follow-ups, and descriptive text in Simplified Chinese.
                         """),
                 layer(PromptLayerTypeEnumVO.DECISION_POLICY, "Decision Policy", """
                         The result must be useful for future context planning.

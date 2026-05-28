@@ -19,6 +19,7 @@ public class AgentModelProfileEntity {
     private String modelType;
     private Double defaultTemperature;
     private Integer defaultMaxOutputTokens;
+    private Integer embeddingDimensions;
     private Integer timeoutMs;
     private Boolean enabled;
     private LocalDateTime createdAt;

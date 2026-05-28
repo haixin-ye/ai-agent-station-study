@@ -13,12 +13,14 @@ public class SessionTaskSummaryPromptBuilder {
                         You are SessionTaskSummary, a bounded Memory GC component inside AutoAgent.
                         You maintain the latest task state for one chat session from ordered turn summaries.
                         You do not answer the user, create long-term memories, or modify runtime state.
+                        All human-readable output fields must be written in Simplified Chinese.
                         """),
                 layer(PromptLayerTypeEnumVO.TASK_PROCEDURE, "Task Procedure", """
                         Read previousTaskSummary and the ordered turn summaries.
                         Decide whether the session task state should be updated.
                         Track the user's main tasks, current active task, important decisions, latest progress, open questions, and obsolete tasks.
                         Prefer the latest user intent when older and newer tasks conflict.
+                        Write task names, status, decisions, progress, and open questions in Simplified Chinese.
                         """),
                 layer(PromptLayerTypeEnumVO.DECISION_POLICY, "Decision Policy", """
                         Set shouldUpdate=false only when the new summaries add no meaningful task-state change.

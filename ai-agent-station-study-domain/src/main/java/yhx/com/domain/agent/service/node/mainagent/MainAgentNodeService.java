@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
+import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,6 +35,8 @@ public class MainAgentNodeService {
     public MainAgentActionVO invoke(RuntimeExecutionContext context) {
         log.info("[AutoAgent][main-agent-start] runId={}, loopIndex={}",
                 context.getRunId(), context.getLoopIndex());
+        AutoAgentHumanLog.stage("调用主Node", context.getRunId(), "开始调用 MainAgent：loop="
+                + context.getLoopIndex());
         NodeInvocationProfileVO profile = normalizedProfile();
         NodeInvocationResult result = nodeInvocationPipeline.invoke(NodeInvocationCommand.builder()
                 .runId(context.getRunId())
@@ -51,10 +54,14 @@ public class MainAgentNodeService {
         if (result.getTypedOutput() instanceof MainAgentActionVO action) {
             log.info("[AutoAgent][main-agent-action] runId={}, loopIndex={}, status={}, action={}",
                     context.getRunId(), context.getLoopIndex(), result.getStatus(), action.getAction());
+            AutoAgentHumanLog.mainAction(context.getRunId(), context.getLoopIndex(), action);
             return action;
         }
         log.warn("[AutoAgent][main-agent-fallback] runId={}, loopIndex={}, status={}, failureCode={}, failureMessage={}",
                 context.getRunId(), context.getLoopIndex(), result.getStatus(), result.getFailureCode(), result.getFailureMessage());
+        AutoAgentHumanLog.stage("调用主Node", context.getRunId(), "MainAgent 调用失败：status="
+                + result.getStatus() + "，failureCode=" + result.getFailureCode()
+                + "，原因=" + result.getFailureMessage());
         return safeFailAction("MAIN_AGENT_INVOCATION_FAILED", result.getFailureMessage());
     }
 
@@ -81,7 +88,7 @@ public class MainAgentNodeService {
     private MainAgentActionVO safeFailAction(String failureCode, String message) {
         Map<String, Object> failure = new LinkedHashMap<>();
         failure.put("failureCode", failureCode);
-        failure.put("userMessage", "抱歉，这次任务没有被安全完成。");
+        failure.put("userMessage", "抱歉，这次任务没有被安全完成。请稍后重试，或调整问题后再试。");
         failure.put("developerMessage", firstNonBlank(message, "MainAgent invocation did not produce a valid action."));
         return MainAgentActionVO.builder()
                 .action(MainAgentActionTypeEnumVO.FAIL.code())

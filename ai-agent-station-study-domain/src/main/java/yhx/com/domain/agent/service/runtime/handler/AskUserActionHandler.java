@@ -60,7 +60,7 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
                             .sourceComponent(MainAgentPendingInputHandler.HANDLER_CODE)
                             .relatedRunId(context.getRunId())
                             .relatedLoopIndex(context.getLoopIndex())
-                            .payload(Map.of())
+                            .payload(checkpointPayload(context))
                             .build())
                     .build());
             if (!Boolean.TRUE.equals(pending.getCreated())) {
@@ -82,12 +82,13 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
         if (request == null || isBlank(request.getQuestion()) || isBlank(request.getInputMode())) {
             throw new IllegalArgumentException("askUserRequest.question and inputMode are required.");
         }
-        if ("SINGLE_CHOICE".equals(request.getInputMode())
-                || "SINGLE_CHOICE_OR_FREE_TEXT".equals(request.getInputMode())) {
-            if (request.getOptions() == null || request.getOptions().isEmpty()) {
-                throw new IllegalArgumentException("askUserRequest.options are required for choice input modes.");
-            }
+    }
+
+    private Map<String, Object> checkpointPayload(RuntimeExecutionContext context) {
+        if (context == null || context.getLastContextSelections() == null || context.getLastContextSelections().isEmpty()) {
+            return Map.of();
         }
+        return Map.of("contextSelections", context.getLastContextSelections());
     }
 
     private boolean alreadyAnswered(RuntimeExecutionContext context, AskUserRequestVO request) {

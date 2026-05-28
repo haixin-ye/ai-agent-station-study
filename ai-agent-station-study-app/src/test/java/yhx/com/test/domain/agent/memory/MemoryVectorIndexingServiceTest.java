@@ -69,6 +69,30 @@ public class MemoryVectorIndexingServiceTest {
     }
 
     @Test
+    public void long_term_memory_uses_metadata_recall_text_for_vector_indexing() {
+        FakeVectorRepositories repositories = new FakeVectorRepositories();
+        repositories.payloads.put("payload-content", AgentPayloadEntity.builder()
+                .payloadId("payload-content")
+                .content("User explicitly said their name is Zhang San.")
+                .build());
+
+        service(repositories).indexMemory(AgentMemoryEntity.builder()
+                .memoryId("memory-name")
+                .userId("user-1")
+                .sessionId("session-1")
+                .memoryType("LONG_TERM_MEMORY")
+                .summary("用户姓名是张三。")
+                .contentRef("payload-content")
+                .metadataJson("{\"recallText\":\"用户的名字、姓名、称呼、个人姓名是张三。用户提到‘我的名字’时指张三。\"}")
+                .score(new BigDecimal("0.95"))
+                .build());
+
+        Assert.assertEquals("用户的名字、姓名、称呼、个人姓名是张三。用户提到‘我的名字’时指张三。",
+                repositories.vectorRecords.get(0).getText());
+        Assert.assertEquals("用户姓名是张三。", repositories.vectorRecords.get(0).getSummary());
+    }
+
+    @Test
     public void user_preference_memory_is_indexed_into_preference_collection() {
         FakeVectorRepositories repositories = new FakeVectorRepositories();
 

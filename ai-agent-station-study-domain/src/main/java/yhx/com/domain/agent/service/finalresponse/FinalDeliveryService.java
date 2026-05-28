@@ -160,7 +160,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
     private FinalDeliveryCommandVO normalize(FinalDeliveryCommandVO command) {
         if (command.getSourceAction() == MainAgentActionTypeEnumVO.FAIL) {
             return copyWithCandidate(command, FinalAnswerCandidateVO.builder()
-                    .content("The task could not be completed safely. Please try again or adjust your request.")
+                    .content("抱歉，这次任务没有被安全完成。请稍后重试，或调整问题后再试。")
                     .format("PLAIN_TEXT")
                     .build());
         }
@@ -179,6 +179,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
                 .sourceAction(command.getSourceAction())
                 .finalAnswerCandidate(candidate)
                 .failure(command.getFailure())
+                .userClarifications(command.getUserClarifications())
                 .evidenceIds(command.getEvidenceIds())
                 .verifiedToolCallRefs(command.getVerifiedToolCallRefs())
                 .userFormatRequirement(command.getUserFormatRequirement())

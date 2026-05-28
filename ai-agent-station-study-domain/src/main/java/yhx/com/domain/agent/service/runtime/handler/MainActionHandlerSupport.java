@@ -2,6 +2,7 @@ package yhx.com.domain.agent.service.runtime.handler;
 
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.FailureVO;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeFailureCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
@@ -53,14 +54,6 @@ public class MainActionHandlerSupport {
                 .contentRef(stringValue(map, "contentRef"))
                 .format(stringValue(map, "format"))
                 .build();
-    }
-
-    protected Map<String, Object> requireArtifactDraft(MainAgentActionVO action) {
-        return requireMap(action, "artifactDraft");
-    }
-
-    protected Map<String, Object> requireArtifactPatch(MainAgentActionVO action) {
-        return requireMap(action, "artifactPatch");
     }
 
     protected AskUserRequestVO requireAskUserRequest(MainAgentActionVO action) {
@@ -127,6 +120,23 @@ public class MainActionHandlerSupport {
 
     protected Object firstNonNull(Object first, Object second) {
         return first == null ? second : first;
+    }
+
+    protected List<UserClarificationVO> userClarifications(RuntimeExecutionContext context) {
+        if (context == null || context.getRuntimeFacts() == null) {
+            return List.of();
+        }
+        Object value = context.getRuntimeFacts().get("userClarifications");
+        if (!(value instanceof Iterable<?> iterable)) {
+            return List.of();
+        }
+        java.util.ArrayList<UserClarificationVO> clarifications = new java.util.ArrayList<>();
+        for (Object item : iterable) {
+            if (item instanceof UserClarificationVO clarification) {
+                clarifications.add(clarification);
+            }
+        }
+        return clarifications;
     }
 
     @SuppressWarnings("unchecked")

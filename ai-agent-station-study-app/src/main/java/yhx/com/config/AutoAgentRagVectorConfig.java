@@ -17,6 +17,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
 import yhx.com.domain.agent.adapter.repository.IModelRuntimeRepository;
 import yhx.com.domain.agent.model.entity.modelruntime.AgentModelApiEntity;
+import yhx.com.domain.agent.model.entity.modelruntime.AgentModelProfileEntity;
+import yhx.com.domain.agent.model.entity.modelruntime.AgentNodeModelBindingEntity;
+import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 
 @Slf4j
 @Configuration
@@ -28,10 +31,11 @@ public class AutoAgentRagVectorConfig {
     @Primary
     public PgVectorStore pgVectorStore(@Qualifier("pgVectorJdbcTemplate") JdbcTemplate jdbcTemplate,
                                        AutoAgentRagProperties properties,
+                                       EmbeddingRuntimeSettings embeddingRuntimeSettings,
                                        @Qualifier("autoAgentEmbeddingModel") EmbeddingModel embeddingModel) {
         PgVectorStore store = PgVectorStore.builder(jdbcTemplate, embeddingModel)
                 .vectorTableName(properties.getVectorName())
-                .dimensions(properties.getDimensions())
+                .dimensions(embeddingRuntimeSettings.dimensions())
                 .initializeSchema(true)
                 .build();
         try {
@@ -40,21 +44,40 @@ public class AutoAgentRagVectorConfig {
             throw new IllegalStateException("PgVectorStore initialization failed. Check pgvector extension, table permissions, and embedding configuration.", e);
         }
         log.info("PgVectorStore initialized: model={}, dimensions={}, table={}",
-                properties.getEmbeddingModelName(),
-                properties.getDimensions(),
+                embeddingRuntimeSettings.modelName(),
+                embeddingRuntimeSettings.dimensions(),
                 properties.getVectorName());
         return store;
     }
 
-    @Bean("autoAgentEmbeddingModel")
-    public EmbeddingModel autoAgentEmbeddingModel(AutoAgentRagProperties properties,
-                                                  IModelRuntimeRepository modelRuntimeRepository) {
-        if (!StringUtils.hasText(properties.getEmbeddingApiId())) {
-            throw new IllegalStateException("RAG vector store initialization failed: auto-agent.rag.embedding-api-id is required.");
+    @Bean("autoAgentEmbeddingRuntimeSettings")
+    public EmbeddingRuntimeSettings autoAgentEmbeddingRuntimeSettings(IModelRuntimeRepository modelRuntimeRepository) {
+        AgentNodeModelBindingEntity binding = modelRuntimeRepository.findActiveBindingByNodeCode(AgentComponentCodeEnumVO.VECTOR_EMBEDDING.name())
+                .orElseThrow(() -> new IllegalStateException("RAG vector store initialization failed: missing active node model binding: "
+                        + AgentComponentCodeEnumVO.VECTOR_EMBEDDING.name()));
+        AgentModelProfileEntity profile = modelRuntimeRepository.findActiveModelProfile(binding.getModelProfileId())
+                .orElseThrow(() -> new IllegalStateException("RAG vector store initialization failed: active model profile not found: "
+                        + binding.getModelProfileId()));
+        if (!"EMBEDDING".equalsIgnoreCase(profile.getModelType())) {
+            throw new IllegalStateException("RAG vector store initialization failed: model profile "
+                    + profile.getModelProfileId() + " must use model_type=EMBEDDING.");
         }
-        AgentModelApiEntity api = modelRuntimeRepository.findActiveApi(properties.getEmbeddingApiId())
-                .orElseThrow(() -> new IllegalStateException("RAG vector store initialization failed: active api not found for embedding-api-id="
-                        + properties.getEmbeddingApiId()));
+        if (!StringUtils.hasText(profile.getModelName())) {
+            throw new IllegalStateException("RAG vector store initialization failed: embedding model_name is required.");
+        }
+        if (profile.getEmbeddingDimensions() == null || profile.getEmbeddingDimensions() <= 0) {
+            throw new IllegalStateException("RAG vector store initialization failed: embedding_dimensions is required for profile "
+                    + profile.getModelProfileId());
+        }
+        AgentModelApiEntity api = modelRuntimeRepository.findActiveApi(profile.getApiId())
+                .orElseThrow(() -> new IllegalStateException("RAG vector store initialization failed: active api not found for api_id="
+                        + profile.getApiId()));
+        return new EmbeddingRuntimeSettings(profile, api);
+    }
+
+    @Bean("autoAgentEmbeddingModel")
+    public EmbeddingModel autoAgentEmbeddingModel(EmbeddingRuntimeSettings embeddingRuntimeSettings) {
+        AgentModelApiEntity api = embeddingRuntimeSettings.api();
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .baseUrl(api.getBaseUrl())
                 .apiKey(api.getApiKey())
@@ -62,15 +85,26 @@ public class AutoAgentRagVectorConfig {
                 .embeddingsPath(api.getEmbeddingsPath())
                 .build();
         OpenAiEmbeddingOptions options = OpenAiEmbeddingOptions.builder()
-                .model(properties.getEmbeddingModelName())
-                .dimensions(properties.getDimensions())
+                .model(embeddingRuntimeSettings.modelName())
+                .dimensions(embeddingRuntimeSettings.dimensions())
                 .build();
-        log.info("AutoAgent embedding model initialized: embeddingApiId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}",
-                properties.getEmbeddingApiId(),
+        log.info("AutoAgent embedding model initialized: profileId={}, baseUrl={}, embeddingsPath={}, model={}, dimensions={}",
+                embeddingRuntimeSettings.profile().getModelProfileId(),
                 api.getBaseUrl(),
                 api.getEmbeddingsPath(),
-                properties.getEmbeddingModelName(),
-                properties.getDimensions());
+                embeddingRuntimeSettings.modelName(),
+                embeddingRuntimeSettings.dimensions());
         return new OpenAiEmbeddingModel(openAiApi, MetadataMode.EMBED, options);
+    }
+
+    public record EmbeddingRuntimeSettings(AgentModelProfileEntity profile, AgentModelApiEntity api) {
+
+        public String modelName() {
+            return profile.getModelName();
+        }
+
+        public int dimensions() {
+            return profile.getEmbeddingDimensions();
+        }
     }
 }

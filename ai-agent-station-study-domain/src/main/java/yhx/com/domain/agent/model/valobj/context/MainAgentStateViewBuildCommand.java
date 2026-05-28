@@ -16,6 +16,7 @@ public class MainAgentStateViewBuildCommand {
     private ContextCandidateBundleVO candidates;
     private List<ContextSelectionVO> selections;
     private List<SummaryCandidateVO> conversationSummaries;
+    private List<MessageCandidateVO> materializedMessages;
     private List<MaterializedArtifactContentVO> artifactContent;
     private List<MaterializedMemoryVO> memoryPack;
     private List<MaterializedEvidenceVO> evidencePack;

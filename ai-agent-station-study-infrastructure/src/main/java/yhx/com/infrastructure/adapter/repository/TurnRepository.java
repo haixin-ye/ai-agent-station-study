@@ -65,6 +65,13 @@ public class TurnRepository implements ITurnRepository {
     }
 
     @Override
+    public List<AgentTurnEntity> listRecentCompletedTurns(int limit) {
+        List<AgentTurnPO> rows = agentTurnDao.listRecentCompletedGlobal(limit);
+        Collections.reverse(rows);
+        return rows.stream().map(this::toEntity).toList();
+    }
+
+    @Override
     public List<AgentTurnEntity> listCompletedTurnsBefore(String sessionId, Long beforeTurnNo, int limit) {
         List<AgentTurnPO> rows = agentTurnDao.listCompletedBefore(sessionId, beforeTurnNo, limit);
         Collections.reverse(rows);

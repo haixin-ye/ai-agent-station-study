@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,7 +21,12 @@ public class AutoAgentMcpProperties {
         private String name;
         private String transport;
         private String command;
+        private List<String> args = new ArrayList<>();
+        private Map<String, String> env = new LinkedHashMap<>();
         private String url;
+        private String sseEndpoint;
+        private long requestTimeoutSeconds = 100;
+        private boolean autoInitialize = true;
         private boolean enabled = true;
         private List<McpToolProperties> tools = new ArrayList<>();
     }

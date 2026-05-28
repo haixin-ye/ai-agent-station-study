@@ -80,6 +80,12 @@
           AND status = 'ACTIVE'
     </select>
 
+    <select id="countAllActive" resultType="int">
+        SELECT COUNT(1)
+        FROM agent_turn_summary
+        WHERE status = 'ACTIVE'
+    </select>
+
     <update id="updateStatusBySummaryIds">
         UPDATE agent_turn_summary
         SET status = #{status},

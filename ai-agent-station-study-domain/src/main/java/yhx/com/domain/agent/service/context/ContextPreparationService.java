@@ -1,5 +1,6 @@
 package yhx.com.domain.agent.service.context;
 
+import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.ArtifactCandidateVO;
@@ -7,6 +8,7 @@ import yhx.com.domain.agent.model.valobj.context.ArtifactChunkVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
+import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -15,7 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
+@Slf4j
 public class ContextPreparationService {
 
     private final ContextCandidatePreselector contextCandidatePreselector;
@@ -44,9 +48,21 @@ public class ContextPreparationService {
         CompletableFuture<ContextCandidateBundleVO> mysqlFuture = CompletableFuture.supplyAsync(
                 () -> contextCandidatePreselector.buildCandidates(command), recallExecutor);
         CompletableFuture<ContextCandidateBundleVO> vectorFuture = CompletableFuture.supplyAsync(
-                        () -> vectorContextRecallPreselector.recall(command), recallExecutor)
-                .completeOnTimeout(emptyBundle(), Math.max(1, vectorRecallTimeout.toMillis()), java.util.concurrent.TimeUnit.MILLISECONDS)
-                .exceptionally(error -> emptyBundle());
+                () -> vectorContextRecallPreselector.recall(command), recallExecutor);
+        if (!vectorRecallTimeout.isZero() && !vectorRecallTimeout.isNegative()) {
+            vectorFuture = vectorFuture.orTimeout(Math.max(1, vectorRecallTimeout.toMillis()), TimeUnit.MILLISECONDS);
+        }
+        vectorFuture = vectorFuture.exceptionally(error -> {
+            log.warn("[AutoAgent][memory-vector-recall-failed] runId={}, sessionId={}, reason={}",
+                    command == null ? null : command.getRunId(),
+                    command == null ? null : command.getSessionId(),
+                    error == null ? null : error.toString());
+            AutoAgentHumanLog.vectorRecallFailed(command == null ? null : command.getRunId(),
+                    command == null ? null : command.getSessionId(),
+                    vectorRecallTimeout.toMillis(),
+                    error);
+            return emptyBundle();
+        });
 
         ContextCandidateBundleVO mysqlBundle = mysqlFuture.join();
         ContextCandidateBundleVO vectorBundle = vectorFuture.join();
@@ -139,6 +155,9 @@ public class ContextPreparationService {
         existing.setSourceChannel(vector.getSourceChannel());
         existing.setSourceScore(vector.getSourceScore());
         existing.setRelevanceScore(vector.getRelevanceScore());
+        if ((existing.getContent() == null || existing.getContent().isBlank()) && vector.getContent() != null && !vector.getContent().isBlank()) {
+            existing.setContent(vector.getContent());
+        }
         return existing;
     }
 

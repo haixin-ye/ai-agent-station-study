@@ -1,5 +1,9 @@
 package yhx.com.domain.agent.service.context;
 
+import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.adapter.repository.ITurnRepository;
+import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentTurnEntity;
 import yhx.com.domain.agent.model.valobj.context.ArtifactCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextMaterializationCommand;
@@ -10,6 +14,7 @@ import yhx.com.domain.agent.model.valobj.context.MaterializedArtifactContentVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedMemoryVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
@@ -19,6 +24,9 @@ import yhx.com.domain.agent.service.evidence.EvidencePackBuilder;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ContextMaterializer {
 
@@ -28,18 +36,32 @@ public class ContextMaterializer {
     private final EvidencePackBuilder evidencePackBuilder;
     private final ContextBudgetManager budgetManager;
     private final MainAgentStateViewBuilder stateViewBuilder;
+    private final ITurnRepository turnRepository;
+    private final IPayloadRepository payloadRepository;
 
     public ContextMaterializer(ContextSelectionValidator selectionValidator,
                                ArtifactPayloadLoader artifactPayloadLoader,
                                EvidencePackBuilder evidencePackBuilder,
                                ContextBudgetManager budgetManager,
                                MainAgentStateViewBuilder stateViewBuilder) {
+        this(selectionValidator, artifactPayloadLoader, evidencePackBuilder, budgetManager, stateViewBuilder, null, null);
+    }
+
+    public ContextMaterializer(ContextSelectionValidator selectionValidator,
+                               ArtifactPayloadLoader artifactPayloadLoader,
+                               EvidencePackBuilder evidencePackBuilder,
+                               ContextBudgetManager budgetManager,
+                               MainAgentStateViewBuilder stateViewBuilder,
+                               ITurnRepository turnRepository,
+                               IPayloadRepository payloadRepository) {
         this.selectionValidator = selectionValidator;
         this.selectionMergePolicy = new ContextSelectionMergePolicy();
         this.artifactPayloadLoader = artifactPayloadLoader;
         this.evidencePackBuilder = evidencePackBuilder;
         this.budgetManager = budgetManager;
         this.stateViewBuilder = stateViewBuilder;
+        this.turnRepository = turnRepository;
+        this.payloadRepository = payloadRepository;
     }
 
     public MainAgentStateViewVO materialize(ContextMaterializationCommand command) {
@@ -59,23 +81,25 @@ public class ContextMaterializer {
                 .filter(Objects::nonNull)
                 .toList();
 
-        List<MaterializedMemoryVO> memories = command.getCandidates().getMemoryCandidates() == null ? List.of() :
-                command.getCandidates().getMemoryCandidates().stream()
-                        .filter(memory -> selectedAny(memory.getMemoryId(), mergedSelections, "MEMORY", "LONG_TERM_MEMORY", "USER_PREFERENCE"))
-                        .map(this::toMemory)
-                        .toList();
+        List<MaterializedMemoryVO> memories = materializedMemories(command.getCandidates(), mergedSelections);
 
         List<MaterializedEvidenceVO> evidence = evidencePackBuilder.buildFromCandidates(
                 command.getCandidates().getEvidenceCandidates() == null ? List.of() :
                         command.getCandidates().getEvidenceCandidates().stream()
                                 .filter(item -> selectedAny(item.getEvidenceId(), mergedSelections, "EVIDENCE", "RAG", "RAG_CHUNK", "RAG_DOCUMENT"))
                                 .toList());
-        List<SummaryCandidateVO> summaries = selectedSummaries(command.getCandidates().getSessionSummaries(), mergedSelections, command.getCandidates());
+        List<MessageCandidateVO> materializedMessages = materializedSummaryMessages(command.getCandidates().getSessionSummaries(), mergedSelections, command.getCandidates());
+        Set<String> materializedTurnIds = materializedMessages.stream()
+                .map(MessageCandidateVO::getTurnId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<SummaryCandidateVO> summaries = selectedSummaries(command.getCandidates().getSessionSummaries(), mergedSelections, command.getCandidates(), materializedTurnIds);
 
         MainAgentStateViewVO stateView = stateViewBuilder.build(MainAgentStateViewBuildCommand.builder()
                 .candidates(command.getCandidates())
                 .selections(mergedSelections)
                 .conversationSummaries(summaries)
+                .materializedMessages(materializedMessages)
                 .artifactContent(artifacts)
                 .memoryPack(memories)
                 .evidencePack(evidence)
@@ -118,6 +142,9 @@ public class ContextMaterializer {
     }
 
     private boolean selected(String sourceType, String sourceId, List<ContextSelectionVO> selections) {
+        if (sourceType == null || sourceId == null) {
+            return false;
+        }
         return selections.stream().anyMatch(selection -> sourceType.equals(selection.getSourceType()) && sourceId.equals(selection.getSourceId()));
     }
 
@@ -130,7 +157,7 @@ public class ContextMaterializer {
         return false;
     }
 
-    private List<SummaryCandidateVO> selectedSummaries(List<SummaryCandidateVO> summaries, List<ContextSelectionVO> selections, ContextCandidateBundleVO candidates) {
+    private List<SummaryCandidateVO> selectedSummaries(List<SummaryCandidateVO> summaries, List<ContextSelectionVO> selections, ContextCandidateBundleVO candidates, Set<String> materializedTurnIds) {
         if (summaries == null || summaries.isEmpty()) {
             return List.of();
         }
@@ -140,6 +167,93 @@ public class ContextMaterializer {
                         || selected("SUMMARY", summary.getSummaryId(), selections)
                         || selected("TURN", summary.getTurnId(), selections))
                 .filter(summary -> !selectionMergePolicy.coveredByFixedContext(summary, candidates))
+                .filter(summary -> summary.getTurnId() == null || materializedTurnIds == null || !materializedTurnIds.contains(summary.getTurnId()))
+                .toList();
+    }
+
+    private List<MessageCandidateVO> materializedSummaryMessages(List<SummaryCandidateVO> summaries,
+                                                                 List<ContextSelectionVO> selections,
+                                                                 ContextCandidateBundleVO candidates) {
+        if (summaries == null || summaries.isEmpty() || selections == null || selections.isEmpty()
+                || turnRepository == null || payloadRepository == null) {
+            return List.of();
+        }
+        return summaries.stream()
+                .filter(summary -> summary != null && summary.getTurnId() != null)
+                .filter(summary -> !selectionMergePolicy.coveredByFixedContext(summary, candidates))
+                .filter(summary -> selectedFullTextSummary(summary, selections))
+                .map(this::loadTurnMessages)
+                .flatMap(List::stream)
+                .toList();
+    }
+
+    private boolean selectedFullTextSummary(SummaryCandidateVO summary, List<ContextSelectionVO> selections) {
+        return selections.stream()
+                .anyMatch(selection -> selection != null
+                        && selection.getContextLevel() == ContextLevelEnumVO.FULL_TEXT
+                        && matchesSummarySelection(summary, selection));
+    }
+
+    private boolean matchesSummarySelection(SummaryCandidateVO summary, ContextSelectionVO selection) {
+        String sourceType = selection.getSourceType();
+        String sourceId = selection.getSourceId();
+        if ("TURN_SUMMARY".equals(sourceType) || "SESSION_SUMMARY".equals(sourceType) || "SUMMARY".equals(sourceType)) {
+            return Objects.equals(summary.getSummaryId(), sourceId);
+        }
+        if ("TURN".equals(sourceType)) {
+            return Objects.equals(summary.getTurnId(), sourceId);
+        }
+        return false;
+    }
+
+    private List<MessageCandidateVO> loadTurnMessages(SummaryCandidateVO summary) {
+        return turnRepository.findByTurnId(summary.getTurnId())
+                .map(turn -> {
+                    MessageCandidateVO user = toTurnMessage(turn, turn.getUserMessageId(), "USER", turn.getUserPayloadRef());
+                    MessageCandidateVO assistant = toTurnMessage(turn, turn.getAssistantMessageId(), "ASSISTANT", turn.getAssistantPayloadRef());
+                    return Stream.of(user, assistant).filter(Objects::nonNull).toList();
+                })
+                .orElse(List.of());
+    }
+
+    private MessageCandidateVO toTurnMessage(AgentTurnEntity turn, String messageId, String role, String payloadRef) {
+        if (turn == null || messageId == null || messageId.isBlank()) {
+            return null;
+        }
+        String content = loadPayloadText(payloadRef);
+        if (content == null || content.isBlank()) {
+            return null;
+        }
+        return MessageCandidateVO.builder()
+                .messageId(messageId)
+                .turnId(turn.getTurnId())
+                .role(role)
+                .contentRef(payloadRef)
+                .summary(content)
+                .seq(turn.getTurnNo())
+                .createdAt(turn.getCompletedAt())
+                .build();
+    }
+
+    private String loadPayloadText(String payloadRef) {
+        if (payloadRef == null || payloadRef.isBlank() || payloadRepository == null) {
+            return null;
+        }
+        return payloadRepository.findPayload(payloadRef)
+                .map(AgentPayloadEntity::getContent)
+                .filter(content -> content != null && !content.isBlank())
+                .orElse(null);
+    }
+
+    private List<MaterializedMemoryVO> materializedMemories(ContextCandidateBundleVO candidates, List<ContextSelectionVO> selections) {
+        if (candidates == null || candidates.getMemoryCandidates() == null) {
+            return List.of();
+        }
+        return candidates.getMemoryCandidates().stream()
+                .filter(memory -> memory != null && memory.getMemoryId() != null)
+                .filter(memory -> selections != null && !selections.isEmpty()
+                        && selectedAny(memory.getMemoryId(), selections, "MEMORY", "LONG_TERM_MEMORY", "USER_PREFERENCE"))
+                .map(this::toMemory)
                 .toList();
     }
 
@@ -148,6 +262,7 @@ public class ContextMaterializer {
                 .memoryId(memory.getMemoryId())
                 .memoryType(memory.getMemoryType())
                 .summary(memory.getSummary())
+                .content(memory.getContent())
                 .build();
     }
 }
