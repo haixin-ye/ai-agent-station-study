@@ -8,7 +8,7 @@ thread:
       config:
         core-pool-size: 20
         max-pool-size: 50
-        keep-alive-time: 5000
+        keep-alive-time: 10000
         block-queue-size: 5000
         policy: CallerRunsPolicy
 
@@ -86,6 +86,8 @@ mybatis:
 logging:
   level:
     root: info
+    yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder: warn
+    yhx.com.domain.agent.service.runtime.RunEventPublisher: warn
   config: classpath:logback-spring.xml
 
 auto-agent:
@@ -96,6 +98,7 @@ auto-agent:
     max-final-repair-attempts: 1
     max-consecutive-continue-actions: 1
     max-recovery-attempts-per-failure-code: 2
+    main-agent-invocation-mode: ${AUTO_AGENT_MAIN_AGENT_INVOCATION_MODE:TEXT_JSON} # FUNCTION_CALL|TEXT_JSON
   debug:
     debug-api-enabled: true
     debug-sse-enabled: true
@@ -103,15 +106,133 @@ auto-agent:
     debug-payload-preview-max-chars: 2000
   rag:
     enabled: true
-    embedding-api-id: "amr-api-openai-001"
     vector-name: "vector_store"
-    embedding-model-name: "text-embedding-3-large"
-    dimensions: 1536
     max-queries-per-run: 3
     max-hits-per-query: 5
     max-evidence-snippet-chars: 1200
+    asset:
+      recall-timeout-millis: 16000
+      recall-min-score: 0.48
+      recall-top-k: 5
+  context:
+    vector-recall-timeout-millis: 16000
   mcp:
     enabled: true
-    servers: []
+    servers:
+      - server-id: file-system
+        name: File System MCP
+        transport: STDIO
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+        command: ${AUTO_AGENT_MCP_FILESYSTEM_COMMAND:npx.cmd}
+        args:
+          - -y
+          - "@modelcontextprotocol/server-filesystem"
+          - ${AUTO_AGENT_MCP_FILESYSTEM_ROOT_1:C:/}
+          - ${AUTO_AGENT_MCP_FILESYSTEM_ROOT_2:E:/}
+        auto-initialize: false
+        auto-discover-tools: true
+        auto-register-capabilities: true
+        capability-prefix: file_system
+        default-permission-mode: ASK_USER
+        default-approval-policy: ASK_USER_BEFORE_EXECUTE
+        default-risk-level: MEDIUM
+        request-timeout-seconds: 100
+        tools:
+          - tool-name: read_file
+            description: Read a file from the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: list_directory
+            description: List files under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: search_files
+            description: Search files under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: write_file
+            description: Create or write a file under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+      - server-id: baidu-ai-search
+        name: Baidu AI Search MCP
+        transport: SSE
+        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:false}
+        url: http://appbuilder.baidu.com/v2/ai_search/mcp/
+        sse-endpoint: ${AUTO_AGENT_MCP_BAIDU_SEARCH_SSE_ENDPOINT:}
+        headers:
+          X-AppBuilder-Authorization: ${AUTO_AGENT_MCP_BAIDU_SEARCH_API_KEY:}
+        auto-initialize: false
+        auto-discover-tools: true
+        auto-register-capabilities: true
+        capability-prefix: baidu_ai_search
+        default-required-permission: READ_ONLY
+        default-permission-mode: ALLOW
+        default-approval-policy: NEVER
+        default-risk-level: LOW
+        request-timeout-seconds: 100
+        tools: []
   capabilities:
-    tools: []
+    tools:
+      - capability-id: file_system_read_file
+        capability-type: TOOL
+        display-name: Read file
+        mcp-server-id: file-system
+        mcp-tool-name: read_file
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: FULL_TEXT_REQUIRED
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_list_directory
+        capability-type: TOOL
+        display-name: List directory
+        mcp-server-id: file-system
+        mcp-tool-name: list_directory
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_search_files
+        capability-type: TOOL
+        display-name: Search files
+        mcp-server-id: file-system
+        mcp-tool-name: search_files
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_create_file
+        capability-type: TOOL
+        display-name: Create file
+        mcp-server-id: file-system
+        mcp-tool-name: write_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_write_file
+        capability-type: TOOL
+        display-name: Write file
+        mcp-server-id: file-system
+        mcp-tool-name: write_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}

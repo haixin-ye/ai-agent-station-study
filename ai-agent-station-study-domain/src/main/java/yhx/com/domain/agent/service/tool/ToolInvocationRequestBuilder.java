@@ -64,13 +64,19 @@ public class ToolInvocationRequestBuilder {
 
     public ToolInvocationBuildResultVO build(ToolActionCommandVO command) {
         ToolIntentVO intent = toIntent(command);
-        if (command == null || isBlank(command.getRunId()) || isBlank(intent.getCapabilityCode())) {
-            return failed(null, "TOOL_INVALID_INTENT", "CALL_TOOL requires runId and capabilityCode.");
+        if (command == null || isBlank(command.getRunId())) {
+            return failed(null, "TOOL_INVALID_INTENT", "CALL_TOOL requires runId.");
+        }
+        CapabilitySpecVO capability = resolveCapability(intent);
+        if (capability != null && isBlank(intent.getCapabilityCode())) {
+            intent.setCapabilityCode(capability.getCapabilityCode());
+        }
+        if (isBlank(intent.getCapabilityCode()) && capability == null) {
+            return failed(null, "TOOL_INVALID_INTENT", "CALL_TOOL requires capabilityCode or a unique toolName.");
         }
         String toolCallId = "tool-call-" + UUID.randomUUID();
         String toolInvocationId = "tool-invocation-" + UUID.randomUUID();
         String intentRef = savePayload(PayloadTypeEnumVO.JSON, intent, "tool-intent");
-        CapabilitySpecVO capability = capabilityRegistry.findCapability(intent.getCapabilityCode()).orElse(null);
         ToolCallEntity toolCall = createToolCall(command, intent, capability, toolCallId, toolInvocationId, intentRef);
         toolRepository.createToolCall(toolCall);
         if (capability == null) {
@@ -78,7 +84,7 @@ public class ToolInvocationRequestBuilder {
             return denied(toolCallId, "TOOL_CAPABILITY_DISABLED", "Capability is missing or disabled.");
         }
         String mcpServerCode = firstNonBlank(intent.getMcpServerCode(), capability.getMcpServerCode());
-        String toolName = firstNonBlank(intent.getToolName(), capability.getToolName(), command.getToolName());
+        String toolName = firstNonBlank(capability.getToolName(), intent.getToolName(), command.getToolName());
         McpToolSpecVO toolSpec = mcpToolRegistry.findTool(mcpServerCode, toolName).orElse(null);
         if (toolSpec == null) {
             toolRepository.updateToolCallStatus(toolCallId, ToolCallStatusEnumVO.PERMISSION_DENIED);
@@ -167,10 +173,22 @@ public class ToolInvocationRequestBuilder {
                 .build();
     }
 
+    private CapabilitySpecVO resolveCapability(ToolIntentVO intent) {
+        if (intent == null || capabilityRegistry == null) {
+            return null;
+        }
+        if (!isBlank(intent.getCapabilityCode())) {
+            return capabilityRegistry.findCapability(intent.getCapabilityCode()).orElse(null);
+        }
+        return capabilityRegistry.findUniqueCapabilityByTool(intent.getMcpServerCode(), intent.getToolName()).orElse(null);
+    }
+
     private ToolCallEntity createToolCall(ToolActionCommandVO command, ToolIntentVO intent, CapabilitySpecVO capability,
                                           String toolCallId, String toolInvocationId, String intentRef) {
         String mcpServerCode = capability == null ? intent.getMcpServerCode() : firstNonBlank(intent.getMcpServerCode(), capability.getMcpServerCode());
-        String toolName = capability == null ? firstNonBlank(intent.getToolName(), command.getToolName()) : firstNonBlank(intent.getToolName(), capability.getToolName(), command.getToolName());
+        String toolName = capability == null
+                ? firstNonBlank(intent.getToolName(), command.getToolName())
+                : firstNonBlank(capability.getToolName(), intent.getToolName(), command.getToolName());
         return ToolCallEntity.builder()
                 .toolCallId(toolCallId)
                 .toolInvocationId(toolInvocationId)

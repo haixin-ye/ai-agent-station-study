@@ -6,6 +6,7 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ApprovalPolicyEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.McpTransportTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.PermissionModeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.RequiredPermissionEnumVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionResultVO;
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
@@ -106,6 +107,30 @@ public class ToolActionOrchestratorTest {
         Assert.assertEquals(2, repository.transcripts.size());
     }
 
+    @Test
+    public void capability_code_uses_canonical_mcp_tool_name_over_llm_tool_name() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        AtomicInteger calls = new AtomicInteger();
+        ToolActionOrchestrator orchestrator = fileWriteOrchestrator(repository, command -> {
+            calls.incrementAndGet();
+            Assert.assertEquals("write_file", command.getToolName());
+            return McpToolInvokeResultVO.builder().called(true).success(true).receipt(Map.of("contentText", "created")).build();
+        });
+
+        ToolActionResultVO result = orchestrator.handleToolAction(ToolActionCommandVO.builder()
+                .runId("run-001")
+                .sessionId("sess-001")
+                .loopIndex(1)
+                .capabilityCode("file_system_create_file")
+                .toolName("create_file")
+                .goal("create a new file")
+                .arguments(Map.of("path", "E:/javaProject/ai-agent-station-study/tmp.txt", "content", "hello"))
+                .build());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertEquals(1, calls.get());
+    }
+
     private ToolActionOrchestrator orchestrator(ToolTestSupport.Repository repository,
                                                 PermissionModeEnumVO permissionMode,
                                                 yhx.com.domain.agent.service.tool.port.McpToolInvokerPort invoker) {
@@ -120,6 +145,33 @@ public class ToolActionOrchestratorTest {
         McpToolRegistry mcpToolRegistry = new McpToolRegistry(List.of(McpToolSpecVO.builder()
                 .mcpServerCode("server")
                 .toolName("tool")
+                .transportType(McpTransportTypeEnumVO.UNKNOWN)
+                .inputSchema(Map.of())
+                .build()));
+        ToolArgumentMaterializer materializer = new ToolArgumentMaterializer(repository, repository, repository);
+        ToolApprovalService approvalService = new ToolApprovalService(repository, repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolInvocationRequestBuilder requestBuilder = new ToolInvocationRequestBuilder(capabilityRegistry, mcpToolRegistry,
+                materializer, new PermissionEnforcer(), approvalService, new ToolApprovalKeyGenerator(), repository, repository);
+        ToolRuntime runtime = new ToolRuntime(invoker, new ToolReceiptCapture(repository), new ToolFailureMapper(), repository);
+        return new ToolActionOrchestrator(requestBuilder, runtime, new ToolVerifier(repository, repository),
+                new ToolEvidenceConverter(repository), new ToolTranscriptRecorder(repository, repository));
+    }
+
+    private ToolActionOrchestrator fileWriteOrchestrator(ToolTestSupport.Repository repository,
+                                                         yhx.com.domain.agent.service.tool.port.McpToolInvokerPort invoker) {
+        CapabilityRegistry capabilityRegistry = new CapabilityRegistry(List.of(CapabilitySpecVO.builder()
+                .capabilityCode("file_system_create_file")
+                .mcpServerCode("file-system")
+                .toolName("write_file")
+                .requiredPermission(RequiredPermissionEnumVO.WORKSPACE_WRITE)
+                .permissionMode(PermissionModeEnumVO.ALLOW)
+                .approvalPolicy(ApprovalPolicyEnumVO.NEVER)
+                .riskLevel("HIGH")
+                .enabled(true)
+                .build()));
+        McpToolRegistry mcpToolRegistry = new McpToolRegistry(List.of(McpToolSpecVO.builder()
+                .mcpServerCode("file-system")
+                .toolName("write_file")
                 .transportType(McpTransportTypeEnumVO.UNKNOWN)
                 .inputSchema(Map.of())
                 .build()));
