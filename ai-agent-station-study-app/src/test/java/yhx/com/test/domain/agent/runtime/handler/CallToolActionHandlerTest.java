@@ -14,15 +14,17 @@ import java.util.Map;
 public class CallToolActionHandlerTest {
 
     @Test
-    public void call_tool_requires_capability_code() {
-        MainActionDispatcher dispatcher = dispatcher(new ActionHandlerTestSupport.FakeToolActionOrchestratorPort());
+    public void call_tool_allows_runtime_to_infer_capability_from_tool_name() {
+        ActionHandlerTestSupport.FakeToolActionOrchestratorPort toolPort = new ActionHandlerTestSupport.FakeToolActionOrchestratorPort();
+        MainActionDispatcher dispatcher = dispatcher(toolPort);
 
         MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(), MainAgentActionVO.builder()
                 .action("CALL_TOOL")
-                .stateDelta(Map.of("toolIntent", Map.of("toolName", "file")))
+                .stateDelta(Map.of("toolIntent", Map.of("toolName", "list_directory")))
                 .build());
 
-        Assert.assertEquals(MainActionHandlerStatusEnumVO.FAILED, result.getStatus());
+        Assert.assertEquals(MainActionHandlerStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertEquals(1, toolPort.calls.size());
     }
 
     @Test

@@ -60,9 +60,22 @@ public class ToolRuntime {
                 .toolCallId(request.getToolCallId())
                 .toolInvocationId(request.getToolInvocationId())
                 .receiptRef(receiptRef)
+                .resultSummary(resultSummary(invokeResult))
                 .failureCode(failureCode)
                 .failureMessage(invokeResult == null ? "MCP tool was not called." : invokeResult.getErrorMessage())
                 .build();
+    }
+
+    private String resultSummary(McpToolInvokeResultVO invokeResult) {
+        if (invokeResult == null || invokeResult.getReceipt() == null) {
+            return null;
+        }
+        Object contentText = invokeResult.getReceipt().get("contentText");
+        if (contentText != null && !String.valueOf(contentText).isBlank()) {
+            return String.valueOf(contentText);
+        }
+        Object rawResult = invokeResult.getReceipt().get("rawResult");
+        return rawResult == null ? null : String.valueOf(rawResult);
     }
 
     @SuppressWarnings("unchecked")

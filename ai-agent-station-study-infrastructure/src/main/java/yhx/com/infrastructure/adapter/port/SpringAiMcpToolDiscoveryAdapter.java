@@ -27,6 +27,7 @@ public class SpringAiMcpToolDiscoveryAdapter implements McpToolDiscoveryPort {
         if (!(handle instanceof McpSyncClient client)) {
             return List.of();
         }
+        ensureInitialized(client);
         List<McpToolSpecVO> tools = new ArrayList<>();
         ToolCallback[] callbacks = new SyncMcpToolCallbackProvider(java.util.List.of(client)).getToolCallbacks();
         for (ToolCallback callback : callbacks) {
@@ -55,5 +56,11 @@ public class SpringAiMcpToolDiscoveryAdapter implements McpToolDiscoveryPort {
             return (Map<String, Object>) map;
         }
         return Map.of();
+    }
+
+    private void ensureInitialized(McpSyncClient client) {
+        if (!client.isInitialized()) {
+            client.initialize();
+        }
     }
 }

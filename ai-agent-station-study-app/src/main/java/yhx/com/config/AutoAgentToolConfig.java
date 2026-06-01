@@ -5,6 +5,7 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
@@ -51,6 +52,7 @@ import java.util.Map;
 
 @Configuration
 @EnableConfigurationProperties({AutoAgentCapabilityProperties.class, AutoAgentMcpProperties.class})
+@Slf4j
 public class AutoAgentToolConfig {
 
     @Bean
@@ -74,7 +76,13 @@ public class AutoAgentToolConfig {
             }
             McpSyncClient client = clients.get(server.getServerId());
             if (client == null) {
-                client = createConfiguredClient(server);
+                try {
+                    client = createConfiguredClient(server);
+                } catch (RuntimeException e) {
+                    log.warn("MCP client skipped, serverId={}, transport={}, reason={}",
+                            server.getServerId(), server.getTransport(), e.getMessage());
+                    continue;
+                }
             }
             if (client != null) {
                 handles.put(server.getServerId(), client);

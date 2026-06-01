@@ -4,11 +4,10 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.VerificationResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionResultVO;
+import yhx.com.domain.agent.model.valobj.tool.ToolEvidenceCreationResultVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolInvocationBuildResultVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolInvocationResultVO;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
-
-import java.util.List;
 
 public class ToolActionOrchestrator implements ToolActionOrchestratorPort {
 
@@ -43,21 +42,23 @@ public class ToolActionOrchestrator implements ToolActionOrchestratorPort {
         }
         if (ToolInvocationRequestBuilder.DENIED.equals(buildResult.getStatus())
                 || ToolInvocationRequestBuilder.FAILED.equals(buildResult.getStatus())) {
-            List<String> evidenceIds = evidenceConverter.createDenialEvidence(command == null ? null : command.getRunId(), buildResult);
+            ToolEvidenceCreationResultVO evidence = evidenceConverter.createDenialEvidencePack(command == null ? null : command.getRunId(), buildResult);
             return ToolActionResultVO.builder()
                     .status(ToolActionStatusEnumVO.CONTINUE_LOOP)
-                    .evidenceIds(evidenceIds)
+                    .evidenceIds(evidence.getEvidenceIds())
+                    .evidence(evidence.getEvidence())
                     .message(buildResult.getFailureMessage())
                     .build();
         }
         transcriptRecorder.appendToolRequest(buildResult.getRequest());
         ToolInvocationResultVO invocationResult = toolRuntime.invoke(buildResult.getRequest());
         VerificationResultVO verification = toolVerifier.verify(buildResult.getRequest(), invocationResult);
-        List<String> evidenceIds = evidenceConverter.createInvocationEvidence(command == null ? null : command.getRunId(), invocationResult);
+        ToolEvidenceCreationResultVO evidence = evidenceConverter.createInvocationEvidencePack(command == null ? null : command.getRunId(), invocationResult);
         transcriptRecorder.appendToolResult(command == null ? null : command.getRunId(), invocationResult);
         return ToolActionResultVO.builder()
                 .status(ToolActionStatusEnumVO.CONTINUE_LOOP)
-                .evidenceIds(evidenceIds)
+                .evidenceIds(evidence.getEvidenceIds())
+                .evidence(evidence.getEvidence())
                 .message(verification == null ? "Tool flow completed." : verification.getDetail())
                 .build();
     }

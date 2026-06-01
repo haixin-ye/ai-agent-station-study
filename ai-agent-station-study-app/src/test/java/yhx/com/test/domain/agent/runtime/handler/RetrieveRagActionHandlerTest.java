@@ -3,6 +3,7 @@ package yhx.com.test.domain.agent.runtime.handler;
 import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunEntity;
+import yhx.com.domain.agent.model.valobj.context.PreviousLoopOutcomeVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RagRuntimeStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
@@ -49,6 +50,42 @@ public class RetrieveRagActionHandlerTest {
         MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(), ragAction());
 
         Assert.assertEquals(MainActionHandlerStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+    }
+
+    @Test
+    public void retrieve_rag_no_hit_records_previous_loop_outcome_for_next_main_node_call() {
+        ActionHandlerTestSupport.FullRepository repository = repositoryWithRun();
+        ActionHandlerTestSupport.FakeRagRuntimePort ragPort = new ActionHandlerTestSupport.FakeRagRuntimePort();
+        ragPort.status = RagRuntimeStatusEnumVO.NO_HIT;
+        MainActionDispatcher dispatcher = dispatcher(repository, ragPort);
+        yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext context = ActionHandlerTestSupport.context();
+
+        dispatcher.dispatch(context, ragAction());
+
+        PreviousLoopOutcomeVO outcome = (PreviousLoopOutcomeVO) context.getRuntimeFacts().get("previousLoopOutcome");
+        Assert.assertNotNull(outcome);
+        Assert.assertEquals("RETRIEVE_RAG", outcome.getAction());
+        Assert.assertEquals("NO_HIT", outcome.getStatus());
+        Assert.assertEquals("RAG 是什么", outcome.getQuery());
+    }
+
+    @Test
+    public void repeated_same_rag_no_hit_query_asks_user_without_calling_rag_again() {
+        ActionHandlerTestSupport.FullRepository repository = repositoryWithRun();
+        ActionHandlerTestSupport.FakeRagRuntimePort ragPort = new ActionHandlerTestSupport.FakeRagRuntimePort();
+        MainActionDispatcher dispatcher = dispatcher(repository, ragPort);
+        yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext context = ActionHandlerTestSupport.context();
+        context.getRuntimeFacts().put("previousLoopOutcome", PreviousLoopOutcomeVO.builder()
+                .action("RETRIEVE_RAG")
+                .status("NO_HIT")
+                .query("RAG 是什么")
+                .build());
+
+        MainActionHandlerResult result = dispatcher.dispatch(context, ragAction());
+
+        Assert.assertEquals(MainActionHandlerStatusEnumVO.WAITING_USER, result.getStatus());
+        Assert.assertNotNull(result.getAskUserRequest());
+        Assert.assertEquals(0, ragPort.calls.size());
     }
 
     private MainActionDispatcher dispatcher(ActionHandlerTestSupport.FullRepository repository, ActionHandlerTestSupport.FakeRagRuntimePort ragPort) {

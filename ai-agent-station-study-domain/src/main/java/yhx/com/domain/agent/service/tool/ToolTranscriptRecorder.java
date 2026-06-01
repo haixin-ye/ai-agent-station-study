@@ -47,6 +47,7 @@ public class ToolTranscriptRecorder {
         payload.put("toolInvocationId", result.getToolInvocationId());
         payload.put("status", result.getStatus() == null ? null : result.getStatus().name());
         payload.put("receiptRef", result.getReceiptRef());
+        payload.put("resultSummary", result.getResultSummary());
         payload.put("failureCode", result.getFailureCode());
         payload.put("failureMessage", result.getFailureMessage());
         append(runId, TranscriptBlockTypeEnumVO.TOOL_RESULT, payload);

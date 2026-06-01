@@ -17,12 +17,14 @@ public class MainAgentStateViewVO {
     private UserInputVO userInput;
     private ConversationViewVO conversation;
     private List<MaterializedMemoryVO> memoryPack;
+    private List<MaterializedRagVO> ragPack;
     private List<ArtifactCandidateVO> resolvedArtifacts;
     private List<MaterializedArtifactContentVO> artifactContent;
     private List<MaterializedEvidenceVO> evidencePack;
     private List<UserClarificationVO> userClarifications;
     private List<CapabilityCandidateVO> availableCapabilities;
     private PendingActionViewVO pendingAction;
+    private PreviousLoopOutcomeVO previousLoopOutcome;
     private Object currentPlan;
     private VerifierFeedbackViewVO lastVerifierFeedback;
     private String outputContractVersion;

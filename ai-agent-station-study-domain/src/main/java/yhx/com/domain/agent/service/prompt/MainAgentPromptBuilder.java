@@ -23,7 +23,7 @@ public class MainAgentPromptBuilder {
                         memoryPack contains selected long-term user memory, user profile facts, preferences, stable attributes, and other durable user-context information. Treat it as known contextual data unless the user explicitly rejects or updates it.
                         evidencePack contains RAG, tool, or external evidence when Runtime provides it. Treat evidence references as facts only when they are present in the view.
                         userClarifications contains authoritative answers to ASK_USER requests in this same run. If a clarification answers a previous question, use it and continue; do not ask the same question again.
-                        previousLoopOutcome describes the last loop result when present. Use it only to continue the current run safely.
+                        previousLoopOutcome describes the last loop result when present, including RAG no-hit results. Use it only to continue the current run safely.
                         Do not assume unavailable tool receipts, RAG evidence, or user approval.
                         """),
                 layer(PromptLayerTypeEnumVO.TASK_PROCEDURE, "Task Procedure", """
@@ -56,6 +56,8 @@ public class MainAgentPromptBuilder {
                         Use RETRIEVE_RAG only when the user explicitly asks to use a knowledge base, uploaded document, project document, private material, company/internal data, citation-backed retrieval, or existing evidence that is not already present in MainAgentStateView.
                         If the user asks "MCP protocol details", "generate an MCP knowledge summary", or similar public technical content without mentioning a knowledge base or private document, answer with FINAL directly.
                         If RAG evidence is already present in MainAgentStateView, do not retrieve again for the same need; either use the evidence honestly or continue with available context.
+                        If previousLoopOutcome.action is RETRIEVE_RAG and previousLoopOutcome.status is NO_HIT, do not issue the same RETRIEVE_RAG query again. Either answer honestly that the configured knowledge base did not contain matching content, ask the user for a different source/query when needed, or answer from non-RAG context if the user allows it.
+                        If userClarifications indicates ANSWER_WITHOUT_RAG, produce FINAL from available non-RAG context instead of retrieving again.
                         Prefer CALL_TOOL when the user asks to publish, upload, modify files, call external services, or perform an irreversible operation.
                         If a previous tool call succeeded, inspect tool evidence before producing FINAL.
                         If RAG was retrieved, use the evidence honestly and avoid unsupported claims.

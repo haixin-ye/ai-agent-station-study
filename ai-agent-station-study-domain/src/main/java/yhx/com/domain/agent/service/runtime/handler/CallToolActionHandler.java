@@ -40,9 +40,6 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
             String capabilityCode = stringValue(intent, "capabilityCode");
             String toolName = stringValue(intent, "toolName");
             String goal = stringValue(intent, "goal");
-            if (isBlank(capabilityCode)) {
-                throw new IllegalArgumentException("toolIntent.capabilityCode is required.");
-            }
             if (isBlank(toolName) && isBlank(goal)) {
                 throw new IllegalArgumentException("toolIntent.toolName or goal is required.");
             }
@@ -78,6 +75,7 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
                         .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
                         .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
                         .createdEvidenceIds(result.getEvidenceIds())
+                        .createdEvidence(result.getEvidence())
                         .message(result.getMessage())
                         .build();
             }

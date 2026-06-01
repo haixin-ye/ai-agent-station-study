@@ -16,6 +16,7 @@ public class ToolInvocationResultVO {
     private String toolCallId;
     private String toolInvocationId;
     private String receiptRef;
+    private String resultSummary;
     private String failureCode;
     private String failureMessage;
 }

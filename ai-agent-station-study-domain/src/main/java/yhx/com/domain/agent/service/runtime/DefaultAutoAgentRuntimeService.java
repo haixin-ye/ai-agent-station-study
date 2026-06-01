@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentRunEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentSessionEntity;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
+import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
@@ -41,6 +42,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
@@ -60,6 +62,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private final RunTranscriptRecorder transcriptRecorder;
     private final DeveloperTraceRecorder traceRecorder;
     private final RunDiagnosticRecorder diagnosticRecorder;
+    private final RunWorkingStateManager workingStateManager = new RunWorkingStateManager();
 
     public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
                                           IRunRepository runRepository,
@@ -411,7 +414,8 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                     RuntimePhaseEnumVO.VALIDATING_ACTION, "MainAgentAction action type is missing or unknown.", true));
         }
         AutoAgentHumanLog.stage("动作校验", context.getRunId(), "检查通过：action=" + actionType.code());
-        context.setLastAction(action);
+            MainAgentActionVO previousAction = context.getLastAction();
+            context.setLastAction(action);
             traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), actionType, null);
             transcriptRecorder.appendAssistantAction(context.getRunId(), context.getLoopIndex(), action, null);
 
@@ -421,8 +425,13 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         }
         AutoAgentHumanLog.stage("动作路由", context.getRunId(), "准备处理 action=" + actionType.code());
         MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
+            workingStateManager.apply(context, action, actionResult);
             RuntimeStepResult stepResult = routeActionResult(context, action, actionResult);
             if (stepResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
+                RuntimeSafeFailureVO repeatedActionFailure = repeatedExecutionActionFailure(context, previousAction, actionType, action);
+                if (repeatedActionFailure != null) {
+                    return failRun(context, repeatedActionFailure);
+                }
                 context.countersOrInitial().incrementLoop();
                 context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
                 RuntimeSafeFailureVO loopTransition = enterPhase(context, nextLoopPhase(context, stepResult));
@@ -458,7 +467,33 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failure(context.getRunId(), context.getSessionId(), transitionFailure);
         }
         MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
+        workingStateManager.apply(context, action, actionResult);
         return routeActionResult(context, action, actionResult);
+    }
+
+    private RuntimeSafeFailureVO repeatedExecutionActionFailure(RuntimeExecutionContext context,
+                                                               MainAgentActionVO previousAction,
+                                                               MainAgentActionTypeEnumVO actionType,
+                                                               MainAgentActionVO currentAction) {
+        if (actionType != MainAgentActionTypeEnumVO.CALL_TOOL || !sameAction(previousAction, currentAction)) {
+            return null;
+        }
+        if (loopPolicy.canRetryTool(context.countersOrInitial())) {
+            context.countersOrInitial().incrementToolRetry();
+            return null;
+        }
+        return failureFactory.create(RuntimeFailureCodeEnumVO.TOOL_RETRY_EXHAUSTED,
+                context.getCurrentPhase(),
+                "MainAgent repeated the same CALL_TOOL action after tool retry limit was reached.",
+                false);
+    }
+
+    private boolean sameAction(MainAgentActionVO left, MainAgentActionVO right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return Objects.equals(left.getAction(), right.getAction())
+                && Objects.equals(left.getStateDelta(), right.getStateDelta());
     }
 
     @SuppressWarnings("unchecked")
@@ -476,6 +511,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private RuntimeStepResult prepareOrRefreshStateView(RuntimeExecutionContext context) {
         RuntimePhaseEnumVO phase = context.getCurrentPhase();
         if (phase == RuntimePhaseEnumVO.BUILDING_STATE_VIEW) {
+            if (context.getWorkingState() != null) {
+                return projectWorkingStateView(context);
+            }
             return refreshStateView(context);
         }
         if (phase == RuntimePhaseEnumVO.PREPARING_CONTEXT || context.getLastStateView() == null) {
@@ -546,6 +584,11 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             }
         }
         context.setLastStateView(result.getStateView());
+        if (context.getWorkingState() == null) {
+            context.setWorkingState(workingStateManager.initialize(result.getStateView()));
+        } else if (result.getStateView() != null) {
+            context.getWorkingState().setBaseStateView(result.getStateView());
+        }
         context.setLastContextSelections(result.getEffectiveSelections());
         transcriptRecorder.appendStateViewSummary(context.getRunId(), context.getLoopIndex(), result.getStateView(), null);
         RuntimeSafeFailureVO transitionFailure = context.getCurrentPhase() == RuntimePhaseEnumVO.CALLING_MAIN_NODE
@@ -555,6 +598,18 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, transitionFailure);
         }
         return null;
+    }
+
+    private RuntimeStepResult projectWorkingStateView(RuntimeExecutionContext context) {
+        MainAgentStateViewVO stateView = workingStateManager.project(context.getWorkingState());
+        if (stateView == null) {
+            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
+                    context.getCurrentPhase(), "Working state projection returned null.", true));
+        }
+        return acceptStateViewAndCallMain(context, ContextPlannerHandlingResult.builder()
+                .stateView(stateView)
+                .effectiveSelections(context.getLastContextSelections())
+                .build());
     }
 
     private RuntimePhaseEnumVO nextLoopPhase(RuntimeExecutionContext context, RuntimeStepResult stepResult) {

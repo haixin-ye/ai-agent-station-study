@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
+import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 
@@ -25,6 +26,8 @@ public class MainActionHandlerResult {
     private String finalAnswerRef;
     private RuntimeSafeFailureVO safeFailure;
     private List<String> createdEvidenceIds;
+    private List<MaterializedEvidenceVO> createdEvidence;
     private List<String> createdArtifactIds;
+    private ActionEffectVO actionEffect;
     private String message;
 }

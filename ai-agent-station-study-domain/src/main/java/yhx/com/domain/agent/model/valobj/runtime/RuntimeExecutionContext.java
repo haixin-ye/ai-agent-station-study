@@ -31,6 +31,7 @@ public class RuntimeExecutionContext {
     private Integer maxLoop;
     private RuntimeRecoveryCounters recoveryCounters;
     private MainAgentStateViewVO lastStateView;
+    private RunWorkingStateVO workingState;
     private List<ContextSelectionVO> lastContextSelections;
     private MainAgentActionVO lastAction;
     private Map<String, Object> runtimeFacts;

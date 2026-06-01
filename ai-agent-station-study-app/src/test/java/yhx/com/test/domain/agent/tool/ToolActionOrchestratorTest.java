@@ -61,6 +61,21 @@ public class ToolActionOrchestratorTest {
     }
 
     @Test
+    public void approved_tool_can_infer_capability_from_unique_tool_name() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        AtomicInteger calls = new AtomicInteger();
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ALLOW, command -> {
+            calls.incrementAndGet();
+            return McpToolInvokeResultVO.builder().called(true).success(true).receipt(Map.of("id", "ok")).build();
+        });
+
+        ToolActionResultVO result = orchestrator.handleToolAction(commandWithoutCapabilityCode());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertEquals(1, calls.get());
+    }
+
+    @Test
     public void permission_denial_creates_denial_evidence_without_invocation() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
         ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.DENY, command -> {
@@ -77,12 +92,17 @@ public class ToolActionOrchestratorTest {
     public void successful_tool_creates_evidence_and_continues_loop() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
         ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ALLOW,
-                command -> McpToolInvokeResultVO.builder().called(true).success(true).receipt(Map.of("url", "https://example.com")).build());
+                command -> McpToolInvokeResultVO.builder()
+                        .called(true)
+                        .success(true)
+                        .receipt(Map.of("contentText", "project structure: ai-agent-station-study-domain"))
+                        .build());
 
         ToolActionResultVO result = orchestrator.handleToolAction(command());
 
         Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
         Assert.assertFalse(result.getEvidenceIds().isEmpty());
+        Assert.assertTrue(repository.evidence.get(0).getSummary().contains("ai-agent-station-study-domain"));
         Assert.assertEquals(2, repository.transcripts.size());
     }
 
@@ -118,6 +138,17 @@ public class ToolActionOrchestratorTest {
                 .sessionId("sess-001")
                 .loopIndex(1)
                 .capabilityCode("publish")
+                .toolName("tool")
+                .goal("publish content")
+                .arguments(Map.of("title", "Hello"))
+                .build();
+    }
+
+    private ToolActionCommandVO commandWithoutCapabilityCode() {
+        return ToolActionCommandVO.builder()
+                .runId("run-001")
+                .sessionId("sess-001")
+                .loopIndex(1)
                 .toolName("tool")
                 .goal("publish content")
                 .arguments(Map.of("title", "Hello"))
