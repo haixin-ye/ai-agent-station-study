@@ -6,6 +6,8 @@ import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.agent.SubAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.agent.SubAgentCommitStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 
 import java.util.Map;
@@ -62,6 +64,51 @@ public class ContractValidator {
             }
         }
 
+        return ContractValidationResult.passed();
+    }
+
+    public ContractValidationResult validateSubAgentAction(String rawOutput) {
+        RawOutputParseResult parseResult = rawOutputParser.parse(rawOutput);
+        if (!parseResult.isSuccess()) {
+            return ContractValidationResult.failed(parseResult.getErrorCode(), "$", parseResult.getErrorMessage());
+        }
+
+        JSONObject root = parseResult.getJsonObject();
+        for (String field : root.keySet()) {
+            if (StateDeltaScopeRules.isRuntimeOwnedField(field)) {
+                return ContractValidationResult.failed("FORBIDDEN_RUNTIME_FIELD", field, "Node output contains Runtime-owned field.");
+            }
+        }
+
+        String action = root.getString("action");
+        if (SubAgentActionTypeEnumVO.ofCode(action).isEmpty()) {
+            return ContractValidationResult.failed("INVALID_SUB_AGENT_ACTION", "action", "Unknown SubAgent action.");
+        }
+        if (SubAgentActionTypeEnumVO.COMMIT.code().equals(action)) {
+            return validateSubAgentCommit(root.getJSONObject("commit"));
+        }
+        return ContractValidationResult.passed();
+    }
+
+    private ContractValidationResult validateSubAgentCommit(JSONObject commit) {
+        if (commit == null) {
+            return ContractValidationResult.failed("MISSING_COMMIT", "commit", "SubAgent COMMIT requires commit payload.");
+        }
+        String taskId = commit.getString("taskId");
+        if (taskId == null || taskId.isBlank()) {
+            return ContractValidationResult.failed("MISSING_COMMIT_TASK_ID", "commit.taskId", "SubAgent COMMIT requires taskId.");
+        }
+        String status = commit.getString("status");
+        if (status == null || status.isBlank()) {
+            return ContractValidationResult.failed("MISSING_COMMIT_STATUS", "commit.status", "SubAgent COMMIT requires status.");
+        }
+        if (SubAgentCommitStatusEnumVO.ofCode(status).isEmpty()) {
+            return ContractValidationResult.failed("INVALID_COMMIT_STATUS", "commit.status", "Unknown SubAgent commit status.");
+        }
+        String result = commit.getString("result");
+        if (result == null || result.isBlank()) {
+            return ContractValidationResult.failed("MISSING_COMMIT_RESULT", "commit.result", "SubAgent COMMIT requires result.");
+        }
         return ContractValidationResult.passed();
     }
 

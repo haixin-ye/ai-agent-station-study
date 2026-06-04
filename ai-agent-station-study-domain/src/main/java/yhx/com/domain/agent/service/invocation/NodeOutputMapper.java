@@ -3,10 +3,12 @@ package yhx.com.domain.agent.service.invocation;
 import com.alibaba.fastjson.JSONObject;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.agent.SubAgentActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
 import yhx.com.domain.agent.model.valobj.invocation.FinalResponseGuardResultVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
+import yhx.com.domain.agent.model.valobj.agent.SubAgentActionVO;
 import yhx.com.domain.agent.model.valobj.invocation.VerificationResultVO;
 import yhx.com.domain.agent.model.valobj.memory.ConversationRollupOutputVO;
 import yhx.com.domain.agent.model.valobj.memory.MemoryExtractionOutputVO;
@@ -24,6 +26,9 @@ public class NodeOutputMapper {
         if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)
                 || AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)) {
             return mapMainAgentAction(jsonObject);
+        }
+        if (AgentComponentCodeEnumVO.GENERIC_SUB_AGENT.name().equals(componentCode)) {
+            return mapSubAgentAction(jsonObject);
         }
         if (AgentComponentCodeEnumVO.RAG_VERIFIER.name().equals(componentCode)
                 || AgentComponentCodeEnumVO.TOOL_VERIFIER.name().equals(componentCode)) {
@@ -70,6 +75,14 @@ public class NodeOutputMapper {
             throw new IllegalArgumentException("Unknown MainAgent action: " + action);
         }
         return jsonObject.toJavaObject(MainAgentActionVO.class);
+    }
+
+    public SubAgentActionVO mapSubAgentAction(JSONObject jsonObject) {
+        String action = jsonObject.getString("action");
+        if (SubAgentActionTypeEnumVO.ofCode(action).isEmpty()) {
+            throw new IllegalArgumentException("Unknown SubAgent action: " + action);
+        }
+        return jsonObject.toJavaObject(SubAgentActionVO.class);
     }
 
     public VerificationResultVO mapVerificationResult(JSONObject jsonObject) {

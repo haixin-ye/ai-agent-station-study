@@ -3,6 +3,7 @@ package yhx.com.domain.agent.model.valobj.enums.contract;
 public enum AgentComponentCodeEnumVO {
     CONTEXT_PLANNER,
     MAIN_AGENT,
+    GENERIC_SUB_AGENT,
     TOOL_RUNTIME,
     USER_INTERACTION,
     RAG_VERIFIER,

@@ -19,6 +19,7 @@ public class ContractRegistry {
         Map<AgentComponentCodeEnumVO, AgentNodeContract> map = new EnumMap<>(AgentComponentCodeEnumVO.class);
         register(map, AgentComponentCodeEnumVO.CONTEXT_PLANNER, "ContextPlannerOutputContract", "context-planner-output-v1");
         register(map, AgentComponentCodeEnumVO.MAIN_AGENT, "MainAgentActionContract", "main-agent-action-v1");
+        register(map, AgentComponentCodeEnumVO.GENERIC_SUB_AGENT, "SubAgentActionContract", "generic-sub-agent-action-v1");
         register(map, AgentComponentCodeEnumVO.TOOL_RUNTIME, "ToolInvocationResultContract", "tool-invocation-result-v1");
         register(map, AgentComponentCodeEnumVO.USER_INTERACTION, "UserInteractionContract", "user-interaction-v1");
         register(map, AgentComponentCodeEnumVO.RAG_VERIFIER, "VerificationResultContract", "verification-result-v1");
