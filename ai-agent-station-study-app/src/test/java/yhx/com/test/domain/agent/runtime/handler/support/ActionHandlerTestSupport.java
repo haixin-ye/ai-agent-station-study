@@ -25,6 +25,8 @@ import yhx.com.domain.agent.service.interaction.RagPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
+import yhx.com.domain.agent.service.agent.AgentDispatchRuntime;
+import yhx.com.domain.agent.service.agent.ParentChildRunRegistry;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.MainActionHandler;
@@ -36,6 +38,7 @@ import yhx.com.domain.agent.service.runtime.handler.AskUserActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.CallToolActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.ContinueActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.DefaultMainActionDispatcher;
+import yhx.com.domain.agent.service.runtime.handler.DelegateAgentsActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FailActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FinalActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.MainActionHandlerRegistry;
@@ -136,6 +139,7 @@ public class ActionHandlerTestSupport {
                 new CallToolActionHandler(toolPort, failureFactory, traceRecorder),
                 new PlanActionHandler(planPort, failureFactory, traceRecorder),
                 new ContinueActionHandler(new RuntimeLoopPolicy(), failureFactory, traceRecorder),
+                new DelegateAgentsActionHandler(new AgentDispatchRuntime(new ParentChildRunRegistry()), failureFactory, traceRecorder),
                 new RepairFinalActionHandler(finalPort, failureFactory, traceRecorder),
                 new FailActionHandler(finalPort, failureFactory, traceRecorder)
         );

@@ -67,6 +67,7 @@ public class RuntimeStateMachine {
             case RETRIEVE_RAG -> RuntimePhaseEnumVO.EXECUTING_RAG;
             case CALL_TOOL -> RuntimePhaseEnumVO.PREPARING_TOOL;
             case ASK_USER -> RuntimePhaseEnumVO.WAITING_USER;
+            case DELEGATE_AGENTS -> RuntimePhaseEnumVO.WAITING_CHILDREN;
             case PLAN, CONTINUE -> RuntimePhaseEnumVO.CALLING_MAIN_NODE;
         };
     }

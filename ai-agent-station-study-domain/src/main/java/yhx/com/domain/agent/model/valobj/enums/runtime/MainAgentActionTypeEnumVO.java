@@ -10,6 +10,7 @@ public enum MainAgentActionTypeEnumVO {
     ASK_USER("ASK_USER", "Ask the user for clarification or approval."),
     PLAN("PLAN", "Persist internal plan state."),
     CONTINUE("CONTINUE", "Continue the loop."),
+    DELEGATE_AGENTS("DELEGATE_AGENTS", "Delegate atomic tasks to generic subagents."),
     REPAIR_FINAL("REPAIR_FINAL", "Return a repaired final answer candidate."),
     FAIL("FAIL", "Return a user-safe failure candidate.");
 

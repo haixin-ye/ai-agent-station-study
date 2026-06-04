@@ -6,6 +6,7 @@ import java.util.Optional;
 public enum MainActionHandlerStatusEnumVO {
     CONTINUE_LOOP("CONTINUE_LOOP", "Action completed and Runtime should continue the loop."),
     WAITING_USER("WAITING_USER", "Action requires user input and Runtime should pause."),
+    WAITING_CHILDREN("WAITING_CHILDREN", "Action delegated child work and Runtime should pause parent."),
     COMPLETED("COMPLETED", "Action completed the run."),
     FAILED("FAILED", "Action failed safely."),
     CANCELLED("CANCELLED", "Action cancelled the run.");

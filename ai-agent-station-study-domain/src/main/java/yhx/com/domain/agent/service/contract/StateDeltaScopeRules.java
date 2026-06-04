@@ -21,6 +21,7 @@ public class StateDeltaScopeRules {
         allow(MainAgentActionTypeEnumVO.ASK_USER, StateDeltaFieldEnumVO.ASK_USER_REQUEST);
         allow(MainAgentActionTypeEnumVO.PLAN, StateDeltaFieldEnumVO.PLAN_DRAFT);
         allow(MainAgentActionTypeEnumVO.CONTINUE, StateDeltaFieldEnumVO.NEXT_ACTION_HINT);
+        allow(MainAgentActionTypeEnumVO.DELEGATE_AGENTS, StateDeltaFieldEnumVO.DELEGATE_AGENTS_REQUEST);
         allow(MainAgentActionTypeEnumVO.REPAIR_FINAL, StateDeltaFieldEnumVO.FINAL_ANSWER_CANDIDATE);
         allow(MainAgentActionTypeEnumVO.FAIL, StateDeltaFieldEnumVO.FAILURE);
 

@@ -10,6 +10,7 @@ public enum StateDeltaFieldEnumVO {
     ASK_USER_REQUEST("askUserRequest", "User interaction request."),
     PLAN_DRAFT("planDraft", "Internal plan draft."),
     NEXT_ACTION_HINT("nextActionHint", "Hint for next loop."),
+    DELEGATE_AGENTS_REQUEST("delegateAgentsRequest", "Generic subagent delegation request."),
     FAILURE("failure", "User-safe failure data.");
 
     private final String code;

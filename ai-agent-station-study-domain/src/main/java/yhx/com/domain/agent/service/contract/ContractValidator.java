@@ -2,6 +2,7 @@ package yhx.com.domain.agent.service.contract;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import yhx.com.domain.agent.model.valobj.enums.agent.AgentDelegationWaitModeEnumVO;
 import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
@@ -64,6 +65,50 @@ public class ContractValidator {
             }
         }
 
+        if (MainAgentActionTypeEnumVO.DELEGATE_AGENTS.code().equals(action)) {
+            ContractValidationResult delegateResult = validateDelegateAgentsRequest(stateDelta.getJSONObject("delegateAgentsRequest"));
+            if (!delegateResult.isPassed()) {
+                return delegateResult;
+            }
+        }
+
+        return ContractValidationResult.passed();
+    }
+
+    private ContractValidationResult validateDelegateAgentsRequest(JSONObject request) {
+        if (request == null) {
+            return ContractValidationResult.failed("MISSING_DELEGATE_REQUEST", "stateDelta.delegateAgentsRequest",
+                    "DELEGATE_AGENTS requires delegateAgentsRequest.");
+        }
+        String waitMode = request.getString("waitMode");
+        if (AgentDelegationWaitModeEnumVO.ofCode(waitMode).isEmpty()) {
+            return ContractValidationResult.failed("INVALID_DELEGATE_WAIT_MODE", "stateDelta.delegateAgentsRequest.waitMode",
+                    "Only WAIT_ALL is supported in the first delegation implementation.");
+        }
+        JSONArray tasks = request.getJSONArray("tasks");
+        if (tasks == null || tasks.isEmpty()) {
+            return ContractValidationResult.failed("MISSING_DELEGATE_TASKS", "stateDelta.delegateAgentsRequest.tasks",
+                    "DELEGATE_AGENTS requires at least one task.");
+        }
+        for (int index = 0; index < tasks.size(); index++) {
+            Object item = tasks.get(index);
+            if (!(item instanceof JSONObject task)) {
+                return ContractValidationResult.failed("INVALID_DELEGATE_TASK", "stateDelta.delegateAgentsRequest.tasks[" + index + "]",
+                        "Delegated task must be a JSON object.");
+            }
+            if (isBlank(task.getString("taskId"))) {
+                return ContractValidationResult.failed("MISSING_DELEGATE_TASK_ID", "stateDelta.delegateAgentsRequest.tasks[" + index + "].taskId",
+                        "Delegated task requires taskId.");
+            }
+            if (isBlank(task.getString("name"))) {
+                return ContractValidationResult.failed("MISSING_DELEGATE_TASK_NAME", "stateDelta.delegateAgentsRequest.tasks[" + index + "].name",
+                        "Delegated task requires name.");
+            }
+            if (isBlank(task.getString("objective"))) {
+                return ContractValidationResult.failed("MISSING_DELEGATE_TASK_OBJECTIVE", "stateDelta.delegateAgentsRequest.tasks[" + index + "].objective",
+                        "Delegated task requires objective.");
+            }
+        }
         return ContractValidationResult.passed();
     }
 
@@ -110,6 +155,10 @@ public class ContractValidator {
             return ContractValidationResult.failed("MISSING_COMMIT_RESULT", "commit.result", "SubAgent COMMIT requires result.");
         }
         return ContractValidationResult.passed();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private ContractValidationResult validatePerUpdate(JSONObject perUpdate) {
