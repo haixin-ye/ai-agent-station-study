@@ -260,6 +260,16 @@ Each loop appends =
 
 The next subagent turn loads its own full context. This keeps generic subagents simple because their tasks should be small.
 
+Generic subagent full-context mode should have broad runtime safety limits, not tight product constraints. Default limits for the first implementation:
+
+- maximum generic subagent loop count: `25`;
+- maximum generic subagent context projection: `200000` characters;
+- maximum single generic subagent tool result projection: `200000` characters.
+
+These limits are for generic subagents only. They must not be applied to future `CodeAgent`, because `CodeAgent` will have its own coding-oriented context and compaction design.
+
+If a generic subagent exceeds these limits, Runtime should stop that child run with a structured `FAIL` or blocked commit and project the failure back to the parent. Runtime should not silently drop required evidence or invent a semantic summary.
+
 ### 4.3 Future CodeAgent Memory Policy
 
 Future CodeAgent uses workspace-scoped persistent memory, not MainAgent memory.
@@ -314,6 +324,8 @@ The first version should keep categories coarse:
 
 Generic subagents receive only the capabilities requested by `MainAgent` and allowed by the generic subagent profile.
 
+File read/write capabilities are only effective when a workspace scope exists and the requested path is inside that scope. If no workspace is selected or granted, `FILE_READ` and `FILE_WRITE` must not become effective capabilities for generic subagents.
+
 ### 5.3 Workspace Scope
 
 If an agent action touches a filesystem path, Runtime/ToolRuntime must check workspace scope.
@@ -331,6 +343,8 @@ Agent requests out-of-scope path
   -> user approves temporary scope grant
   -> ToolRuntime retries with grant
 ```
+
+MCP file-system tools must use the same workspace scope. The MCP tool configuration may define a broad server capability, but the agent-facing effective capability and final ToolRuntime path check must be constrained by the current workspace. A prompt-visible file tool is not enough to authorize access.
 
 ## 6. Action Policy
 
@@ -354,6 +368,8 @@ DELEGATE_CODE_AGENT (reserved)
 ```
 
 `PLAN` remains available for compatibility, but PER notebook updates are the primary planning memory.
+
+`DELEGATE_CODE_AGENT` is a reserved action until CodeAgent runtime exists. Before that implementation is available, it must not appear in MainAgent `availableCapabilities`, prompt-visible allowed actions, or active contract allowed actions. It may exist only as a Java enum/contract reservation and disabled bridge boundary.
 
 ### 6.2 Generic Subagent Actions
 
@@ -451,7 +467,21 @@ Runtime must not invent a summary beyond deterministic metadata. If a commit nee
 
 ## 8. Parent-Child Coordination
 
-### 8.1 Wait Mode
+### 8.1 Parent Waiting Lifecycle
+
+The first implementation should introduce child waiting as a first-class lifecycle concept instead of leaving it as an implicit registry-only state.
+
+Recommended runtime additions:
+
+- add `WAITING_CHILDREN` to run status;
+- add `WAITING_CHILDREN` to runtime phase;
+- record the child wait set in `ParentChildRunRegistry`.
+
+`WAITING_CHILDREN` means the parent run is paused until its child wait policy is satisfied. It is different from `WAITING_USER`: the run is waiting for delegated agent completion, not direct user input.
+
+If a child asks the user while the parent is already `WAITING_CHILDREN`, the child run may enter `WAITING_USER`, but the parent remains `WAITING_CHILDREN`.
+
+### 8.2 Wait Mode
 
 The first version supports only `WAIT_ALL`.
 
@@ -473,7 +503,7 @@ Future wait modes:
 
 These are not part of the first implementation.
 
-### 8.2 Child Failure
+### 8.3 Child Failure
 
 A child failure should not automatically fail the parent run.
 
@@ -487,7 +517,7 @@ Instead:
 
 Runtime should only fail the parent directly for infrastructure-level errors that make parent recovery impossible.
 
-### 8.3 Parent Wakeup
+### 8.4 Parent Wakeup
 
 When wait policy is satisfied:
 
@@ -624,6 +654,8 @@ Work:
 - define policy interfaces for memory, capability, action, prompt/contract, completion, and parent-child behavior;
 - adapt current MainAgent runtime to run as `MainAgentProfile`;
 - keep current non-delegation behavior equivalent;
+- add `WAITING_CHILDREN` status/phase definitions or equivalent first-class lifecycle support before child dispatch is enabled;
+- add initial workspace-aware capability resolution hooks, even if workspace UI is not implemented yet;
 - add focused tests proving existing MainAgent actions still route as before.
 
 ### Phase 2: Generic Subagent MVP
@@ -636,6 +668,7 @@ Work:
 - add subagent node entry service and prompt/contract;
 - add `COMMIT` action;
 - add full-context subagent memory;
+- enforce broad generic subagent limits: 25 loops, 200000 context characters, and 200000 characters per single tool result projection;
 - add child run creation;
 - add child action validation and routing;
 - add child commit recording.
@@ -674,7 +707,8 @@ Work:
 - add workspace model and repository boundary;
 - expose current workspace in MainAgent state view;
 - add workspace scope to capability resolution;
-- make file/tool path checks scope-aware;
+- make MCP file-system tool path checks scope-aware and constrained by workspace;
+- ensure generic subagents receive file read/write capabilities only when an effective workspace scope exists;
 - reject out-of-scope access in first version;
 - reserve approval escalation for future.
 
@@ -700,12 +734,16 @@ The design is implemented correctly when:
 - generic subagents cannot `FINAL` to the user;
 - generic subagents can `COMMIT` to the parent;
 - parent run waits using `WAIT_ALL`;
+- child waiting is represented by first-class `WAITING_CHILDREN` lifecycle state or equivalent explicit lifecycle support before dispatch is enabled;
 - parent run resumes after all child runs are terminal;
 - child results appear in parent worklog/evidence/state view with enough detail;
 - child `ASK_USER` resumes the child, not the parent;
 - capability enforcement is Runtime-owned;
-- workspace scope is represented as a future permission boundary;
-- CodeAgent is connected only through a bridge/reservation in this phase.
+- generic subagent limits are broad and explicit: 25 loops, 200000 context characters, and 200000 characters per single tool result projection;
+- generic subagent limits do not apply to future CodeAgent;
+- workspace scope constrains file read/write capabilities and MCP file-system tool path checks;
+- CodeAgent is connected only through a bridge/reservation in this phase;
+- `DELEGATE_CODE_AGENT` is not exposed to MainAgent prompt, active contract, or available capabilities until CodeAgent runtime exists.
 
 ## 15. Explicit Non-Goals
 
@@ -723,4 +761,3 @@ This spec does not implement:
 - distributed queue execution.
 
 These are later specs or implementation phases.
-
