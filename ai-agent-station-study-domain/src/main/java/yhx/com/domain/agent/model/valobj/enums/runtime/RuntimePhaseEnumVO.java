@@ -20,6 +20,7 @@ public enum RuntimePhaseEnumVO {
     REPAIRING_CONTRACT("REPAIRING_CONTRACT", "Runtime performs bounded contract repair."),
     REPAIRING_FINAL("REPAIRING_FINAL", "Runtime performs bounded final answer repair."),
     WAITING_USER("WAITING_USER", "Runtime stores pending input and pauses execution."),
+    WAITING_CHILDREN("WAITING_CHILDREN", "Runtime stores child wait state and pauses parent execution."),
     RESOLVING_USER_ANSWER("RESOLVING_USER_ANSWER", "Runtime normalizes submitted user answer."),
     COMPLETED("COMPLETED", "Runtime persists final response and assistant message."),
     FAILED("FAILED", "Runtime persists failure and user-safe error."),

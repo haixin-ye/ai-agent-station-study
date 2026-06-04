@@ -7,6 +7,7 @@ public enum RunStatusEnumVO {
     CREATED("CREATED", "Run record is created but execution has not started."),
     RUNNING("RUNNING", "Runtime is actively executing the run."),
     WAITING_USER("WAITING_USER", "Runtime is paused and waiting for user input or approval."),
+    WAITING_CHILDREN("WAITING_CHILDREN", "Runtime is paused and waiting for delegated child agents."),
     COMPLETED("COMPLETED", "Run completed with a guarded final response."),
     FAILED("FAILED", "Run ended with a user-safe failure response."),
     CANCELLED("CANCELLED", "Run was cancelled by user or system.");

@@ -54,4 +54,21 @@ public class RuntimeStateMachineTest {
         Assert.assertTrue(stateMachine.isTerminalRunStatus(RunStatusEnumVO.CANCELLED));
         Assert.assertFalse(stateMachine.isTerminalRunStatus(RunStatusEnumVO.RUNNING));
     }
+
+    @Test
+    public void waiting_children_is_paused_but_not_terminal() {
+        RuntimeStateMachine stateMachine = new RuntimeStateMachine();
+
+        Assert.assertTrue(stateMachine.isPausedRunStatus(RunStatusEnumVO.WAITING_CHILDREN));
+        Assert.assertFalse(stateMachine.isTerminalRunStatus(RunStatusEnumVO.WAITING_CHILDREN));
+    }
+
+    @Test
+    public void handling_action_can_pause_for_children_and_resume_after_child_wait() {
+        RuntimeStateMachine stateMachine = new RuntimeStateMachine();
+
+        Assert.assertTrue(stateMachine.canEnter(RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.WAITING_CHILDREN));
+        Assert.assertTrue(stateMachine.canEnter(RuntimePhaseEnumVO.WAITING_CHILDREN, RuntimePhaseEnumVO.BUILDING_STATE_VIEW));
+        Assert.assertFalse(stateMachine.canEnter(RuntimePhaseEnumVO.WAITING_CHILDREN, RuntimePhaseEnumVO.RESOLVING_USER_ANSWER));
+    }
 }

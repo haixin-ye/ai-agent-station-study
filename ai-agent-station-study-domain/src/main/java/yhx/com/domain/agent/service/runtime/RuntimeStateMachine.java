@@ -24,7 +24,7 @@ public class RuntimeStateMachine {
         allow(RuntimePhaseEnumVO.REPAIRING_CONTRACT, RuntimePhaseEnumVO.VALIDATING_ACTION, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.EXECUTING_RAG,
                 RuntimePhaseEnumVO.PREPARING_TOOL, RuntimePhaseEnumVO.VERIFYING_FINAL, RuntimePhaseEnumVO.WAITING_USER,
-                RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE,
+                RuntimePhaseEnumVO.WAITING_CHILDREN, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE,
                 RuntimePhaseEnumVO.COMPLETED, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.EXECUTING_RAG, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
         allow(RuntimePhaseEnumVO.PREPARING_TOOL, RuntimePhaseEnumVO.HANDLING_ACTION, RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.INVOKING_TOOL_RUNTIME, RuntimePhaseEnumVO.FAILED);
@@ -34,6 +34,8 @@ public class RuntimeStateMachine {
         allow(RuntimePhaseEnumVO.VERIFYING_FINAL, RuntimePhaseEnumVO.REPAIRING_FINAL, RuntimePhaseEnumVO.COMPLETED, RuntimePhaseEnumVO.FAILED);
         allow(RuntimePhaseEnumVO.REPAIRING_FINAL, RuntimePhaseEnumVO.VERIFYING_FINAL);
         allow(RuntimePhaseEnumVO.WAITING_USER, RuntimePhaseEnumVO.RESOLVING_USER_ANSWER);
+        allow(RuntimePhaseEnumVO.WAITING_CHILDREN, RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
+                RuntimePhaseEnumVO.FAILED, RuntimePhaseEnumVO.CANCELLED);
         allow(RuntimePhaseEnumVO.RESOLVING_USER_ANSWER, RuntimePhaseEnumVO.PREPARING_CONTEXT, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
                 RuntimePhaseEnumVO.PREPARING_TOOL,
                 RuntimePhaseEnumVO.CALLING_MAIN_NODE, RuntimePhaseEnumVO.CANCELLED, RuntimePhaseEnumVO.FAILED);
@@ -81,7 +83,7 @@ public class RuntimeStateMachine {
     }
 
     public boolean isPausedRunStatus(RunStatusEnumVO status) {
-        return status == RunStatusEnumVO.WAITING_USER;
+        return status == RunStatusEnumVO.WAITING_USER || status == RunStatusEnumVO.WAITING_CHILDREN;
     }
 
     private void allow(RuntimePhaseEnumVO from, RuntimePhaseEnumVO... to) {
