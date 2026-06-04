@@ -79,7 +79,8 @@ public class AutoAgentFinalResponseConfig {
                                                FinalRepairNodeService finalRepairNodeService,
                                                FixedSafeFallbackFactory fallbackFactory,
                                                FinalResponsePersistenceService persistenceService,
-                                               ObjectProvider<RunEventPublisher> eventPublisherProvider) {
+                                               ObjectProvider<RunEventPublisher> eventPublisherProvider,
+                                               AutoAgentRuntimeProperties properties) {
         return new FinalDeliveryService(runRepository,
                 ragVerificationRouterProvider.getIfAvailable(),
                 guardInputBuilder,
@@ -89,7 +90,8 @@ public class AutoAgentFinalResponseConfig {
                 fallbackFactory,
                 persistenceService,
                 new RuntimeFailureFactory(),
-                eventPublisherProvider.getIfAvailable());
+                eventPublisherProvider.getIfAvailable(),
+                properties.isFinalResponseGuardEnabled());
     }
 
 }

@@ -20,6 +20,7 @@ import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
 import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -302,6 +303,61 @@ public class TurnSummaryGcWorkerTest {
     }
 
     @Test
+    public void turn_summary_worker_dispatches_global_governance_when_only_existing_task_is_stale() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.turns.put("turn-5", AgentTurnEntity.builder()
+                .turnId("turn-5")
+                .runId("run-5")
+                .sessionId("session-1")
+                .userId("user-1")
+                .userPayloadRef("payload-user")
+                .assistantPayloadRef("payload-assistant")
+                .build());
+        repositories.payloads.put("payload-user", AgentPayloadEntity.builder().payloadId("payload-user").content("turn 5 user").build());
+        repositories.payloads.put("payload-assistant", AgentPayloadEntity.builder().payloadId("payload-assistant").content("turn 5 answer").build());
+        for (int i = 1; i <= 4; i++) {
+            repositories.summaries.add(AgentTurnSummaryEntity.builder()
+                    .summaryId("turn-summary-" + i)
+                    .turnId("turn-" + i)
+                    .sessionId("session-1")
+                    .status("ACTIVE")
+                    .build());
+        }
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType(MemoryTaskTypeEnumVO.TURN_SUMMARY.name())
+                .turnId("turn-5")
+                .status("PENDING")
+                .build());
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-stale-governance")
+                .taskType(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name())
+                .turnId("turn-old")
+                .status("RUNNING")
+                .updatedAt(LocalDateTime.now().minusHours(2))
+                .build());
+        RecordingWorker governanceWorker = new RecordingWorker(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name());
+        MemoryGcFollowupScheduler scheduler = new MemoryGcFollowupScheduler(repositories,
+                new MemoryGcTaskDispatcher(Runnable::run, List.of(governanceWorker)));
+        TurnSummaryGcWorker worker = new TurnSummaryGcWorker(repositories,
+                repositories,
+                repositories,
+                repositories,
+                new StubTurnSummaryNodeService(false),
+                null,
+                scheduler,
+                99,
+                5,
+                99);
+
+        worker.handleTurn("task-1", "turn-5");
+
+        Assert.assertEquals(4, repositories.tasks.size());
+        Assert.assertEquals(MemoryTaskTypeEnumVO.MEMORY_GOVERNANCE.name(), repositories.tasks.get(3).getTaskType());
+        Assert.assertEquals(List.of("task-4"), governanceWorker.handledTaskIds);
+    }
+
+    @Test
     public void turn_summary_worker_dispatches_summary_self_check_every_three_active_summaries() {
         FakeRepositories repositories = new FakeRepositories();
         repositories.turns.put("turn-3", AgentTurnEntity.builder()
@@ -574,14 +630,22 @@ public class TurnSummaryGcWorkerTest {
             return tasks.stream()
                     .anyMatch(task -> taskType.equals(task.getTaskType())
                             && sessionId.equals(task.getSessionId())
-                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
+                            && isOpenMemoryTask(task));
         }
 
         @Override
         public boolean hasOpenTaskType(String taskType) {
             return tasks.stream()
                     .anyMatch(task -> taskType.equals(task.getTaskType())
-                            && ("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus())));
+                            && isOpenMemoryTask(task));
+        }
+
+        private boolean isOpenMemoryTask(AgentMemoryTaskEntity task) {
+            if (!("PENDING".equals(task.getStatus()) || "RUNNING".equals(task.getStatus()))) {
+                return false;
+            }
+            LocalDateTime touchedAt = task.getUpdatedAt() == null ? task.getCreatedAt() : task.getUpdatedAt();
+            return touchedAt == null || !touchedAt.isBefore(LocalDateTime.now().minusMinutes(30));
         }
 
         @Override

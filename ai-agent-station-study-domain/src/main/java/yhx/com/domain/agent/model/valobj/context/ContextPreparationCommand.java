@@ -26,6 +26,8 @@ public class ContextPreparationCommand {
     private Integer artifactCandidateLimit;
     private Integer memoryCandidateLimit;
     private Integer evidenceCandidateLimit;
+    private Boolean vectorRecallEnabled;
+    private Boolean ragRecallEnabled;
     private List<AgentArtifactEntity> artifactSeeds;
     private List<CapabilityCandidateVO> availableCapabilities;
     private TokenBudgetVO tokenBudget;

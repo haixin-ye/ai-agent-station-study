@@ -6,9 +6,12 @@ import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.ArtifactCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.ArtifactChunkVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.EvidenceCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.RagCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
+import yhx.com.domain.agent.service.rag.RagContextRecallPreselector;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -24,8 +27,10 @@ public class ContextPreparationService {
 
     private final ContextCandidatePreselector contextCandidatePreselector;
     private final VectorContextRecallPreselector vectorContextRecallPreselector;
+    private final RagContextRecallPreselector ragContextRecallPreselector;
     private final Executor recallExecutor;
     private final Duration vectorRecallTimeout;
+    private final Duration ragRecallTimeout;
 
     public ContextPreparationService(ContextCandidatePreselector contextCandidatePreselector) {
         this(contextCandidatePreselector, null, null, Duration.ZERO);
@@ -35,24 +40,60 @@ public class ContextPreparationService {
                                      VectorContextRecallPreselector vectorContextRecallPreselector,
                                      Executor recallExecutor,
                                      Duration vectorRecallTimeout) {
+        this(contextCandidatePreselector, vectorContextRecallPreselector, null, recallExecutor, vectorRecallTimeout, Duration.ZERO);
+    }
+
+    public ContextPreparationService(ContextCandidatePreselector contextCandidatePreselector,
+                                     VectorContextRecallPreselector vectorContextRecallPreselector,
+                                     RagContextRecallPreselector ragContextRecallPreselector,
+                                     Executor recallExecutor,
+                                     Duration vectorRecallTimeout,
+                                     Duration ragRecallTimeout) {
         this.contextCandidatePreselector = contextCandidatePreselector;
         this.vectorContextRecallPreselector = vectorContextRecallPreselector;
+        this.ragContextRecallPreselector = ragContextRecallPreselector;
         this.recallExecutor = recallExecutor;
         this.vectorRecallTimeout = vectorRecallTimeout == null ? Duration.ZERO : vectorRecallTimeout;
+        this.ragRecallTimeout = ragRecallTimeout == null ? Duration.ZERO : ragRecallTimeout;
     }
 
     public ContextCandidateBundleVO prepare(ContextPreparationCommand command) {
-        if (vectorContextRecallPreselector == null || recallExecutor == null) {
-            return contextCandidatePreselector.buildCandidates(command);
+        boolean vectorEnabled = command == null || !Boolean.FALSE.equals(command.getVectorRecallEnabled());
+        boolean ragEnabled = command == null || !Boolean.FALSE.equals(command.getRagRecallEnabled());
+        boolean hasVectorRecall = vectorEnabled && vectorContextRecallPreselector != null;
+        boolean hasRagRecall = ragEnabled && ragContextRecallPreselector != null;
+        if ((!hasVectorRecall && !hasRagRecall) || recallExecutor == null) {
+            ContextCandidateBundleVO candidates = contextCandidatePreselector.buildCandidates(command);
+            if (candidates != null && candidates.getRagCandidates() == null) {
+                candidates.setRagCandidates(List.of());
+            }
+            return candidates;
         }
         CompletableFuture<ContextCandidateBundleVO> mysqlFuture = CompletableFuture.supplyAsync(
                 () -> contextCandidatePreselector.buildCandidates(command), recallExecutor);
+        CompletableFuture<ContextCandidateBundleVO> vectorFuture = hasVectorRecall
+                ? vectorFuture(command)
+                : CompletableFuture.completedFuture(emptyBundle());
+        CompletableFuture<List<RagCandidateVO>> ragFuture = hasRagRecall
+                ? ragFuture(command)
+                : CompletableFuture.completedFuture(List.of());
+
+        ContextCandidateBundleVO mysqlBundle = mysqlFuture.join();
+        ContextCandidateBundleVO vectorBundle = vectorFuture.join();
+        List<RagCandidateVO> ragCandidates = ragFuture.join();
+        return merge(mysqlBundle, vectorBundle, ragCandidates);
+    }
+
+    private CompletableFuture<ContextCandidateBundleVO> vectorFuture(ContextPreparationCommand command) {
+        if (vectorContextRecallPreselector == null) {
+            return CompletableFuture.completedFuture(emptyBundle());
+        }
         CompletableFuture<ContextCandidateBundleVO> vectorFuture = CompletableFuture.supplyAsync(
                 () -> vectorContextRecallPreselector.recall(command), recallExecutor);
         if (!vectorRecallTimeout.isZero() && !vectorRecallTimeout.isNegative()) {
             vectorFuture = vectorFuture.orTimeout(Math.max(1, vectorRecallTimeout.toMillis()), TimeUnit.MILLISECONDS);
         }
-        vectorFuture = vectorFuture.exceptionally(error -> {
+        return vectorFuture.exceptionally(error -> {
             log.warn("[AutoAgent][memory-vector-recall-failed] runId={}, sessionId={}, reason={}",
                     command == null ? null : command.getRunId(),
                     command == null ? null : command.getSessionId(),
@@ -63,19 +104,38 @@ public class ContextPreparationService {
                     error);
             return emptyBundle();
         });
-
-        ContextCandidateBundleVO mysqlBundle = mysqlFuture.join();
-        ContextCandidateBundleVO vectorBundle = vectorFuture.join();
-        return merge(mysqlBundle, vectorBundle);
     }
 
-    private ContextCandidateBundleVO merge(ContextCandidateBundleVO mysqlBundle, ContextCandidateBundleVO vectorBundle) {
+    private CompletableFuture<List<RagCandidateVO>> ragFuture(ContextPreparationCommand command) {
+        if (ragContextRecallPreselector == null) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        CompletableFuture<List<RagCandidateVO>> ragFuture = CompletableFuture.supplyAsync(
+                () -> ragContextRecallPreselector.recall(command), recallExecutor);
+        if (!ragRecallTimeout.isZero() && !ragRecallTimeout.isNegative()) {
+            ragFuture = ragFuture.orTimeout(Math.max(1, ragRecallTimeout.toMillis()), TimeUnit.MILLISECONDS);
+        }
+        return ragFuture.exceptionally(error -> {
+            log.warn("[AutoAgent][rag-recall-failed] runId={}, sessionId={}, reason={}",
+                    command == null ? null : command.getRunId(),
+                    command == null ? null : command.getSessionId(),
+                    error == null ? null : error.toString());
+            return List.of();
+        });
+    }
+
+    private ContextCandidateBundleVO merge(ContextCandidateBundleVO mysqlBundle, ContextCandidateBundleVO vectorBundle, List<RagCandidateVO> ragCandidates) {
+        if (mysqlBundle == null) {
+            mysqlBundle = emptyBundle();
+        }
         if (vectorBundle == null) {
-            return mysqlBundle;
+            vectorBundle = emptyBundle();
         }
         mysqlBundle.setSessionSummaries(mergeSummaries(mysqlBundle.getSessionSummaries(), vectorBundle.getSessionSummaries()));
         mysqlBundle.setArtifactCandidates(List.of());
         mysqlBundle.setMemoryCandidates(mergeMemories(mysqlBundle.getMemoryCandidates(), vectorBundle.getMemoryCandidates()));
+        mysqlBundle.setEvidenceCandidates(mergeEvidence(mysqlBundle.getEvidenceCandidates(), vectorBundle.getEvidenceCandidates()));
+        mysqlBundle.setRagCandidates(ragCandidates == null ? List.of() : ragCandidates);
         if (mysqlBundle.getTokenBudget() != null) {
             mysqlBundle.getTokenBudget().setCurrentCandidateTokens(new ContextTokenEstimator().estimateObjectTokens(mysqlBundle));
         }
@@ -151,6 +211,21 @@ public class ContextPreparationService {
         return new ArrayList<>(merged.values());
     }
 
+    private List<EvidenceCandidateVO> mergeEvidence(List<EvidenceCandidateVO> mysql, List<EvidenceCandidateVO> vector) {
+        Map<String, EvidenceCandidateVO> merged = new LinkedHashMap<>();
+        if (mysql != null) {
+            mysql.stream()
+                    .filter(evidence -> evidence != null && evidence.getEvidenceId() != null)
+                    .forEach(evidence -> merged.put(evidence.getEvidenceId(), evidence));
+        }
+        if (vector != null) {
+            vector.stream()
+                    .filter(evidence -> evidence != null && evidence.getEvidenceId() != null)
+                    .forEach(evidence -> merged.putIfAbsent(evidence.getEvidenceId(), evidence));
+        }
+        return new ArrayList<>(merged.values());
+    }
+
     private MemoryCandidateVO mergeMemory(MemoryCandidateVO existing, MemoryCandidateVO vector) {
         existing.setSourceChannel(vector.getSourceChannel());
         existing.setSourceScore(vector.getSourceScore());
@@ -166,6 +241,8 @@ public class ContextPreparationService {
                 .sessionSummaries(List.of())
                 .artifactCandidates(List.of())
                 .memoryCandidates(List.of())
+                .evidenceCandidates(List.of())
+                .ragCandidates(List.of())
                 .build();
     }
 }

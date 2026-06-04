@@ -86,6 +86,18 @@ public class FinalDeliveryServiceTest {
     }
 
     @Test
+    public void guard_disabled_delivers_original_final_without_repair() {
+        FinalResponseTestSupport.Repository repository = repository(false);
+        FinalDeliveryService service = service(repository, null, new StubFinalRepairService(FinalAnswerCandidateVO.builder().content("should not be used").build()), false);
+
+        FinalDeliveryResultVO result = service.deliver(command("Runtime trace leaked"));
+
+        Assert.assertEquals(FinalDeliveryStatusEnumVO.DELIVERED, result.getStatus());
+        Assert.assertFalse(result.isRepairRequested());
+        Assert.assertEquals("Runtime trace leaked", result.getDeliveredContent());
+    }
+
+    @Test
     public void fail_action_user_message_goes_through_guard() {
         FinalResponseTestSupport.Repository repository = repository(false);
         FinalDeliveryService service = service(repository, null, null);
@@ -101,10 +113,17 @@ public class FinalDeliveryServiceTest {
     private FinalDeliveryService service(FinalResponseTestSupport.Repository repository,
                                          RagVerificationRouter router,
                                          FinalRepairNodeService repairService) {
+        return service(repository, router, repairService, true);
+    }
+
+    private FinalDeliveryService service(FinalResponseTestSupport.Repository repository,
+                                         RagVerificationRouter router,
+                                         FinalRepairNodeService repairService,
+                                         boolean finalResponseGuardEnabled) {
         return new FinalDeliveryService(repository, router, new FinalResponseGuardInputBuilder(), new FinalResponseGuard(),
                 new FinalResponseBuilder(), repairService, new FixedSafeFallbackFactory(),
                 new FinalResponsePersistenceService(repository, repository, repository, repository),
-                new RuntimeFailureFactory(), null);
+                new RuntimeFailureFactory(), null, finalResponseGuardEnabled);
     }
 
     private FinalDeliveryCommandVO command(String content) {

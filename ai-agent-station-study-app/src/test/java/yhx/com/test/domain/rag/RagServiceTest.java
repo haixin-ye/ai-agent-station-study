@@ -47,13 +47,28 @@ public class RagServiceTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void test_ingestFiles_emptyTag() {
+    public void test_ingestFiles_emptyFiles() {
         IRagDomainService ragService = new RagService(new FakeRagRepository());
 
         ragService.ingestFiles(RagFileIngestCommandEntity.builder()
-                .knowledgeTag(" ")
                 .files(List.of())
                 .build());
+    }
+
+    @Test
+    public void test_ingestFiles_blankTag_usesGlobalDefault() {
+        FakeRagRepository fakeRagRepository = new FakeRagRepository();
+        IRagDomainService ragService = new RagService(fakeRagRepository);
+
+        ragService.ingestFiles(RagFileIngestCommandEntity.builder()
+                .knowledgeTag(" ")
+                .files(List.of(RagFilePayloadEntity.builder()
+                        .fileName("readme.txt")
+                        .content("hello rag".getBytes(StandardCharsets.UTF_8))
+                        .build()))
+                .build());
+
+        Assert.assertEquals(RagService.DEFAULT_KNOWLEDGE_TAG, fakeRagRepository.lastFileCommand.getKnowledgeTag());
     }
 
     @Test

@@ -29,6 +29,7 @@ import java.util.Map;
 public class MemoryGovernanceGcWorker implements MemoryGcTaskWorker {
 
     private static final int MAX_FAILURE_MESSAGE_CHARS = 4000;
+    private static final int MIN_GOVERNANCE_MEMORY_WINDOW = 200;
 
     private final IMemoryRepository memoryRepository;
     private final IMemoryTaskRepository taskRepository;
@@ -76,14 +77,15 @@ public class MemoryGovernanceGcWorker implements MemoryGcTaskWorker {
                     .orElseThrow(() -> new IllegalArgumentException("Memory task not found: " + taskId));
             AutoAgentHumanLog.stage("长期记忆治理", task.getRunId(), "开始执行长期记忆治理：taskId=" + taskId
                     + "，触发session=" + task.getSessionId());
-            List<AgentMemoryEntity> memories = memoryRepository.listActiveMemoriesForGovernance(memoryLimit);
+            int effectiveMemoryLimit = Math.max(memoryLimit, MIN_GOVERNANCE_MEMORY_WINDOW);
+            List<AgentMemoryEntity> memories = memoryRepository.listActiveMemoriesForGovernance(effectiveMemoryLimit);
             if (memories == null || memories.isEmpty()) {
                 AutoAgentHumanLog.stage("长期记忆治理", task.getRunId(), "长期记忆治理跳过：没有可治理的ACTIVE长期记忆。");
                 taskRepository.markSucceeded(taskId, null);
                 return;
             }
             AutoAgentHumanLog.stage("长期记忆治理", task.getRunId(), "长期记忆治理读取到候选记忆："
-                    + memories.size() + "条，limit=" + memoryLimit);
+                    + memories.size() + "条，limit=" + effectiveMemoryLimit);
             Map<String, AgentMemoryEntity> byId = new LinkedHashMap<>();
             memories.stream()
                     .filter(memory -> memory != null && memory.getMemoryId() != null && !memory.getMemoryId().isBlank())

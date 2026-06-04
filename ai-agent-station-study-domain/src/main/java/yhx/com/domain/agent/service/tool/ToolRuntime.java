@@ -9,10 +9,15 @@ import yhx.com.domain.agent.model.valobj.tool.ToolInvocationRequestVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolInvocationResultVO;
 import yhx.com.domain.agent.service.tool.port.McpToolInvokerPort;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class ToolRuntime {
+
+    private static final int TOOL_RESULT_TEXT_LIMIT = 500;
+    private static final int TOOL_ARGUMENT_VALUE_LIMIT = 500;
 
     private final McpToolInvokerPort mcpToolInvokerPort;
     private final ToolReceiptCapture receiptCapture;
@@ -52,6 +57,7 @@ public class ToolRuntime {
                 .timeoutMs(request.getTimeoutMs())
                 .build());
         String receiptRef = receiptCapture.capture(invokeResult);
+        String resultContent = resultContent(invokeResult);
         ToolCallStatusEnumVO callStatus = failureMapper.callStatus(invokeResult);
         String failureCode = failureMapper.failureCode(invokeResult);
         toolRepository.saveToolReceipt(request.getToolCallId(), request.getArgumentsRef(), receiptRef, callStatus, failureCode);
@@ -60,13 +66,31 @@ public class ToolRuntime {
                 .toolCallId(request.getToolCallId())
                 .toolInvocationId(request.getToolInvocationId())
                 .receiptRef(receiptRef)
-                .resultSummary(resultSummary(invokeResult))
+                .resultSummary(resultSummary(request, invokeResult))
+                .resultContent(resultContent)
+                .resultContentRef(receiptRef)
+                .resultContentFormat(resultContent == null ? null : "TEXT")
+                .resultTotalChars(resultContent == null ? null : resultContent.length())
+                .resultTotalBytes(resultContent == null ? null : (long) resultContent.getBytes(StandardCharsets.UTF_8).length)
                 .failureCode(failureCode)
                 .failureMessage(invokeResult == null ? "MCP tool was not called." : invokeResult.getErrorMessage())
                 .build();
     }
 
-    private String resultSummary(McpToolInvokeResultVO invokeResult) {
+    private String resultSummary(ToolInvocationRequestVO request, McpToolInvokeResultVO invokeResult) {
+        String resultText = resultContent(invokeResult);
+        if (isBlank(resultText)) {
+            return null;
+        }
+        if (request == null || request.getMcpTool() == null || isBlank(request.getMcpTool().getToolName())) {
+            return truncate(resultText, TOOL_RESULT_TEXT_LIMIT);
+        }
+        return "tool=" + request.getMcpTool().getToolName()
+                + ", arguments=" + compactArguments(request.getArguments())
+                + ", result=" + truncate(resultText, TOOL_RESULT_TEXT_LIMIT);
+    }
+
+    private String resultContent(McpToolInvokeResultVO invokeResult) {
         if (invokeResult == null || invokeResult.getReceipt() == null) {
             return null;
         }
@@ -76,6 +100,37 @@ public class ToolRuntime {
         }
         Object rawResult = invokeResult.getReceipt().get("rawResult");
         return rawResult == null ? null : String.valueOf(rawResult);
+    }
+
+    private Map<String, Object> compactArguments(Map<String, Object> arguments) {
+        if (arguments == null || arguments.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> compact = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : arguments.entrySet()) {
+            compact.put(entry.getKey(), compactArgumentValue(entry.getValue()));
+        }
+        return compact;
+    }
+
+    private Object compactArgumentValue(Object value) {
+        if (value instanceof String text) {
+            if (text.length() <= TOOL_ARGUMENT_VALUE_LIMIT) {
+                return text;
+            }
+            return "[string " + text.length() + " chars]";
+        }
+        return value;
+    }
+
+    private String truncate(String value, int maxChars) {
+        if (value == null || value.length() <= maxChars) {
+            return value;
+        }
+        if (maxChars <= 12) {
+            return value.substring(0, maxChars);
+        }
+        return value.substring(0, maxChars - 12) + "... (" + value.length() + " chars)";
     }
 
     @SuppressWarnings("unchecked")

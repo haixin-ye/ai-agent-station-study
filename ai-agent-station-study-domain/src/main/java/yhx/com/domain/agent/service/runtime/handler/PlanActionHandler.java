@@ -36,6 +36,13 @@ public class PlanActionHandler extends MainActionHandlerSupport implements MainA
     @Override
     public MainActionHandlerResult handle(RuntimeExecutionContext context, MainAgentActionVO action) {
         try {
+            if (!hasLegacyPlanDraft(action) && hasPerUpdate(action)) {
+                return MainActionHandlerResult.builder()
+                        .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
+                        .nextPhase(RuntimePhaseEnumVO.CALLING_MAIN_NODE)
+                        .message("Notebook plan update accepted.")
+                        .build();
+            }
             Map<String, Object> draft = requireMap(action, "planDraft");
             String goal = stringValue(draft, "goal");
             if (isBlank(goal)) {
@@ -58,6 +65,16 @@ public class PlanActionHandler extends MainActionHandlerSupport implements MainA
         } catch (IllegalArgumentException e) {
             return validationFailure(context, e.getMessage());
         }
+    }
+
+    private boolean hasLegacyPlanDraft(MainAgentActionVO action) {
+        return action != null
+                && action.getStateDelta() != null
+                && action.getStateDelta().get("planDraft") instanceof Map<?, ?>;
+    }
+
+    private boolean hasPerUpdate(MainAgentActionVO action) {
+        return action != null && action.getPerUpdate() != null && !action.getPerUpdate().isEmpty();
     }
 
     private List<PlanStepVO> toSteps(List<Map<String, Object>> rawSteps) {

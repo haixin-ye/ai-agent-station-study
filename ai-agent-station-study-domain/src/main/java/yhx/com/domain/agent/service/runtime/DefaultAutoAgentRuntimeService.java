@@ -11,6 +11,7 @@ import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionEffectStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
@@ -26,6 +27,7 @@ import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateResult;
 import yhx.com.domain.agent.model.valobj.interaction.UserInputResolveCommand;
 import yhx.com.domain.agent.model.valobj.interaction.UserInputResolveResult;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
+import yhx.com.domain.agent.model.valobj.runtime.ActionEffectVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters;
@@ -41,6 +43,7 @@ import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -424,6 +427,26 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, transitionFailure);
         }
         AutoAgentHumanLog.stage("动作路由", context.getRunId(), "准备处理 action=" + actionType.code());
+        RuntimeSafeFailureVO deniedActionFailure = deniedToolExecutionActionFailure(context, actionType, action);
+        if (deniedActionFailure != null) {
+            return failRun(context, deniedActionFailure);
+        }
+        MainActionHandlerResult skippedCompletedToolAction = skippedCompletedToolActionResult(context, actionType, action);
+        if (skippedCompletedToolAction != null) {
+            workingStateManager.apply(context, action, skippedCompletedToolAction);
+            RuntimeStepResult stepResult = routeActionResult(context, action, skippedCompletedToolAction);
+            if (stepResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
+                context.countersOrInitial().incrementLoop();
+                context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
+                RuntimeSafeFailureVO loopTransition = enterPhase(context, nextLoopPhase(context, stepResult));
+                if (loopTransition != null) {
+                    return failRun(context, loopTransition);
+                }
+                continue;
+            }
+            applyRunResult(context, stepResult);
+            return stepResult;
+        }
         MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
             workingStateManager.apply(context, action, actionResult);
             RuntimeStepResult stepResult = routeActionResult(context, action, actionResult);
@@ -488,12 +511,141 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 false);
     }
 
+    private RuntimeSafeFailureVO deniedToolExecutionActionFailure(RuntimeExecutionContext context,
+                                                                 MainAgentActionTypeEnumVO actionType,
+                                                                 MainAgentActionVO currentAction) {
+        if (actionType != MainAgentActionTypeEnumVO.CALL_TOOL || currentAction == null) {
+            return null;
+        }
+        Map<String, Object> currentIntent = toolIntentFromAction(currentAction);
+        if (currentIntent == null) {
+            return null;
+        }
+        List<UserClarificationVO> clarifications = context == null || context.getLastStateView() == null
+                ? List.of()
+                : context.getLastStateView().getUserClarifications();
+        if (clarifications == null || clarifications.isEmpty()) {
+            return null;
+        }
+        boolean denied = clarifications.stream()
+                .filter(clarification -> clarification != null && "TOOL_APPROVAL_REJECTED".equals(clarification.getAnswerType()))
+                .map(UserClarificationVO::getMetadata)
+                .filter(Objects::nonNull)
+                .map(metadata -> metadata.get("toolIntent"))
+                .filter(Map.class::isInstance)
+                .map(value -> (Map<String, Object>) value)
+                .anyMatch(deniedIntent -> sameToolExecutionIntent(deniedIntent, currentIntent));
+        if (!denied) {
+            return null;
+        }
+        return failureFactory.create(RuntimeFailureCodeEnumVO.TOOL_ACTION_DENIED_BY_USER,
+                context.getCurrentPhase(),
+                "MainAgent attempted a tool action that the user already rejected.",
+                false);
+    }
+
+    private MainActionHandlerResult skippedCompletedToolActionResult(RuntimeExecutionContext context,
+                                                                     MainAgentActionTypeEnumVO actionType,
+                                                                     MainAgentActionVO currentAction) {
+        if (actionType != MainAgentActionTypeEnumVO.CALL_TOOL || currentAction == null) {
+            return null;
+        }
+        Map<String, Object> currentIntent = toolIntentFromAction(currentAction);
+        if (currentIntent == null) {
+            return null;
+        }
+        ActionEffectVO succeeded = successfulToolActionEffect(context, currentIntent);
+        if (succeeded == null) {
+            return null;
+        }
+        return MainActionHandlerResult.builder()
+                .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
+                .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
+                .createdEvidenceIds(defaultList(succeeded.getCreatedEvidenceIds()))
+                .createdEvidence(defaultList(succeeded.getCreatedEvidence()))
+                .actionEffect(ActionEffectVO.builder()
+                        .action(MainAgentActionTypeEnumVO.CALL_TOOL.code())
+                        .status("SKIPPED_ALREADY_SUCCEEDED")
+                        .message("Skipped duplicate CALL_TOOL because the same tool action already succeeded. MainAgent must decide the next semantic action from actionHistory and evidencePack.")
+                        .loopIndex(context.getLoopIndex())
+                        .toolIntent(currentIntent)
+                        .createdEvidenceIds(defaultList(succeeded.getCreatedEvidenceIds()))
+                        .createdEvidence(defaultList(succeeded.getCreatedEvidence()))
+                        .createdArtifactIds(defaultList(succeeded.getCreatedArtifactIds()))
+                        .build())
+                .message("Skipped duplicate CALL_TOOL because the same tool action already succeeded.")
+                .build();
+    }
+
+    private ActionEffectVO successfulToolActionEffect(RuntimeExecutionContext context, Map<String, Object> currentIntent) {
+        if (context == null || context.getWorkingState() == null || context.getWorkingState().getActionHistory() == null) {
+            return null;
+        }
+        List<ActionEffectVO> history = context.getWorkingState().getActionHistory();
+        if (history.isEmpty()) {
+            return null;
+        }
+        for (int index = history.size() - 1; index >= 0; index--) {
+            ActionEffectVO effect = history.get(index);
+            if (toolActionSucceeded(effect) && sameToolExecutionIntent(effect.getToolIntent(), currentIntent)) {
+                return effect;
+            }
+        }
+        return null;
+    }
+
+    private boolean toolActionSucceeded(ActionEffectVO effect) {
+        if (effect == null || !MainAgentActionTypeEnumVO.CALL_TOOL.code().equals(effect.getAction())) {
+            return false;
+        }
+        return ToolActionEffectStatusEnumVO.TOOL_SUCCEEDED.name().equals(effect.getStatus());
+    }
+
     private boolean sameAction(MainAgentActionVO left, MainAgentActionVO right) {
         if (left == null || right == null) {
             return false;
         }
-        return Objects.equals(left.getAction(), right.getAction())
-                && Objects.equals(left.getStateDelta(), right.getStateDelta());
+        if (!Objects.equals(left.getAction(), right.getAction())) {
+            return false;
+        }
+        if (MainAgentActionTypeEnumVO.CALL_TOOL.code().equals(left.getAction())) {
+            return sameToolExecutionIntent(left, right);
+        }
+        return Objects.equals(left.getStateDelta(), right.getStateDelta());
+    }
+
+    private boolean sameToolExecutionIntent(MainAgentActionVO left, MainAgentActionVO right) {
+        Map<String, Object> leftIntent = toolIntentFromAction(left);
+        Map<String, Object> rightIntent = toolIntentFromAction(right);
+        if (leftIntent == null || rightIntent == null) {
+            return false;
+        }
+        return sameToolExecutionIntent(leftIntent, rightIntent);
+    }
+
+    private boolean sameToolExecutionIntent(Map<String, Object> leftIntent, Map<String, Object> rightIntent) {
+        if (leftIntent == null || rightIntent == null) {
+            return false;
+        }
+        return Objects.equals(leftIntent.get("capabilityCode"), rightIntent.get("capabilityCode"))
+                && Objects.equals(leftIntent.get("toolName"), rightIntent.get("toolName"))
+                && Objects.equals(leftIntent.get("arguments"), rightIntent.get("arguments"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> toolIntentFromAction(MainAgentActionVO action) {
+        if (action == null || action.getStateDelta() == null) {
+            return null;
+        }
+        Object value = action.getStateDelta().get("toolIntent");
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return null;
+    }
+
+    private <T> List<T> defaultList(List<T> value) {
+        return value == null ? List.of() : value;
     }
 
     @SuppressWarnings("unchecked")
@@ -572,6 +724,12 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     }
 
     private RuntimeStepResult acceptStateViewAndCallMain(RuntimeExecutionContext context, ContextPlannerHandlingResult result) {
+        return acceptStateViewAndCallMain(context, result, true);
+    }
+
+    private RuntimeStepResult acceptStateViewAndCallMain(RuntimeExecutionContext context,
+                                                         ContextPlannerHandlingResult result,
+                                                         boolean updateWorkingBaseStateView) {
         if (result == null || result.getStateView() == null) {
             return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
                     context.getCurrentPhase(), "State view is missing.", true));
@@ -586,7 +744,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         context.setLastStateView(result.getStateView());
         if (context.getWorkingState() == null) {
             context.setWorkingState(workingStateManager.initialize(result.getStateView()));
-        } else if (result.getStateView() != null) {
+        } else if (updateWorkingBaseStateView && result.getStateView() != null) {
             context.getWorkingState().setBaseStateView(result.getStateView());
         }
         context.setLastContextSelections(result.getEffectiveSelections());
@@ -609,7 +767,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         return acceptStateViewAndCallMain(context, ContextPlannerHandlingResult.builder()
                 .stateView(stateView)
                 .effectiveSelections(context.getLastContextSelections())
-                .build());
+                .build(), false);
     }
 
     private RuntimePhaseEnumVO nextLoopPhase(RuntimeExecutionContext context, RuntimeStepResult stepResult) {
@@ -766,10 +924,17 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     }
 
     private Map<String, Object> checkpointPayload(RuntimeExecutionContext context) {
-        if (context == null || context.getLastContextSelections() == null || context.getLastContextSelections().isEmpty()) {
-            return Map.of();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (context == null) {
+            return payload;
         }
-        return Map.of("contextSelections", context.getLastContextSelections());
+        if (context.getLastContextSelections() != null && !context.getLastContextSelections().isEmpty()) {
+            payload.put("contextSelections", context.getLastContextSelections());
+        }
+        if (context.getWorkingState() != null) {
+            payload.put("workingState", context.getWorkingState());
+        }
+        return payload;
     }
 
     private RuntimeSafeFailureVO enterPhase(RuntimeExecutionContext context, RuntimePhaseEnumVO nextPhase) {

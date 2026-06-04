@@ -1,8 +1,10 @@
 package yhx.com.domain.agent.service.prompt;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import yhx.com.domain.agent.model.valobj.enums.prompt.PromptLayerTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationModeEnumVO;
 import yhx.com.domain.agent.model.valobj.prompt.PromptAssemblyCommand;
 import yhx.com.domain.agent.model.valobj.prompt.PromptAssemblyResult;
 import yhx.com.domain.agent.model.valobj.prompt.PromptEnvelope;
@@ -61,9 +63,9 @@ public class PromptAssembler {
         layers.add(new UntrustedContentPromptBuilder(sharedPromptFragments).build());
         layers.addAll(componentLayers(command.getComponentCode()));
         layers.add(layer(PromptLayerTypeEnumVO.OUTPUT_CONTRACT, "Output Contract",
-                outputContractPromptRenderer.renderFor(command.getComponentCode(), command.getContractVersion())));
+                outputContract(command)));
         layers.add(layer(PromptLayerTypeEnumVO.CURRENT_STATE_VIEW, "Current State View", renderInputView(command.getInputView())));
-        layers.add(new OutputOnlyPromptBuilder(sharedPromptFragments).build());
+        layers.add(outputOnlyLayer(command));
 
         List<PromptLayer> ordered = layers.stream()
                 .sorted(Comparator.comparingInt(layer -> ORDER.getOrDefault(layer.getLayerType(), 999)))
@@ -134,6 +136,34 @@ public class PromptAssembler {
         return PromptLayer.builder().layerType(type).heading(heading).content(content).javaOwned(true).build();
     }
 
+    private String outputContract(PromptAssemblyCommand command) {
+        if (NodeInvocationModeEnumVO.FUNCTION_CALL.equals(command.getInvocationMode())) {
+            return """
+                    Use function-call output mode.
+                    Call exactly one function from the available function list.
+                    Do not output the legacy raw JSON action object as assistant text.
+                    Runtime will convert the selected function name and arguments into the Java-owned output contract.
+
+                    Available functions:
+                    %s
+                    """.formatted(JSON.toJSONString(command.getFunctionSpecs() == null ? List.of() : command.getFunctionSpecs()));
+        }
+        return outputContractPromptRenderer.renderFor(command.getComponentCode(), command.getContractVersion());
+    }
+
+    private PromptLayer outputOnlyLayer(PromptAssemblyCommand command) {
+        if (NodeInvocationModeEnumVO.FUNCTION_CALL.equals(command.getInvocationMode())) {
+            return layer(PromptLayerTypeEnumVO.OUTPUT_ONLY_INSTRUCTION, "Output Only Instruction", """
+                    Call exactly one function.
+                    Do not output raw JSON text.
+                    Do not use markdown.
+                    Do not include prose before or after the function call.
+                    Do not include hidden reasoning or chain-of-thought.
+                    """);
+        }
+        return new OutputOnlyPromptBuilder(sharedPromptFragments).build();
+    }
+
     private String renderInputView(Object inputView) {
         if (inputView == null) {
             return "{}";
@@ -141,7 +171,7 @@ public class PromptAssembler {
         if (inputView instanceof String text) {
             return text;
         }
-        return JSON.toJSONString(inputView);
+        return JSON.toJSONString(inputView, SerializerFeature.DisableCircularReferenceDetect);
     }
 
     private String assembleText(List<PromptLayer> layers) {

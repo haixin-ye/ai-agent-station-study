@@ -104,6 +104,7 @@ public class ToolActionOrchestratorTest {
         Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
         Assert.assertFalse(result.getEvidenceIds().isEmpty());
         Assert.assertTrue(repository.evidence.get(0).getSummary().contains("ai-agent-station-study-domain"));
+        Assert.assertEquals("project structure: ai-agent-station-study-domain", result.getEvidence().get(0).getContent());
         Assert.assertEquals(2, repository.transcripts.size());
     }
 
@@ -129,6 +130,35 @@ public class ToolActionOrchestratorTest {
 
         Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
         Assert.assertEquals(1, calls.get());
+    }
+
+    @Test
+    public void write_file_evidence_summary_is_bounded_for_database_column() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        String longContent = "x".repeat(4000);
+        ToolActionOrchestrator orchestrator = fileWriteOrchestrator(repository,
+                command -> McpToolInvokeResultVO.builder()
+                        .called(true)
+                        .success(true)
+                        .receipt(Map.of("contentText", "Successfully wrote " + "y".repeat(1000)))
+                        .build());
+
+        ToolActionResultVO result = orchestrator.handleToolAction(ToolActionCommandVO.builder()
+                .runId("run-001")
+                .sessionId("sess-001")
+                .loopIndex(1)
+                .capabilityCode("file_system_create_file")
+                .toolName("create_file")
+                .goal("create a new file")
+                .arguments(Map.of("path", "E:/javaProject/ai-agent-station-study/tmp.txt", "content", longContent))
+                .build());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertEquals(1, repository.evidence.size());
+        String summary = repository.evidence.get(0).getSummary();
+        Assert.assertTrue(summary.length() <= 500);
+        Assert.assertFalse(summary.contains(longContent));
+        Assert.assertTrue(summary.contains("content=[string 4000 chars]"));
     }
 
     private ToolActionOrchestrator orchestrator(ToolTestSupport.Repository repository,

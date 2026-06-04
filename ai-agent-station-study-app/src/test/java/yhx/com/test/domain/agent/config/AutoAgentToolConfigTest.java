@@ -56,7 +56,7 @@ public class AutoAgentToolConfigTest {
     }
 
     @Test
-    public void application_dev_exposes_file_create_and_write_capabilities() throws IOException {
+    public void application_dev_exposes_configured_file_system_capabilities() throws IOException {
         StandardEnvironment environment = applicationDevEnvironment();
         AutoAgentMcpProperties mcpProperties = Binder.get(environment)
                 .bind("auto-agent.mcp", AutoAgentMcpProperties.class)
@@ -65,7 +65,12 @@ public class AutoAgentToolConfigTest {
                 .bind("auto-agent.capabilities", AutoAgentCapabilityProperties.class)
                 .orElseThrow(() -> new AssertionError("auto-agent.capabilities should bind from application-dev.yml"));
         AutoAgentToolConfig config = new AutoAgentToolConfig();
-        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(mcpProperties, serverId -> List.of());
+        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(mcpProperties, serverId -> List.of(McpToolSpecVO.builder()
+                .mcpServerCode(serverId)
+                .toolName("JavaSDKMCPClient_list_allowed_directories")
+                .description("Spring AI wrapper name that must not become a public capability.")
+                .inputSchema(Map.of("type", "object"))
+                .build()));
 
         McpToolRegistry toolRegistry = config.mcpToolRegistry(catalog);
         CapabilityRegistry capabilityRegistry = config.capabilityRegistry(capabilityProperties, mcpProperties, catalog);
@@ -76,17 +81,25 @@ public class AutoAgentToolConfigTest {
 
         assertWriteCapability(capabilityRegistry.requireCapability("file_system_create_file"));
         assertWriteCapability(capabilityRegistry.requireCapability("file_system_write_file"));
+        assertReadCapability(capabilityRegistry.requireCapability("file_system_read_multiple_files"), "read_multiple_files");
+        assertReadCapability(capabilityRegistry.requireCapability("file_system_directory_tree"), "directory_tree");
+        assertReadCapability(capabilityRegistry.requireCapability("file_system_get_file_info"), "get_file_info");
+        assertReadCapability(capabilityRegistry.requireCapability("file_system_list_allowed_directories"), "list_allowed_directories");
+        assertWriteCapability(capabilityRegistry.requireCapability("file_system_edit_file"), "edit_file");
+        assertWriteCapability(capabilityRegistry.requireCapability("file_system_create_directory"), "create_directory");
+        assertWriteCapability(capabilityRegistry.requireCapability("file_system_move_file"), "move_file");
+        Assert.assertTrue(capabilityRegistry.findCapability("file_system_javasdkmcpclient_list_allowed_directories").isEmpty());
     }
 
     @Test
-    public void discovered_mcp_tools_are_registered_as_default_capabilities() {
+    public void discovered_mcp_tools_are_catalogued_but_not_registered_as_default_capabilities() {
         AutoAgentMcpProperties mcpProperties = new AutoAgentMcpProperties();
         AutoAgentMcpProperties.McpServerProperties server = new AutoAgentMcpProperties.McpServerProperties();
         server.setServerId("baidu-ai-search");
         server.setTransport("SSE");
         server.setEnabled(true);
         server.setAutoDiscoverTools(true);
-        server.setAutoRegisterCapabilities(true);
+        server.setAutoRegisterCapabilities(false);
         mcpProperties.getServers().add(server);
         McpToolDiscoveryPort discoveryPort = serverId -> List.of(McpToolSpecVO.builder()
                 .mcpServerCode(serverId)
@@ -101,20 +114,29 @@ public class AutoAgentToolConfigTest {
         CapabilityRegistry capabilityRegistry = config.capabilityRegistry(new AutoAgentCapabilityProperties(), mcpProperties, catalog);
 
         Assert.assertEquals("ai_search", toolRegistry.requireTool("baidu-ai-search", "ai_search").getToolName());
-        CapabilitySpecVO capability = capabilityRegistry.requireCapability("baidu_ai_search_ai_search");
-        Assert.assertEquals("baidu-ai-search", capability.getMcpServerCode());
-        Assert.assertEquals("ai_search", capability.getToolName());
-        Assert.assertEquals(PermissionModeEnumVO.ASK_USER, capability.getPermissionMode());
-        Assert.assertEquals(ApprovalPolicyEnumVO.ASK_USER_BEFORE_EXECUTE, capability.getApprovalPolicy());
+        Assert.assertTrue(capabilityRegistry.findCapability("baidu_ai_search_ai_search").isEmpty());
     }
 
     private void assertWriteCapability(CapabilitySpecVO capability) {
+        assertWriteCapability(capability, "write_file");
+    }
+
+    private void assertWriteCapability(CapabilitySpecVO capability, String toolName) {
         Assert.assertEquals("file-system", capability.getMcpServerCode());
-        Assert.assertEquals("write_file", capability.getToolName());
+        Assert.assertEquals(toolName, capability.getToolName());
         Assert.assertEquals(RequiredPermissionEnumVO.WORKSPACE_WRITE, capability.getRequiredPermission());
         Assert.assertEquals(PermissionModeEnumVO.ASK_USER, capability.getPermissionMode());
         Assert.assertEquals(ApprovalPolicyEnumVO.ASK_USER_BEFORE_EXECUTE, capability.getApprovalPolicy());
         Assert.assertEquals("HIGH", capability.getRiskLevel());
+    }
+
+    private void assertReadCapability(CapabilitySpecVO capability, String toolName) {
+        Assert.assertEquals("file-system", capability.getMcpServerCode());
+        Assert.assertEquals(toolName, capability.getToolName());
+        Assert.assertEquals(RequiredPermissionEnumVO.READ_ONLY, capability.getRequiredPermission());
+        Assert.assertEquals(PermissionModeEnumVO.ALLOW, capability.getPermissionMode());
+        Assert.assertEquals(ApprovalPolicyEnumVO.NEVER, capability.getApprovalPolicy());
+        Assert.assertEquals("LOW", capability.getRiskLevel());
     }
 
     private StandardEnvironment applicationDevEnvironment() throws IOException {

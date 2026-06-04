@@ -42,7 +42,8 @@ public class RAGController implements IRagApi {
 
     @RequestMapping(value = "/knowledge/files", method = RequestMethod.POST, headers = "content-type=multipart/form-data")
     @Override
-    public Response<String> uploadFile(@RequestParam("knowledgeTag") String knowledgeTag, @RequestParam("files") List<MultipartFile> files) {
+    public Response<String> uploadFile(@RequestParam(value = "knowledgeTag", required = false) String knowledgeTag,
+                                       @RequestParam("files") List<MultipartFile> files) {
         try {
             List<RagFilePayloadEntity> payloads = new ArrayList<>(files.size());
             for (MultipartFile file : files) {

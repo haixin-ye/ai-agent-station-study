@@ -48,6 +48,8 @@ public class MainAgentNodeService {
                 .temperature(profile.getTemperature())
                 .maxOutputTokens(profile.getMaxOutputTokens())
                 .maxRepairAttempts(profile.getMaxRepairAttempts())
+                .invocationMode(profile.getInvocationMode())
+                .functionSpecs(profile.getFunctionSpecs())
                 .inputView(context.getLastStateView())
                 .invocationMetadata(Map.of("loopIndex", context.getLoopIndex()))
                 .build());
@@ -82,6 +84,8 @@ public class MainAgentNodeService {
                 .temperature(invocationProfile.getTemperature())
                 .maxOutputTokens(invocationProfile.getMaxOutputTokens())
                 .maxRepairAttempts(invocationProfile.getMaxRepairAttempts())
+                .invocationMode(invocationProfile.getInvocationMode())
+                .functionSpecs(invocationProfile.getFunctionSpecs())
                 .build();
     }
 

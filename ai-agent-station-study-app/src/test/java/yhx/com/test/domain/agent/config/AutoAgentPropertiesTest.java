@@ -18,6 +18,7 @@ public class AutoAgentPropertiesTest {
         Assert.assertEquals(8, properties.getMaxLoopCount());
         Assert.assertEquals(1, properties.getMaxContractRepairAttempts());
         Assert.assertEquals(1, properties.getMaxFinalRepairAttempts());
+        Assert.assertTrue(properties.isFinalResponseGuardEnabled());
     }
 
     @Test

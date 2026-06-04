@@ -48,6 +48,9 @@ public class RuntimeFailureFactory {
         if (code == RuntimeFailureCodeEnumVO.INVALID_PENDING_ANSWER) {
             return "你的回答无法应用到当前问题，请重新回答。";
         }
+        if (code == RuntimeFailureCodeEnumVO.TOOL_ACTION_DENIED_BY_USER) {
+            return "你已拒绝该工具操作，因此我不会继续执行同一个操作。";
+        }
         return DEFAULT_USER_MESSAGE;
     }
 }

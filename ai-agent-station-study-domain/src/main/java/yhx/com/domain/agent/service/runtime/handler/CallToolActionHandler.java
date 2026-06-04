@@ -6,6 +6,7 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeFailureCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
+import yhx.com.domain.agent.model.valobj.runtime.ActionEffectVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
@@ -76,6 +77,15 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
                         .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
                         .createdEvidenceIds(result.getEvidenceIds())
                         .createdEvidence(result.getEvidence())
+                        .actionEffect(ActionEffectVO.builder()
+                                .action(MainAgentActionTypeEnumVO.CALL_TOOL.code())
+                                .status(result.getActionEffectStatus() == null ? null : result.getActionEffectStatus().name())
+                                .message(result.getMessage())
+                                .loopIndex(context.getLoopIndex())
+                                .toolIntent(intent)
+                                .createdEvidenceIds(result.getEvidenceIds())
+                                .createdEvidence(result.getEvidence())
+                                .build())
                         .message(result.getMessage())
                         .build();
             }

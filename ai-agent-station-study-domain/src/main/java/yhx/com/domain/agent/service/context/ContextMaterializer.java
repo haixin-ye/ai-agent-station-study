@@ -13,8 +13,10 @@ import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedArtifactContentVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedMemoryVO;
+import yhx.com.domain.agent.model.valobj.context.MaterializedRagVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.RagCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
@@ -82,6 +84,7 @@ public class ContextMaterializer {
                 .toList();
 
         List<MaterializedMemoryVO> memories = materializedMemories(command.getCandidates(), mergedSelections);
+        List<MaterializedRagVO> ragPack = materializedRag(command.getCandidates(), mergedSelections);
 
         List<MaterializedEvidenceVO> evidence = evidencePackBuilder.buildFromCandidates(
                 command.getCandidates().getEvidenceCandidates() == null ? List.of() :
@@ -102,6 +105,7 @@ public class ContextMaterializer {
                 .materializedMessages(materializedMessages)
                 .artifactContent(artifacts)
                 .memoryPack(memories)
+                .ragPack(ragPack)
                 .evidencePack(evidence)
                 .tokenBudget(budget)
                 .build());
@@ -255,6 +259,89 @@ public class ContextMaterializer {
                         && selectedAny(memory.getMemoryId(), selections, "MEMORY", "LONG_TERM_MEMORY", "USER_PREFERENCE"))
                 .map(this::toMemory)
                 .toList();
+    }
+
+    private List<MaterializedRagVO> materializedRag(ContextCandidateBundleVO candidates, List<ContextSelectionVO> selections) {
+        if (candidates == null || candidates.getRagCandidates() == null || selections == null || selections.isEmpty()) {
+            return List.of();
+        }
+        return candidates.getRagCandidates().stream()
+                .filter(candidate -> candidate != null && selectedRag(candidate, selections))
+                .map(candidate -> toRag(candidate, selections))
+                .toList();
+    }
+
+    private boolean selectedRag(RagCandidateVO candidate, List<ContextSelectionVO> selections) {
+        return selections.stream().anyMatch(selection -> matchesRag(candidate, selection));
+    }
+
+    private boolean matchesRag(RagCandidateVO candidate, ContextSelectionVO selection) {
+        if (candidate == null || selection == null) {
+            return false;
+        }
+        String sourceType = selection.getSourceType();
+        String sourceId = selection.getSourceId();
+        if (!isRagSourceType(sourceType)) {
+            return false;
+        }
+        return Objects.equals(sourceId, candidate.getCandidateId())
+                || Objects.equals(sourceId, candidate.getDocumentId())
+                || Objects.equals(sourceId, candidate.getChunkId());
+    }
+
+    private MaterializedRagVO toRag(RagCandidateVO candidate, List<ContextSelectionVO> selections) {
+        ContextLevelEnumVO level = ragLevel(candidate, selections);
+        String content = null;
+        if (level == ContextLevelEnumVO.FULL_TEXT || level == ContextLevelEnumVO.CHUNKED_CONTEXT) {
+            content = loadPayloadText(firstNonBlank(candidate.getContentRef(), candidate.getRetrievalTextRef()));
+        }
+        return MaterializedRagVO.builder()
+                .candidateId(candidate.getCandidateId())
+                .sourceType(candidate.getSourceType())
+                .documentId(candidate.getDocumentId())
+                .chunkId(candidate.getChunkId())
+                .title(candidate.getTitle())
+                .summary(candidate.getSummary())
+                .boundedSnippet(candidate.getSnippet())
+                .content(content)
+                .injectMode(firstNonBlank(candidate.getInjectMode(), defaultInjectMode(candidate, level)))
+                .codeMeta(candidate.getCodeMeta())
+                .contextLevel(level)
+                .build();
+    }
+
+    private boolean isRagSourceType(String sourceType) {
+        return "RAG_DOCUMENT".equals(sourceType)
+                || "RAG_CHUNK".equals(sourceType)
+                || "RAG_FILE_CHUNK".equals(sourceType)
+                || "RAG_CODE_FILE_SUMMARY".equals(sourceType)
+                || "RAG_CODE_CHUNK".equals(sourceType);
+    }
+
+    private String defaultInjectMode(RagCandidateVO candidate, ContextLevelEnumVO level) {
+        if (candidate == null) {
+            return level == null ? null : level.name();
+        }
+        if ("RAG_FILE_CHUNK".equals(candidate.getSourceType()) || "RAG_CODE_CHUNK".equals(candidate.getSourceType())) {
+            return "CHUNK_TEXT";
+        }
+        if ("RAG_CODE_FILE_SUMMARY".equals(candidate.getSourceType())) {
+            return level == ContextLevelEnumVO.FULL_TEXT ? "FULL_FILE" : "SUMMARY_ONLY";
+        }
+        return level == null ? null : level.name();
+    }
+
+    private ContextLevelEnumVO ragLevel(RagCandidateVO candidate, List<ContextSelectionVO> selections) {
+        return selections.stream()
+                .filter(selection -> matchesRag(candidate, selection))
+                .map(ContextSelectionVO::getContextLevel)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(ContextLevelEnumVO.SUMMARY_ONLY);
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return first == null || first.isBlank() ? second : first;
     }
 
     private MaterializedMemoryVO toMemory(MemoryCandidateVO memory) {

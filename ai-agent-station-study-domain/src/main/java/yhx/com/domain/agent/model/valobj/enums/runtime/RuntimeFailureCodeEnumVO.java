@@ -15,6 +15,7 @@ public enum RuntimeFailureCodeEnumVO {
     RAG_RETRIEVAL_FAILED("RAG_RETRIEVAL_FAILED", "RAG retrieval failed."),
     RAG_VERIFICATION_FAILED("RAG_VERIFICATION_FAILED", "RAG grounding verification failed."),
     TOOL_RETRY_EXHAUSTED("TOOL_RETRY_EXHAUSTED", "Tool retry attempts were exhausted."),
+    TOOL_ACTION_DENIED_BY_USER("TOOL_ACTION_DENIED_BY_USER", "User denied this tool action."),
     ACTION_HANDLER_UNAVAILABLE("ACTION_HANDLER_UNAVAILABLE", "No action handler is available."),
     MAIN_ACTION_CONTRACT_FAILED("MAIN_ACTION_CONTRACT_FAILED", "Main agent action failed contract validation."),
     MAIN_ACTION_PARSE_FAILED("MAIN_ACTION_PARSE_FAILED", "Main agent action could not be parsed."),

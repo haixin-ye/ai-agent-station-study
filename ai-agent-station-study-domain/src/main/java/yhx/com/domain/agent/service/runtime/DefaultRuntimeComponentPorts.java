@@ -107,6 +107,8 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
                 .availableCapabilities(availableCapabilities)
                 .tokenBudget(defaultTokenBudget)
                 .runtimeFacts(context.getRuntimeFacts())
+                .vectorRecallEnabled(false)
+                .ragRecallEnabled(false)
                 .build());
         AutoAgentHumanLog.contextCandidates(context.getRunId(), candidates);
         ContextPlannerHandlingResult result = contextPlannerStatusHandler.refreshWithoutPlanner(candidates, resumeSelections(context));
@@ -182,7 +184,9 @@ public class DefaultRuntimeComponentPorts implements RuntimeComponentPorts {
                 .artifactCandidates(candidates.getArtifactCandidates() == null ? List.of() : candidates.getArtifactCandidates())
                 .memoryCandidates(candidates.getMemoryCandidates() == null ? List.of() : candidates.getMemoryCandidates())
                 .evidenceCandidates(candidates.getEvidenceCandidates() == null ? List.of() : candidates.getEvidenceCandidates())
+                .ragCandidates(candidates.getRagCandidates() == null ? List.of() : candidates.getRagCandidates())
                 .userClarifications(candidates.getUserClarifications() == null ? List.of() : candidates.getUserClarifications())
+                .previousLoopOutcome(candidates.getPreviousLoopOutcome())
                 .availableCapabilities(candidates.getAvailableCapabilities() == null ? List.of() : candidates.getAvailableCapabilities())
                 .pendingAction(candidates.getPendingAction())
                 .tokenBudget(candidates.getTokenBudget())

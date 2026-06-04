@@ -39,6 +39,26 @@ public class PlanContinueActionHandlerTest {
     }
 
     @Test
+    public void plan_with_per_update_only_continues_without_legacy_plan_draft() {
+        ActionHandlerTestSupport.FakePlanStatePort planPort = new ActionHandlerTestSupport.FakePlanStatePort();
+        MainActionDispatcher dispatcher = dispatcher(planPort);
+
+        MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(),
+                MainAgentActionVO.builder()
+                        .action("PLAN")
+                        .perUpdate(Map.of(
+                                "mode", "PER",
+                                "goal", "inspect project",
+                                "lastDecision", "Record the first plan."
+                        ))
+                        .stateDelta(Map.of())
+                        .build());
+
+        Assert.assertEquals(MainActionHandlerStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertTrue(planPort.plans.isEmpty());
+    }
+
+    @Test
     public void continue_requires_loop_budget() {
         MainActionDispatcher dispatcher = dispatcher(new ActionHandlerTestSupport.FakePlanStatePort());
 

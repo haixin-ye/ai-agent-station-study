@@ -16,7 +16,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class RagGitIngestCommandEntity {
 
+    private String userId;
+
+    private String sessionId;
+
     private String repoUrl;
+
+    private String branchName;
 
     private String userName;
 

@@ -35,6 +35,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
     private final FinalResponsePersistenceService persistenceService;
     private final RuntimeFailureFactory failureFactory;
     private final RunEventPublisher eventPublisher;
+    private final boolean finalResponseGuardEnabled;
 
     public FinalDeliveryService(IRunRepository runRepository,
                                 RagVerificationRouter ragVerificationRouter,
@@ -46,6 +47,30 @@ public class FinalDeliveryService implements FinalDeliveryPort {
                                 FinalResponsePersistenceService persistenceService,
                                 RuntimeFailureFactory failureFactory,
                                 RunEventPublisher eventPublisher) {
+        this(runRepository,
+                ragVerificationRouter,
+                guardInputBuilder,
+                finalResponseGuard,
+                finalResponseBuilder,
+                finalRepairNodeService,
+                fallbackFactory,
+                persistenceService,
+                failureFactory,
+                eventPublisher,
+                true);
+    }
+
+    public FinalDeliveryService(IRunRepository runRepository,
+                                RagVerificationRouter ragVerificationRouter,
+                                FinalResponseGuardInputBuilder guardInputBuilder,
+                                FinalResponseGuard finalResponseGuard,
+                                FinalResponseBuilder finalResponseBuilder,
+                                FinalRepairNodeService finalRepairNodeService,
+                                FixedSafeFallbackFactory fallbackFactory,
+                                FinalResponsePersistenceService persistenceService,
+                                RuntimeFailureFactory failureFactory,
+                                RunEventPublisher eventPublisher,
+                                boolean finalResponseGuardEnabled) {
         this.runRepository = runRepository;
         this.ragVerificationRouter = ragVerificationRouter;
         this.guardInputBuilder = guardInputBuilder;
@@ -56,6 +81,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
         this.persistenceService = persistenceService;
         this.failureFactory = failureFactory;
         this.eventPublisher = eventPublisher;
+        this.finalResponseGuardEnabled = finalResponseGuardEnabled;
     }
 
     @Override
@@ -65,6 +91,9 @@ public class FinalDeliveryService implements FinalDeliveryPort {
         RagVerificationRouteResultVO ragResult = verifyRagIfNeeded(normalized);
         if (ragResult != null && ragResult.getFailureCode() != null) {
             return repairOrFallback(normalized, "RAG_VERIFICATION_FAILED", ragResult.getMessage());
+        }
+        if (!finalResponseGuardEnabled) {
+            return deliverWithoutFinalGuard(normalized);
         }
         FinalResponseGuardInputVO guardInput = guardInputBuilder.build(normalized);
         FinalResponseGuardResultVO guardResult = finalResponseGuard.check(guardInput);
@@ -83,6 +112,27 @@ public class FinalDeliveryService implements FinalDeliveryPort {
                 .finalAnswerRef(persisted.getContentRef())
                 .deliveredContent(persisted.getContent())
                 .message("Final response delivered.")
+                .build();
+    }
+
+    private FinalDeliveryResultVO deliverWithoutFinalGuard(FinalDeliveryCommandVO command) {
+        FinalResponseGuardResultVO guardResult = FinalResponseGuardResultVO.builder()
+                .status("PASSED")
+                .finalContent(command.getFinalAnswerCandidate() == null ? null : command.getFinalAnswerCandidate().getContent())
+                .failureCode(null)
+                .detail("Final response guard disabled by configuration.")
+                .build();
+        FinalResponseVO finalResponse = finalResponseBuilder.build(command, command.getFinalAnswerCandidate(), null);
+        FinalResponseVO persisted = persistenceService.persistDelivered(command, finalResponse);
+        return FinalDeliveryResultVO.builder()
+                .status(FinalDeliveryStatusEnumVO.DELIVERED)
+                .completed(true)
+                .finalResponse(persisted)
+                .guardResult(guardResult)
+                .finalMessageId(persisted.getMessageId())
+                .finalAnswerRef(persisted.getContentRef())
+                .deliveredContent(persisted.getContent())
+                .message("Final response delivered with final guard disabled.")
                 .build();
     }
 

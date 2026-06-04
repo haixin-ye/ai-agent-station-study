@@ -13,6 +13,7 @@ import yhx.com.domain.agent.model.valobj.memory.MemoryExtractionOutputVO;
 import yhx.com.domain.agent.model.valobj.memory.MemoryGovernanceOutputVO;
 import yhx.com.domain.agent.model.valobj.memory.SessionTaskSummaryOutputVO;
 import yhx.com.domain.agent.model.valobj.memory.TurnSummaryOutputVO;
+import yhx.com.domain.agent.model.valobj.rag.RagAssetAnalysisResultVO;
 
 public class NodeOutputMapper {
 
@@ -48,6 +49,9 @@ public class NodeOutputMapper {
         }
         if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
             return jsonObject.toJavaObject(ConversationRollupOutputVO.class);
+        }
+        if (AgentComponentCodeEnumVO.RAG_ASSET_ANALYZER.name().equals(componentCode)) {
+            return jsonObject.toJavaObject(RagAssetAnalysisResultVO.class);
         }
         throw new IllegalArgumentException("Unsupported component code: " + componentCode);
     }

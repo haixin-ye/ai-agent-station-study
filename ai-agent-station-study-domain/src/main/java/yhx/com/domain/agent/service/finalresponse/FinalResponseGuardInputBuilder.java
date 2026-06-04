@@ -7,7 +7,7 @@ import java.util.Locale;
 
 public class FinalResponseGuardInputBuilder {
 
-    private static final int DEFAULT_MAX_OUTPUT_CHARS = 12000;
+    private static final int DEFAULT_MAX_OUTPUT_CHARS = 30000;
 
     public FinalResponseGuardInputVO build(FinalDeliveryCommandVO command) {
         return FinalResponseGuardInputVO.builder()

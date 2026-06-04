@@ -18,4 +18,5 @@ public class NodeClientResponse {
     private Integer totalTokens;
     private Long latencyMs;
     private String providerRequestId;
+    private NodeFunctionCallVO functionCall;
 }

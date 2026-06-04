@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.valobj.context.PreviousLoopOutcomeVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -20,6 +21,12 @@ public class ActionEffectVO {
     private String status;
     private String message;
     private Integer loopIndex;
+    private Map<String, Object> toolIntent;
+    private String workId;
+    private String repeatGuardKey;
+    private String resultRef;
+    private Map<String, Object> requestSnapshot;
+    private Map<String, Object> resultSnapshot;
     private List<String> createdEvidenceIds;
     private List<MaterializedEvidenceVO> createdEvidence;
     private List<String> createdArtifactIds;

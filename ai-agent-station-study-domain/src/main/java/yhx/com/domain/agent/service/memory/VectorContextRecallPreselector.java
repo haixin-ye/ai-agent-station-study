@@ -35,7 +35,7 @@ import java.util.Optional;
 @Slf4j
 public class VectorContextRecallPreselector {
 
-    private static final int DEFAULT_TOP_K = 12;
+    private static final int DEFAULT_TOP_K = 50;
     private static final double DEFAULT_MIN_SCORE = 0.3D;
 
     private final IVectorMemoryRepository vectorMemoryRepository;
@@ -84,7 +84,7 @@ public class VectorContextRecallPreselector {
                 .build());
         hits.addAll(memoryHits);
         ContextCandidateBundleVO bundle = resolveHits(hits);
-        log.info("[AutoAgent][memory-vector-recall] runId={}, sessionId={}, userId={}, query={}, sessionHits={}, memoryHits={}, resolvedSummaries={}, resolvedMemories={}, elapsedMs={}",
+        log.info("[AutoAgent][memory-vector-recall] runId={}, sessionId={}, userId={}, query={}, sessionHits={}, memoryHits={}, resolvedSummaries={}, resolvedMemories={}, resolvedEvidence={}, elapsedMs={}",
                 command.getRunId(),
                 command.getSessionId(),
                 command.getUserId(),
@@ -93,6 +93,7 @@ public class VectorContextRecallPreselector {
                 memoryHits.size(),
                 bundle.getSessionSummaries() == null ? 0 : bundle.getSessionSummaries().size(),
                 bundle.getMemoryCandidates() == null ? 0 : bundle.getMemoryCandidates().size(),
+                bundle.getEvidenceCandidates() == null ? 0 : bundle.getEvidenceCandidates().size(),
                 System.currentTimeMillis() - startedAt);
         AutoAgentHumanLog.stage("向量记忆召回", command.getRunId(), "召回完成：sessionHits="
                 + sessionHits.size()
@@ -119,8 +120,9 @@ public class VectorContextRecallPreselector {
                     // Artifact context is logically deprecated in the redesigned memory path.
                 }
                 case LONG_TERM_MEMORY, USER_PREFERENCE -> resolveMemory(hit).ifPresent(memory -> memories.putIfAbsent(memory.getMemoryId(), memory));
-                case RAG_DOCUMENT, RAG_CHUNK -> {
-                    // RAG hits are resolved by the RAG pipeline; keep this preselector MySQL-backed for now.
+                case RAG_DOCUMENT, RAG_CHUNK, RAG_FILE_CHUNK, RAG_CODE_FILE_SUMMARY, RAG_CODE_CHUNK -> {
+                    // RAG candidates are owned by RagContextRecallPreselector so that they can be materialized
+                    // with RAG-specific source types and injection levels.
                 }
             }
         }
@@ -128,6 +130,7 @@ public class VectorContextRecallPreselector {
                 .sessionSummaries(new ArrayList<>(summaries.values()))
                 .artifactCandidates(List.of())
                 .memoryCandidates(new ArrayList<>(memories.values()))
+                .evidenceCandidates(List.of())
                 .build();
     }
 
@@ -291,6 +294,7 @@ public class VectorContextRecallPreselector {
                 .sessionSummaries(List.of())
                 .artifactCandidates(List.of())
                 .memoryCandidates(List.of())
+                .evidenceCandidates(List.of())
                 .build();
     }
 

@@ -2,16 +2,25 @@ package yhx.com.test.domain.agent.invocation;
 
 import org.junit.Assert;
 import org.junit.Test;
+import yhx.com.domain.agent.adapter.repository.IRunDiagnosticRepository;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationModeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
+import yhx.com.domain.agent.model.valobj.invocation.NodeFunctionCallVO;
+import yhx.com.domain.agent.model.valobj.invocation.NodeFunctionSpecVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationCommand;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
+import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
 import yhx.com.test.domain.agent.invocation.support.FakeNodeClientPort;
 import yhx.com.test.domain.agent.invocation.support.InMemoryPromptContentProvider;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class NodeInvocationPipelineTest {
 
@@ -68,8 +77,62 @@ public class NodeInvocationPipelineTest {
         Assert.assertTrue(result.getTypedOutput() instanceof ContextPlannerOutputVO);
     }
 
+    @Test
+    public void function_call_mode_passes_specs_to_client_and_validates_mapped_main_action() {
+        FakeNodeClientPort client = new FakeNodeClientPort()
+                .enqueueFunctionCall(NodeFunctionCallVO.builder()
+                        .name("main_final_answer")
+                        .arguments(java.util.Map.of("content", "ok"))
+                        .build());
+
+        NodeInvocationCommand command = command(AgentComponentCodeEnumVO.MAIN_AGENT.name(), 0);
+        command.setInvocationMode(NodeInvocationModeEnumVO.FUNCTION_CALL);
+        command.setFunctionSpecs(java.util.List.of(NodeFunctionSpecVO.builder()
+                .name("main_final_answer")
+                .description("Return final answer candidate.")
+                .parameterSchema(java.util.Map.of(
+                        "type", "object",
+                        "required", java.util.List.of("content")
+                ))
+                .build()));
+
+        NodeInvocationResult result = pipeline(client).invoke(command);
+
+        Assert.assertEquals(NodeInvocationStatusEnumVO.SUCCESS, result.getStatus());
+        Assert.assertTrue(result.getTypedOutput() instanceof MainAgentActionVO);
+        Assert.assertEquals(NodeInvocationModeEnumVO.FUNCTION_CALL, client.requests().get(0).getInvocationMode());
+        Assert.assertEquals("main_final_answer", client.requests().get(0).getFunctionSpecs().get(0).getName());
+        Assert.assertEquals("{\"action\":\"FINAL\",\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"ok\"}}}", result.getRawOutput());
+    }
+
+    @Test
+    public void diagnostics_record_previews_instead_of_full_prompt_or_raw_output() {
+        FakeNodeClientPort client = new FakeNodeClientPort()
+                .enqueue("{\"action\":\"FINAL\",\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"" + "y".repeat(3000) + "\"}}}");
+        DiagnosticRepository repository = new DiagnosticRepository();
+        NodeInvocationCommand command = command(AgentComponentCodeEnumVO.MAIN_AGENT.name(), 0);
+        command.setInputView(Map.of("largeStateView", "x".repeat(10000)));
+
+        NodeInvocationResult result = pipeline(client, new RunDiagnosticRecorder(repository)).invoke(command);
+
+        Assert.assertEquals(NodeInvocationStatusEnumVO.SUCCESS, result.getStatus());
+        Map<String, Object> nodeCall = repository.find("NODE_CALL");
+        Assert.assertFalse(nodeCall.containsKey("prompt"));
+        Assert.assertTrue(nodeCall.containsKey("promptChars"));
+        Assert.assertTrue(String.valueOf(nodeCall.get("promptPreview")).length() <= 2100);
+
+        Map<String, Object> nodeSuccess = repository.find("NODE_SUCCESS");
+        Assert.assertFalse(nodeSuccess.containsKey("rawOutput"));
+        Assert.assertTrue(nodeSuccess.containsKey("rawOutputChars"));
+        Assert.assertTrue(String.valueOf(nodeSuccess.get("rawOutputPreview")).length() <= 2100);
+    }
+
     private NodeInvocationPipeline pipeline(FakeNodeClientPort client) {
         return new NodeInvocationPipeline(new PromptAssembler(new InMemoryPromptContentProvider()), client);
+    }
+
+    private NodeInvocationPipeline pipeline(FakeNodeClientPort client, RunDiagnosticRecorder recorder) {
+        return new NodeInvocationPipeline(new PromptAssembler(new InMemoryPromptContentProvider()), client, recorder);
     }
 
     private NodeInvocationCommand command(String componentCode, int repairAttempts) {
@@ -83,5 +146,22 @@ public class NodeInvocationPipelineTest {
                 .maxRepairAttempts(repairAttempts)
                 .inputView("{\"userInput\":\"hello\"}")
                 .build();
+    }
+
+    private static class DiagnosticRepository implements IRunDiagnosticRepository {
+
+        private final List<Map<String, Object>> entries = new ArrayList<>();
+
+        @Override
+        public void append(String runId, Map<String, Object> entry) {
+            entries.add(entry);
+        }
+
+        Map<String, Object> find(String event) {
+            return entries.stream()
+                    .filter(entry -> event.equals(entry.get("event")))
+                    .findFirst()
+                    .orElseThrow();
+        }
     }
 }

@@ -36,12 +36,13 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
                     command.getToolName(),
                     command.getArguments() == null ? Map.of() : command.getArguments()
             ));
+            String contentText = contentText(callToolResult);
+            boolean toolError = Boolean.TRUE.equals(callToolResult == null ? null : callToolResult.isError());
             Map<String, Object> receipt = new LinkedHashMap<>();
             receipt.put("rawResult", JSON.toJSONString(callToolResult));
             receipt.put("mcpServerCode", command.getMcpServerCode());
             receipt.put("toolName", command.getToolName());
-            receipt.put("contentText", contentText(callToolResult));
-            boolean toolError = Boolean.TRUE.equals(callToolResult == null ? null : callToolResult.isError());
+            receipt.put("contentText", contentText);
             return McpToolInvokeResultVO.builder()
                     .called(true)
                     .success(!toolError)

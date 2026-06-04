@@ -16,6 +16,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentTurnSummaryEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.PreviousLoopOutcomeVO;
 import yhx.com.domain.agent.model.valobj.context.RunMetaVO;
 import yhx.com.domain.agent.model.valobj.context.SessionTaskSummaryViewVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
@@ -137,6 +138,7 @@ public class ContextCandidatePreselector {
                 .evidenceCandidates(evidenceCandidatePreselector.select(command.getUserInput(),
                         evidenceRepository.listRunEvidence(command.getRunId()), evidenceLimit))
                 .userClarifications(userClarifications(command.getRuntimeFacts()))
+                .previousLoopOutcome(previousLoopOutcome(command.getRuntimeFacts()))
                 .availableCapabilities(command.getAvailableCapabilities() == null ? List.of() : command.getAvailableCapabilities())
                 .tokenBudget(defaultBudget(command.getTokenBudget()))
                 .build();
@@ -374,6 +376,49 @@ public class ContextCandidatePreselector {
                 .filter(UserClarificationVO.class::isInstance)
                 .map(item -> (UserClarificationVO) item)
                 .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private PreviousLoopOutcomeVO previousLoopOutcome(Map<String, Object> runtimeFacts) {
+        if (runtimeFacts == null) {
+            return null;
+        }
+        Object value = runtimeFacts.get("previousLoopOutcome");
+        if (value instanceof PreviousLoopOutcomeVO outcome) {
+            return outcome;
+        }
+        if (value instanceof Map<?, ?> map) {
+            Object evidenceIds = map.get("createdEvidenceIds");
+            return PreviousLoopOutcomeVO.builder()
+                    .action(stringValue(map.get("action")))
+                    .status(stringValue(map.get("status")))
+                    .query(stringValue(map.get("query")))
+                    .message(stringValue(map.get("message")))
+                    .createdEvidenceIds(evidenceIds instanceof List<?> list
+                            ? (List<String>) list.stream().map(String::valueOf).toList()
+                            : List.of())
+                    .loopIndex(integerValue(map.get("loopIndex")))
+                    .build();
+        }
+        return null;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Integer integerValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private record TurnContextWindow(List<MessageCandidateVO> fixedMessages,

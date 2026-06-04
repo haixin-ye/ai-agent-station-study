@@ -18,7 +18,7 @@ public class RagEvidenceSnippetPolicy {
         if (title.isBlank()) {
             return snippet;
         }
-        return title + ": " + snippet;
+        return truncate(title + ": " + snippet, maxChars);
     }
 
     public String boundedSnippet(String chunkText, int maxChars) {
@@ -28,5 +28,13 @@ public class RagEvidenceSnippetPolicy {
         String normalized = chunkText.strip();
         int limit = maxChars <= 0 ? DEFAULT_MAX_CHARS : maxChars;
         return normalized.substring(0, Math.min(limit, normalized.length()));
+    }
+
+    private String truncate(String value, int maxChars) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        int limit = maxChars <= 0 ? DEFAULT_MAX_CHARS : maxChars;
+        return value.length() <= limit ? value : value.substring(0, limit);
     }
 }

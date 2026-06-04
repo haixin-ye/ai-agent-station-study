@@ -23,6 +23,7 @@ import yhx.com.domain.agent.service.runtime.RuntimeComponentPorts;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
 import yhx.com.domain.agent.service.runtime.RuntimePhaseGuard;
+import yhx.com.domain.agent.service.runtime.RunWorkingStateManager;
 import yhx.com.domain.agent.service.runtime.RuntimeStateMachine;
 import yhx.com.domain.agent.service.interaction.PendingInputManager;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
@@ -33,6 +34,48 @@ import java.util.List;
 import java.util.Map;
 
 public class RuntimeWorkingStateProjectionTest {
+
+    @Test
+    public void per_update_is_merged_into_notebook_and_projected_to_next_state_view() {
+        RunWorkingStateManager manager = new RunWorkingStateManager();
+        RuntimeExecutionContext context = RuntimeExecutionContext.builder()
+                .runId("run-per-update")
+                .sessionId("sess-per-update")
+                .userId("user-001")
+                .loopIndex(1)
+                .lastStateView(MainAgentStateViewVO.builder()
+                        .evidencePack(List.of())
+                        .build())
+                .build();
+        MainAgentActionVO action = MainAgentActionVO.builder()
+                .action("CONTINUE")
+                .perUpdate(Map.of(
+                        "mode", "PER",
+                        "goal", "inspect project",
+                        "stepUpdates", List.of(Map.of(
+                                "stepId", "s1",
+                                "title", "resolve target",
+                                "status", "IN_PROGRESS"
+                        )),
+                        "nextStepId", "s1"
+                ))
+                .stateDelta(Map.of("nextActionHint", Map.of("reason", "continue after planning")))
+                .build();
+
+        manager.apply(context, action, MainActionHandlerResult.builder()
+                .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
+                .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
+                .message("continue")
+                .build());
+
+        MainAgentStateViewVO projected = manager.project(context.getWorkingState());
+
+        Assert.assertNotNull(projected.getNotebook());
+        Assert.assertEquals("PER", projected.getNotebook().getMode());
+        Assert.assertEquals("inspect project", projected.getNotebook().getGoal());
+        Assert.assertEquals("s1", projected.getNotebook().getSteps().get(0).getStepId());
+        Assert.assertEquals("IN_PROGRESS", projected.getNotebook().getSteps().get(0).getStatus());
+    }
 
     @Test
     public void action_effect_updates_working_state_without_refreshing_context() {

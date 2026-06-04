@@ -4,6 +4,8 @@ import yhx.com.domain.agent.adapter.repository.IRagRepository;
 import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
 import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
 import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagGitFileEntity;
+import yhx.com.domain.agent.service.rag.RagAssetIngestionService;
 import yhx.com.infrastructure.rag.MyTokenTextSplitter;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -16,11 +18,9 @@ import org.redisson.api.RSet;
 import org.redisson.api.RType;
 import org.redisson.api.RedissonClient;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.PathResource;
 import org.springframework.stereotype.Repository;
 
 import java.io.IOException;
@@ -31,8 +31,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -48,22 +48,49 @@ public class RagRepository implements IRagRepository {
 
     private static final int BATCH_SIZE = 50;
     private static final String RAG_TAG_KEY = "ragTag";
-    private static final Set<String> TARGET_EXTENSIONS = Set.of(
-            ".py", ".java", ".go", ".cpp", ".c",
-            ".js", ".ts", ".vue",
-            ".yml", ".yaml", ".properties", ".toml", ".xml", ".conf",
-            ".md", ".txt"
+    private static final long MAX_GIT_FILE_BYTES = 1024L * 1024L;
+    private static final Set<String> SKIPPED_GIT_DIRECTORIES = Set.of(
+            ".git", ".idea", ".vscode", "node_modules", "target", "build", "dist", "out",
+            ".next", ".nuxt", "coverage", ".gradle", "__pycache__", ".pytest_cache",
+            "logs", "tmp", "temp"
+    );
+    private static final Set<String> EXCLUDED_GIT_FILE_NAMES = Set.of(
+            "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "gradle.lockfile",
+            "poetry.lock", "pipfile.lock"
+    );
+    private static final Set<String> EXCLUDED_GIT_EXTENSIONS = Set.of(
+            ".class", ".jar", ".war", ".ear", ".zip", ".tar", ".gz", ".rar", ".7z",
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg",
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".ttf", ".otf", ".woff", ".woff2", ".eot",
+            ".mp3", ".mp4", ".avi", ".mov", ".mkv", ".wav",
+            ".map"
+    );
+    private static final Set<String> TARGET_GIT_EXTENSIONS = Set.of(
+            ".java", ".kt", ".kts", ".groovy", ".py", ".js", ".jsx", ".ts", ".tsx", ".vue",
+            ".go", ".rs", ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".rb", ".scala", ".swift",
+            ".html", ".css", ".scss", ".less",
+            ".json", ".jsonc", ".yml", ".yaml", ".properties", ".toml", ".xml", ".ini",
+            ".conf", ".gradle", ".env", ".example",
+            ".sh", ".bat", ".cmd", ".ps1", ".sql", ".md", ".txt", ".adoc"
+    );
+    private static final Set<String> IMPORTANT_GIT_FILE_NAMES = Set.of(
+            "dockerfile", "makefile", "jenkinsfile", "procfile", "license", "notice",
+            ".gitignore", ".dockerignore", ".editorconfig", ".gitattributes"
     );
 
-
-    @Resource
-    private PgVectorStore pgVectorStore;
 
     @Resource
     private RedissonClient redissonClient;
 
     @Resource
     private MyTokenTextSplitter myTokenTextSplitter;
+
+    @Resource
+    private PgVectorStore pgVectorStore;
+
+    @Resource
+    private RagAssetIngestionService ragAssetIngestionService;
 
     @Override
     public Set<String> queryRagTagList() {
@@ -75,6 +102,13 @@ public class RagRepository implements IRagRepository {
         String knowledgeTag = commandEntity.getKnowledgeTag();
         log.info("RAG file ingest start, knowledgeTag: {}", knowledgeTag);
 
+        if (ragAssetIngestionService != null) {
+            ragAssetIngestionService.ingestFiles(commandEntity);
+            appendTagIfAbsent(knowledgeTag);
+            log.info("RAG file ingest completed by asset service, knowledgeTag: {}", knowledgeTag);
+            return;
+        }
+
         for (RagFilePayloadEntity filePayloadEntity : commandEntity.getFiles()) {
             if (filePayloadEntity == null || filePayloadEntity.getContent() == null || filePayloadEntity.getContent().length == 0) {
                 continue;
@@ -82,9 +116,7 @@ public class RagRepository implements IRagRepository {
 
             try {
                 List<Document> documents = readDocumentsByFileName(filePayloadEntity.getFileName(), filePayloadEntity.getContent());
-                List<Document> chunks = splitDocuments(documents);
-                chunks.forEach(doc -> doc.getMetadata().put("knowledge", knowledgeTag));
-                writeVectorStoreByBatch(chunks);
+                writeVectorStoreByBatch(splitDocuments(documents));
             } catch (Exception e) {
                 log.error("RAG file ingest failed, fileName: {}", filePayloadEntity.getFileName(), e);
             }
@@ -104,12 +136,15 @@ public class RagRepository implements IRagRepository {
         try {
             log.info("RAG git ingest start, repoUrl: {}, localPath: {}", repoUrl, localPath.toAbsolutePath());
             git = buildGitClone(commandEntity, localPath);
+            List<RagGitFileEntity> files = new ArrayList<>();
+            GitIngestStats stats = new GitIngestStats();
 
             Files.walkFileTree(localPath, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
-                    if (name.startsWith(".") || "target".equals(name) || "node_modules".equals(name)) {
+                    String name = lowerFileName(dir);
+                    if (SKIPPED_GIT_DIRECTORIES.contains(name)) {
+                        stats.skippedByDirectory++;
                         return FileVisitResult.SKIP_SUBTREE;
                     }
                     return FileVisitResult.CONTINUE;
@@ -118,27 +153,54 @@ public class RagRepository implements IRagRepository {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     String fileName = file.getFileName().toString();
-                    if (!isTargetFile(fileName)) {
+                    stats.scannedFiles++;
+                    GitFileDecision decision = shouldIngestGitFile(file, attrs);
+                    if (!decision.accepted()) {
+                        stats.recordSkip(decision.reason());
                         return FileVisitResult.CONTINUE;
                     }
 
                     try {
-                        List<Document> documents = readDocumentsByPath(file);
-                        List<Document> chunks = splitDocuments(documents);
-                        chunks.forEach(doc -> doc.getMetadata().put("knowledge", repoProjectName));
-                        writeVectorStoreByBatch(chunks);
+                        String relativePath = localPath.relativize(file).toString().replace("\\", "/");
+                        String content = Files.readString(file, StandardCharsets.UTF_8);
+                        if (content.isBlank()) {
+                            stats.skippedEmpty++;
+                            return FileVisitResult.CONTINUE;
+                        }
+                        files.add(RagGitFileEntity.builder()
+                                .repositoryName(repoProjectName)
+                                .relativePath(relativePath)
+                                .language(languageFor(fileName))
+                                .content(content)
+                                .build());
+                        stats.acceptedFiles++;
                     } catch (Exception e) {
+                        stats.readFailed++;
                         log.error("RAG git file ingest failed, fileName: {}", fileName, e);
                     }
                     return FileVisitResult.CONTINUE;
                 }
             });
 
+            ragAssetIngestionService.ingestGitFiles(commandEntity.getUserId(),
+                    commandEntity.getSessionId(),
+                    repoUrl,
+                    commandEntity.getBranchName(),
+                    files);
             appendTagIfAbsent(repoProjectName);
-            log.info("RAG git ingest completed, repoUrl: {}", repoUrl);
+            log.info("RAG git ingest completed, repoUrl: {}, scannedFiles: {}, acceptedFiles: {}, skippedByDirectory: {}, skippedByExtension: {}, skippedBySize: {}, skippedByName: {}, skippedGenerated: {}, skippedEmpty: {}, readFailed: {}",
+                    repoUrl,
+                    stats.scannedFiles,
+                    stats.acceptedFiles,
+                    stats.skippedByDirectory,
+                    stats.skippedByExtension,
+                    stats.skippedBySize,
+                    stats.skippedByName,
+                    stats.skippedGenerated,
+                    stats.skippedEmpty,
+                    stats.readFailed);
         } finally {
             if (git != null) {
-                git.getRepository().close();
                 git.close();
             }
             deleteDirectoryQuietly(localPath);
@@ -172,48 +234,50 @@ public class RagRepository implements IRagRepository {
         return reader.get();
     }
 
-    private List<Document> readDocumentsByPath(Path file) {
-        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (fileName.endsWith(".txt") || fileName.endsWith(".md")) {
-            try {
-                String text = Files.readString(file, StandardCharsets.UTF_8);
-                return List.of(new Document(text));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        TikaDocumentReader reader = new TikaDocumentReader(new PathResource(file));
-        return reader.get();
-    }
-
     private List<Document> splitDocuments(List<Document> documents) {
-        List<Document> chunks = new ArrayList<>();
-        for (Document document : documents) {
-            chunks.addAll(myTokenTextSplitter.split(document));
-        }
-        return chunks;
+        return documents.stream()
+                .flatMap(document -> myTokenTextSplitter.split(document).stream())
+                .toList();
     }
 
-    private void writeVectorStoreByBatch(List<Document> chunks) {
-        if (chunks == null || chunks.isEmpty()) {
-            return;
+    private GitFileDecision shouldIngestGitFile(Path file, BasicFileAttributes attrs) {
+        if (file == null || attrs == null || !attrs.isRegularFile()) {
+            return GitFileDecision.skip(GitFileSkipReason.EXTENSION);
         }
 
-        for (int i = 0; i < chunks.size(); i += BATCH_SIZE) {
-            int end = Math.min(i + BATCH_SIZE, chunks.size());
-            pgVectorStore.accept(chunks.subList(i, end));
+        String lowerName = lowerFileName(file);
+        String extension = extensionOf(lowerName);
+        if (EXCLUDED_GIT_FILE_NAMES.contains(lowerName)) {
+            return GitFileDecision.skip(GitFileSkipReason.NAME);
         }
+        if (lowerName.endsWith(".min.js") || EXCLUDED_GIT_EXTENSIONS.contains(extension)) {
+            return GitFileDecision.skip(GitFileSkipReason.GENERATED);
+        }
+        if (attrs.size() > MAX_GIT_FILE_BYTES) {
+            return GitFileDecision.skip(GitFileSkipReason.SIZE);
+        }
+        if (IMPORTANT_GIT_FILE_NAMES.contains(lowerName) || TARGET_GIT_EXTENSIONS.contains(extension)) {
+            return GitFileDecision.accept();
+        }
+        return GitFileDecision.skip(GitFileSkipReason.EXTENSION);
     }
 
-    private boolean isTargetFile(String fileName) {
-        String lower = fileName.toLowerCase(Locale.ROOT);
-        for (String extension : TARGET_EXTENSIONS) {
-            if (lower.endsWith(extension)) {
-                return true;
-            }
+    private String lowerFileName(Path path) {
+        return path == null || path.getFileName() == null ? "" : path.getFileName().toString().toLowerCase(Locale.ROOT);
+    }
+
+    private String extensionOf(String lowerFileName) {
+        if (lowerFileName == null || lowerFileName.isBlank()) {
+            return "";
         }
-        return false;
+        int index = lowerFileName.lastIndexOf('.');
+        if (index > 0) {
+            return lowerFileName.substring(index);
+        }
+        if (index == 0 && lowerFileName.indexOf('.', 1) < 0) {
+            return lowerFileName;
+        }
+        return "";
     }
 
     private void appendTagIfAbsent(String knowledgeTag) {
@@ -253,6 +317,97 @@ public class RagRepository implements IRagRepository {
         return projectNameWithGit.replace(".git", "");
     }
 
+    private String firstNonBlank(String first, String second) {
+        return first == null || first.isBlank() ? second : first;
+    }
+
+    private String languageFor(String fileName) {
+        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".java")) {
+            return "java";
+        }
+        if (lower.endsWith(".kt") || lower.endsWith(".kts")) {
+            return "kotlin";
+        }
+        if (lower.endsWith(".groovy") || lower.endsWith(".gradle")) {
+            return "groovy";
+        }
+        if (lower.endsWith(".py")) {
+            return "python";
+        }
+        if (lower.endsWith(".js") || lower.endsWith(".jsx")) {
+            return "javascript";
+        }
+        if (lower.endsWith(".ts") || lower.endsWith(".tsx")) {
+            return "typescript";
+        }
+        if (lower.endsWith(".vue")) {
+            return "vue";
+        }
+        if (lower.endsWith(".go")) {
+            return "go";
+        }
+        if (lower.endsWith(".rs")) {
+            return "rust";
+        }
+        if (lower.endsWith(".c") || lower.endsWith(".h")) {
+            return "c";
+        }
+        if (lower.endsWith(".cpp") || lower.endsWith(".hpp")) {
+            return "cpp";
+        }
+        if (lower.endsWith(".cs")) {
+            return "csharp";
+        }
+        if (lower.endsWith(".php")) {
+            return "php";
+        }
+        if (lower.endsWith(".rb")) {
+            return "ruby";
+        }
+        if (lower.endsWith(".scala")) {
+            return "scala";
+        }
+        if (lower.endsWith(".swift")) {
+            return "swift";
+        }
+        if (lower.endsWith(".html")) {
+            return "html";
+        }
+        if (lower.endsWith(".css") || lower.endsWith(".scss") || lower.endsWith(".less")) {
+            return "css";
+        }
+        if (lower.endsWith(".json") || lower.endsWith(".jsonc")) {
+            return "json";
+        }
+        if (lower.endsWith(".md")) {
+            return "markdown";
+        }
+        if (lower.endsWith(".yml") || lower.endsWith(".yaml")) {
+            return "yaml";
+        }
+        if (lower.endsWith(".xml")) {
+            return "xml";
+        }
+        if (lower.endsWith(".sql")) {
+            return "sql";
+        }
+        if (lower.endsWith(".sh") || lower.endsWith(".bat") || lower.endsWith(".cmd") || lower.endsWith(".ps1")) {
+            return "shell";
+        }
+        return "text";
+    }
+
+    private void writeVectorStoreByBatch(List<Document> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return;
+        }
+        for (int start = 0; start < documents.size(); start += BATCH_SIZE) {
+            int end = Math.min(start + BATCH_SIZE, documents.size());
+            pgVectorStore.write(documents.subList(start, end));
+        }
+    }
+
     private void deleteDirectoryQuietly(Path path) {
         if (path == null || !Files.exists(path)) {
             return;
@@ -274,6 +429,49 @@ public class RagRepository implements IRagRepository {
             });
         } catch (Exception e) {
             log.warn("cleanup cloned repo failed, path: {}, error: {}", path.toAbsolutePath(), e.getMessage());
+        }
+    }
+
+    private enum GitFileSkipReason {
+        EXTENSION,
+        SIZE,
+        NAME,
+        GENERATED
+    }
+
+    private record GitFileDecision(boolean accepted, GitFileSkipReason reason) {
+
+        static GitFileDecision accept() {
+            return new GitFileDecision(true, null);
+        }
+
+        static GitFileDecision skip(GitFileSkipReason reason) {
+            return new GitFileDecision(false, reason);
+        }
+    }
+
+    private static class GitIngestStats {
+
+        private int scannedFiles;
+        private int acceptedFiles;
+        private int skippedByDirectory;
+        private int skippedByExtension;
+        private int skippedBySize;
+        private int skippedByName;
+        private int skippedGenerated;
+        private int skippedEmpty;
+        private int readFailed;
+
+        private void recordSkip(GitFileSkipReason reason) {
+            if (reason == GitFileSkipReason.SIZE) {
+                skippedBySize++;
+            } else if (reason == GitFileSkipReason.NAME) {
+                skippedByName++;
+            } else if (reason == GitFileSkipReason.GENERATED) {
+                skippedGenerated++;
+            } else {
+                skippedByExtension++;
+            }
         }
     }
 

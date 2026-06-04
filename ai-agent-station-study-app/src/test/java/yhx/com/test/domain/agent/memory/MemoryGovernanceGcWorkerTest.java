@@ -174,6 +174,57 @@ public class MemoryGovernanceGcWorkerTest {
         Assert.assertEquals("ACTIVE", repositories.memories.get(1).getStatus());
     }
 
+    @Test
+    public void governance_worker_expands_candidate_window_so_older_conflicting_profile_memories_are_visible() {
+        FakeRepositories repositories = new FakeRepositories();
+        repositories.tasks.add(AgentMemoryTaskEntity.builder()
+                .taskId("task-1")
+                .taskType("MEMORY_GOVERNANCE")
+                .sessionId("session-1")
+                .runId("run-1")
+                .status("PENDING")
+                .build());
+        repositories.memories.add(AgentMemoryEntity.builder()
+                .memoryId("memory-recent-1")
+                .memoryType("LONG_TERM_MEMORY")
+                .summary("Recent unrelated memory.")
+                .status("ACTIVE")
+                .updatedAt(LocalDateTime.parse("2026-05-27T18:00:00"))
+                .build());
+        repositories.memories.add(AgentMemoryEntity.builder()
+                .memoryId("memory-recent-2")
+                .memoryType("LONG_TERM_MEMORY")
+                .summary("Another recent unrelated memory.")
+                .status("ACTIVE")
+                .updatedAt(LocalDateTime.parse("2026-05-27T17:00:00"))
+                .build());
+        repositories.memories.add(AgentMemoryEntity.builder()
+                .memoryId("memory-old-name")
+                .memoryType("LONG_TERM_MEMORY")
+                .summary("User nickname is Xiaomei.")
+                .status("ACTIVE")
+                .updatedAt(LocalDateTime.parse("2026-05-27T10:00:00"))
+                .build());
+        repositories.memories.add(AgentMemoryEntity.builder()
+                .memoryId("memory-new-name")
+                .memoryType("LONG_TERM_MEMORY")
+                .summary("User real name is Xiaoju.")
+                .status("ACTIVE")
+                .updatedAt(LocalDateTime.parse("2026-05-27T16:00:00"))
+                .build());
+        MemoryGovernanceGcWorker worker = new MemoryGovernanceGcWorker(repositories,
+                repositories,
+                repositories,
+                null,
+                null,
+                new RequireProfileConflictVisibleGovernanceNodeService(),
+                2);
+
+        worker.handle("task-1");
+
+        Assert.assertEquals("SUCCEEDED", repositories.tasks.get(0).getStatus());
+    }
+
     private static class StubMemoryGovernanceNodeService extends MemoryGovernanceNodeService {
         private StubMemoryGovernanceNodeService() {
             super(null);
@@ -258,6 +309,23 @@ public class MemoryGovernanceGcWorkerTest {
                             .reason("用户后续明确更正真实姓名，新事实覆盖旧称呼。")
                             .build()))
                     .build();
+        }
+    }
+
+    private static class RequireProfileConflictVisibleGovernanceNodeService extends MemoryGovernanceNodeService {
+        private RequireProfileConflictVisibleGovernanceNodeService() {
+            super(null);
+        }
+
+        @Override
+        public MemoryGovernanceOutputVO govern(yhx.com.domain.agent.model.valobj.memory.MemoryGovernanceInputVO input,
+                                               String agentId,
+                                               yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO profile) {
+            Assert.assertTrue(input.getMemories().stream()
+                    .anyMatch(memory -> "memory-old-name".equals(memory.getMemoryId())));
+            Assert.assertTrue(input.getMemories().stream()
+                    .anyMatch(memory -> "memory-new-name".equals(memory.getMemoryId())));
+            return MemoryGovernanceOutputVO.builder().actions(List.of()).build();
         }
     }
 

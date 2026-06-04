@@ -13,6 +13,8 @@ import java.util.List;
 
 public class ToolEvidenceConverter {
 
+    private static final int EVIDENCE_SUMMARY_LIMIT = 500;
+
     private final IEvidenceRepository evidenceRepository;
 
     public ToolEvidenceConverter(IEvidenceRepository evidenceRepository) {
@@ -28,7 +30,8 @@ public class ToolEvidenceConverter {
             return emptyResult();
         }
         String summary = "Tool action did not run: " + safe(firstNonBlank(buildResult.getFailureMessage(), buildResult.getFailureCode(), "permission denied"));
-        return fromSavedEvidence(save(runId, buildResult.getToolCallId(), summary), "TOOL", buildResult.getToolCallId(), summary);
+        return fromSavedEvidence(save(runId, buildResult.getToolCallId(), summary), "TOOL", buildResult.getToolCallId(), summary,
+                null, null, null, null, null);
     }
 
     public List<String> createInvocationEvidence(String runId, ToolInvocationResultVO result) {
@@ -45,7 +48,10 @@ public class ToolEvidenceConverter {
         } else {
             summary = "Tool action failed: " + safe(firstNonBlank(result.getFailureMessage(), result.getFailureCode(), "unknown tool failure"));
         }
-        return fromSavedEvidence(save(runId, result.getToolCallId(), summary), "TOOL", result.getToolCallId(), summary);
+        String boundedSummary = bounded(summary);
+        return fromSavedEvidence(save(runId, result.getToolCallId(), boundedSummary), "TOOL", result.getToolCallId(), boundedSummary,
+                result.getResultContent(), result.getResultContentRef(), result.getResultContentFormat(),
+                result.getResultTotalChars(), result.getResultTotalBytes());
     }
 
     private String save(String runId, String toolCallId, String summary) {
@@ -58,6 +64,17 @@ public class ToolEvidenceConverter {
                 .usedByFinal(false)
                 .createdAt(LocalDateTime.now())
                 .build());
+    }
+
+    private String bounded(String value) {
+        if (value == null || value.length() <= EVIDENCE_SUMMARY_LIMIT) {
+            return value;
+        }
+        String suffix = "... (" + value.length() + " chars)";
+        if (suffix.length() >= EVIDENCE_SUMMARY_LIMIT) {
+            return value.substring(0, EVIDENCE_SUMMARY_LIMIT);
+        }
+        return value.substring(0, EVIDENCE_SUMMARY_LIMIT - suffix.length()) + suffix;
     }
 
     private String firstNonBlank(String... values) {
@@ -76,7 +93,15 @@ public class ToolEvidenceConverter {
         return value == null ? "" : value;
     }
 
-    private ToolEvidenceCreationResultVO fromSavedEvidence(String evidenceId, String evidenceType, String sourceRef, String summary) {
+    private ToolEvidenceCreationResultVO fromSavedEvidence(String evidenceId,
+                                                           String evidenceType,
+                                                           String sourceRef,
+                                                           String summary,
+                                                           String content,
+                                                           String contentRef,
+                                                           String contentFormat,
+                                                           Integer totalChars,
+                                                           Long totalBytes) {
         if (evidenceId == null || evidenceId.isBlank()) {
             return emptyResult();
         }
@@ -85,7 +110,13 @@ public class ToolEvidenceConverter {
                 .evidenceType(evidenceType)
                 .sourceRef(sourceRef)
                 .summary(summary)
-                .boundedSnippet(summary)
+                .boundedSnippet(firstNonBlank(content, summary))
+                .content(content)
+                .contentRef(contentRef)
+                .contentFormat(firstNonBlank(contentFormat, content == null ? null : "TEXT"))
+                .truncated(false)
+                .totalChars(totalChars)
+                .totalBytes(totalBytes)
                 .build();
         return ToolEvidenceCreationResultVO.builder()
                 .evidenceIds(List.of(evidenceId))

@@ -7,6 +7,8 @@ import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextLevelEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
+import yhx.com.domain.agent.service.prompt.ContextPlannerPromptBuilder;
+import yhx.com.domain.agent.service.prompt.OutputContractPromptRenderer;
 import yhx.com.domain.agent.service.contract.ContractRegistry;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 
@@ -56,6 +58,26 @@ public class ContextPlannerContractTest {
 
         Assert.assertFalse(result.isPassed());
         Assert.assertEquals("INVALID_CONTEXT_LEVEL", result.getViolations().get(0).getCode());
+    }
+
+    @Test
+    public void test_contextPlannerPrompt_usesSourceIdContractAndRagRules() {
+        String componentPrompt = new ContextPlannerPromptBuilder().build().stream()
+                .map(layer -> layer.getContent())
+                .reduce("", (left, right) -> left + "\n" + right);
+        String outputContract = new OutputContractPromptRenderer().renderContextPlannerOutputContract();
+        String prompt = componentPrompt + "\n" + outputContract;
+
+        Assert.assertTrue(prompt.contains("sourceId must be summaryId"));
+        Assert.assertTrue(prompt.contains("sourceId=memoryId"));
+        Assert.assertTrue(prompt.contains("sourceId=candidateId or chunkId"));
+        Assert.assertTrue(prompt.contains("SUMMARY_ONLY"));
+        Assert.assertTrue(prompt.contains("RAG_FILE_CHUNK"));
+        Assert.assertTrue(prompt.contains("RAG_CODE_FILE_SUMMARY"));
+        Assert.assertTrue(prompt.contains("RAG_CODE_CHUNK"));
+        Assert.assertFalse(prompt.contains("\"summaryId\":\"turn-summary-1\""));
+        Assert.assertFalse(prompt.contains("\"contentRef\""));
+        Assert.assertFalse(prompt.contains("budgetIssue"));
     }
 }
 

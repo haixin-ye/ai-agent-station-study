@@ -105,5 +105,34 @@ public class MainAgentActionContractTest {
         Assert.assertFalse(result.isPassed());
         Assert.assertEquals("INVALID_ACTION", result.getViolations().get(0).getCode());
     }
+
+    @Test
+    public void test_contractValidator_acceptsFailedNotebookStepStatus() {
+        String raw = "{"
+                + "\"perUpdate\":{\"mode\":\"PER\",\"stepUpdates\":[{\"stepId\":\"s1\",\"status\":\"FAILED\"}]},"
+                + "\"action\":\"FINAL\","
+                + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"The tool failed, so I cannot complete it.\"}}"
+                + "}";
+
+        ContractValidationResult result = ContractValidator.defaultValidator()
+                .validateMainAgentAction(raw);
+
+        Assert.assertTrue(result.isPassed());
+    }
+
+    @Test
+    public void test_contractValidator_rejectsInvalidNotebookStepStatus() {
+        String raw = "{"
+                + "\"perUpdate\":{\"mode\":\"PER\",\"stepUpdates\":[{\"stepId\":\"s1\",\"status\":\"MAYBE_DONE\"}]},"
+                + "\"action\":\"FINAL\","
+                + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"hello\"}}"
+                + "}";
+
+        ContractValidationResult result = ContractValidator.defaultValidator()
+                .validateMainAgentAction(raw);
+
+        Assert.assertFalse(result.isPassed());
+        Assert.assertEquals("INVALID_NOTEBOOK_STEP_STATUS", result.getViolations().get(0).getCode());
+    }
 }
 

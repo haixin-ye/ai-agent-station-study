@@ -18,6 +18,7 @@ import yhx.com.domain.agent.adapter.repository.IModelRuntimeRepository;
 import yhx.com.domain.agent.adapter.repository.INodePromptRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IPendingInputRepository;
+import yhx.com.domain.agent.adapter.repository.IRagAssetRepository;
 import yhx.com.domain.agent.adapter.repository.IRagExecutionRepository;
 import yhx.com.domain.agent.adapter.repository.IRunDiagnosticRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
@@ -35,6 +36,7 @@ import yhx.com.domain.agent.service.node.conversationrollup.ConversationRollupNo
 import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
 import yhx.com.domain.agent.service.node.memorygovernance.MemoryGovernanceNodeService;
 import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeService;
+import yhx.com.domain.agent.service.node.ragasset.RagAssetAnalyzerNodeService;
 import yhx.com.domain.agent.service.node.ragverifier.RagVerifierNodeService;
 import yhx.com.domain.agent.service.node.sessiontasksummary.SessionTaskSummaryNodeService;
 import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
@@ -89,6 +91,12 @@ import yhx.com.domain.agent.service.rag.runtime.RagRuntime;
 import yhx.com.domain.agent.service.rag.runtime.RagRetrieverPort;
 import yhx.com.domain.agent.service.rag.runtime.RagVerificationRouter;
 import yhx.com.domain.agent.service.rag.runtime.RagVerifierInputBuilder;
+import yhx.com.domain.agent.service.rag.RagAssetIngestionService;
+import yhx.com.domain.agent.service.rag.RagAssetAnalyzer;
+import yhx.com.domain.agent.service.rag.RagContextRecallPreselector;
+import yhx.com.domain.agent.service.rag.DeterministicRagAssetAnalyzer;
+import yhx.com.domain.agent.service.rag.RagParagraphChunker;
+import yhx.com.domain.agent.service.rag.RagVectorIndexingService;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.DefaultAutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.DefaultRuntimeComponentPorts;
@@ -288,6 +296,52 @@ public class AutoAgentRuntimeConfig {
                 payloadRepository);
     }
 
+    @Bean
+    public RagVectorIndexingService ragVectorIndexingService(IVectorMemoryRepository vectorMemoryRepository,
+                                                             IVectorIndexRepository vectorIndexRepository) {
+        return new RagVectorIndexingService(vectorMemoryRepository, vectorIndexRepository);
+    }
+
+    @Bean
+    public RagParagraphChunker ragParagraphChunker(AutoAgentRagProperties ragProperties) {
+        return new RagParagraphChunker(ragProperties.getAsset().getChunkMaxChars(),
+                ragProperties.getAsset().getChunkOverlapChars());
+    }
+
+    @Bean
+    public RagAssetIngestionService ragAssetIngestionService(IRagAssetRepository ragAssetRepository,
+                                                             IPayloadRepository payloadRepository,
+                                                             RagParagraphChunker ragParagraphChunker,
+                                                             RagVectorIndexingService ragVectorIndexingService,
+                                                             RagAssetAnalyzer ragAssetAnalyzer) {
+        return new RagAssetIngestionService(ragAssetRepository,
+                payloadRepository,
+                ragParagraphChunker,
+                ragVectorIndexingService,
+                ragAssetAnalyzer);
+    }
+
+    @Bean
+    public RagAssetAnalyzer ragAssetAnalyzer(NodeInvocationPipeline nodeInvocationPipeline,
+                                             NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        try {
+            return new RagAssetAnalyzerNodeService(nodeInvocationPipeline,
+                    nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.RAG_ASSET_ANALYZER.name()));
+        } catch (Exception ignored) {
+            return new DeterministicRagAssetAnalyzer();
+        }
+    }
+
+    @Bean
+    public RagContextRecallPreselector ragContextRecallPreselector(IVectorMemoryRepository vectorMemoryRepository,
+                                                                   IRagAssetRepository ragAssetRepository,
+                                                                   AutoAgentRagProperties ragProperties) {
+        return new RagContextRecallPreselector(vectorMemoryRepository,
+                ragAssetRepository,
+                ragProperties.getAsset().getRecallTopK(),
+                ragProperties.getAsset().getRecallMinScore());
+    }
+
     @Bean("autoAgentContextRecallExecutor")
     public Executor autoAgentContextRecallExecutor() {
         return Executors.newFixedThreadPool(4);
@@ -296,12 +350,16 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public ContextPreparationService contextPreparationService(ContextCandidatePreselector preselector,
                                                                VectorContextRecallPreselector vectorContextRecallPreselector,
+                                                               RagContextRecallPreselector ragContextRecallPreselector,
                                                                @Qualifier("autoAgentContextRecallExecutor") Executor contextRecallExecutor,
-                                                               AutoAgentContextProperties contextProperties) {
+                                                               AutoAgentContextProperties contextProperties,
+                                                               AutoAgentRagProperties ragProperties) {
         return new ContextPreparationService(preselector,
                 vectorContextRecallPreselector,
+                ragContextRecallPreselector,
                 contextRecallExecutor,
-                Duration.ofMillis(Math.max(0, contextProperties.getVectorRecallTimeoutMillis())));
+                Duration.ofMillis(Math.max(0, contextProperties.getVectorRecallTimeoutMillis())),
+                Duration.ofMillis(Math.max(0, ragProperties.getAsset().getRecallTimeoutMillis())));
     }
 
     @Bean
@@ -331,9 +389,11 @@ public class AutoAgentRuntimeConfig {
 
     @Bean
     public MainAgentNodeService mainAgentNodeService(NodeInvocationPipeline nodeInvocationPipeline,
-                                                     NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
-        return new MainAgentNodeService(nodeInvocationPipeline,
-                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.MAIN_AGENT.name()));
+                                                     NodeRuntimeProfileResolver nodeRuntimeProfileResolver,
+                                                     AutoAgentRuntimeProperties properties) {
+        var profile = nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.MAIN_AGENT.name());
+        profile.setInvocationMode(properties.getMainAgentInvocationMode());
+        return new MainAgentNodeService(nodeInvocationPipeline, profile);
     }
 
     @Bean

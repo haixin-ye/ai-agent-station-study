@@ -52,14 +52,15 @@ public class ContextPlannerStatusHandler {
             return failure(SAFE_FAILURE, "CONTEXT_CANDIDATES_MISSING", "Context candidates are missing.");
         }
         if (selections != null && !selections.isEmpty()) {
+            List<ContextSelectionVO> refreshSelections = appendRuntimeEvidenceSelections(candidates, selections);
             return ContextPlannerHandlingResult.builder()
                     .nextStep(BUILD_STATE_VIEW)
                     .stateView(contextMaterializer.materialize(ContextMaterializationCommand.builder()
                             .candidates(candidates)
-                            .forcedSelections(selections)
+                            .forcedSelections(refreshSelections)
                             .tokenBudget(candidates.getTokenBudget())
                             .build()))
-                    .effectiveSelections(selections)
+                    .effectiveSelections(refreshSelections)
                     .build();
         }
         return ContextPlannerHandlingResult.builder()
@@ -73,6 +74,28 @@ public class ContextPlannerStatusHandler {
                         .build()))
                 .effectiveSelections(List.of())
                 .build();
+    }
+
+    private List<ContextSelectionVO> appendRuntimeEvidenceSelections(ContextCandidateBundleVO candidates, List<ContextSelectionVO> selections) {
+        if (candidates.getEvidenceCandidates() == null || candidates.getEvidenceCandidates().isEmpty()) {
+            return selections == null ? List.of() : selections;
+        }
+        List<ContextSelectionVO> merged = new java.util.ArrayList<>(selections == null ? List.of() : selections);
+        java.util.Set<String> selectedEvidenceIds = merged.stream()
+                .filter(selection -> selection != null && "EVIDENCE".equals(selection.getSourceType()))
+                .map(ContextSelectionVO::getSourceId)
+                .collect(java.util.stream.Collectors.toSet());
+        candidates.getEvidenceCandidates().stream()
+                .filter(evidence -> evidence != null && evidence.getEvidenceId() != null)
+                .filter(evidence -> !selectedEvidenceIds.contains(evidence.getEvidenceId()))
+                .map(evidence -> ContextSelectionVO.builder()
+                        .sourceType("EVIDENCE")
+                        .sourceId(evidence.getEvidenceId())
+                        .contextLevel(ContextLevelEnumVO.SUMMARY_PLUS_SNIPPET)
+                        .reason("Runtime evidence generated during the current run must remain visible after refresh.")
+                        .build())
+                .forEach(merged::add);
+        return merged;
     }
 
     private ContextPlannerHandlingResult ready(ContextPlannerOutputVO output, ContextCandidateBundleVO candidates) {

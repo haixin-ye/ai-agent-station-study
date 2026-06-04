@@ -69,6 +69,28 @@ public class VectorContextRecallPreselectorTest {
     }
 
     @Test
+    public void rag_vector_hits_are_not_exposed_as_evidence_candidates_by_memory_recall() {
+        FakeContextRepositories repos = fixture();
+        FakeVectorMemoryRepository vector = new FakeVectorMemoryRepository(List.of(VectorRecallHitVO.builder()
+                .collectionType(VectorCollectionTypeEnumVO.RAG_CHUNK)
+                .sourceType(VectorSourceTypeEnumVO.RAG_CHUNK)
+                .sourceId("rag-doc-1-chunk-1")
+                .score(0.91D)
+                .summary("rag summary")
+                .snippet("RAG uploaded content should be handled by RagContextRecallPreselector.")
+                .metadata(Map.of("sourceName", "rag-design.txt", "documentId", "rag-doc-1"))
+                .build()));
+
+        ContextCandidateBundleVO bundle = new VectorContextRecallPreselector(vector, repos, repos, repos, repos)
+                .recall(ContextPreparationCommand.builder()
+                        .userInput("where is the RAG content stored?")
+                        .build());
+
+        Assert.assertEquals(2, vector.queries.size());
+        Assert.assertTrue(bundle.getEvidenceCandidates().isEmpty());
+    }
+
+    @Test
     public void unresolved_vector_hits_are_dropped() {
         FakeContextRepositories repos = fixture();
         FakeVectorMemoryRepository vector = new FakeVectorMemoryRepository(List.of(

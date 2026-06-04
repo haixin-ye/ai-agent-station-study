@@ -1,6 +1,7 @@
 package yhx.com.test.domain.agent.invocation.support;
 
 import yhx.com.domain.agent.adapter.port.INodeClientPort;
+import yhx.com.domain.agent.model.valobj.invocation.NodeFunctionCallVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeClientRequest;
 import yhx.com.domain.agent.model.valobj.invocation.NodeClientResponse;
 
@@ -12,10 +13,16 @@ import java.util.Queue;
 public class FakeNodeClientPort implements INodeClientPort {
 
     private final Queue<String> rawOutputs = new ArrayDeque<>();
+    private final Queue<NodeFunctionCallVO> functionCalls = new ArrayDeque<>();
     private final List<NodeClientRequest> requests = new ArrayList<>();
 
     public FakeNodeClientPort enqueue(String rawOutput) {
         rawOutputs.add(rawOutput);
+        return this;
+    }
+
+    public FakeNodeClientPort enqueueFunctionCall(NodeFunctionCallVO functionCall) {
+        functionCalls.add(functionCall);
         return this;
     }
 
@@ -28,6 +35,7 @@ public class FakeNodeClientPort implements INodeClientPort {
         requests.add(request);
         return NodeClientResponse.builder()
                 .rawOutput(rawOutputs.poll())
+                .functionCall(functionCalls.poll())
                 .modelName("fake")
                 .build();
     }

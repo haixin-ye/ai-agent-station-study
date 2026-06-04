@@ -13,5 +13,9 @@ public interface IVectorMemoryRepository {
 
     List<VectorRecallHitVO> search(VectorRecallQueryVO query);
 
+    default List<VectorRecallHitVO> lexicalSearch(VectorRecallQueryVO query) {
+        return List.of();
+    }
+
     void disable(VectorCollectionTypeEnumVO collectionType, String sourceId);
 }

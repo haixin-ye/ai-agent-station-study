@@ -9,8 +9,12 @@ import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumV
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 
 import java.util.Map;
+import java.util.Set;
 
 public class ContractValidator {
+
+    private static final Set<String> VALID_NOTEBOOK_STEP_STATUSES = Set.of(
+            "PENDING", "IN_PROGRESS", "DONE", "FAILED", "BLOCKED", "CANCELLED");
 
     private final RawOutputParser rawOutputParser;
 
@@ -40,6 +44,11 @@ public class ContractValidator {
             return ContractValidationResult.failed("INVALID_ACTION", "action", "Unknown MainAgent action.");
         }
 
+        ContractValidationResult perUpdateResult = validatePerUpdate(root.getJSONObject("perUpdate"));
+        if (!perUpdateResult.isPassed()) {
+            return perUpdateResult;
+        }
+
         JSONObject stateDelta = root.getJSONObject("stateDelta");
         if (stateDelta == null) {
             return ContractValidationResult.failed("MISSING_STATE_DELTA", "stateDelta", "MainAgent action must include stateDelta.");
@@ -53,6 +62,29 @@ public class ContractValidator {
             }
         }
 
+        return ContractValidationResult.passed();
+    }
+
+    private ContractValidationResult validatePerUpdate(JSONObject perUpdate) {
+        if (perUpdate == null) {
+            return ContractValidationResult.passed();
+        }
+        JSONArray stepUpdates = perUpdate.getJSONArray("stepUpdates");
+        if (stepUpdates == null) {
+            return ContractValidationResult.passed();
+        }
+        for (int index = 0; index < stepUpdates.size(); index++) {
+            Object item = stepUpdates.get(index);
+            if (!(item instanceof JSONObject stepUpdate)) {
+                continue;
+            }
+            String status = stepUpdate.getString("status");
+            if (status != null && !status.isBlank() && !VALID_NOTEBOOK_STEP_STATUSES.contains(status)) {
+                return ContractValidationResult.failed("INVALID_NOTEBOOK_STEP_STATUS",
+                        "perUpdate.stepUpdates[" + index + "].status",
+                        "Notebook step status must be one of " + VALID_NOTEBOOK_STEP_STATUSES + ".");
+            }
+        }
         return ContractValidationResult.passed();
     }
 

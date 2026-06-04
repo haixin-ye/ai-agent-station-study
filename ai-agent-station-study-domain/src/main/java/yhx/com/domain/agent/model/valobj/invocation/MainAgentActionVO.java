@@ -14,5 +14,6 @@ import java.util.Map;
 public class MainAgentActionVO {
 
     private String action;
+    private Map<String, Object> perUpdate;
     private Map<String, Object> stateDelta;
 }

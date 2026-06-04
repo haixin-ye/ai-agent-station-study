@@ -29,6 +29,18 @@ public class CapabilityRegistry {
         return Optional.of(spec);
     }
 
+    public Optional<CapabilitySpecVO> findUniqueCapabilityByTool(String mcpServerCode, String toolName) {
+        if (toolName == null || toolName.isBlank()) {
+            return Optional.empty();
+        }
+        List<CapabilitySpecVO> matches = capabilities.values().stream()
+                .filter(spec -> Boolean.TRUE.equals(spec.getEnabled()))
+                .filter(spec -> toolName.equals(spec.getToolName()))
+                .filter(spec -> mcpServerCode == null || mcpServerCode.isBlank() || mcpServerCode.equals(spec.getMcpServerCode()))
+                .toList();
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
+    }
+
     public CapabilitySpecVO requireCapability(String capabilityCode) {
         return findCapability(capabilityCode)
                 .orElseThrow(() -> new IllegalArgumentException("Capability is missing or disabled: " + capabilityCode));

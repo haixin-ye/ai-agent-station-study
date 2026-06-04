@@ -23,8 +23,11 @@ import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 public class ToolApprovalService {
 
@@ -146,7 +149,7 @@ public class ToolApprovalService {
 
     private AskUserRequestVO approvalRequest(ToolApprovalDecisionCommandVO command) {
         return AskUserRequestVO.builder()
-                .question("Approve tool execution: " + command.getCapability().getCapabilityCode() + "?")
+                .question(approvalQuestion(command))
                 .inputMode("SINGLE_CHOICE")
                 .allowFreeText(false)
                 .options(List.of(
@@ -154,6 +157,79 @@ public class ToolApprovalService {
                         Map.of("id", "reject", "label", "Reject", "value", Map.of("decision", "REJECTED", "approvalKey", command.getApprovalKey()))
                 ))
                 .build();
+    }
+
+    private String approvalQuestion(ToolApprovalDecisionCommandVO command) {
+        String toolName = toolName(command);
+        List<String> lines = new ArrayList<>();
+        lines.add("是否允许调用工具 " + toolName + "?");
+        if (command != null && command.getToolIntent() != null) {
+            String goal = command.getToolIntent().getGoal();
+            if (goal != null && !goal.isBlank()) {
+                lines.add("目标: " + compact(goal, 180));
+            }
+            lines.addAll(argumentSummary(command.getToolIntent().getArguments()));
+        }
+        return String.join("\n", lines);
+    }
+
+    private String toolName(ToolApprovalDecisionCommandVO command) {
+        if (command != null && command.getToolIntent() != null
+                && command.getToolIntent().getToolName() != null
+                && !command.getToolIntent().getToolName().isBlank()) {
+            return command.getToolIntent().getToolName();
+        }
+        if (command != null && command.getCapability() != null
+                && command.getCapability().getCapabilityCode() != null
+                && !command.getCapability().getCapabilityCode().isBlank()) {
+            return command.getCapability().getCapabilityCode();
+        }
+        return "unknown";
+    }
+
+    private List<String> argumentSummary(Map<String, Object> arguments) {
+        if (arguments == null || arguments.isEmpty()) {
+            return List.of();
+        }
+        List<String> lines = new ArrayList<>();
+        addKnownArgument(lines, arguments, "path", "路径");
+        addKnownArgument(lines, arguments, "file", "文件");
+        addKnownArgument(lines, arguments, "directory", "目录");
+        addKnownArgument(lines, arguments, "pattern", "匹配模式");
+        addKnownArgument(lines, arguments, "query", "查询");
+        addKnownArgument(lines, arguments, "command", "命令");
+        Object content = arguments.get("content");
+        if (content != null) {
+            String text = String.valueOf(content);
+            lines.add("内容预览: " + compact(text, 80) + " (" + text.length() + " chars)");
+        }
+
+        Map<String, Object> remaining = new LinkedHashMap<>(arguments);
+        remaining.keySet().removeAll(List.of("path", "file", "directory", "pattern", "query", "command", "content"));
+        if (!remaining.isEmpty()) {
+            StringJoiner joiner = new StringJoiner(", ");
+            remaining.forEach((key, value) -> joiner.add(key + "=" + compact(String.valueOf(value), 60)));
+            lines.add("其他参数: " + compact(joiner.toString(), 180));
+        }
+        return lines;
+    }
+
+    private void addKnownArgument(List<String> lines, Map<String, Object> arguments, String key, String label) {
+        Object value = arguments.get(key);
+        if (value != null) {
+            lines.add(label + ": " + compact(String.valueOf(value), 180));
+        }
+    }
+
+    private String compact(String value, int maxChars) {
+        if (value == null) {
+            return "";
+        }
+        String compacted = value.replaceAll("\\s+", " ").trim();
+        if (compacted.length() <= maxChars) {
+            return compacted;
+        }
+        return compacted.substring(0, Math.max(0, maxChars - 3)) + "...";
     }
 
     @SuppressWarnings("unchecked")

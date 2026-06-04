@@ -9,5 +9,8 @@ public enum VectorSourceTypeEnumVO {
     ARTIFACT_SUMMARY,
     ARTIFACT_CHUNK,
     RAG_DOCUMENT,
-    RAG_CHUNK
+    RAG_CHUNK,
+    RAG_FILE_CHUNK,
+    RAG_CODE_FILE_SUMMARY,
+    RAG_CODE_CHUNK
 }

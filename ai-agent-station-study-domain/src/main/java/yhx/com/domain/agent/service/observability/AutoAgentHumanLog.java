@@ -9,8 +9,10 @@ import yhx.com.domain.agent.model.valobj.context.EvidenceCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedMemoryVO;
+import yhx.com.domain.agent.model.valobj.context.MaterializedRagVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MessageCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.RagCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
@@ -117,6 +119,7 @@ public final class AutoAgentHumanLog {
         String summaryPreview = previewSummaries(candidates.getSessionSummaries());
         String artifactPreview = previewArtifacts(candidates.getArtifactCandidates());
         String evidencePreview = previewEvidence(candidates.getEvidenceCandidates());
+        String ragPreview = previewRagCandidates(candidates.getRagCandidates());
         String messagePreview = previewMessages(candidates.getFixedRecentMessages());
         return "候选收集完成\n"
                 + "  汇总：固定近轮全文=" + size(candidates.getFixedRecentMessages())
@@ -124,6 +127,7 @@ public final class AutoAgentHumanLog {
                 + "，会话摘要=" + size(candidates.getSessionSummaries())
                 + "，长期记忆=" + size(candidates.getMemoryCandidates())
                 + "，证据=" + size(candidates.getEvidenceCandidates())
+                + "，RAG候选=" + size(candidates.getRagCandidates())
                 + "，用户澄清=" + size(candidates.getUserClarifications())
                 + "，任务摘要=" + (candidates.getSessionTaskSummary() == null ? "无" : "有")
                 + (candidates.getSessionTaskSummary() == null ? "" : "：" + preview(candidates.getSessionTaskSummary().getSummary(), 80))
@@ -131,7 +135,8 @@ public final class AutoAgentHumanLog {
                 + (summaryPreview.isBlank() ? "" : "\n  摘要候选：\n" + summaryPreview)
                 + (memoryPreview.isBlank() ? "" : "\n  长期记忆候选：\n" + memoryPreview)
                 + (artifactPreview.isBlank() ? "" : "\n  产物候选：\n" + artifactPreview)
-                + (evidencePreview.isBlank() ? "" : "\n  证据候选：\n" + evidencePreview);
+                + (evidencePreview.isBlank() ? "" : "\n  证据候选：\n" + evidencePreview)
+                + (ragPreview.isBlank() ? "" : "\n  RAG候选：\n" + ragPreview);
     }
 
     public static String plannerSelectionSummary(List<ContextSelectionVO> selections) {
@@ -158,6 +163,7 @@ public final class AutoAgentHumanLog {
                 + "  汇总：最近对话=" + size(recentMessages)
                 + "，会话摘要=" + size(summaries)
                 + "，记忆=" + size(stateView.getMemoryPack())
+                + "，RAG=" + size(stateView.getRagPack())
                 + "，证据=" + size(stateView.getEvidencePack())
                 + "，用户澄清=" + size(stateView.getUserClarifications())
                 + (stateView.getConversation() == null || stateView.getConversation().getSessionTaskSummary() == null
@@ -165,6 +171,7 @@ public final class AutoAgentHumanLog {
                 + (previewMessages(recentMessages).isBlank() ? "" : "\n  最近对话明细：\n" + previewMessages(recentMessages))
                 + (previewSummaries(summaries).isBlank() ? "" : "\n  注入摘要明细：\n" + previewSummaries(summaries))
                 + (previewMaterializedMemories(stateView.getMemoryPack()).isBlank() ? "" : "\n  注入记忆明细：\n" + previewMaterializedMemories(stateView.getMemoryPack()))
+                + (previewMaterializedRag(stateView.getRagPack()).isBlank() ? "" : "\n  注入RAG明细：\n" + previewMaterializedRag(stateView.getRagPack()))
                 + (previewMaterializedEvidence(stateView.getEvidencePack()).isBlank() ? "" : "\n  注入证据明细：\n" + previewMaterializedEvidence(stateView.getEvidencePack()));
     }
 
@@ -242,6 +249,21 @@ public final class AutoAgentHumanLog {
                 .toList(), "    ");
     }
 
+    private static String previewRagCandidates(List<RagCandidateVO> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return "";
+        }
+        return numbered(candidates.stream()
+                .limit(8)
+                .map(candidate -> candidate.getSourceType() + ":" + candidate.getCandidateId()
+                        + "(doc=" + candidate.getDocumentId()
+                        + ", chunk=" + candidate.getChunkId()
+                        + ", score=" + candidate.getSourceScore()
+                        + ", 来源=" + candidate.getSourceChannel()
+                        + ")=" + preview(firstNonBlank(candidate.getSummary(), candidate.getSnippet()), 80))
+                .toList(), "    ");
+    }
+
     private static String previewMaterializedMemories(List<MaterializedMemoryVO> memories) {
         if (memories == null || memories.isEmpty()) {
             return "";
@@ -262,6 +284,21 @@ public final class AutoAgentHumanLog {
                 .map(item -> item.getEvidenceType() + ":" + item.getEvidenceId()
                         + "(source=" + item.getSourceRef()
                         + ")=" + preview(firstNonBlank(item.getSummary(), item.getBoundedSnippet()), 80))
+                .toList(), "    ");
+    }
+
+    private static String previewMaterializedRag(List<MaterializedRagVO> ragPack) {
+        if (ragPack == null || ragPack.isEmpty()) {
+            return "";
+        }
+        return numbered(ragPack.stream()
+                .limit(8)
+                .map(item -> item.getSourceType() + ":" + item.getCandidateId()
+                        + "(doc=" + item.getDocumentId()
+                        + ", chunk=" + item.getChunkId()
+                        + ", level=" + item.getContextLevel()
+                        + ", injectMode=" + item.getInjectMode()
+                        + ")=" + preview(firstNonBlank(item.getSummary(), firstNonBlank(item.getBoundedSnippet(), item.getContent())), 80))
                 .toList(), "    ");
     }
 

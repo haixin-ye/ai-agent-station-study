@@ -17,6 +17,11 @@ public class ToolInvocationResultVO {
     private String toolInvocationId;
     private String receiptRef;
     private String resultSummary;
+    private String resultContent;
+    private String resultContentRef;
+    private String resultContentFormat;
+    private Integer resultTotalChars;
+    private Long resultTotalBytes;
     private String failureCode;
     private String failureMessage;
 }

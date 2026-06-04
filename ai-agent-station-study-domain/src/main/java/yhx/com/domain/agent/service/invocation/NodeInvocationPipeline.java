@@ -6,11 +6,13 @@ import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
 import yhx.com.domain.agent.model.valobj.contract.ContractViolation;
 import yhx.com.domain.agent.model.valobj.contract.RawOutputParseResult;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationModeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationFailureTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContractRepairRequest;
 import yhx.com.domain.agent.model.valobj.invocation.NodeClientRequest;
 import yhx.com.domain.agent.model.valobj.invocation.NodeClientResponse;
+import yhx.com.domain.agent.model.valobj.invocation.NodeFunctionSpecVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationAttempt;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationCommand;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
@@ -31,6 +33,8 @@ import java.util.Map;
 @Slf4j
 public class NodeInvocationPipeline {
 
+    private static final int DIAGNOSTIC_PREVIEW_LIMIT = 2000;
+
     private final PromptAssembler promptAssembler;
     private final INodeClientPort nodeClientPort;
     private final RawOutputParser rawOutputParser;
@@ -38,6 +42,8 @@ public class NodeInvocationPipeline {
     private final ContractValidator contractValidator;
     private final NodeOutputMapper nodeOutputMapper;
     private final RunDiagnosticRecorder diagnosticRecorder;
+    private final FunctionCallMapper functionCallMapper;
+    private final NodeFunctionSpecRegistry functionSpecRegistry;
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler, INodeClientPort nodeClientPort) {
         this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
@@ -67,6 +73,19 @@ public class NodeInvocationPipeline {
                                   ContractValidator contractValidator,
                                   NodeOutputMapper nodeOutputMapper,
                                   RunDiagnosticRecorder diagnosticRecorder) {
+        this(promptAssembler, nodeClientPort, rawOutputParser, contractRegistry, contractValidator, nodeOutputMapper,
+                diagnosticRecorder, FunctionCallMapper.defaultMapper(), NodeFunctionSpecRegistry.defaultRegistry());
+    }
+
+    public NodeInvocationPipeline(PromptAssembler promptAssembler,
+                                  INodeClientPort nodeClientPort,
+                                  RawOutputParser rawOutputParser,
+                                  ContractRegistry contractRegistry,
+                                  ContractValidator contractValidator,
+                                  NodeOutputMapper nodeOutputMapper,
+                                  RunDiagnosticRecorder diagnosticRecorder,
+                                  FunctionCallMapper functionCallMapper,
+                                  NodeFunctionSpecRegistry functionSpecRegistry) {
         this.promptAssembler = promptAssembler;
         this.nodeClientPort = nodeClientPort;
         this.rawOutputParser = rawOutputParser;
@@ -74,6 +93,8 @@ public class NodeInvocationPipeline {
         this.contractValidator = contractValidator;
         this.nodeOutputMapper = nodeOutputMapper;
         this.diagnosticRecorder = diagnosticRecorder;
+        this.functionCallMapper = functionCallMapper == null ? FunctionCallMapper.defaultMapper() : functionCallMapper;
+        this.functionSpecRegistry = functionSpecRegistry == null ? NodeFunctionSpecRegistry.defaultRegistry() : functionSpecRegistry;
     }
 
     public NodeInvocationResult invoke(NodeInvocationCommand command) {
@@ -134,6 +155,8 @@ public class NodeInvocationPipeline {
                 .promptVersion(command.getPromptVersion())
                 .inputView(inputView)
                 .metadata(command.getInvocationMetadata())
+                .invocationMode(invocationMode(command, repairAttempt))
+                .functionSpecs(functionSpecs(command, repairAttempt))
                 .build());
         String prompt = promptResult.assembledPrompt();
         log.info("[AutoAgent][node-call] runId={}, component={}, attemptNo={}, repairAttempt={}, promptChars={}",
@@ -147,11 +170,12 @@ public class NodeInvocationPipeline {
                 "attemptNo", attemptNo,
                 "repairAttempt", repairAttempt,
                 "promptChars", prompt == null ? 0 : prompt.length(),
-                "prompt", prompt
+                "promptPreview", boundedPreview(prompt, DIAGNOSTIC_PREVIEW_LIMIT)
         ));
         String rawOutput;
+        NodeClientResponse response;
         try {
-            NodeClientResponse response = nodeClientPort.call(NodeClientRequest.builder()
+            response = nodeClientPort.call(NodeClientRequest.builder()
                     .runId(command.getRunId())
                     .componentCode(command.getComponentCode())
                     .modelCode(command.getModelCode())
@@ -159,8 +183,10 @@ public class NodeInvocationPipeline {
                     .temperature(command.getTemperature())
                     .maxOutputTokens(command.getMaxOutputTokens())
                     .metadata(command.getInvocationMetadata())
+                    .invocationMode(invocationMode(command, repairAttempt))
+                    .functionSpecs(functionSpecs(command, repairAttempt))
                     .build());
-            rawOutput = response == null ? null : response.getRawOutput();
+            rawOutput = rawOutput(command, response, repairAttempt);
         } catch (Exception e) {
             log.error("[AutoAgent][node-client-error] runId={}, component={}, attemptNo={}, repairAttempt={}",
                     command.getRunId(), command.getComponentCode(), attemptNo, repairAttempt, e);
@@ -219,7 +245,8 @@ public class NodeInvocationPipeline {
                     "componentCode", command.getComponentCode(),
                     "attemptNo", attemptNo,
                     "repairAttempt", repairAttempt,
-                    "rawOutput", rawOutput
+                    "rawOutputChars", rawOutput == null ? 0 : rawOutput.length(),
+                    "rawOutputPreview", boundedPreview(rawOutput, DIAGNOSTIC_PREVIEW_LIMIT)
             ));
         } else {
             log.warn("[AutoAgent][node-invalid] runId={}, component={}, attemptNo={}, repairAttempt={}, failureType={}, failureMessage={}, rawOutput={}",
@@ -233,7 +260,8 @@ public class NodeInvocationPipeline {
                     "repairAttempt", repairAttempt,
                     "failureType", failureType == null ? null : failureType.code(),
                     "failureMessage", failureMessage,
-                    "rawOutput", rawOutput
+                    "rawOutputChars", rawOutput == null ? 0 : rawOutput.length(),
+                    "rawOutputPreview", boundedPreview(rawOutput, DIAGNOSTIC_PREVIEW_LIMIT)
             ));
         }
         NodeInvocationAttempt attempt = NodeInvocationAttempt.builder()
@@ -263,6 +291,30 @@ public class NodeInvocationPipeline {
             return contractValidator.validateVerificationResult(normalizedJson);
         }
         return ContractValidationResult.passed();
+    }
+
+    private String rawOutput(NodeInvocationCommand command, NodeClientResponse response, boolean repairAttempt) {
+        if (NodeInvocationModeEnumVO.FUNCTION_CALL.equals(invocationMode(command, repairAttempt))) {
+            return functionCallMapper.mapToRawOutput(command.getComponentCode(), response == null ? null : response.getFunctionCall());
+        }
+        return response == null ? null : response.getRawOutput();
+    }
+
+    private NodeInvocationModeEnumVO invocationMode(NodeInvocationCommand command, boolean repairAttempt) {
+        if (repairAttempt) {
+            return NodeInvocationModeEnumVO.TEXT_JSON;
+        }
+        return command.getInvocationMode() == null ? NodeInvocationModeEnumVO.TEXT_JSON : command.getInvocationMode();
+    }
+
+    private List<NodeFunctionSpecVO> functionSpecs(NodeInvocationCommand command, boolean repairAttempt) {
+        if (!NodeInvocationModeEnumVO.FUNCTION_CALL.equals(invocationMode(command, repairAttempt))) {
+            return List.of();
+        }
+        if (command.getFunctionSpecs() != null && !command.getFunctionSpecs().isEmpty()) {
+            return command.getFunctionSpecs();
+        }
+        return functionSpecRegistry.resolve(command.getComponentCode());
     }
 
     private ContractRepairRequest buildRepairRequest(NodeInvocationCommand command, InvocationEvaluation last, int repairAttempt) {
@@ -298,6 +350,17 @@ public class NodeInvocationPipeline {
         }
         String normalized = rawOutput.replace("\r", "\\r").replace("\n", "\\n");
         return normalized.length() <= 600 ? normalized : normalized.substring(0, 600) + "...";
+    }
+
+    private String boundedPreview(String value, int maxChars) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replace("\r", "\\r").replace("\n", "\\n");
+        if (normalized.length() <= maxChars) {
+            return normalized;
+        }
+        return normalized.substring(0, Math.max(0, maxChars - 20)) + "... (" + normalized.length() + " chars)";
     }
 
     private NodeInvocationResult result(NodeInvocationStatusEnumVO status,

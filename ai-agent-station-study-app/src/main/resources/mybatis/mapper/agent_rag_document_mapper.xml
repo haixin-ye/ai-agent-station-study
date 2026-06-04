@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRagDocumentDao">
+
+    <resultMap id="AgentRagDocumentMap" type="yhx.com.infrastructure.dao.po.AgentRagDocumentPO">
+        <id column="id" property="id"/>
+        <result column="document_id" property="documentId"/>
+        <result column="user_id" property="userId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="source_name" property="sourceName"/>
+        <result column="repository_url" property="repositoryUrl"/>
+        <result column="repository_name" property="repositoryName"/>
+        <result column="branch_name" property="branchName"/>
+        <result column="relative_path" property="relativePath"/>
+        <result column="title" property="title"/>
+        <result column="summary" property="summary"/>
+        <result column="content_ref" property="contentRef"/>
+        <result column="summary_ref" property="summaryRef"/>
+        <result column="content_sha256" property="contentSha256"/>
+        <result column="status" property="status"/>
+        <result column="chunk_count" property="chunkCount"/>
+        <result column="failure_message" property="failureMessage"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRagDocumentPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_rag_document (
+            document_id, user_id, session_id, source_type, source_name,
+            repository_url, repository_name, branch_name, relative_path,
+            title, summary, content_ref, summary_ref, content_sha256,
+            status, chunk_count, failure_message, created_at, updated_at
+        ) VALUES (
+            #{documentId}, #{userId}, #{sessionId}, #{sourceType}, #{sourceName},
+            #{repositoryUrl}, #{repositoryName}, #{branchName}, #{relativePath},
+            #{title}, #{summary}, #{contentRef}, #{summaryRef}, #{contentSha256},
+            #{status}, #{chunkCount}, #{failureMessage}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateByDocumentId" parameterType="yhx.com.infrastructure.dao.po.AgentRagDocumentPO">
+        UPDATE agent_rag_document
+        SET user_id = #{userId},
+            session_id = #{sessionId},
+            source_type = #{sourceType},
+            source_name = #{sourceName},
+            repository_url = #{repositoryUrl},
+            repository_name = #{repositoryName},
+            branch_name = #{branchName},
+            relative_path = #{relativePath},
+            title = #{title},
+            summary = #{summary},
+            content_ref = #{contentRef},
+            summary_ref = #{summaryRef},
+            content_sha256 = #{contentSha256},
+            status = #{status},
+            chunk_count = #{chunkCount},
+            failure_message = #{failureMessage},
+            updated_at = #{updatedAt}
+        WHERE document_id = #{documentId}
+    </update>
+
+    <select id="queryByDocumentId" parameterType="java.lang.String" resultMap="AgentRagDocumentMap">
+        SELECT id, document_id, user_id, session_id, source_type, source_name,
+               repository_url, repository_name, branch_name, relative_path,
+               title, summary, content_ref, summary_ref, content_sha256,
+               status, chunk_count, failure_message, created_at, updated_at
+        FROM agent_rag_document
+        WHERE document_id = #{documentId}
+        LIMIT 1
+    </select>
+
+    <select id="queryByDocumentIds" resultMap="AgentRagDocumentMap">
+        SELECT id, document_id, user_id, session_id, source_type, source_name,
+               repository_url, repository_name, branch_name, relative_path,
+               title, summary, content_ref, summary_ref, content_sha256,
+               status, chunk_count, failure_message, created_at, updated_at
+        FROM agent_rag_document
+        WHERE document_id IN
+        <foreach collection="list" item="documentId" open="(" separator="," close=")">
+            #{documentId}
+        </foreach>
+    </select>
+
+</mapper>

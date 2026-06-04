@@ -25,6 +25,9 @@ DROP TABLE IF EXISTS public.vec_artifact_summary;
 DROP TABLE IF EXISTS public.vec_artifact_chunk;
 DROP TABLE IF EXISTS public.vec_rag_document;
 DROP TABLE IF EXISTS public.vec_rag_chunk;
+DROP TABLE IF EXISTS public.vec_rag_file_chunk;
+DROP TABLE IF EXISTS public.vec_rag_code_file_summary;
+DROP TABLE IF EXISTS public.vec_rag_code_chunk;
 
 CREATE TABLE public.vec_turn_summary (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -138,6 +141,48 @@ CREATE TABLE public.vec_rag_chunk (
     UNIQUE (source_type, source_id)
 );
 
+CREATE TABLE public.vec_rag_file_chunk (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_type VARCHAR(64) NOT NULL,
+    source_id VARCHAR(128) NOT NULL,
+    user_id VARCHAR(64),
+    session_id VARCHAR(64),
+    content TEXT NOT NULL,
+    summary TEXT,
+    metadata JSONB,
+    occurred_at TIMESTAMP,
+    embedding VECTOR(1536),
+    UNIQUE (source_type, source_id)
+);
+
+CREATE TABLE public.vec_rag_code_file_summary (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_type VARCHAR(64) NOT NULL,
+    source_id VARCHAR(128) NOT NULL,
+    user_id VARCHAR(64),
+    session_id VARCHAR(64),
+    content TEXT NOT NULL,
+    summary TEXT,
+    metadata JSONB,
+    occurred_at TIMESTAMP,
+    embedding VECTOR(1536),
+    UNIQUE (source_type, source_id)
+);
+
+CREATE TABLE public.vec_rag_code_chunk (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_type VARCHAR(64) NOT NULL,
+    source_id VARCHAR(128) NOT NULL,
+    user_id VARCHAR(64),
+    session_id VARCHAR(64),
+    content TEXT NOT NULL,
+    summary TEXT,
+    metadata JSONB,
+    occurred_at TIMESTAMP,
+    embedding VECTOR(1536),
+    UNIQUE (source_type, source_id)
+);
+
 CREATE INDEX idx_vec_turn_summary_scope ON public.vec_turn_summary (user_id, session_id, occurred_at);
 CREATE INDEX idx_vec_conversation_summary_scope ON public.vec_conversation_summary (user_id, session_id, occurred_at);
 CREATE INDEX idx_vec_long_term_memory_scope ON public.vec_long_term_memory (user_id, session_id, occurred_at);
@@ -146,3 +191,6 @@ CREATE INDEX idx_vec_artifact_summary_scope ON public.vec_artifact_summary (user
 CREATE INDEX idx_vec_artifact_chunk_scope ON public.vec_artifact_chunk (user_id, session_id, occurred_at);
 CREATE INDEX idx_vec_rag_document_scope ON public.vec_rag_document (user_id, session_id, occurred_at);
 CREATE INDEX idx_vec_rag_chunk_scope ON public.vec_rag_chunk (user_id, session_id, occurred_at);
+CREATE INDEX idx_vec_rag_file_chunk_scope ON public.vec_rag_file_chunk (user_id, session_id, occurred_at);
+CREATE INDEX idx_vec_rag_code_file_summary_scope ON public.vec_rag_code_file_summary (user_id, session_id, occurred_at);
+CREATE INDEX idx_vec_rag_code_chunk_scope ON public.vec_rag_code_chunk (user_id, session_id, occurred_at);

@@ -60,4 +60,5 @@ public class SpringAiMcpToolInvokerAdapterTest {
         verify(client).callTool(new McpSchema.CallToolRequest("list_directory",
                 Map.of("path", "E:/javaProject/ai-agent-station-study")));
     }
+
 }

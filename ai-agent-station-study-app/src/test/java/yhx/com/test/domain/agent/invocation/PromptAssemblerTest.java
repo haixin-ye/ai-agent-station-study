@@ -73,6 +73,20 @@ public class PromptAssemblerTest {
     }
 
     @Test
+    public void main_agent_prompt_explains_per_notebook_worklog_evidence_reading_order() {
+        String prompt = assembler().assemble(command(AgentComponentCodeEnumVO.MAIN_AGENT.name())).assembledPrompt();
+
+        Assert.assertTrue(prompt.contains("notebook is your current-run PER task board"));
+        Assert.assertTrue(prompt.contains("worklog is Runtime's ordered execution ledger"));
+        Assert.assertTrue(prompt.contains("evidencePack contains original materials produced by actions"));
+        Assert.assertTrue(prompt.contains("Read notebook first, then worklog by sequence"));
+        Assert.assertTrue(prompt.contains("then evidencePack through worklog resultEvidenceIds"));
+        Assert.assertTrue(prompt.contains("repeatGuardKey already succeeded"));
+        Assert.assertTrue(prompt.contains("perUpdate"));
+        Assert.assertTrue(prompt.contains("Do not include hidden chain-of-thought"));
+    }
+
+    @Test
     public void final_repair_prompt_focuses_on_user_facing_answer_rewrite() {
         String prompt = assembler().assemble(command(AgentComponentCodeEnumVO.FINAL_REPAIR.name())).assembledPrompt();
 

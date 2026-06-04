@@ -53,6 +53,7 @@
             letter-spacing: 0;
         }
 
+
         button,
         input,
         textarea {
@@ -695,6 +696,10 @@
             line-height: 1.55;
         }
 
+        .pending-question {
+            white-space: pre-wrap;
+        }
+
         .pending-options {
             display: flex;
             flex-wrap: wrap;
@@ -783,6 +788,484 @@
             cursor: not-allowed;
             color: var(--ink-muted);
             background: var(--panel-strong);
+        }
+
+        .rag-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 55;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background:
+                radial-gradient(circle at 28% 18%, rgba(155, 91, 67, 0.18), transparent 28%),
+                radial-gradient(circle at 82% 82%, rgba(72, 122, 98, 0.16), transparent 30%),
+                rgba(29, 27, 24, 0.34);
+            backdrop-filter: blur(14px);
+            animation: ragModalFade 180ms ease both;
+        }
+
+        .rag-modal[hidden] {
+            display: none;
+        }
+
+        .rag-dialog {
+            width: min(860px, 100%);
+            display: grid;
+            grid-template-columns: 276px minmax(0, 1fr);
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 26px;
+            background: var(--paper);
+            box-shadow: 0 36px 92px rgba(54, 46, 34, 0.28);
+            animation: ragDialogEnter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .rag-aside {
+            position: relative;
+            min-height: 468px;
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            overflow: hidden;
+            padding: 24px;
+            color: #fff8ed;
+            background:
+                linear-gradient(160deg, rgba(31, 29, 25, 0.98), rgba(47, 43, 37, 0.96)),
+                var(--dark);
+        }
+
+        .rag-aside::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            opacity: 0.28;
+            background:
+                linear-gradient(rgba(255, 248, 237, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 248, 237, 0.08) 1px, transparent 1px);
+            background-size: 26px 26px;
+            mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent 78%);
+            pointer-events: none;
+        }
+
+        .rag-aside > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .rag-aside-mark {
+            width: 36px;
+            height: 36px;
+            display: grid;
+            place-items: center;
+            border-radius: 12px;
+            color: var(--dark);
+            background: #fff8ed;
+            font-family: var(--serif);
+            font-size: 18px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+        }
+
+        .rag-aside-body {
+            align-self: center;
+        }
+
+        .rag-aside-title {
+            margin: 0;
+            font-family: var(--serif);
+            font-size: 28px;
+            font-weight: 500;
+            line-height: 1.15;
+        }
+
+        .rag-aside-copy {
+            margin: 12px 0 22px;
+            color: rgba(255, 248, 237, 0.72);
+            font-size: 13px;
+            line-height: 1.65;
+        }
+
+        .rag-aside-steps {
+            display: grid;
+            gap: 9px;
+        }
+
+        .rag-aside-step {
+            display: grid;
+            grid-template-columns: 20px minmax(0, 1fr);
+            gap: 9px;
+            align-items: center;
+            color: rgba(255, 248, 237, 0.82);
+            font-size: 12px;
+        }
+
+        .rag-aside-step span:first-child {
+            width: 20px;
+            height: 20px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            color: #fff8ed;
+            background: rgba(255, 248, 237, 0.14);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .rag-aside-note {
+            display: grid;
+            gap: 8px;
+            padding: 12px;
+            border: 1px solid rgba(255, 248, 237, 0.12);
+            border-radius: 16px;
+            background: rgba(255, 248, 237, 0.08);
+            color: rgba(255, 248, 237, 0.72);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .rag-aside-note strong {
+            color: #fff8ed;
+            font-size: 12px;
+        }
+
+        .rag-main {
+            min-width: 0;
+            padding: 24px;
+            background:
+                linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(248, 246, 241, 0.76));
+        }
+
+        .rag-dialog-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .rag-dialog-kicker {
+            margin-bottom: 4px;
+            color: var(--ink-muted);
+            font-family: var(--mono);
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .rag-close-button {
+            width: 34px;
+            height: 34px;
+            flex: 0 0 auto;
+            display: grid;
+            place-items: center;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--ink-muted);
+            background: rgba(255, 253, 250, 0.74);
+            font-size: 18px;
+            line-height: 1;
+            transition: transform 150ms ease, color 150ms ease, border-color 150ms ease, background 150ms ease;
+        }
+
+        .rag-close-button:hover {
+            transform: rotate(90deg);
+            color: var(--ink);
+            border-color: var(--line-strong);
+            background: var(--paper);
+        }
+
+        .rag-dialog h2 {
+            margin: 0;
+            font-family: var(--serif);
+            font-size: 25px;
+            font-weight: 500;
+        }
+
+        .rag-dialog-subtitle {
+            margin: 6px 0 0;
+            color: var(--ink-muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .rag-source-strip {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .rag-source-chip {
+            min-width: 0;
+            padding: 10px;
+            border: 1px solid rgba(226, 216, 201, 0.76);
+            border-radius: 16px;
+            background: rgba(255, 253, 250, 0.62);
+        }
+
+        .rag-source-chip strong {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--ink-soft);
+            font-size: 12px;
+        }
+
+        .rag-source-chip span {
+            display: block;
+            margin-top: 3px;
+            color: var(--ink-muted);
+            font-size: 11px;
+        }
+
+        .rag-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin-bottom: 18px;
+            padding: 4px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--panel);
+        }
+
+        .rag-tab {
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            border-radius: 14px;
+            color: var(--ink-muted);
+            background: transparent;
+            font-size: 13px;
+            font-weight: 750;
+            transition: transform 150ms ease, background 150ms ease, color 150ms ease;
+        }
+
+        .rag-tab::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--line-strong);
+        }
+
+        .rag-tab.active {
+            color: var(--ink);
+            background: var(--paper);
+            box-shadow: 0 8px 22px rgba(54, 46, 34, 0.08);
+        }
+
+        .rag-tab.active::before {
+            background: var(--accent);
+            box-shadow: 0 0 0 4px rgba(155, 91, 67, 0.1);
+        }
+
+        .rag-panel {
+            display: grid;
+            gap: 12px;
+            animation: ragPanelIn 180ms ease both;
+        }
+
+        .rag-panel[hidden] {
+            display: none !important;
+        }
+
+        .field-label {
+            color: var(--ink-soft);
+            font-size: 12px;
+            font-weight: 750;
+        }
+
+        .field-input {
+            width: 100%;
+            min-width: 0;
+            height: 42px;
+            padding: 0 12px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            outline: none;
+            color: var(--ink);
+            background: var(--canvas);
+            transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+        }
+
+        .field-input:focus {
+            border-color: var(--accent);
+            background: var(--paper);
+            box-shadow: 0 0 0 4px rgba(155, 91, 67, 0.1);
+        }
+
+        .field-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .wide-button {
+            width: 100%;
+            height: 44px;
+            margin-top: 6px;
+        }
+
+        .rag-panel .primary-button {
+            background: linear-gradient(135deg, var(--dark), var(--dark-soft));
+            box-shadow: 0 14px 30px rgba(31, 29, 25, 0.18);
+            transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+        }
+
+        .rag-panel .primary-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 18px 36px rgba(31, 29, 25, 0.22);
+        }
+
+        .rag-panel .primary-button:disabled {
+            cursor: wait;
+            opacity: 0.72;
+        }
+
+        .rag-dropzone {
+            position: relative;
+            display: grid;
+            place-items: center;
+            min-height: 148px;
+            padding: 18px;
+            border: 1px dashed rgba(155, 91, 67, 0.38);
+            border-radius: 20px;
+            background:
+                linear-gradient(180deg, rgba(255, 253, 250, 0.78), rgba(248, 246, 241, 0.92));
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+        }
+
+        .rag-dropzone::before {
+            content: "";
+            position: absolute;
+            inset: 10px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 253, 250, 0.7);
+            pointer-events: none;
+        }
+
+        .rag-dropzone:hover,
+        .rag-dropzone.drag-over {
+            transform: translateY(-1px);
+            border-color: var(--accent);
+            background: var(--paper);
+            box-shadow: 0 18px 42px rgba(54, 46, 34, 0.11);
+        }
+
+        .rag-dropzone input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .rag-dropzone-content {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            justify-items: center;
+            gap: 7px;
+            text-align: center;
+        }
+
+        .rag-dropzone-icon {
+            width: 42px;
+            height: 42px;
+            display: grid;
+            place-items: center;
+            border-radius: 15px;
+            color: var(--accent);
+            background: rgba(155, 91, 67, 0.1);
+            font-family: var(--serif);
+            font-size: 22px;
+            transition: transform 160ms ease, background 160ms ease;
+        }
+
+        .rag-dropzone:hover .rag-dropzone-icon,
+        .rag-dropzone.drag-over .rag-dropzone-icon {
+            transform: translateY(-2px) scale(1.04);
+            background: rgba(155, 91, 67, 0.15);
+        }
+
+        .rag-dropzone-title {
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 760;
+        }
+
+        .rag-dropzone-hint,
+        .rag-file-meta,
+        .rag-field-hint {
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .rag-file-meta {
+            min-height: 32px;
+            display: flex;
+            align-items: center;
+            padding: 7px 10px;
+            border: 1px solid rgba(226, 216, 201, 0.68);
+            border-radius: 14px;
+            background: rgba(255, 253, 250, 0.58);
+        }
+
+        .rag-progress {
+            height: 3px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: var(--panel);
+        }
+
+        .rag-progress::before {
+            content: "";
+            display: block;
+            width: 38%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--accent), var(--green));
+            transform: translateX(-110%);
+        }
+
+        .rag-panel.is-uploading .rag-progress::before {
+            animation: ragProgress 920ms ease-in-out infinite;
+        }
+
+        @keyframes ragModalFade {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes ragDialogEnter {
+            from {
+                opacity: 0;
+                transform: translateY(12px) scale(0.985);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes ragPanelIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes ragProgress {
+            from { transform: translateX(-115%); }
+            to { transform: translateX(280%); }
         }
 
         .drawer-backdrop {
@@ -1242,6 +1725,7 @@
             background: rgba(255, 253, 250, 0.94);
             box-shadow: 0 12px 34px rgba(54, 46, 34, 0.11);
             transition: border-radius 150ms ease, padding 150ms ease, min-height 150ms ease;
+            position: relative;
         }
 
         .composer.expanded {
@@ -1251,15 +1735,93 @@
         }
 
         .composer::before {
-            content: "+";
+            content: none;
+        }
+
+        .attach-button {
             width: 38px;
             height: 38px;
             display: grid;
             place-items: center;
             border-radius: 999px;
             color: var(--ink-soft);
+            background: transparent;
             font-size: 22px;
             align-self: end;
+            transition: transform 150ms ease, color 150ms ease, background 150ms ease;
+        }
+
+        .attach-button:hover,
+        .attach-button.active {
+            color: var(--accent);
+            background: rgba(232, 223, 210, 0.56);
+            transform: rotate(90deg);
+        }
+
+        .attach-menu {
+            position: absolute;
+            left: 5px;
+            bottom: calc(100% + 10px);
+            z-index: 40;
+            width: 236px;
+            padding: 9px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(255, 253, 250, 0.98);
+            box-shadow: 0 18px 44px rgba(54, 46, 34, 0.16);
+            animation: ragPanelIn 140ms ease both;
+        }
+
+        .attach-menu[hidden] {
+            display: none;
+        }
+
+        .attach-menu button {
+            width: 100%;
+            min-height: 48px;
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr);
+            align-items: center;
+            gap: 10px;
+            padding: 7px 9px;
+            border-radius: 13px;
+            color: var(--ink-soft);
+            background: transparent;
+            text-align: left;
+            transition: background 140ms ease, transform 140ms ease;
+        }
+
+        .attach-menu button:hover {
+            color: var(--ink);
+            background: rgba(232, 223, 210, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .attach-icon {
+            width: 30px;
+            height: 30px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            color: var(--accent);
+            background: rgba(155, 91, 67, 0.1);
+            font-family: var(--serif);
+            font-size: 14px;
+        }
+
+        .attach-title {
+            display: block;
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 760;
+        }
+
+        .attach-desc {
+            display: block;
+            margin-top: 2px;
+            color: var(--ink-muted);
+            font-size: 11px;
+            line-height: 1.3;
         }
 
         .composer textarea {
@@ -1304,6 +1866,40 @@
             }
 
             .starter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .rag-modal {
+                padding: 14px;
+                align-items: end;
+            }
+
+            .rag-dialog {
+                width: 100%;
+                max-height: calc(100vh - 28px);
+                grid-template-columns: 1fr;
+                overflow-y: auto;
+                border-radius: 24px;
+            }
+
+            .rag-aside {
+                min-height: auto;
+                gap: 18px;
+            }
+
+            .rag-aside-body {
+                align-self: start;
+            }
+
+            .rag-aside-steps,
+            .rag-aside-note {
+                display: none;
+            }
+
+            .rag-source-strip,
+            .field-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -1440,11 +2036,95 @@
 
         <footer class="composer-wrap">
             <div class="composer">
+                <button id="attachBtn" class="attach-button" type="button" aria-label="上传到知识库" title="上传到知识库">+</button>
+                <div id="attachMenu" class="attach-menu" hidden>
+                    <button id="ragFileUploadBtn" type="button">
+                        <span class="attach-icon">F</span>
+                        <span>
+                            <span class="attach-title">文件上传</span>
+                            <span class="attach-desc">把文档、代码片段写入向量库</span>
+                        </span>
+                    </button>
+                    <button id="ragGitUploadBtn" type="button">
+                        <span class="attach-icon">G</span>
+                        <span>
+                            <span class="attach-title">GitHub 链接</span>
+                            <span class="attach-desc">克隆仓库后建立可检索知识</span>
+                        </span>
+                    </button>
+                </div>
                 <textarea id="messageInput" placeholder="输入消息" rows="1"></textarea>
                 <button id="sendBtn" class="send-button" type="button" aria-label="发送">↑</button>
             </div>
         </footer>
     </main>
+</div>
+
+<div id="ragModal" class="rag-modal" hidden>
+    <div class="rag-dialog" role="dialog" aria-modal="true" aria-labelledby="ragModalTitle">
+        <aside class="rag-aside">
+            <div class="rag-aside-mark">K</div>
+            <div class="rag-aside-body">
+                <h2 id="ragAsideTitle" class="rag-aside-title">把本地资料变成可检索上下文</h2>
+                <p id="ragAsideCopy" class="rag-aside-copy">上传文档、笔记或代码片段后，系统会切分内容并写入统一向量库，后续会话会直接从全局知识中检索。</p>
+                <div class="rag-aside-steps">
+                    <div class="rag-aside-step"><span>1</span><div id="ragStepOne">选择本地文件</div></div>
+                    <div class="rag-aside-step"><span>2</span><div id="ragStepTwo">切分并写入向量库</div></div>
+                    <div class="rag-aside-step"><span>3</span><div id="ragStepThree">向量化后可由 MainAgent 调用</div></div>
+                </div>
+            </div>
+            <div class="rag-aside-note">
+                <strong id="ragAsideNoteTitle">File Ingestion</strong>
+                <span id="ragAsideNoteCopy">上传动作独立于聊天消息，完成后知识会进入后端 RAG 管线。</span>
+            </div>
+        </aside>
+        <section class="rag-main">
+            <div class="rag-dialog-header">
+                <div>
+                    <div class="rag-dialog-kicker">Knowledge Base</div>
+                    <h2 id="ragModalTitle">上传文件到知识库</h2>
+                    <p id="ragModalSubtitle" class="rag-dialog-subtitle">选择本地资料，完成后可以在对话中让 agent 从统一 RAG 向量库中检索。</p>
+                </div>
+                <button id="ragModalCloseBtn" class="rag-close-button" type="button" aria-label="关闭">×</button>
+            </div>
+            <div class="rag-source-strip">
+                <div class="rag-source-chip"><strong id="ragChipOneTitle">Files</strong><span id="ragChipOneCopy">本地资料</span></div>
+                <div class="rag-source-chip"><strong id="ragChipTwoTitle">Chunk</strong><span id="ragChipTwoCopy">切分清洗</span></div>
+                <div class="rag-source-chip"><strong id="ragChipThreeTitle">Vector</strong><span id="ragChipThreeCopy">写入检索</span></div>
+            </div>
+            <div id="ragFilePanel" class="rag-panel">
+                <label class="field-label" for="ragUploadFiles">选择文件</label>
+                <label id="ragDropzone" class="rag-dropzone" for="ragUploadFiles">
+                    <input id="ragUploadFiles" type="file" multiple>
+                    <span class="rag-dropzone-content">
+                        <span class="rag-dropzone-icon">+</span>
+                        <span class="rag-dropzone-title">点击选择文件，或拖放到这里</span>
+                        <span class="rag-dropzone-hint">支持 txt、md、pdf、代码文件等可解析内容</span>
+                    </span>
+                </label>
+                <div id="ragFileMeta" class="rag-file-meta">尚未选择文件</div>
+                <div class="rag-progress"></div>
+                <button id="ragUploadSubmitBtn" class="primary-button wide-button" type="button">上传并向量化</button>
+            </div>
+            <div id="ragGitPanel" class="rag-panel" hidden>
+                <label class="field-label" for="ragGitRepoUrl">GitHub 仓库地址</label>
+                <input id="ragGitRepoUrl" class="field-input" type="text" placeholder="https://github.com/org/repo.git">
+                <div class="rag-field-hint">仓库会被克隆、筛选代码/文档文件，并以仓库名作为知识库标签。</div>
+                <div class="field-grid">
+                    <div>
+                        <label class="field-label" for="ragGitUserName">Username</label>
+                        <input id="ragGitUserName" class="field-input" type="text" placeholder="可选">
+                    </div>
+                    <div>
+                        <label class="field-label" for="ragGitToken">Token</label>
+                        <input id="ragGitToken" class="field-input" type="password" placeholder="私有仓库可填">
+                    </div>
+                </div>
+                <div class="rag-progress"></div>
+                <button id="ragGitSubmitBtn" class="primary-button wide-button" type="button">克隆并向量化</button>
+            </div>
+        </section>
+    </div>
 </div>
 
 <div id="drawerBackdrop" class="drawer-backdrop"></div>
@@ -1572,7 +2252,9 @@
         eventSource: null,
         streamStatus: "idle",
         lastStreamError: null,
-        sidebarCollapsed: false
+        sidebarCollapsed: false,
+        ragUploadMode: "file",
+        ragSelectedFiles: []
     };
 
     const recoveryTimers = new Map();
@@ -1588,6 +2270,37 @@
         statusPill: document.getElementById("statusPill"),
         activeTitle: document.getElementById("activeTitle"),
         activeRunId: document.getElementById("activeRunId"),
+        attachBtn: document.getElementById("attachBtn"),
+        attachMenu: document.getElementById("attachMenu"),
+        ragFileUploadBtn: document.getElementById("ragFileUploadBtn"),
+        ragGitUploadBtn: document.getElementById("ragGitUploadBtn"),
+        ragModal: document.getElementById("ragModal"),
+        ragModalCloseBtn: document.getElementById("ragModalCloseBtn"),
+        ragAsideTitle: document.getElementById("ragAsideTitle"),
+        ragAsideCopy: document.getElementById("ragAsideCopy"),
+        ragStepOne: document.getElementById("ragStepOne"),
+        ragStepTwo: document.getElementById("ragStepTwo"),
+        ragStepThree: document.getElementById("ragStepThree"),
+        ragAsideNoteTitle: document.getElementById("ragAsideNoteTitle"),
+        ragAsideNoteCopy: document.getElementById("ragAsideNoteCopy"),
+        ragModalTitle: document.getElementById("ragModalTitle"),
+        ragModalSubtitle: document.getElementById("ragModalSubtitle"),
+        ragChipOneTitle: document.getElementById("ragChipOneTitle"),
+        ragChipOneCopy: document.getElementById("ragChipOneCopy"),
+        ragChipTwoTitle: document.getElementById("ragChipTwoTitle"),
+        ragChipTwoCopy: document.getElementById("ragChipTwoCopy"),
+        ragChipThreeTitle: document.getElementById("ragChipThreeTitle"),
+        ragChipThreeCopy: document.getElementById("ragChipThreeCopy"),
+        ragFilePanel: document.getElementById("ragFilePanel"),
+        ragGitPanel: document.getElementById("ragGitPanel"),
+        ragUploadFiles: document.getElementById("ragUploadFiles"),
+        ragDropzone: document.getElementById("ragDropzone"),
+        ragFileMeta: document.getElementById("ragFileMeta"),
+        ragUploadSubmitBtn: document.getElementById("ragUploadSubmitBtn"),
+        ragGitRepoUrl: document.getElementById("ragGitRepoUrl"),
+        ragGitUserName: document.getElementById("ragGitUserName"),
+        ragGitToken: document.getElementById("ragGitToken"),
+        ragGitSubmitBtn: document.getElementById("ragGitSubmitBtn"),
         messageInput: document.getElementById("messageInput"),
         sendBtn: document.getElementById("sendBtn"),
         newChatBtn: document.getElementById("newChatBtn"),
@@ -1634,6 +2347,153 @@
             throw new Error(`${response.status} ${response.statusText}`);
         }
         return unwrap(await response.json());
+    }
+
+    async function requestRaw(url, options = {}) {
+        const response = await fetch(API_BASE + url, options);
+        if (!response.ok) {
+            throw new Error(`${response.status} ${response.statusText}`);
+        }
+        return unwrap(await response.json());
+    }
+
+    function toggleAttachMenu(event) {
+        event.stopPropagation();
+        const open = els.attachMenu.hidden;
+        els.attachMenu.hidden = !open;
+        els.attachBtn.classList.toggle("active", open);
+    }
+
+    function closeAttachMenu() {
+        els.attachMenu.hidden = true;
+        els.attachBtn.classList.remove("active");
+    }
+
+    function openRagModal(mode = "file") {
+        closeAttachMenu();
+        applyRagMode(mode);
+        els.ragModal.hidden = false;
+    }
+
+    function closeRagModal() {
+        els.ragModal.hidden = true;
+        els.ragDropzone.classList.remove("drag-over");
+    }
+
+    function applyRagMode(mode) {
+        const isGit = mode === "git";
+        state.ragUploadMode = isGit ? "git" : "file";
+        els.ragModal.dataset.mode = state.ragUploadMode;
+        els.ragFilePanel.hidden = isGit;
+        els.ragGitPanel.hidden = !isGit;
+        els.ragFilePanel.setAttribute("aria-hidden", String(isGit));
+        els.ragGitPanel.setAttribute("aria-hidden", String(!isGit));
+
+        if (isGit) {
+            els.ragAsideTitle.textContent = "从代码仓库构建可检索上下文";
+            els.ragAsideCopy.textContent = "输入 GitHub 仓库地址后，系统会克隆仓库、筛选代码和文档文件，并写入统一向量库。";
+            els.ragStepOne.textContent = "填写仓库地址";
+            els.ragStepTwo.textContent = "可选认证信息";
+            els.ragStepThree.textContent = "克隆后生成代码知识库";
+            els.ragAsideNoteTitle.textContent = "Repository Ingestion";
+            els.ragAsideNoteCopy.textContent = "适合把项目代码、README、设计文档整体接入 RAG。";
+            els.ragModalTitle.textContent = "从 GitHub 构建知识库";
+            els.ragModalSubtitle.textContent = "输入仓库链接，后端会克隆并把可解析内容写入向量库。";
+            els.ragChipOneTitle.textContent = "Repo";
+            els.ragChipOneCopy.textContent = "仓库克隆";
+            els.ragChipTwoTitle.textContent = "Filter";
+            els.ragChipTwoCopy.textContent = "筛选代码/文档";
+            els.ragChipThreeTitle.textContent = "Vector";
+            els.ragChipThreeCopy.textContent = "写入检索";
+            return;
+        }
+
+        els.ragAsideTitle.textContent = "把本地资料变成可检索上下文";
+        els.ragAsideCopy.textContent = "上传文档、笔记或代码片段后，系统会切分内容并写入统一向量库，后续会话会直接从全局知识中检索。";
+        els.ragStepOne.textContent = "选择本地文件";
+        els.ragStepTwo.textContent = "切分并写入向量库";
+        els.ragStepThree.textContent = "向量化后可由 MainAgent 调用";
+        els.ragAsideNoteTitle.textContent = "File Ingestion";
+        els.ragAsideNoteCopy.textContent = "上传动作独立于聊天消息，完成后知识会进入后端 RAG 管线。";
+        els.ragModalTitle.textContent = "上传文件到知识库";
+        els.ragModalSubtitle.textContent = "选择本地资料，完成后可以在对话中让 agent 从统一 RAG 向量库中检索。";
+        els.ragChipOneTitle.textContent = "Files";
+        els.ragChipOneCopy.textContent = "本地资料";
+        els.ragChipTwoTitle.textContent = "Chunk";
+        els.ragChipTwoCopy.textContent = "切分清洗";
+        els.ragChipThreeTitle.textContent = "Vector";
+        els.ragChipThreeCopy.textContent = "写入检索";
+    }
+
+    function updateRagFileMeta(filesOverride) {
+        if (Array.isArray(filesOverride)) {
+            state.ragSelectedFiles = filesOverride;
+        } else {
+            state.ragSelectedFiles = Array.from(els.ragUploadFiles.files || []);
+        }
+        const files = state.ragSelectedFiles || [];
+        if (!files.length) {
+            els.ragFileMeta.textContent = "尚未选择文件";
+            return;
+        }
+        const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+        const totalMb = totalBytes / 1024 / 1024;
+        const names = files.slice(0, 2).map(file => file.name).join("、");
+        const more = files.length > 2 ? ` 等 ${files.length} 个文件` : "";
+        els.ragFileMeta.textContent = `${names}${more}，约 ${totalMb.toFixed(totalMb >= 10 ? 0 : 1)} MB`;
+    }
+
+    function setRagUploading(panel, button, uploading, idleText, busyText) {
+        panel.classList.toggle("is-uploading", uploading);
+        button.disabled = uploading;
+        button.textContent = uploading ? busyText : idleText;
+    }
+
+    async function submitRagFileUpload() {
+        const files = state.ragSelectedFiles || [];
+        if (!files.length) {
+            toast("请选择要上传的文件");
+            return;
+        }
+        const formData = new FormData();
+        files.forEach(file => formData.append("files", file));
+        setRagUploading(els.ragFilePanel, els.ragUploadSubmitBtn, true, "上传并向量化", "正在向量化...");
+        try {
+            await requestRaw("/api/v1/rag/knowledge/files", {method: "POST", body: formData});
+            toast("文件已上传并向量化");
+            els.ragUploadFiles.value = "";
+            updateRagFileMeta([]);
+            closeRagModal();
+        } catch (error) {
+            toast(`上传失败：${error.message}`);
+        } finally {
+            setRagUploading(els.ragFilePanel, els.ragUploadSubmitBtn, false, "上传并向量化", "正在向量化...");
+        }
+    }
+
+    async function submitRagGitUpload() {
+        const repoUrl = els.ragGitRepoUrl.value.trim();
+        if (!repoUrl) {
+            toast("请输入 GitHub 仓库地址");
+            return;
+        }
+        setRagUploading(els.ragGitPanel, els.ragGitSubmitBtn, true, "克隆并向量化", "正在克隆并向量化...");
+        try {
+            await requestJson("/api/v1/rag/knowledge/git", {
+                method: "POST",
+                body: JSON.stringify({
+                    repoUrl,
+                    userName: els.ragGitUserName.value.trim(),
+                    token: els.ragGitToken.value.trim()
+                })
+            });
+            toast("GitHub 仓库已向量化");
+            closeRagModal();
+        } catch (error) {
+            toast(`GitHub 上传失败：${error.message}`);
+        } finally {
+            setRagUploading(els.ragGitPanel, els.ragGitSubmitBtn, false, "克隆并向量化", "正在克隆并向量化...");
+        }
     }
 
     function loadState() {
@@ -2446,7 +3306,7 @@
             return;
         }
         if (action === "retry") {
-            els.messageInput.value = message.content || "";
+            els.messageInput.value = retryPromptForMessage(message);
             resizeComposerInput();
             els.messageInput.focus();
             return;
@@ -2459,6 +3319,24 @@
             persistState();
             renderMessages();
         }
+    }
+
+    function retryPromptForMessage(message) {
+        if (!message) return "";
+        if (message.role === "user") {
+            return message.content || "";
+        }
+        const session = activeSession();
+        const index = session.messages.findIndex(item => item.id === message.id);
+        if (index > -1) {
+            for (let i = index - 1; i >= 0; i -= 1) {
+                const candidate = session.messages[i];
+                if (candidate.role === "user" && candidate.content) {
+                    return candidate.content;
+                }
+            }
+        }
+        return message.content || "";
     }
 
     async function loadScenarios() {
@@ -3011,6 +3889,38 @@
             persistState();
         });
         els.sendBtn.addEventListener("click", sendMessage);
+        els.attachBtn.addEventListener("click", toggleAttachMenu);
+        els.ragFileUploadBtn.addEventListener("click", () => openRagModal("file"));
+        els.ragGitUploadBtn.addEventListener("click", () => openRagModal("git"));
+        els.ragModalCloseBtn.addEventListener("click", closeRagModal);
+        els.ragUploadFiles.addEventListener("change", updateRagFileMeta);
+        ["dragenter", "dragover"].forEach(type => {
+            els.ragDropzone.addEventListener(type, event => {
+                event.preventDefault();
+                els.ragDropzone.classList.add("drag-over");
+            });
+        });
+        els.ragDropzone.addEventListener("dragleave", event => {
+            event.preventDefault();
+            els.ragDropzone.classList.remove("drag-over");
+        });
+        els.ragDropzone.addEventListener("drop", event => {
+            event.preventDefault();
+            els.ragDropzone.classList.remove("drag-over");
+            if (event.dataTransfer?.files?.length) {
+                updateRagFileMeta(Array.from(event.dataTransfer.files));
+            }
+        });
+        els.ragUploadSubmitBtn.addEventListener("click", submitRagFileUpload);
+        els.ragGitSubmitBtn.addEventListener("click", submitRagGitUpload);
+        els.ragModal.addEventListener("click", event => {
+            if (event.target === els.ragModal) closeRagModal();
+        });
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape" && !els.ragModal.hidden) {
+                closeRagModal();
+            }
+        });
         els.messageStack.addEventListener("click", handleMessageAction);
         els.messageInput.addEventListener("keydown", event => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -3031,6 +3941,9 @@
         els.closeDebugBtn.addEventListener("click", closeDebug);
         els.drawerBackdrop.addEventListener("click", closeDebug);
         document.addEventListener("click", event => {
+            if (!event.target.closest(".composer")) {
+                closeAttachMenu();
+            }
             if (!event.target.closest(".session-item")) {
                 document.querySelectorAll(".session-item.menu-open").forEach(item => {
                     item.classList.remove("menu-open");

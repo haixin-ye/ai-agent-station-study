@@ -37,6 +37,86 @@ public class ToolRuntimeTest {
     }
 
     @Test
+    public void result_summary_includes_tool_name_arguments_and_content_text() {
+        ToolTestSupport.Repository repository = repository();
+        ToolRuntime runtime = runtime(repository, command -> McpToolInvokeResultVO.builder()
+                .called(true)
+                .success(true)
+                .receipt(Map.of("contentText", "No matches found"))
+                .latencyMs(10L)
+                .build());
+
+        ToolInvocationResultVO result = runtime.invoke(ToolInvocationRequestVO.builder()
+                .runId("run-001")
+                .toolCallId("tool-call-001")
+                .toolInvocationId("tool-invocation-001")
+                .mcpTool(McpToolSpecVO.builder().mcpServerCode("file-system").toolName("search_files").inputSchema(Map.of()).build())
+                .arguments(Map.of("path", "E:/javaProject/ai-agent-station-study", "pattern", "04_blue_train_ticket.txt"))
+                .argumentsRef("payload-args")
+                .approvalRequired(false)
+                .build());
+
+        Assert.assertTrue(result.getResultSummary().contains("tool=search_files"));
+        Assert.assertTrue(result.getResultSummary().contains("04_blue_train_ticket.txt"));
+        Assert.assertTrue(result.getResultSummary().contains("No matches found"));
+    }
+
+    @Test
+    public void result_content_preserves_original_tool_text() {
+        ToolTestSupport.Repository repository = repository();
+        String originalContent = "package demo;\npublic class Demo {}";
+        ToolRuntime runtime = runtime(repository, command -> McpToolInvokeResultVO.builder()
+                .called(true)
+                .success(true)
+                .receipt(Map.of("contentText", originalContent))
+                .latencyMs(10L)
+                .build());
+
+        ToolInvocationResultVO result = runtime.invoke(ToolInvocationRequestVO.builder()
+                .runId("run-001")
+                .toolCallId("tool-call-001")
+                .toolInvocationId("tool-invocation-001")
+                .mcpTool(McpToolSpecVO.builder().mcpServerCode("file-system").toolName("read_file").inputSchema(Map.of()).build())
+                .arguments(Map.of("path", "E:/demo/Demo.java"))
+                .argumentsRef("payload-args")
+                .approvalRequired(false)
+                .build());
+
+        Assert.assertEquals(originalContent, result.getResultContent());
+        Assert.assertEquals(Integer.valueOf(originalContent.length()), result.getResultTotalChars());
+        Assert.assertEquals("TEXT", result.getResultContentFormat());
+    }
+
+    @Test
+    public void result_summary_compacts_large_string_arguments_and_long_receipts() {
+        ToolTestSupport.Repository repository = repository();
+        String longContent = "x".repeat(2000);
+        String longReceipt = "created file with payload " + "y".repeat(1000);
+        ToolRuntime runtime = runtime(repository, command -> McpToolInvokeResultVO.builder()
+                .called(true)
+                .success(true)
+                .receipt(Map.of("contentText", longReceipt))
+                .latencyMs(10L)
+                .build());
+
+        ToolInvocationResultVO result = runtime.invoke(ToolInvocationRequestVO.builder()
+                .runId("run-001")
+                .toolCallId("tool-call-001")
+                .toolInvocationId("tool-invocation-001")
+                .mcpTool(McpToolSpecVO.builder().mcpServerCode("file-system").toolName("write_file").inputSchema(Map.of()).build())
+                .arguments(Map.of("path", "E:/tmp/story.md", "content", longContent))
+                .argumentsRef("payload-args")
+                .approvalRequired(false)
+                .build());
+
+        Assert.assertTrue(result.getResultSummary().contains("tool=write_file"));
+        Assert.assertTrue(result.getResultSummary().contains("path=E:/tmp/story.md"));
+        Assert.assertTrue(result.getResultSummary().contains("content=[string 2000 chars]"));
+        Assert.assertFalse(result.getResultSummary().contains(longContent));
+        Assert.assertTrue(result.getResultSummary().length() < 512);
+    }
+
+    @Test
     public void missing_approval_returns_needs_user_action() {
         ToolTestSupport.Repository repository = repository();
         ToolRuntime runtime = runtime(repository, command -> McpToolInvokeResultVO.builder().called(true).success(true).build());

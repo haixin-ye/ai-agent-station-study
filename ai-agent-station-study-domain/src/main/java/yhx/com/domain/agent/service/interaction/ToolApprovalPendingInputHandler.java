@@ -5,6 +5,7 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolApprovalDecisionStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
@@ -12,6 +13,8 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionResultVO;
 import yhx.com.domain.agent.service.tool.ToolApprovalService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -72,6 +75,7 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
         }
         if (context.getRuntimeFacts() != null) {
             context.getRuntimeFacts().put("toolDenied", answer);
+            appendToolDeniedClarification(context, answer, checkpointPayload);
         }
         return RuntimeStepResult.builder()
                 .runId(context.getRunId())
@@ -79,8 +83,28 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
                 .status(RuntimeStepStatusEnumVO.CONTINUE)
                 .nextRunStatus(RunStatusEnumVO.RUNNING)
                 .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
-                .message("Tool approval rejected.")
+                .message("Tool approval rejected by user.")
                 .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void appendToolDeniedClarification(RuntimeExecutionContext context, UserAnswerVO answer, Map<String, Object> checkpointPayload) {
+        Object existing = context.getRuntimeFacts().get("userClarifications");
+        List<UserClarificationVO> clarifications = existing instanceof List<?> list
+                ? new ArrayList<>((List<UserClarificationVO>) list)
+                : new ArrayList<>();
+        Object toolIntent = checkpointPayload == null ? null : checkpointPayload.get("toolIntent");
+        clarifications.add(UserClarificationVO.builder()
+                .sourceComponent(HANDLER_CODE)
+                .pendingId(answer == null ? null : answer.getPendingId())
+                .question("Tool approval request")
+                .answerType("TOOL_APPROVAL_REJECTED")
+                .selectedOptionId(answer == null ? null : answer.getSelectedOptionId())
+                .value(Map.of("decision", "REJECTED"))
+                .freeText(answer == null ? null : answer.getFreeText())
+                .metadata(toolIntent == null ? Map.of() : Map.of("toolIntent", toolIntent))
+                .build());
+        context.getRuntimeFacts().put("userClarifications", clarifications);
     }
 
     private ToolApprovalDecisionResultVO recordDecision(UserAnswerVO answer, String approvalKey) {

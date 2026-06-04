@@ -44,6 +44,7 @@
         WHERE task_type = #{taskType}
           AND session_id = #{sessionId}
           AND status IN ('PENDING', 'RUNNING')
+          AND COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE)
     </select>
 
     <select id="countOpenTaskByType" resultType="int">
@@ -51,6 +52,7 @@
         FROM agent_memory_task
         WHERE task_type = #{taskType}
           AND status IN ('PENDING', 'RUNNING')
+          AND COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE)
     </select>
 
     <select id="countTaskByTypeAndTurn" resultType="int">
@@ -66,6 +68,7 @@
         WHERE task_type = #{taskType}
           AND turn_id = #{turnId}
           AND status IN ('PENDING', 'RUNNING')
+          AND COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE)
     </select>
 
     <select id="listRetryableFailedTasks" resultMap="AgentMemoryTaskMap">

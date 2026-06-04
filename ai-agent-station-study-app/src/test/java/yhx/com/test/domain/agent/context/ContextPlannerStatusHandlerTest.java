@@ -5,6 +5,7 @@ import org.junit.Test;
 import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
+import yhx.com.domain.agent.model.valobj.context.EvidenceCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MemoryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.SummaryCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
@@ -93,6 +94,40 @@ public class ContextPlannerStatusHandlerTest {
 
         Assert.assertEquals(1, result.getStateView().getMemoryPack().size());
         Assert.assertEquals("memory-1", result.getStateView().getMemoryPack().get(0).getMemoryId());
+    }
+
+    @Test
+    public void refresh_without_planner_always_includes_runtime_evidence() {
+        ContextCandidateBundleVO candidates = ContextCandidateBundleVO.builder()
+                .recentMessages(List.of())
+                .fixedRecentMessages(List.of())
+                .sessionSummaries(List.of())
+                .artifactCandidates(List.of())
+                .memoryCandidates(List.of(MemoryCandidateVO.builder()
+                        .memoryId("memory-1")
+                        .memoryType("LONG_TERM_MEMORY")
+                        .summary("User prefers concise answers.")
+                        .build()))
+                .evidenceCandidates(List.of(EvidenceCandidateVO.builder()
+                        .evidenceId("evidence-tool-1")
+                        .evidenceType("TOOL")
+                        .sourceRef("tool-call-1")
+                        .summary("Tool action succeeded: C:/Users/hp/Desktop")
+                        .build()))
+                .availableCapabilities(List.of())
+                .tokenBudget(TokenBudgetVO.builder().maxStateViewTokens(6000).maxArtifactInlineChars(1000).build())
+                .build();
+
+        ContextPlannerHandlingResult result = materializingHandler().refreshWithoutPlanner(candidates, List.of(ContextSelectionVO.builder()
+                .sourceType("MEMORY")
+                .sourceId("memory-1")
+                .contextLevel(ContextLevelEnumVO.FULL_TEXT)
+                .build()));
+
+        Assert.assertEquals(1, result.getStateView().getMemoryPack().size());
+        Assert.assertEquals(1, result.getStateView().getEvidencePack().size());
+        Assert.assertEquals("evidence-tool-1", result.getStateView().getEvidencePack().get(0).getEvidenceId());
+        Assert.assertTrue(result.getStateView().getEvidencePack().get(0).getSummary().contains("Desktop"));
     }
 
     private ContextPlannerStatusHandler handler() {

@@ -93,10 +93,11 @@ logging:
 auto-agent:
   runtime:
     enabled: true
-    max-loop-count: 8
+    max-loop-count: 20
     max-contract-repair-attempts: 1
     max-final-repair-attempts: 1
-    max-consecutive-continue-actions: 1
+    final-response-guard-enabled: false
+    max-consecutive-continue-actions: 2
     max-recovery-attempts-per-failure-code: 2
     main-agent-invocation-mode: ${AUTO_AGENT_MAIN_AGENT_INVOCATION_MODE:TEXT_JSON} # FUNCTION_CALL|TEXT_JSON
   debug:
@@ -108,12 +109,12 @@ auto-agent:
     enabled: true
     vector-name: "vector_store"
     max-queries-per-run: 3
-    max-hits-per-query: 5
-    max-evidence-snippet-chars: 1200
+    max-hits-per-query: 10
+    max-evidence-snippet-chars: 2000
     asset:
       recall-timeout-millis: 16000
-      recall-min-score: 0.48
-      recall-top-k: 5
+      recall-min-score: 0.40
+      recall-top-k: 10
   context:
     vector-recall-timeout-millis: 16000
   mcp:
@@ -127,19 +128,24 @@ auto-agent:
         args:
           - -y
           - "@modelcontextprotocol/server-filesystem"
-          - ${AUTO_AGENT_MCP_FILESYSTEM_ROOT_1:C:/}
+          - ${AUTO_AGENT_MCP_FILESYSTEM_ROOT_1:D:/}
           - ${AUTO_AGENT_MCP_FILESYSTEM_ROOT_2:E:/}
         auto-initialize: false
         auto-discover-tools: true
-        auto-register-capabilities: true
+        auto-register-capabilities: false
         capability-prefix: file_system
         default-permission-mode: ASK_USER
         default-approval-policy: ASK_USER_BEFORE_EXECUTE
         default-risk-level: MEDIUM
-        request-timeout-seconds: 100
+        request-timeout-seconds: 3600
         tools:
           - tool-name: read_file
             description: Read a file from the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: read_multiple_files
+            description: Read multiple files from the configured workspace root in one call.
             required-permission: READ_ONLY
             risk-level: LOW
             schema-less-allowed: true
@@ -148,13 +154,46 @@ auto-agent:
             required-permission: READ_ONLY
             risk-level: LOW
             schema-less-allowed: true
+          - tool-name: directory_tree
+            description: Return a recursive directory tree under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
           - tool-name: search_files
             description: Search files under the configured workspace root.
             required-permission: READ_ONLY
             risk-level: LOW
             schema-less-allowed: true
+          - tool-name: get_file_info
+            description: Return metadata for a file or directory under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: list_allowed_directories
+            description: List filesystem roots allowed by the configured filesystem MCP server.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
           - tool-name: write_file
             description: Create or write a file under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+          - tool-name: edit_file
+            description: Apply edits to a file under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+          - tool-name: create_directory
+            description: Create a directory under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+          - tool-name: move_file
+            description: Move or rename a file under the configured workspace root.
             required-permission: WORKSPACE_WRITE
             risk-level: HIGH
             destructive: true
@@ -169,7 +208,7 @@ auto-agent:
           X-AppBuilder-Authorization: ${AUTO_AGENT_MCP_BAIDU_SEARCH_API_KEY:}
         auto-initialize: false
         auto-discover-tools: true
-        auto-register-capabilities: true
+        auto-register-capabilities: false
         capability-prefix: baidu_ai_search
         default-required-permission: READ_ONLY
         default-permission-mode: ALLOW
@@ -190,6 +229,17 @@ auto-agent:
         risk-level: LOW
         default-content-mode: FULL_TEXT_REQUIRED
         enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_read_multiple_files
+        capability-type: TOOL
+        display-name: Read multiple files
+        mcp-server-id: file-system
+        mcp-tool-name: read_multiple_files
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: FULL_TEXT_REQUIRED
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
       - capability-id: file_system_list_directory
         capability-type: TOOL
         display-name: List directory
@@ -201,11 +251,44 @@ auto-agent:
         risk-level: LOW
         default-content-mode: SUMMARY_ONLY
         enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_directory_tree
+        capability-type: TOOL
+        display-name: Directory tree
+        mcp-server-id: file-system
+        mcp-tool-name: directory_tree
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
       - capability-id: file_system_search_files
         capability-type: TOOL
         display-name: Search files
         mcp-server-id: file-system
         mcp-tool-name: search_files
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_get_file_info
+        capability-type: TOOL
+        display-name: Get file info
+        mcp-server-id: file-system
+        mcp-tool-name: get_file_info
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_list_allowed_directories
+        capability-type: TOOL
+        display-name: List allowed directories
+        mcp-server-id: file-system
+        mcp-tool-name: list_allowed_directories
         required-permission: READ_ONLY
         permission-mode: ALLOW
         approval-policy: NEVER
@@ -229,6 +312,42 @@ auto-agent:
         display-name: Write file
         mcp-server-id: file-system
         mcp-tool-name: write_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_edit_file
+        capability-type: TOOL
+        display-name: Edit file
+        mcp-server-id: file-system
+        mcp-tool-name: edit_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_create_directory
+        capability-type: TOOL
+        display-name: Create directory
+        mcp-server-id: file-system
+        mcp-tool-name: create_directory
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_move_file
+        capability-type: TOOL
+        display-name: Move file
+        mcp-server-id: file-system
+        mcp-tool-name: move_file
         required-permission: WORKSPACE_WRITE
         permission-mode: ASK_USER
         approval-policy: ASK_USER_BEFORE_EXECUTE

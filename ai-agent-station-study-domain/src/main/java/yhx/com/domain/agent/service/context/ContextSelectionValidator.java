@@ -40,6 +40,13 @@ public class ContextSelectionValidator {
         if (candidates.getEvidenceCandidates() != null) {
             candidates.getEvidenceCandidates().forEach(evidence -> validIds.add(evidence.getEvidenceId()));
         }
+        if (candidates.getRagCandidates() != null) {
+            candidates.getRagCandidates().forEach(candidate -> {
+                validIds.add(candidate.getCandidateId());
+                validIds.add(candidate.getDocumentId());
+                validIds.add(candidate.getChunkId());
+            });
+        }
         return selections.stream()
                 .filter(selection -> selection.getSourceId() != null && validIds.contains(selection.getSourceId()))
                 .filter(selection -> selection.getContextLevel() != null)

@@ -18,8 +18,11 @@ import java.util.List;
 public class RunWorkingStateVO {
 
     private MainAgentStateViewVO baseStateView;
+    private MainAgentNotebookVO notebook;
+    private List<RuntimeWorklogItemVO> worklog;
     private List<ActionEffectVO> actionHistory;
     private List<MaterializedEvidenceVO> evidencePack;
     private List<UserClarificationVO> userClarifications;
     private PreviousLoopOutcomeVO previousLoopOutcome;
+    private Long nextSequence;
 }

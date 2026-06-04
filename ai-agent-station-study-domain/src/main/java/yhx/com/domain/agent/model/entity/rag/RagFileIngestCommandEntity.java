@@ -18,6 +18,10 @@ import java.util.List;
 @NoArgsConstructor
 public class RagFileIngestCommandEntity {
 
+    private String userId;
+
+    private String sessionId;
+
     private String knowledgeTag;
 
     private List<RagFilePayloadEntity> files;

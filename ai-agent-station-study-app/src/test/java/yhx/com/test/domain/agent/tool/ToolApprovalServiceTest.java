@@ -13,6 +13,7 @@ import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 import yhx.com.domain.agent.model.valobj.tool.PermissionDecisionVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionCommandVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionResultVO;
+import yhx.com.domain.agent.model.valobj.tool.ToolIntentVO;
 import yhx.com.domain.agent.service.tool.ToolApprovalService;
 
 import java.util.Map;
@@ -42,6 +43,30 @@ public class ToolApprovalServiceTest {
         Assert.assertEquals("SINGLE_CHOICE", interactionManager.askUserRequest().getInputMode());
         Assert.assertFalse(interactionManager.askUserRequest().getAllowFreeText());
         Assert.assertEquals(2, interactionManager.askUserRequest().getOptions().size());
+    }
+
+    @Test
+    public void tool_approval_question_summarizes_tool_intent_and_arguments() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolTestSupport.FakeUserInteractionManager interactionManager = new ToolTestSupport.FakeUserInteractionManager();
+        ToolApprovalService service = service(repository, interactionManager);
+
+        service.ensureApproval(command("key-1",
+                ToolIntentVO.builder()
+                        .capabilityCode("file_system_write_file")
+                        .toolName("write_file")
+                        .goal("Replace the target file with the expanded story.")
+                        .arguments(Map.of(
+                                "path", "E:/project/docs/story.md",
+                                "content", "Story title\n\nThis is a long replacement content that should be previewed without rendering the full payload."))
+                        .build()));
+
+        String question = interactionManager.askUserRequest().getQuestion();
+        Assert.assertTrue(question.contains("write_file"));
+        Assert.assertTrue(question.contains("Replace the target file with the expanded story."));
+        Assert.assertTrue(question.contains("E:/project/docs/story.md"));
+        Assert.assertTrue(question.contains("内容预览"));
+        Assert.assertFalse(question.contains("without rendering the full payload."));
     }
 
     @Test
@@ -96,6 +121,10 @@ public class ToolApprovalServiceTest {
     }
 
     private ToolApprovalDecisionCommandVO command(String approvalKey) {
+        return command(approvalKey, null);
+    }
+
+    private ToolApprovalDecisionCommandVO command(String approvalKey, ToolIntentVO toolIntent) {
         return ToolApprovalDecisionCommandVO.builder()
                 .runId("run-001")
                 .sessionId("sess-001")
@@ -111,6 +140,7 @@ public class ToolApprovalServiceTest {
                         .failureCode("TOOL_APPROVAL_REQUIRED")
                         .reason("approval required")
                         .build())
+                .toolIntent(toolIntent)
                 .build();
     }
 

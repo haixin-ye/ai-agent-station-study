@@ -5,6 +5,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import yhx.com.domain.agent.adapter.repository.IVectorMemoryRepository;
+import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.memory.VectorRecallFilterVO;
+import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
+import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
 import yhx.com.domain.agent.model.valobj.rag.RagHitVO;
 import yhx.com.domain.agent.model.valobj.rag.RagRetrievalCommandVO;
 import yhx.com.domain.agent.service.rag.runtime.RagRetrieverPort;
@@ -18,6 +23,9 @@ public class SpringAiRagRetrieverAdapter implements RagRetrieverPort {
     @Resource(name = "pgVectorStore")
     private VectorStore vectorStore;
 
+    @Resource
+    private IVectorMemoryRepository vectorMemoryRepository;
+
     public SpringAiRagRetrieverAdapter() {
     }
 
@@ -25,9 +33,22 @@ public class SpringAiRagRetrieverAdapter implements RagRetrieverPort {
         this.vectorStore = vectorStore;
     }
 
+    public SpringAiRagRetrieverAdapter(IVectorMemoryRepository vectorMemoryRepository) {
+        this.vectorMemoryRepository = vectorMemoryRepository;
+    }
+
     @Override
     public List<RagHitVO> retrieve(RagRetrievalCommandVO command) {
         validate(command);
+        if (vectorMemoryRepository != null) {
+            return mapVectorHits(vectorMemoryRepository.search(VectorRecallQueryVO.builder()
+                    .queryText(command.getQuery())
+                    .topK(resolveTopK(command))
+                    .filter(VectorRecallFilterVO.builder()
+                            .collectionTypes(List.of(VectorCollectionTypeEnumVO.RAG_DOCUMENT, VectorCollectionTypeEnumVO.RAG_CHUNK))
+                            .build())
+                    .build()));
+        }
         List<Document> documents = vectorStore.similaritySearch(buildSearchRequest(command));
         if (documents == null || documents.isEmpty()) {
             return List.of();
@@ -36,24 +57,13 @@ public class SpringAiRagRetrieverAdapter implements RagRetrieverPort {
     }
 
     SearchRequest buildSearchRequest(RagRetrievalCommandVO command) {
-        SearchRequest.Builder builder = SearchRequest.builder()
+        return SearchRequest.builder()
                 .query(command.getQuery())
-                .topK(resolveTopK(command));
-        String filterExpression = resolveFilterExpression(command);
-        if (!isBlank(filterExpression)) {
-            builder.filterExpression(filterExpression);
-        }
-        return builder.build();
+                .topK(resolveTopK(command))
+                .build();
     }
 
     String resolveFilterExpression(RagRetrievalCommandVO command) {
-        Object explicitFilter = command.getRuntimeFilters() == null ? null : command.getRuntimeFilters().get("filterExpression");
-        if (explicitFilter != null && !String.valueOf(explicitFilter).isBlank()) {
-            return String.valueOf(explicitFilter);
-        }
-        if (!isBlank(command.getKnowledgeName())) {
-            return "knowledge == '" + escapeFilterLiteral(command.getKnowledgeName()) + "'";
-        }
         return null;
     }
 
@@ -64,7 +74,7 @@ public class SpringAiRagRetrieverAdapter implements RagRetrieverPort {
         if (isBlank(command.getQuery())) {
             throw new IllegalArgumentException("RAG query is required.");
         }
-        if (vectorStore == null) {
+        if (vectorMemoryRepository == null && vectorStore == null) {
             throw new IllegalStateException("PgVectorStore is not configured for RAG retrieval.");
         }
     }
@@ -78,6 +88,33 @@ public class SpringAiRagRetrieverAdapter implements RagRetrieverPort {
         return java.util.stream.IntStream.range(0, documents.size())
                 .mapToObj(index -> mapDocument(documents.get(index), index + 1))
                 .toList();
+    }
+
+    private List<RagHitVO> mapVectorHits(List<VectorRecallHitVO> hits) {
+        if (hits == null || hits.isEmpty()) {
+            return List.of();
+        }
+        return java.util.stream.IntStream.range(0, hits.size())
+                .mapToObj(index -> mapVectorHit(hits.get(index), index + 1))
+                .toList();
+    }
+
+    private RagHitVO mapVectorHit(VectorRecallHitVO hit, int rankNo) {
+        Map<String, Object> metadata = hit.getMetadata();
+        String title = firstNonBlank(metadataValue(metadata, "sourceName"),
+                metadataValue(metadata, "relativePath"),
+                metadataValue(metadata, "repositoryName"),
+                hit.getSummary(),
+                "RAG Document " + rankNo);
+        return RagHitVO.builder()
+                .sourceType(hit.getSourceType() == null ? "RAG" : hit.getSourceType().name())
+                .sourceId(hit.getSourceId())
+                .title(title)
+                .chunkText(firstNonBlank(hit.getSnippet(), hit.getSummary()))
+                .score(hit.getScore())
+                .rankNo(rankNo)
+                .metadata(metadata)
+                .build();
     }
 
     private RagHitVO mapDocument(Document document, int rankNo) {
@@ -124,10 +161,6 @@ public class SpringAiRagRetrieverAdapter implements RagRetrieverPort {
     private String metadataValue(Map<String, Object> metadata, String key) {
         Object value = metadata == null ? null : metadata.get(key);
         return value == null ? null : String.valueOf(value);
-    }
-
-    private String escapeFilterLiteral(String value) {
-        return value.replace("\\", "\\\\").replace("'", "\\'");
     }
 
     private boolean isBlank(String value) {

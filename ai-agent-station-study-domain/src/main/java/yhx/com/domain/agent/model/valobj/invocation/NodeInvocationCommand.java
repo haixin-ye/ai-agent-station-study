@@ -4,7 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationModeEnumVO;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -24,4 +26,6 @@ public class NodeInvocationCommand {
     private Object inputView;
     private Integer maxRepairAttempts;
     private Map<String, Object> invocationMetadata;
+    private NodeInvocationModeEnumVO invocationMode;
+    private List<NodeFunctionSpecVO> functionSpecs;
 }

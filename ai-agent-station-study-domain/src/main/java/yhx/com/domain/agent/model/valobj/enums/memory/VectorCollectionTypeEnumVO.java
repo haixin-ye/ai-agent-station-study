@@ -9,7 +9,10 @@ public enum VectorCollectionTypeEnumVO {
     ARTIFACT_SUMMARY("vec_artifact_summary"),
     ARTIFACT_CHUNK("vec_artifact_chunk"),
     RAG_DOCUMENT("vec_rag_document"),
-    RAG_CHUNK("vec_rag_chunk");
+    RAG_CHUNK("vec_rag_chunk"),
+    RAG_FILE_CHUNK("vec_rag_file_chunk"),
+    RAG_CODE_FILE_SUMMARY("vec_rag_code_file_summary"),
+    RAG_CODE_CHUNK("vec_rag_code_chunk");
 
     private final String collectionName;
 

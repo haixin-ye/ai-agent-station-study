@@ -1,0 +1,16 @@
+标题：RAG 向量化与召回流程
+
+RAG 的基本思想是把外部知识转化为模型可利用的上下文。一个典型流程包括文件上传、文本解析、分块、向量化、相似度检索、证据整理和答案生成。上传阶段可以接收 txt、md、pdf、代码文件或 GitHub 仓库。系统会先把文件内容解析成原始文档，再按照 token 长度或语义段落切成 chunk。
+
+分块质量会直接影响召回效果。如果 chunk 太短，语义信息不完整；如果 chunk 太长，相似度匹配会变得模糊，并且最终上下文容易超预算。工程上常用 500 到 1200 tokens 的 chunk，并加入少量 overlap，避免关键概念被切断。对于代码仓库，可以按文件类型过滤 node_modules、target、.git 等目录，只保留源码、配置、README 和设计文档。
+
+向量化阶段会调用 embedding model，把每个 chunk 转成高维向量，并写入 PgVector、Milvus、Qdrant、Elasticsearch dense vector 或其他向量库。每条记录通常包含 text、embedding、source、fileName、repoName、createdAt 等 metadata。新的统一 RAG 设计中，不再按 knowledgeName 过滤，而是在同一个全局向量库中根据 query 做相似度搜索。
+
+检索阶段根据用户问题生成 query，设置 topK，例如 5 或 10，然后从向量库取回最相关的片段。Runtime 会把命中的 chunk 保存成证据 evidence，再让 MainAgent 根据 evidence 生成回答。这样可以避免模型凭空编造，也方便调试时查看到底引用了哪些材料。
+
+评估 RAG 的方法包括：查询是否命中正确文件、命中片段是否包含答案、答案是否忠实于证据、无关问题是否拒绝或说明未找到。测试时可以准备多个主题差异明显的文件，例如咖啡烘焙、数据库索引、城市交通和故障复盘，然后提出带有关键词的问题观察召回结果。
+
+可用于召回测试的问题：
+1. 为什么统一 RAG 不再需要 knowledgeName 过滤？
+2. chunk 太短或太长分别有什么问题？
+3. RAG Runtime 为什么要把命中片段保存成 evidence？

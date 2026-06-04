@@ -32,7 +32,7 @@ public class AutoAgentMcpProperties {
         private long requestTimeoutSeconds = 100;
         private boolean autoInitialize = true;
         private boolean autoDiscoverTools = true;
-        private boolean autoRegisterCapabilities = true;
+        private boolean autoRegisterCapabilities = false;
         private String capabilityPrefix;
         private String defaultRequiredPermission = "NONE";
         private String defaultPermissionMode = "ASK_USER";
