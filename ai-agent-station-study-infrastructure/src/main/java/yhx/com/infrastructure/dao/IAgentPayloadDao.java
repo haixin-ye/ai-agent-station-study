@@ -8,5 +8,7 @@ public interface IAgentPayloadDao {
 
     int insert(AgentPayloadPO payload);
 
+    int upsert(AgentPayloadPO payload);
+
     AgentPayloadPO queryByPayloadId(String payloadId);
 }

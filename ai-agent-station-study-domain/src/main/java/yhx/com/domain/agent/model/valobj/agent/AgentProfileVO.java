@@ -26,6 +26,20 @@ public class AgentProfileVO {
     }
 
     public boolean allowsCapability(String capabilityCode) {
-        return capabilityCode != null && maximumCapabilityCodes != null && maximumCapabilityCodes.contains(capabilityCode);
+        if (capabilityCode == null || maximumCapabilityCodes == null) {
+            return false;
+        }
+        if (maximumCapabilityCodes.contains(capabilityCode)) {
+            return true;
+        }
+        if (capabilityCode.startsWith("file_system_")) {
+            return maximumCapabilityCodes.contains("MCP_TOOL")
+                    || maximumCapabilityCodes.contains("FILE_READ")
+                    || maximumCapabilityCodes.contains("FILE_WRITE");
+        }
+        if (capabilityCode.contains("_") || capabilityCode.contains(".")) {
+            return maximumCapabilityCodes.contains("MCP_TOOL");
+        }
+        return false;
     }
 }

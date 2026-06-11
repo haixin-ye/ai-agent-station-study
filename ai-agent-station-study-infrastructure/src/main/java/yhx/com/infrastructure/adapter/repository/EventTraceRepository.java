@@ -18,11 +18,15 @@ import yhx.com.infrastructure.dao.po.AgentRunTracePO;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Repository
 public class EventTraceRepository implements IEventTraceRepository {
+
+    private final Map<String, Object> runSequenceLocks = new ConcurrentHashMap<>();
 
     @Resource
     private IAgentRunEventDao agentRunEventDao;
@@ -36,31 +40,35 @@ public class EventTraceRepository implements IEventTraceRepository {
     @Override
     public void appendUserVisibleEvent(AgentRunEventEntity event) {
         requireRunId(event.getRunId());
-        if (event.getEventId() == null || event.getEventId().isBlank()) {
-            event.setEventId("event-" + UUID.randomUUID());
+        synchronized (runLock(event.getRunId())) {
+            if (event.getEventId() == null || event.getEventId().isBlank()) {
+                event.setEventId("event-" + UUID.randomUUID());
+            }
+            if (event.getSeq() == null) {
+                event.setSeq(nextEventSeq(event.getRunId()));
+            }
+            if (event.getCreatedAt() == null) {
+                event.setCreatedAt(LocalDateTime.now());
+            }
+            agentRunEventDao.insert(toEventPO(event));
         }
-        if (event.getSeq() == null) {
-            event.setSeq(nextEventSeq(event.getRunId()));
-        }
-        if (event.getCreatedAt() == null) {
-            event.setCreatedAt(LocalDateTime.now());
-        }
-        agentRunEventDao.insert(toEventPO(event));
     }
 
     @Override
     public void appendTrace(AgentRunTraceEntity trace) {
         requireRunId(trace.getRunId());
-        if (trace.getTraceId() == null || trace.getTraceId().isBlank()) {
-            trace.setTraceId("trace-" + UUID.randomUUID());
+        synchronized (runLock(trace.getRunId())) {
+            if (trace.getTraceId() == null || trace.getTraceId().isBlank()) {
+                trace.setTraceId("trace-" + UUID.randomUUID());
+            }
+            if (trace.getSeq() == null) {
+                trace.setSeq(nextTraceSeq(trace.getRunId()));
+            }
+            if (trace.getCreatedAt() == null) {
+                trace.setCreatedAt(LocalDateTime.now());
+            }
+            agentRunTraceDao.insert(toTracePO(trace));
         }
-        if (trace.getSeq() == null) {
-            trace.setSeq(nextTraceSeq(trace.getRunId()));
-        }
-        if (trace.getCreatedAt() == null) {
-            trace.setCreatedAt(LocalDateTime.now());
-        }
-        agentRunTraceDao.insert(toTracePO(trace));
     }
 
     @Override
@@ -158,5 +166,9 @@ public class EventTraceRepository implements IEventTraceRepository {
         if (runId == null || runId.isBlank()) {
             throw new IllegalArgumentException("runId is required.");
         }
+    }
+
+    private Object runLock(String runId) {
+        return runSequenceLocks.computeIfAbsent(runId, key -> new Object());
     }
 }

@@ -25,6 +25,19 @@ public class PayloadRepository implements IPayloadRepository {
 
     @Override
     public String savePayload(AgentPayloadEntity payload) {
+        preparePayload(payload);
+        agentPayloadDao.insert(toPO(payload));
+        return payload.getPayloadId();
+    }
+
+    @Override
+    public String saveOrUpdatePayload(AgentPayloadEntity payload) {
+        preparePayload(payload);
+        agentPayloadDao.upsert(toPO(payload));
+        return payload.getPayloadId();
+    }
+
+    private void preparePayload(AgentPayloadEntity payload) {
         if (payload.getPayloadId() == null || payload.getPayloadId().isBlank()) {
             payload.setPayloadId("payload-" + UUID.randomUUID());
         }
@@ -37,8 +50,6 @@ public class PayloadRepository implements IPayloadRepository {
         if (payload.getPreview() == null && payload.getContent() != null) {
             payload.setPreview(payload.getContent().substring(0, Math.min(PREVIEW_MAX_CHARS, payload.getContent().length())));
         }
-        agentPayloadDao.insert(toPO(payload));
-        return payload.getPayloadId();
     }
 
     @Override

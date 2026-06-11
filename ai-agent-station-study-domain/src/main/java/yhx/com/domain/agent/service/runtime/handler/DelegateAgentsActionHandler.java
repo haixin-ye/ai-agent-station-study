@@ -3,6 +3,7 @@ package yhx.com.domain.agent.service.runtime.handler;
 import yhx.com.domain.agent.model.valobj.agent.AgentDispatchResultVO;
 import yhx.com.domain.agent.model.valobj.agent.DelegateAgentTaskVO;
 import yhx.com.domain.agent.model.valobj.agent.DelegateAgentsRequestVO;
+import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentDispatchOrchestrationResultVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
@@ -11,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.runtime.ActionEffectVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.agent.AgentDispatchRuntime;
+import yhx.com.domain.agent.service.agent.GenericSubAgentDispatchOrchestrator;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.MainActionHandler;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
@@ -21,12 +23,21 @@ import java.util.Map;
 public class DelegateAgentsActionHandler extends MainActionHandlerSupport implements MainActionHandler {
 
     private final AgentDispatchRuntime dispatchRuntime;
+    private final GenericSubAgentDispatchOrchestrator dispatchOrchestrator;
 
     public DelegateAgentsActionHandler(AgentDispatchRuntime dispatchRuntime,
                                        RuntimeFailureFactory failureFactory,
                                        DeveloperTraceRecorder traceRecorder) {
+        this(dispatchRuntime, null, failureFactory, traceRecorder);
+    }
+
+    public DelegateAgentsActionHandler(AgentDispatchRuntime dispatchRuntime,
+                                       GenericSubAgentDispatchOrchestrator dispatchOrchestrator,
+                                       RuntimeFailureFactory failureFactory,
+                                       DeveloperTraceRecorder traceRecorder) {
         super(failureFactory, traceRecorder);
         this.dispatchRuntime = dispatchRuntime;
+        this.dispatchOrchestrator = dispatchOrchestrator;
     }
 
     @Override
@@ -36,23 +47,54 @@ public class DelegateAgentsActionHandler extends MainActionHandlerSupport implem
 
     @Override
     public MainActionHandlerResult handle(RuntimeExecutionContext context, MainAgentActionVO action) {
-        if (dispatchRuntime == null) {
-            return validationFailure(context, "AgentDispatchRuntime is not configured.");
+        try {
+            if (dispatchRuntime == null && dispatchOrchestrator == null) {
+                return validationFailure(context, "AgentDispatchRuntime is not configured.");
+            }
+            DelegateAgentsRequestVO request = toRequest(requireMap(action, "delegateAgentsRequest"));
+            if (dispatchOrchestrator != null) {
+                return handleWithOrchestrator(context, request);
+            }
+            AgentDispatchResultVO dispatchResult = dispatchRuntime.dispatch(context.getRunId(), request);
+            return MainActionHandlerResult.builder()
+                    .status(MainActionHandlerStatusEnumVO.WAITING_CHILDREN)
+                    .nextPhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                    .actionEffect(ActionEffectVO.builder()
+                            .action(MainAgentActionTypeEnumVO.DELEGATE_AGENTS.code())
+                            .status(MainActionHandlerStatusEnumVO.WAITING_CHILDREN.code())
+                            .message("Delegated child agent work.")
+                            .resultSnapshot(Map.of(
+                                    "waitMode", dispatchResult.getWaitMode(),
+                                    "childRunIds", dispatchResult.getChildRunIds()))
+                            .build())
+                    .message("Parent run is waiting for delegated child agents.")
+                    .build();
+        } catch (IllegalArgumentException e) {
+            return validationFailure(context, e.getMessage());
         }
-        DelegateAgentsRequestVO request = toRequest(requireMap(action, "delegateAgentsRequest"));
-        AgentDispatchResultVO dispatchResult = dispatchRuntime.dispatch(context.getRunId(), request);
+    }
+
+    private MainActionHandlerResult handleWithOrchestrator(RuntimeExecutionContext context, DelegateAgentsRequestVO request) {
+        GenericSubAgentDispatchOrchestrationResultVO orchestrationResult = dispatchOrchestrator.dispatchRunAndProject(context, request);
+        boolean parentReady = orchestrationResult.isParentReady();
         return MainActionHandlerResult.builder()
-                .status(MainActionHandlerStatusEnumVO.WAITING_CHILDREN)
-                .nextPhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                .status(parentReady ? MainActionHandlerStatusEnumVO.CONTINUE_LOOP : MainActionHandlerStatusEnumVO.WAITING_CHILDREN)
+                .nextPhase(parentReady ? RuntimePhaseEnumVO.BUILDING_STATE_VIEW : RuntimePhaseEnumVO.WAITING_CHILDREN)
                 .actionEffect(ActionEffectVO.builder()
                         .action(MainAgentActionTypeEnumVO.DELEGATE_AGENTS.code())
-                        .status(MainActionHandlerStatusEnumVO.WAITING_CHILDREN.code())
-                        .message("Delegated child agent work.")
+                        .status(parentReady ? MainActionHandlerStatusEnumVO.CONTINUE_LOOP.code() : MainActionHandlerStatusEnumVO.WAITING_CHILDREN.code())
+                        .message(parentReady
+                                ? "Delegated child agent work completed and was projected."
+                                : "Delegated child agent work is waiting.")
                         .resultSnapshot(Map.of(
-                                "waitMode", dispatchResult.getWaitMode(),
-                                "childRunIds", dispatchResult.getChildRunIds()))
+                                "waitMode", orchestrationResult.getWaitMode(),
+                                "childRunIds", defaultList(orchestrationResult.getChildRunIds()),
+                                "childResultCount", orchestrationResult.getChildResults() == null ? 0 : orchestrationResult.getChildResults().size(),
+                                "parentReady", parentReady))
                         .build())
-                .message("Parent run is waiting for delegated child agents.")
+                .message(parentReady
+                        ? "Delegated child agents completed. Continue parent loop with projected results."
+                        : "Parent run is waiting for delegated child agents.")
                 .build();
     }
 
@@ -96,5 +138,9 @@ public class DelegateAgentsActionHandler extends MainActionHandlerSupport implem
             }
         }
         return result;
+    }
+
+    private <T> List<T> defaultList(List<T> value) {
+        return value == null ? List.of() : value;
     }
 }

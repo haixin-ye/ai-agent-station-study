@@ -41,6 +41,7 @@ public class ToolArgumentMaterializer {
         if (intent != null && intent.getArguments() != null) {
             source.putAll(intent.getArguments());
         }
+        normalizeInlineContent(source);
         List<String> artifactIds = new ArrayList<>();
         List<String> evidenceIds = new ArrayList<>();
         Map<String, Object> materialized = new LinkedHashMap<>();
@@ -63,6 +64,21 @@ public class ToolArgumentMaterializer {
                 .materializedArtifactIds(artifactIds)
                 .materializedEvidenceIds(evidenceIds)
                 .build();
+    }
+
+    private void normalizeInlineContent(Map<String, Object> source) {
+        if (source == null || source.containsKey("content")) {
+            return;
+        }
+        if (source.get("contentLines") instanceof List<?> lines) {
+            source.remove("contentLines");
+            source.put("content", join(lines, "\n"));
+            return;
+        }
+        if (source.get("contentParts") instanceof List<?> parts) {
+            source.remove("contentParts");
+            source.put("content", join(parts, ""));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -159,6 +175,20 @@ public class ToolArgumentMaterializer {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private String join(List<?> values, String delimiter) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                builder.append(delimiter);
+            }
+            Object value = values.get(i);
+            if (value != null) {
+                builder.append(value);
+            }
+        }
+        return builder.toString();
     }
 
     private record MaterializedValue(String outputKey, Object value, List<String> artifactIds, List<String> evidenceIds,

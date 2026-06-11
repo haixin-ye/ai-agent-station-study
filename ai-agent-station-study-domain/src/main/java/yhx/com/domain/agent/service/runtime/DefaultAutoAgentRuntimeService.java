@@ -1,5 +1,6 @@
 package yhx.com.domain.agent.service.runtime;
 
+import com.alibaba.fastjson.JSON;
 import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
@@ -11,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
+import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentDispatchOrchestrationResultVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionEffectStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
@@ -29,6 +31,7 @@ import yhx.com.domain.agent.model.valobj.interaction.UserInputResolveResult;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.ActionEffectVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeChildrenResumeCommand;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeResumeCommand;
@@ -38,6 +41,8 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.service.interaction.ContextPlannerPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
+import yhx.com.domain.agent.service.agent.GenericSubAgentDispatchOrchestrator;
+import yhx.com.domain.agent.service.agent.ParentChildRunRegistry;
 import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 
 import java.time.LocalDateTime;
@@ -65,6 +70,8 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private final RunTranscriptRecorder transcriptRecorder;
     private final DeveloperTraceRecorder traceRecorder;
     private final RunDiagnosticRecorder diagnosticRecorder;
+    private final ParentChildRunRegistry parentChildRunRegistry;
+    private final GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator;
     private final RunWorkingStateManager workingStateManager = new RunWorkingStateManager();
 
     public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
@@ -94,6 +101,8 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 eventPublisher,
                 transcriptRecorder,
                 traceRecorder,
+                null,
+                null,
                 null);
     }
 
@@ -125,7 +134,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 eventPublisher,
                 transcriptRecorder,
                 traceRecorder,
-                diagnosticRecorder);
+                diagnosticRecorder,
+                null,
+                null);
     }
 
     public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
@@ -143,6 +154,110 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                                           RunTranscriptRecorder transcriptRecorder,
                                           DeveloperTraceRecorder traceRecorder,
                                           RunDiagnosticRecorder diagnosticRecorder) {
+        this(conversationRepository,
+                runRepository,
+                payloadRepository,
+                componentPorts,
+                actionDispatcher,
+                userInteractionManager,
+                loopPolicy,
+                routePolicy,
+                stateMachine,
+                failureFactory,
+                phaseGuard,
+                eventPublisher,
+                transcriptRecorder,
+                traceRecorder,
+                diagnosticRecorder,
+                null,
+                null);
+    }
+
+    public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
+                                          IRunRepository runRepository,
+                                          IPayloadRepository payloadRepository,
+                                          RuntimeComponentPorts componentPorts,
+                                          MainActionDispatcher actionDispatcher,
+                                          UserInteractionManager userInteractionManager,
+                                          RuntimeLoopPolicy loopPolicy,
+                                          RuntimeStateMachine stateMachine,
+                                          RuntimeFailureFactory failureFactory,
+                                          RuntimePhaseGuard phaseGuard,
+                                          RunEventPublisher eventPublisher,
+                                          RunTranscriptRecorder transcriptRecorder,
+                                          DeveloperTraceRecorder traceRecorder,
+                                          ParentChildRunRegistry parentChildRunRegistry) {
+        this(conversationRepository,
+                runRepository,
+                payloadRepository,
+                componentPorts,
+                actionDispatcher,
+                userInteractionManager,
+                loopPolicy,
+                null,
+                stateMachine,
+                failureFactory,
+                phaseGuard,
+                eventPublisher,
+                transcriptRecorder,
+                traceRecorder,
+                null,
+                parentChildRunRegistry,
+                null);
+    }
+
+    public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
+                                          IRunRepository runRepository,
+                                          IPayloadRepository payloadRepository,
+                                          RuntimeComponentPorts componentPorts,
+                                          MainActionDispatcher actionDispatcher,
+                                          UserInteractionManager userInteractionManager,
+                                          RuntimeLoopPolicy loopPolicy,
+                                          RuntimeRoutePolicy routePolicy,
+                                          RuntimeStateMachine stateMachine,
+                                          RuntimeFailureFactory failureFactory,
+                                          RuntimePhaseGuard phaseGuard,
+                                          RunEventPublisher eventPublisher,
+                                          RunTranscriptRecorder transcriptRecorder,
+                                          DeveloperTraceRecorder traceRecorder,
+                                          RunDiagnosticRecorder diagnosticRecorder,
+                                          ParentChildRunRegistry parentChildRunRegistry) {
+        this(conversationRepository,
+                runRepository,
+                payloadRepository,
+                componentPorts,
+                actionDispatcher,
+                userInteractionManager,
+                loopPolicy,
+                routePolicy,
+                stateMachine,
+                failureFactory,
+                phaseGuard,
+                eventPublisher,
+                transcriptRecorder,
+                traceRecorder,
+                diagnosticRecorder,
+                parentChildRunRegistry,
+                null);
+    }
+
+    public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
+                                          IRunRepository runRepository,
+                                          IPayloadRepository payloadRepository,
+                                          RuntimeComponentPorts componentPorts,
+                                          MainActionDispatcher actionDispatcher,
+                                          UserInteractionManager userInteractionManager,
+                                          RuntimeLoopPolicy loopPolicy,
+                                          RuntimeRoutePolicy routePolicy,
+                                          RuntimeStateMachine stateMachine,
+                                          RuntimeFailureFactory failureFactory,
+                                          RuntimePhaseGuard phaseGuard,
+                                          RunEventPublisher eventPublisher,
+                                          RunTranscriptRecorder transcriptRecorder,
+                                          DeveloperTraceRecorder traceRecorder,
+                                          RunDiagnosticRecorder diagnosticRecorder,
+                                          ParentChildRunRegistry parentChildRunRegistry,
+                                          GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator) {
         this.conversationRepository = conversationRepository;
         this.runRepository = runRepository;
         this.payloadRepository = payloadRepository;
@@ -158,6 +273,8 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         this.transcriptRecorder = transcriptRecorder;
         this.traceRecorder = traceRecorder;
         this.diagnosticRecorder = diagnosticRecorder;
+        this.parentChildRunRegistry = parentChildRunRegistry == null ? new ParentChildRunRegistry() : parentChildRunRegistry;
+        this.genericSubAgentDispatchOrchestrator = genericSubAgentDispatchOrchestrator;
     }
 
     @Override
@@ -289,6 +406,10 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         if (continuation == null) {
             return failRun(context, failureFactory.missingPendingInput(resolveCommand.getRunId()));
         }
+        RuntimeStepResult childResumeResult = resumeGenericSubAgentIfNeeded(context, resolveResult, continuation);
+        if (childResumeResult != null) {
+            return childResumeResult;
+        }
         if (continuation.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
             context.setRunStatus(RunStatusEnumVO.RUNNING);
             runRepository.updateRunStatus(context.getRunId(), RunStatusEnumVO.RUNNING, null);
@@ -308,6 +429,108 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         return continuation;
     }
 
+    private RuntimeStepResult resumeGenericSubAgentIfNeeded(RuntimeExecutionContext context,
+                                                            UserInputResolveResult resolveResult,
+                                                            RuntimeStepResult continuation) {
+        if (genericSubAgentDispatchOrchestrator == null
+                || continuation == null
+                || continuation.getStatus() != RuntimeStepStatusEnumVO.WAITING_CHILDREN
+                || context == null
+                || context.getRuntimeFacts() == null) {
+            return null;
+        }
+        String childRunId = stringRuntimeFact(context, "resumeChildRunId");
+        if (childRunId == null || childRunId.isBlank()) {
+            return null;
+        }
+        GenericSubAgentDispatchOrchestrationResultVO childResult = genericSubAgentDispatchOrchestrator.resumeChildAndProject(context,
+                childRunId,
+                resolveResult == null ? null : resolveResult.getUserAnswer());
+        diagnostic(context.getRunId(), "CHILD_AGENT_RESUME_RESULT", diagnosticMap(
+                "childRunId", childRunId,
+                "childResults", childResult == null ? null : childResult.getChildResults(),
+                "parentReady", childResult == null ? null : childResult.getParentReady()
+        ));
+        if (childResult == null || !childResult.isParentReady()) {
+            RuntimeStepResult waiting = RuntimeStepResult.builder()
+                    .runId(context.getRunId())
+                    .sessionId(context.getSessionId())
+                    .status(RuntimeStepStatusEnumVO.WAITING_CHILDREN)
+                    .nextRunStatus(RunStatusEnumVO.WAITING_CHILDREN)
+                    .nextPhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                    .message("Parent run is still waiting for delegated child agents.")
+                    .build();
+            applyRunResult(context, waiting);
+            return waiting;
+        }
+        context.setRunStatus(RunStatusEnumVO.RUNNING);
+        runRepository.updateRunStatus(context.getRunId(), RunStatusEnumVO.RUNNING, null);
+        RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
+        if (transitionFailure != null) {
+            return failRun(context, transitionFailure);
+        }
+        return runLoop(context);
+    }
+
+    @Override
+    public RuntimeStepResult resumeChildren(RuntimeChildrenResumeCommand command) {
+        String runId = command == null ? null : command.getRunId();
+        if (command == null || runId == null || runId.isBlank()) {
+            RuntimeSafeFailureVO failure = failureFactory.create(RuntimeFailureCodeEnumVO.MISSING_COMMAND,
+                    RuntimePhaseEnumVO.WAITING_CHILDREN, "RuntimeChildrenResumeCommand or runId is missing.", false);
+            return failure(runId, null, failure);
+        }
+        parentChildRunRegistry.restoreParent(runId);
+        AgentRunEntity run = runRepository.findRun(runId).orElse(null);
+        diagnostic(runId, "CHILDREN_RESUME_REQUEST", diagnosticMap(
+                "runId", runId,
+                "waitSatisfied", parentChildRunRegistry.isWaitSatisfied(runId)
+        ));
+        if (run == null) {
+            RuntimeSafeFailureVO failure = failureFactory.create(RuntimeFailureCodeEnumVO.MISSING_ACTIVE_RUN,
+                    RuntimePhaseEnumVO.WAITING_CHILDREN,
+                    "Run record is missing during child-agent resume: " + runId + ".", true);
+            return failure(runId, null, failure);
+        }
+        AgentMessageEntity userMessage = findRunUserMessage(run.getSessionId(), run.getRunId());
+        RuntimeExecutionContext context = RuntimeExecutionContext.builder()
+                .runId(runId)
+                .sessionId(run.getSessionId())
+                .userId(run.getUserId())
+                .agentId(run.getAgentId())
+                .userMessageId(userMessage == null ? null : userMessage.getMessageId())
+                .userInput(loadPayloadContent(userMessage == null ? null : userMessage.getContentRef()))
+                .currentPhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                .loopIndex(0)
+                .maxLoop(loopPolicy.maxLoop())
+                .runStatus(RunStatusEnumVO.WAITING_CHILDREN)
+                .recoveryCounters(RuntimeRecoveryCounters.initial())
+                .runtimeFacts(new HashMap<>())
+                .build();
+        if (!parentChildRunRegistry.isWaitSatisfied(runId)) {
+            RuntimeStepResult waiting = RuntimeStepResult.builder()
+                    .runId(context.getRunId())
+                    .sessionId(context.getSessionId())
+                    .status(RuntimeStepStatusEnumVO.WAITING_CHILDREN)
+                    .nextRunStatus(RunStatusEnumVO.WAITING_CHILDREN)
+                    .nextPhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                    .message("Parent run is still waiting for delegated child agents.")
+                    .build();
+            applyRunResult(context, waiting);
+            return waiting;
+        }
+        if (genericSubAgentDispatchOrchestrator != null) {
+            genericSubAgentDispatchOrchestrator.runDispatchedChildrenAndProject(context);
+        }
+        context.setRunStatus(RunStatusEnumVO.RUNNING);
+        runRepository.updateRunStatus(context.getRunId(), RunStatusEnumVO.RUNNING, null);
+        RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
+        if (transitionFailure != null) {
+            return failRun(context, transitionFailure);
+        }
+        return runLoop(context);
+    }
+
     private AgentMessageEntity findRunUserMessage(String sessionId, String runId) {
         if (sessionId == null || sessionId.isBlank()) {
             return null;
@@ -324,6 +547,18 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return null;
         }
         return payloadRepository.findContent(payloadRef).orElse(null);
+    }
+
+    private String saveActionPayload(MainAgentActionVO action) {
+        if (payloadRepository == null || action == null) {
+            return null;
+        }
+        return payloadRepository.savePayload(AgentPayloadEntity.builder()
+                .payloadType(PayloadTypeEnumVO.JSON)
+                .content(JSON.toJSONString(action))
+                .preview(action.getAction())
+                .createdAt(LocalDateTime.now())
+                .build());
     }
 
     @Override
@@ -419,8 +654,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         AutoAgentHumanLog.stage("动作校验", context.getRunId(), "检查通过：action=" + actionType.code());
             MainAgentActionVO previousAction = context.getLastAction();
             context.setLastAction(action);
-            traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), actionType, null);
-            transcriptRecorder.appendAssistantAction(context.getRunId(), context.getLoopIndex(), action, null);
+            String actionPayloadRef = saveActionPayload(action);
+            traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), actionType, actionPayloadRef);
+            transcriptRecorder.appendAssistantAction(context.getRunId(), context.getLoopIndex(), action, actionPayloadRef);
 
         transitionFailure = enterPhase(context, RuntimePhaseEnumVO.HANDLING_ACTION);
         if (transitionFailure != null) {
@@ -482,8 +718,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .stateDelta(Map.of("toolIntent", toolIntent))
                 .build();
         context.setLastAction(action);
-        traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), MainAgentActionTypeEnumVO.CALL_TOOL, null);
-        transcriptRecorder.appendAssistantAction(context.getRunId(), context.getLoopIndex(), action, null);
+        String actionPayloadRef = saveActionPayload(action);
+        traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), MainAgentActionTypeEnumVO.CALL_TOOL, actionPayloadRef);
+        transcriptRecorder.appendAssistantAction(context.getRunId(), context.getLoopIndex(), action, actionPayloadRef);
 
         RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.HANDLING_ACTION);
         if (transitionFailure != null) {
@@ -808,6 +1045,18 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return pauseForUser(context, actionResult.getAskUserRequest(), MainAgentPendingInputHandler.HANDLER_CODE,
                     PendingInputTypeEnumVO.MAIN_AGENT_QUESTION.code(), actionResult.getMessage());
         }
+        if (actionResult.getStatus() == MainActionHandlerStatusEnumVO.WAITING_CHILDREN) {
+            return RuntimeStepResult.builder()
+                    .runId(context.getRunId())
+                    .sessionId(context.getSessionId())
+                    .status(RuntimeStepStatusEnumVO.WAITING_CHILDREN)
+                    .nextRunStatus(RunStatusEnumVO.WAITING_CHILDREN)
+                    .nextPhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                    .action(action)
+                    .actionResult(actionResult)
+                    .message(actionResult.getMessage())
+                    .build();
+        }
         if (actionResult.getStatus() == MainActionHandlerStatusEnumVO.COMPLETED) {
             RuntimeSafeFailureVO verifyingFailure = enterPhase(context, RuntimePhaseEnumVO.VERIFYING_FINAL);
             if (verifyingFailure != null) {
@@ -967,6 +1216,11 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String stringRuntimeFact(RuntimeExecutionContext context, String key) {
+        Object value = context == null || context.getRuntimeFacts() == null ? null : context.getRuntimeFacts().get(key);
+        return value == null ? null : String.valueOf(value);
     }
 
     private String normalize(String value) {

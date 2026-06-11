@@ -105,6 +105,9 @@ public class PromptAssembler {
         if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)) {
             return new MainAgentPromptBuilder().build();
         }
+        if (AgentComponentCodeEnumVO.GENERIC_SUB_AGENT.name().equals(componentCode)) {
+            return new GenericSubAgentPromptBuilder().build();
+        }
         if (AgentComponentCodeEnumVO.RAG_VERIFIER.name().equals(componentCode)) {
             return new RagVerifierPromptBuilder().build();
         }

@@ -137,7 +137,7 @@ auto-agent:
         default-permission-mode: ASK_USER
         default-approval-policy: ASK_USER_BEFORE_EXECUTE
         default-risk-level: MEDIUM
-        request-timeout-seconds: 3600
+        request-timeout-seconds: 60
         tools:
           - tool-name: read_file
             description: Read a file from the configured workspace root.
@@ -201,23 +201,123 @@ auto-agent:
       - server-id: baidu-ai-search
         name: Baidu AI Search MCP
         transport: SSE
-        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:false}
+        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:true}
         url: http://appbuilder.baidu.com/v2/ai_search/mcp/
-        sse-endpoint: ${AUTO_AGENT_MCP_BAIDU_SEARCH_SSE_ENDPOINT:}
-        headers:
-          X-AppBuilder-Authorization: ${AUTO_AGENT_MCP_BAIDU_SEARCH_API_KEY:}
+        sse-endpoint: ${AUTO_AGENT_MCP_BAIDU_SEARCH_SSE_ENDPOINT:sse?api_key=Bearer+bce-v3/ALTAK-oACkdcBrv9k3AzEB88B1M/f2b0a6ad1e63ff70b49cdb3770684f68b69971f0}
         auto-initialize: false
         auto-discover-tools: true
-        auto-register-capabilities: false
+        auto-register-capabilities: true
         capability-prefix: baidu_ai_search
         default-required-permission: READ_ONLY
         default-permission-mode: ALLOW
         default-approval-policy: NEVER
         default-risk-level: LOW
         request-timeout-seconds: 100
-        tools: []
+        tools:
+          - tool-name: AIsearch
+            description: Search current public web information with Baidu AI Search. Use when the user needs live, recent, or external web information. Required argument is query.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+            input-schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: Search query keywords or natural-language question.
+                instruction:
+                  type: string
+                  description: Optional instruction for result style, filtering, or summary format.
+                model:
+                  type: string
+                  description: Optional model name for search result summarization.
+                search_domain_filter:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional list of domains to restrict search results.
+                resource_type_filter:
+                  type: array
+                  items:
+                    type: object
+                  description: Optional resource type filters such as web/image/video.
+              required:
+                - query
+      - server-id: csdn-publisher
+        name: CSDN Publisher MCP
+        transport: SSE
+        enabled: ${AUTO_AGENT_MCP_CSDN_ENABLED:true}
+        url: ${AUTO_AGENT_MCP_CSDN_URL:http://127.0.0.1:18080}
+        sse-endpoint: ${AUTO_AGENT_MCP_CSDN_SSE_ENDPOINT:/sse}
+        auto-initialize: false
+        auto-discover-tools: true
+        auto-register-capabilities: true
+        capability-prefix: csdn_publisher
+        default-required-permission: EXTERNAL_WRITE
+        default-permission-mode: ASK_USER
+        default-approval-policy: ASK_USER_BEFORE_EXECUTE
+        default-risk-level: HIGH
+        default-destructive: false
+        default-content-mode: SUMMARY_ONLY
+        request-timeout-seconds: 180
+        tools:
+          - tool-name: publishArticle
+            description: Publish an approved Markdown article to CSDN. Requires title, markdowncontent, tags, and description under request.
+            required-permission: EXTERNAL_WRITE
+            risk-level: HIGH
+            destructive: false
+            schema-less-allowed: true
+            input-schema:
+              type: object
+              additionalProperties: false
+              properties:
+                request:
+                  type: object
+                  properties:
+                    title:
+                      type: string
+                      description: Article title.
+                    markdowncontent:
+                      type: string
+                      description: Markdown article body.
+                    tags:
+                      type: string
+                      description: Article tags separated by commas.
+                    description:
+                      type: string
+                      description: Article summary.
+                  required:
+                    - title
+                    - markdowncontent
+                    - tags
+                    - description
+              required:
+                - request
   capabilities:
     tools:
+      - capability-id: baidu_ai_search_aisearch
+        capability-type: TOOL
+        display-name: Baidu AI Search
+        mcp-server-id: baidu-ai-search
+        mcp-tool-name: AIsearch
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: FULL_TEXT_REQUIRED
+        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:true}
+      - capability-id: csdn_publisher_publisharticle
+        capability-type: TOOL
+        display-name: Publish CSDN article
+        mcp-server-id: csdn-publisher
+        mcp-tool-name: publishArticle
+        required-permission: EXTERNAL_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: false
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_CSDN_ENABLED:true}
       - capability-id: file_system_read_file
         capability-type: TOOL
         display-name: Read file

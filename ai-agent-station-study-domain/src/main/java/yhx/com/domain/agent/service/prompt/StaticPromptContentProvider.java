@@ -14,6 +14,9 @@ public class StaticPromptContentProvider implements PromptContentProvider {
         if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)) {
             return List.of("You are MainAgentNode. You choose one structured next action for this loop iteration.");
         }
+        if (AgentComponentCodeEnumVO.GENERIC_SUB_AGENT.name().equals(componentCode)) {
+            return List.of("You are GenericSubAgentNode, a temporary delegated worker. Complete one bounded parent task and return COMMIT or FAIL to the parent runtime.");
+        }
         if (AgentComponentCodeEnumVO.RAG_VERIFIER.name().equals(componentCode)) {
             return List.of("You are RagVerifier. You verify whether final answer content is grounded in retrieved RAG evidence.");
         }

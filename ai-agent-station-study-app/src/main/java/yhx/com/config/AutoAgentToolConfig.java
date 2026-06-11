@@ -71,6 +71,9 @@ public class AutoAgentToolConfig {
                 .map(this::toCapabilitySpec)
                 .toList());
         capabilities.addAll(autoCapabilities(mcpProperties, mcpRuntimeCatalog, capabilities));
+        capabilities = capabilities.stream()
+                .map(capability -> applyMcpServerTimeoutDefault(capability, mcpProperties))
+                .toList();
         return new CapabilityRegistry(capabilities);
     }
 
@@ -321,7 +324,7 @@ public class AutoAgentToolConfig {
                     .destructive(Boolean.TRUE.equals(tool.getDestructive()) || server.isDefaultDestructive())
                     .defaultContentMode(enumValue(server.getDefaultContentMode(), ToolArgumentContentModeEnumVO.SUMMARY_ONLY))
                     .workspaceScope(server.getWorkspaceScope())
-                    .timeoutMs(server.getTimeoutMs())
+                    .timeoutMs(resolveToolTimeoutMs(server))
                     .enabled(true)
                     .build());
             explicitCapabilityCodes.add(capabilityCode);
@@ -484,6 +487,45 @@ public class AutoAgentToolConfig {
     private Duration resolveRequestTimeout(AutoAgentMcpProperties.McpServerProperties server) {
         long seconds = server.getRequestTimeoutSeconds() <= 0 ? 100 : server.getRequestTimeoutSeconds();
         return Duration.ofSeconds(seconds);
+    }
+
+    private Long resolveToolTimeoutMs(AutoAgentMcpProperties.McpServerProperties server) {
+        if (server == null) {
+            return null;
+        }
+        if (server.getTimeoutMs() != null && server.getTimeoutMs() > 0) {
+            return server.getTimeoutMs();
+        }
+        long seconds = server.getRequestTimeoutSeconds() <= 0 ? 100 : server.getRequestTimeoutSeconds();
+        return Duration.ofSeconds(seconds).toMillis();
+    }
+
+    private CapabilitySpecVO applyMcpServerTimeoutDefault(CapabilitySpecVO capability,
+                                                          AutoAgentMcpProperties mcpProperties) {
+        if (capability == null || capability.getTimeoutMs() != null) {
+            return capability;
+        }
+        AutoAgentMcpProperties.McpServerProperties server = findServer(mcpProperties, capability.getMcpServerCode());
+        Long timeoutMs = resolveToolTimeoutMs(server);
+        if (timeoutMs == null) {
+            return capability;
+        }
+        return CapabilitySpecVO.builder()
+                .capabilityCode(capability.getCapabilityCode())
+                .capabilityType(capability.getCapabilityType())
+                .mcpServerCode(capability.getMcpServerCode())
+                .toolName(capability.getToolName())
+                .requiredPermission(capability.getRequiredPermission())
+                .permissionMode(capability.getPermissionMode())
+                .approvalPolicy(capability.getApprovalPolicy())
+                .riskLevel(capability.getRiskLevel())
+                .destructive(capability.getDestructive())
+                .defaultContentMode(capability.getDefaultContentMode())
+                .enabled(capability.getEnabled())
+                .workspaceScope(capability.getWorkspaceScope())
+                .timeoutMs(timeoutMs)
+                .argumentDefaults(capability.getArgumentDefaults())
+                .build();
     }
 
     private void initializeIfNeeded(AutoAgentMcpProperties.McpServerProperties server, McpSyncClient client) {

@@ -11,6 +11,10 @@ import yhx.com.domain.agent.service.tool.port.McpToolInvokerPort;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
 
@@ -31,11 +35,7 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
             return failed(false, "TOOL_CLIENT_UNAVAILABLE", "MCP client is not available: " + command.getMcpServerCode(), startedAt);
         }
         try {
-            ensureInitialized(client);
-            McpSchema.CallToolResult callToolResult = client.callTool(new McpSchema.CallToolRequest(
-                    command.getToolName(),
-                    command.getArguments() == null ? Map.of() : command.getArguments()
-            ));
+            McpSchema.CallToolResult callToolResult = callToolWithTimeout(client, command, startedAt);
             String contentText = contentText(callToolResult);
             boolean toolError = Boolean.TRUE.equals(callToolResult == null ? null : callToolResult.isError());
             Map<String, Object> receipt = new LinkedHashMap<>();
@@ -51,6 +51,8 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
                     .errorMessage(toolError ? contentText(callToolResult) : null)
                     .latencyMs(System.currentTimeMillis() - startedAt)
                     .build();
+        } catch (McpToolTimeoutException e) {
+            return timeout(command, startedAt, e.getMessage());
         } catch (RuntimeException e) {
             String errorCode = client.isInitialized() ? e.getClass().getSimpleName() : "TOOL_CLIENT_INITIALIZATION_FAILED";
             return McpToolInvokeResultVO.builder()
@@ -61,6 +63,53 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
                     .latencyMs(System.currentTimeMillis() - startedAt)
                     .build();
         }
+    }
+
+    private McpSchema.CallToolResult callToolWithTimeout(McpSyncClient client,
+                                                         McpToolInvokeCommandVO command,
+                                                         long startedAt) {
+        long timeoutMs = command.getTimeoutMs() == null ? 0L : command.getTimeoutMs();
+        if (timeoutMs <= 0L) {
+            ensureInitialized(client);
+            return client.callTool(request(command));
+        }
+        CompletableFuture<McpSchema.CallToolResult> future = CompletableFuture.supplyAsync(() -> {
+            ensureInitialized(client);
+            return client.callTool(request(command));
+        });
+        try {
+            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw new McpToolTimeoutException("MCP tool call timed out after " + timeoutMs + "ms.", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new McpToolTimeoutException("MCP tool call was interrupted after " + (System.currentTimeMillis() - startedAt) + "ms.", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new RuntimeException(cause);
+        }
+    }
+
+    private McpSchema.CallToolRequest request(McpToolInvokeCommandVO command) {
+        return new McpSchema.CallToolRequest(
+                command.getToolName(),
+                command.getArguments() == null ? Map.of() : command.getArguments()
+        );
+    }
+
+    private McpToolInvokeResultVO timeout(McpToolInvokeCommandVO command, long startedAt, String message) {
+        long timeoutMs = command == null || command.getTimeoutMs() == null ? 0L : command.getTimeoutMs();
+        return McpToolInvokeResultVO.builder()
+                .called(true)
+                .success(false)
+                .errorCode("MCP_TOOL_TIMEOUT")
+                .errorMessage(isBlank(message) ? "MCP tool call timed out after " + timeoutMs + "ms." : message)
+                .latencyMs(System.currentTimeMillis() - startedAt)
+                .build();
     }
 
     private void ensureInitialized(McpSyncClient client) {
@@ -81,6 +130,12 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static class McpToolTimeoutException extends RuntimeException {
+        private McpToolTimeoutException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     private String contentText(McpSchema.CallToolResult result) {

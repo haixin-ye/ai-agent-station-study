@@ -122,6 +122,10 @@ public class NodeInvocationPipeline {
         if (first.success()) {
             return result(NodeInvocationStatusEnumVO.SUCCESS, command, first, attempts, null, null);
         }
+        if (NodeInvocationFailureTypeEnumVO.CLIENT_ERROR.equals(first.failureType())) {
+            return result(NodeInvocationStatusEnumVO.CLIENT_FAILED, command, first, attempts,
+                    first.failureType().code(), first.failureMessage());
+        }
 
         int maxRepairAttempts = command.getMaxRepairAttempts() == null ? 0 : command.getMaxRepairAttempts();
         InvocationEvaluation last = first;

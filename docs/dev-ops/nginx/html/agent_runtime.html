@@ -9,24 +9,26 @@
     <link rel="stylesheet" href="css/github.min.css">
     <style>
         :root {
-            --canvas: #f8f6f1;
-            --paper: #fffdfa;
-            --panel: #f2eee6;
-            --panel-strong: #e8dfd2;
-            --surface-float: rgba(255, 253, 250, 0.82);
-            --ink: #1d1b18;
-            --ink-soft: #514d45;
-            --ink-muted: #81786b;
-            --line: #e2d8c9;
-            --line-strong: #c7b8a5;
-            --accent: #9b5b43;
-            --green: #487a62;
-            --amber: #9a6b2f;
-            --red: #a9443d;
-            --dark: #1f1d19;
-            --dark-soft: #2f2b25;
-            --light: #fffaf1;
-            --radius: 16px;
+            --canvas: #ffffff;
+            --paper: #ffffff;
+            --panel: #f7f8fb;
+            --panel-strong: #eef2f8;
+            --surface-float: rgba(255, 255, 255, 0.88);
+            --ink: #0d0f14;
+            --ink-soft: #303642;
+            --ink-muted: #697386;
+            --line: #e6eaf0;
+            --line-strong: #cbd5e1;
+            --accent: #1d4ed8;
+            --accent-soft: #eff6ff;
+            --accent-line: #bfdbfe;
+            --green: #087f5b;
+            --amber: #b45309;
+            --red: #dc2626;
+            --dark: #0b0d12;
+            --dark-soft: #1f2937;
+            --light: #f8fafc;
+            --radius: 12px;
             --sidebar-width: 300px;
             --sidebar-collapsed-width: 72px;
             --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
@@ -86,8 +88,8 @@
             display: grid;
             grid-template-rows: auto minmax(0, 1fr) auto;
             overflow: hidden;
-            background: linear-gradient(180deg, #f5f0e8 0%, #f8f6f1 100%);
-            border-right: 1px solid rgba(226, 216, 201, 0.72);
+            background: linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%);
+            border-right: 1px solid rgba(230, 234, 240, 0.92);
         }
 
         .brand {
@@ -121,7 +123,7 @@
 
         .collapse-sidebar:hover {
             color: var(--ink);
-            background: rgba(255, 253, 250, 0.78);
+            background: rgba(248, 250, 252, 0.92);
             border-color: var(--line);
         }
 
@@ -131,7 +133,7 @@
             display: grid;
             place-items: center;
             border-radius: 6px;
-            color: #fff8ed;
+            color: #ffffff;
             background: var(--dark);
             font-family: var(--serif);
             font-size: 17px;
@@ -179,7 +181,7 @@
             padding: 4px;
             border: 1px solid var(--line);
             border-radius: var(--radius);
-            background: var(--panel-strong);
+            background: var(--panel);
         }
 
         .mode-button {
@@ -287,7 +289,7 @@
         .session-item.active .session-button,
         .session-item.menu-open .session-button,
         .scenario-button.active {
-            background: rgba(255, 253, 250, 0.78);
+            background: #f8fafc;
         }
 
         .session-menu-button {
@@ -314,7 +316,7 @@
         .session-menu-button:hover,
         .session-item.menu-open .session-menu-button {
             color: var(--ink);
-            background: rgba(255, 253, 250, 0.82);
+            background: #f8fafc;
         }
 
         .session-menu {
@@ -326,8 +328,8 @@
             padding: 8px;
             border: 1px solid var(--line);
             border-radius: 14px;
-            background: rgba(255, 253, 250, 0.98);
-            box-shadow: 0 18px 44px rgba(54, 46, 34, 0.16);
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
         }
 
         .session-menu[hidden] {
@@ -409,8 +411,24 @@
             grid-template-rows: auto minmax(0, 1fr) auto;
             overflow: hidden;
             background:
-                radial-gradient(circle at 80% 0%, rgba(232, 223, 210, 0.32), transparent 32%),
-                linear-gradient(180deg, #fffdfa 0%, #fbf8f2 100%);
+                radial-gradient(circle at 82% 0%, rgba(219, 234, 254, 0.34), transparent 30%),
+                linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+        }
+
+        .main-body {
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 0;
+            gap: 0;
+            padding-right: 0;
+            overflow: hidden;
+            transition: grid-template-columns 220ms ease, gap 220ms ease, padding-right 220ms ease;
+        }
+
+        body.runtime-panels-visible .main-body {
+            grid-template-columns: minmax(0, 1fr) clamp(260px, 20vw, 330px);
+            gap: 18px;
+            padding-right: 18px;
         }
 
         .topbar {
@@ -421,7 +439,7 @@
             gap: 16px;
             padding: 0 22px;
             border-bottom: 1px solid var(--line);
-            background: rgba(255, 253, 250, 0.72);
+            background: rgba(255, 255, 255, 0.78);
             backdrop-filter: blur(16px);
         }
 
@@ -442,7 +460,7 @@
             border: 1px solid var(--line);
             border-radius: 999px;
             color: var(--ink-soft);
-            background: var(--canvas);
+            background: #ffffff;
             font-size: 12px;
             white-space: nowrap;
         }
@@ -456,7 +474,8 @@
         }
 
         .status-pill.running::before {
-            background: var(--amber);
+            background: var(--accent);
+            animation: runtime-pulse 1.4s ease-in-out infinite;
         }
 
         .status-pill.completed::before {
@@ -526,6 +545,372 @@
         .chat-inner {
             width: min(880px, 100%);
             margin: 0 auto;
+        }
+
+        .runtime-aside {
+            min-width: 0;
+            padding: 16px 0 22px;
+            overflow-y: auto;
+            opacity: 0;
+            transform: translateX(14px);
+            pointer-events: none;
+            transition: opacity 220ms ease, transform 220ms ease;
+        }
+
+        body.runtime-panels-visible .runtime-aside {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .runtime-aside-inner {
+            display: grid;
+            gap: 12px;
+            position: sticky;
+            top: 16px;
+        }
+
+        .runtime-mini-card {
+            display: grid;
+            gap: 12px;
+            padding: 14px;
+            border: 1px solid rgba(203, 213, 225, 0.72);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.86);
+            box-shadow: 0 18px 46px rgba(15, 23, 42, 0.07);
+            backdrop-filter: blur(16px);
+            animation: runtime-card-in 240ms ease both;
+        }
+
+        .runtime-mini-card.hidden {
+            display: none;
+        }
+
+        .runtime-mini-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .runtime-mini-title {
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 760;
+            line-height: 1.3;
+        }
+
+        .runtime-mini-subtitle {
+            margin-top: 3px;
+            color: var(--ink-muted);
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
+        .runtime-mini-badge {
+            flex: 0 0 auto;
+            padding: 4px 9px;
+            border-radius: 999px;
+            color: #1d4ed8;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            font-size: 10px;
+            font-weight: 820;
+            letter-spacing: 0;
+        }
+
+        .runtime-mini-badge.direct,
+        .runtime-mini-badge.committed {
+            color: #047857;
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+        }
+
+        .runtime-mini-badge.failed {
+            color: #b91c1c;
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .runtime-mini-goal {
+            color: var(--ink-soft);
+            font-size: 12px;
+            line-height: 1.58;
+            padding: 9px 10px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+            border: 1px solid rgba(230, 234, 240, 0.9);
+        }
+
+        .runtime-mini-steps {
+            display: grid;
+            gap: 4px;
+            position: relative;
+            padding-left: 2px;
+        }
+
+        .runtime-mini-step {
+            display: grid;
+            grid-template-columns: 22px minmax(0, 1fr);
+            gap: 8px;
+            align-items: start;
+            min-width: 0;
+            padding: 5px 0;
+        }
+
+        .runtime-mini-check {
+            width: 20px;
+            height: 20px;
+            display: grid;
+            place-items: center;
+            border-radius: 5px;
+            color: #ffffff;
+            background: #1d4ed8;
+            border: 1px solid #1d4ed8;
+            font-size: 11px;
+            font-weight: 900;
+            line-height: 1;
+            box-shadow: 0 5px 14px rgba(29, 78, 216, 0.18);
+        }
+
+        .runtime-mini-check.pending {
+            color: transparent;
+            background: #ffffff;
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+
+        .runtime-mini-check.active {
+            color: transparent;
+            background: #ffffff;
+            border-color: #2563eb;
+            animation: runtime-pulse 1.4s ease-in-out infinite;
+        }
+
+        .runtime-mini-check.failed {
+            color: #ffffff;
+            background: #dc2626;
+            border-color: #dc2626;
+            box-shadow: 0 5px 14px rgba(220, 38, 38, 0.16);
+        }
+
+        .runtime-mini-step-title {
+            color: var(--ink-soft);
+            font-size: 11px;
+            font-weight: 720;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
+
+        .runtime-mini-step-note {
+            margin-top: 2px;
+            color: var(--ink-muted);
+            font-size: 10px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .runtime-mini-action {
+            padding: 10px;
+            border: 1px solid rgba(191, 219, 254, 0.92);
+            border-radius: 12px;
+            background:
+                linear-gradient(90deg, rgba(29, 78, 216, 0.06), rgba(255, 255, 255, 0)),
+                #ffffff;
+            color: var(--ink-muted);
+            font-size: 11px;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+            position: relative;
+        }
+
+        .runtime-mini-action::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 10px;
+            bottom: 10px;
+            width: 2px;
+            border-radius: 999px;
+            background: #2563eb;
+        }
+
+        .runtime-mini-action strong {
+            display: block;
+            margin-bottom: 3px;
+            color: var(--ink-soft);
+            font-size: 11px;
+        }
+
+        .runtime-agent-list {
+            display: grid;
+            gap: 9px;
+        }
+
+        .runtime-agent-mini {
+            display: grid;
+            gap: 8px;
+            padding: 11px 11px 11px 12px;
+            border: 1px solid rgba(226, 232, 240, 0.98);
+            border-radius: 12px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            position: relative;
+            overflow: visible;
+            transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+        }
+
+        .runtime-agent-mini:hover {
+            transform: translateY(-1px);
+            border-color: rgba(147, 197, 253, 0.96);
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+            z-index: 8;
+        }
+
+        .runtime-agent-mini::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--agent-color, #2563eb);
+        }
+
+        .runtime-agent-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .runtime-agent-name {
+            min-width: 0;
+            color: var(--ink);
+            font-size: 12px;
+            font-weight: 780;
+            line-height: 1.3;
+            overflow-wrap: anywhere;
+        }
+
+        .runtime-agent-task {
+            color: var(--ink-muted);
+            font-size: 11px;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+        }
+
+        .runtime-hover-text {
+            position: relative;
+            cursor: default;
+        }
+
+        .runtime-hover-text.is-truncated {
+            cursor: help;
+        }
+
+        .runtime-hover-text.is-truncated::after {
+            content: attr(data-full);
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: calc(100% + 8px);
+            z-index: 30;
+            display: none;
+            max-height: 220px;
+            overflow: auto;
+            padding: 10px 11px;
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            color: #0f172a;
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+            white-space: pre-wrap;
+            line-height: 1.55;
+            font-size: 11px;
+            font-weight: 520;
+        }
+
+        .runtime-hover-text.is-truncated:hover::after {
+            display: block;
+        }
+
+        .runtime-mini-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .runtime-agent-capability-block {
+            display: grid;
+            gap: 5px;
+            padding: 7px 8px;
+            border: 1px solid #dbeafe;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #f8fbff, #ffffff);
+        }
+
+        .runtime-agent-capability-title {
+            color: #475569;
+            font-size: 10px;
+            font-weight: 780;
+        }
+
+        .runtime-mini-chip {
+            padding: 2px 6px;
+            border-radius: 999px;
+            color: #334155;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            font-size: 9px;
+            font-weight: 800;
+        }
+
+        .runtime-agent-progress {
+            position: relative;
+            height: 4px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: #eef2f8;
+        }
+
+        .runtime-agent-progress span {
+            display: block;
+            height: 100%;
+            width: var(--progress, 38%);
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--agent-color, #2563eb), #60a5fa);
+            transition: width 260ms ease;
+        }
+
+        .runtime-agent-mini.is-running .runtime-agent-progress span {
+            width: 100%;
+            opacity: 0.22;
+        }
+
+        .runtime-agent-mini.is-running .runtime-agent-progress::after {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 42%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, transparent, var(--agent-color, #2563eb), transparent);
+            animation: runtime-progress-sweep 1.35s linear infinite;
+            will-change: transform;
+        }
+
+        @keyframes runtime-card-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes runtime-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.28); }
+            50% { box-shadow: 0 0 0 5px rgba(37, 99, 235, 0); }
+        }
+
+        @keyframes runtime-progress-sweep {
+            from { transform: translateX(-115%); }
+            to { transform: translateX(240%); }
         }
 
         .empty-state {
@@ -1691,6 +2076,221 @@
             margin-top: 1px;
         }
 
+        .thinking-dashboard {
+            display: grid;
+            gap: 12px;
+        }
+
+        .thinking-section {
+            display: grid;
+            gap: 9px;
+            padding: 12px;
+            border: 1px solid rgba(226, 216, 201, 0.72);
+            border-radius: 16px;
+            background: rgba(255, 253, 250, 0.66);
+        }
+
+        .thinking-section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .thinking-section-title {
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 750;
+        }
+
+        .thinking-badge {
+            flex: 0 0 auto;
+            padding: 3px 8px;
+            border-radius: 999px;
+            color: #6d4f27;
+            background: rgba(222, 188, 132, 0.24);
+            border: 1px solid rgba(199, 160, 94, 0.25);
+            font-size: 11px;
+            font-weight: 750;
+            letter-spacing: 0;
+        }
+
+        .thinking-badge.direct {
+            color: #335a4c;
+            background: rgba(126, 184, 158, 0.18);
+            border-color: rgba(90, 157, 127, 0.22);
+        }
+
+        .thinking-badge.failed {
+            color: #8b3f37;
+            background: rgba(205, 93, 75, 0.12);
+            border-color: rgba(205, 93, 75, 0.22);
+        }
+
+        .thinking-note {
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .thinking-plan-steps {
+            display: grid;
+            gap: 7px;
+        }
+
+        .thinking-step {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: start;
+            gap: 8px;
+            min-height: 28px;
+            color: var(--ink-soft);
+            font-size: 12px;
+        }
+
+        .thinking-step-index {
+            min-width: 28px;
+            padding-top: 2px;
+            color: #8b7f70;
+            font-variant-numeric: tabular-nums;
+            font-weight: 750;
+        }
+
+        .thinking-step-title {
+            min-width: 0;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+        }
+
+        .thinking-step-status {
+            padding: 2px 7px;
+            border-radius: 999px;
+            color: #7a6b5a;
+            background: rgba(232, 223, 210, 0.62);
+            font-size: 10px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .thinking-step-status.done,
+        .thinking-step-status.completed,
+        .thinking-step-status.commit,
+        .thinking-step-status.committed {
+            color: #356052;
+            background: rgba(126, 184, 158, 0.18);
+        }
+
+        .thinking-step-status.failed,
+        .thinking-step-status.cancelled {
+            color: #8b3f37;
+            background: rgba(205, 93, 75, 0.12);
+        }
+
+        .thinking-action-output {
+            display: grid;
+            gap: 6px;
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(47, 43, 37, 0.035);
+            border: 1px dashed rgba(176, 158, 132, 0.55);
+        }
+
+        .thinking-action-output-title {
+            color: var(--ink-soft);
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .thinking-action-output-text {
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
+        }
+
+        .thinking-action-trail {
+            display: grid;
+            gap: 7px;
+        }
+
+        .thinking-action-item {
+            display: grid;
+            grid-template-columns: 24px minmax(0, 1fr);
+            gap: 8px;
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .thinking-action-index {
+            width: 22px;
+            height: 22px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            color: #7e5c31;
+            background: rgba(222, 188, 132, 0.2);
+            font-size: 11px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .thinking-action-name {
+            color: var(--ink-soft);
+            font-weight: 750;
+        }
+
+        .thinking-agent-grid {
+            display: grid;
+            gap: 9px;
+        }
+
+        .thinking-agent-card {
+            display: grid;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 14px;
+            background: rgba(248, 243, 236, 0.68);
+            border: 1px solid rgba(226, 216, 201, 0.72);
+        }
+
+        .thinking-agent-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .thinking-agent-name {
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
+
+        .thinking-agent-task {
+            color: var(--ink-muted);
+            font-size: 12px;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
+        }
+
+        .thinking-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .thinking-chip {
+            padding: 3px 7px;
+            border-radius: 999px;
+            color: #6f6559;
+            background: rgba(255, 253, 250, 0.74);
+            border: 1px solid rgba(226, 216, 201, 0.8);
+            font-size: 10px;
+            font-weight: 750;
+        }
+
         @keyframes thinkingWave {
             from {
                 background-position: 0% 50%;
@@ -1824,6 +2424,194 @@
             line-height: 1.3;
         }
 
+        .message.user .bubble {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            box-shadow: none;
+        }
+
+        .message-action {
+            color: #6b7280;
+        }
+
+        .message-action:hover,
+        .message-action.active {
+            color: #111827;
+            background: #f3f4f6;
+        }
+
+        .thinking-final .thinking-wave,
+        .thinking-wave {
+            background: linear-gradient(90deg, #111827 0%, #2563eb 42%, #64748b 68%, #111827 100%);
+            background-size: 220% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .thinking-dot {
+            background: #2563eb;
+            box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.1);
+        }
+
+        .thinking-final-body,
+        .thinking-live-body,
+        .thinking-panel,
+        .thinking-panel[open] {
+            border-color: #e5e7eb;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 16px 42px rgba(15, 23, 42, 0.07);
+        }
+
+        .thinking-section {
+            border-color: #e5e7eb;
+            background: #ffffff;
+        }
+
+        .thinking-badge {
+            color: #1d4ed8;
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+        .thinking-badge.direct,
+        .thinking-step-status.done,
+        .thinking-step-status.completed,
+        .thinking-step-status.commit,
+        .thinking-step-status.committed {
+            color: #047857;
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+        }
+
+        .thinking-badge.failed,
+        .thinking-step-status.failed,
+        .thinking-step-status.cancelled {
+            color: #b91c1c;
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .thinking-row::before {
+            background: #cbd5e1;
+        }
+
+        .thinking-step-index,
+        .thinking-action-index {
+            color: #1d4ed8;
+            background: #eff6ff;
+        }
+
+        .thinking-step-status {
+            color: #475569;
+            background: #f1f5f9;
+        }
+
+        .thinking-action-output {
+            background: linear-gradient(90deg, rgba(37, 99, 235, 0.06), #ffffff);
+            border: 1px solid #bfdbfe;
+        }
+
+        .thinking-agent-card {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+        }
+
+        .thinking-chip {
+            color: #334155;
+            background: #ffffff;
+            border-color: #e2e8f0;
+        }
+
+        .composer-wrap {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.98) 38%);
+        }
+
+        .composer {
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 14px 38px rgba(15, 23, 42, 0.1);
+        }
+
+        .attach-button:hover,
+        .attach-button.active {
+            color: #111827;
+            background: #f3f4f6;
+        }
+
+        .attach-menu {
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
+        }
+
+        .attach-menu button:hover {
+            background: #f3f4f6;
+        }
+
+        .attach-icon,
+        .rag-dropzone-icon {
+            color: #111827;
+            background: #f3f4f6;
+        }
+
+        .rag-dropzone:hover .rag-dropzone-icon,
+        .rag-dropzone.drag-over .rag-dropzone-icon {
+            background: #e5e7eb;
+        }
+
+        .rag-modal {
+            background:
+                radial-gradient(circle at 28% 18%, rgba(37, 99, 235, 0.12), transparent 28%),
+                rgba(15, 23, 42, 0.28);
+        }
+
+        .rag-dialog {
+            border-color: #e5e7eb;
+            box-shadow: 0 36px 92px rgba(15, 23, 42, 0.2);
+        }
+
+        .rag-main {
+            background: linear-gradient(180deg, #ffffff, #f8fafc);
+        }
+
+        .rag-source-chip,
+        .rag-file-meta {
+            border-color: #e5e7eb;
+            background: #ffffff;
+        }
+
+        .rag-tab.active {
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+        }
+
+        .rag-tab.active::before {
+            background: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .field-input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .rag-dropzone {
+            border-color: #bfdbfe;
+            background: linear-gradient(180deg, #ffffff, #f8fafc);
+        }
+
+        .rag-dropzone::before {
+            border-color: rgba(226, 232, 240, 0.8);
+        }
+
+        .rag-dropzone:hover,
+        .rag-dropzone.drag-over {
+            border-color: #2563eb;
+            box-shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
+        }
+
+        .rag-progress::before {
+            background: linear-gradient(90deg, #2563eb, #38bdf8);
+        }
+
         .composer textarea {
             min-height: 38px;
             max-height: 130px;
@@ -1854,6 +2642,15 @@
             }
 
             .sidebar {
+                display: none;
+            }
+
+            .main-body {
+                grid-template-columns: 1fr;
+                padding-right: 0;
+            }
+
+            .runtime-aside {
                 display: none;
             }
 
@@ -2004,6 +2801,7 @@
             </div>
         </header>
 
+        <div class="main-body">
         <section id="chatScroll" class="chat-scroll">
             <div class="chat-inner">
                 <div id="emptyState" class="empty-state">
@@ -2012,7 +2810,7 @@
                         <p class="empty-copy">普通视图只显示会话、必要进度、用户确认和最终回答。调试信息会保存在独立抽屉里，避免把内部流程误当成回答。</p>
                     </div>
                     <div class="starter-grid">
-                        <button class="starter-button" data-starter="帮我生成一篇 RAG 相关的八股文，200 字左右">
+                        <button class="starter-button" data-starter="帮我生成一篇 RAG 相关的短文，300 字左右">
                             <strong>生成短文</strong>
                             <span>检查普通最终回答是否干净。</span>
                         </button>
@@ -2033,6 +2831,13 @@
                 <div id="messageStack" class="message-stack"></div>
             </div>
         </section>
+        <aside id="runtimeAside" class="runtime-aside" aria-label="Agent status panels">
+            <div class="runtime-aside-inner">
+                <section id="mainNodeCard" class="runtime-mini-card"></section>
+                <section id="subAgentCard" class="runtime-mini-card hidden"></section>
+            </div>
+        </aside>
+        </div>
 
         <footer class="composer-wrap">
             <div class="composer">
@@ -2066,7 +2871,7 @@
             <div class="rag-aside-mark">K</div>
             <div class="rag-aside-body">
                 <h2 id="ragAsideTitle" class="rag-aside-title">把本地资料变成可检索上下文</h2>
-                <p id="ragAsideCopy" class="rag-aside-copy">上传文档、笔记或代码片段后，系统会切分内容并写入统一向量库，后续会话会直接从全局知识中检索。</p>
+                <p id="ragAsideCopy" class="rag-aside-copy">上传文档、笔记或代码片段后，系统会切分内容并写入统一向量库，后续会话可以从全局知识中检索。</p>
                 <div class="rag-aside-steps">
                     <div class="rag-aside-step"><span>1</span><div id="ragStepOne">选择本地文件</div></div>
                     <div class="rag-aside-step"><span>2</span><div id="ragStepTwo">切分并写入向量库</div></div>
@@ -2229,10 +3034,10 @@
     };
 
     const finalMessages = {
-        simple_final: "RAG 是把知识检索和大模型生成结合起来的技术。它先根据用户问题从知识库中找出相关内容，再把这些内容作为上下文交给大模型生成答案。相比只依赖模型参数，RAG 能减少幻觉、提升事实准确性，并支持知识动态更新。",
-        rag_progress: "RAG 的核心价值是让模型回答建立在外部知识之上。流程通常包括问题理解、向量检索、候选片段筛选、上下文拼接和答案生成。面试时可以重点说明它解决了模型知识滞后、事实不准和私域知识不可访问的问题。",
+        simple_final: "RAG 是把知识检索和大模型生成结合起来的技术。它会先根据用户问题从知识库中找出相关内容，再把这些内容作为上下文交给模型生成答案。",
+        rag_progress: "RAG 的核心价值是让模型回答建立在外部知识之上。典型流程包括问题理解、向量检索、候选片段筛选、上下文拼接和答案生成。",
         tool_publish_progress: "发布流程已完成。文章已经通过配置工具提交，当前会话保留了本次发布记录。",
-        artifact_created: "已创建文章产物。你可以继续要求我修改结构、压缩字数，或者基于这个版本执行后续发布。",
+        artifact_created: "已创建文章产物。你可以继续要求修改结构、压缩字数，或者基于这个版本执行后续发布。",
         tool_failed: "工具执行失败，当前流程已安全停止。你可以调整目标后重新发起。"
     };
 
@@ -2248,8 +3053,11 @@
         pendingInputs: new Map(),
         answeredPendingIds: new Set(),
         seenEventKeys: new Set(),
+        seenDebugTraceKeys: new Set(),
         debugDetails: {traces: [], evidence: [], toolCalls: [], payloads: {}},
+        runtimeSubAgentEvents: [],
         eventSource: null,
+        debugEventSource: null,
         streamStatus: "idle",
         lastStreamError: null,
         sidebarCollapsed: false,
@@ -2258,6 +3066,75 @@
     };
 
     const recoveryTimers = new Map();
+    const debugRefreshTimers = new Map();
+    const loadingPayloadRefs = new Set();
+    const uiRenderQueue = {
+        frameId: null,
+        delayedTimers: new Map(),
+        sidebar: false,
+        sessions: false,
+        topbar: false,
+        messages: false,
+        runtime: false,
+        debug: false
+    };
+    let persistStateTimer = null;
+    let runtimeInsightVersion = 0;
+    const runtimeInsightCache = new Map();
+
+    function invalidateRuntimeInsight() {
+        runtimeInsightVersion += 1;
+        runtimeInsightCache.clear();
+    }
+
+    function scheduleRender(...parts) {
+        const targets = parts.length ? parts : ["messages", "runtime", "debug"];
+        targets.forEach(part => {
+            if (Object.prototype.hasOwnProperty.call(uiRenderQueue, part)) {
+                uiRenderQueue[part] = true;
+            }
+        });
+        if (uiRenderQueue.frameId) return;
+        uiRenderQueue.frameId = window.requestAnimationFrame(() => {
+            uiRenderQueue.frameId = null;
+            const job = {
+                sidebar: uiRenderQueue.sidebar,
+                sessions: uiRenderQueue.sessions,
+                topbar: uiRenderQueue.topbar,
+                messages: uiRenderQueue.messages,
+                runtime: uiRenderQueue.runtime,
+                debug: uiRenderQueue.debug
+            };
+            uiRenderQueue.sidebar = false;
+            uiRenderQueue.sessions = false;
+            uiRenderQueue.topbar = false;
+            uiRenderQueue.messages = false;
+            uiRenderQueue.runtime = false;
+            uiRenderQueue.debug = false;
+            if (job.sidebar) applySidebarState();
+            if (job.sessions) renderSessions();
+            if (job.topbar) renderTopbar();
+            if (job.messages) renderMessages();
+            if (job.runtime) renderRuntimeAside();
+            if (job.debug) renderDebug();
+        });
+    }
+
+    function schedulePersistState(delay = 250) {
+        window.clearTimeout(persistStateTimer);
+        persistStateTimer = window.setTimeout(() => {
+            persistStateTimer = null;
+            persistState();
+        }, delay);
+    }
+
+    function scheduleRenderDelayed(key, delay, ...parts) {
+        window.clearTimeout(uiRenderQueue.delayedTimers.get(key));
+        uiRenderQueue.delayedTimers.set(key, window.setTimeout(() => {
+            uiRenderQueue.delayedTimers.delete(key);
+            scheduleRender(...parts);
+        }, delay));
+    }
 
     const els = {
         mockModeBtn: document.getElementById("mockModeBtn"),
@@ -2313,6 +3190,9 @@
         emptyState: document.getElementById("emptyState"),
         messageStack: document.getElementById("messageStack"),
         chatScroll: document.getElementById("chatScroll"),
+        runtimeAside: document.getElementById("runtimeAside"),
+        mainNodeCard: document.getElementById("mainNodeCard"),
+        subAgentCard: document.getElementById("subAgentCard"),
         toast: document.getElementById("toast"),
         debugSessionId: document.getElementById("debugSessionId"),
         debugRunId: document.getElementById("debugRunId"),
@@ -2409,7 +3289,7 @@
         }
 
         els.ragAsideTitle.textContent = "把本地资料变成可检索上下文";
-        els.ragAsideCopy.textContent = "上传文档、笔记或代码片段后，系统会切分内容并写入统一向量库，后续会话会直接从全局知识中检索。";
+        els.ragAsideCopy.textContent = "上传文档、笔记或代码片段后，系统会切分内容并写入统一向量库，后续会话可以从全局知识中检索。";
         els.ragStepOne.textContent = "选择本地文件";
         els.ragStepTwo.textContent = "切分并写入向量库";
         els.ragStepThree.textContent = "向量化后可由 MainAgent 调用";
@@ -2503,6 +3383,7 @@
             state.sessions = Array.isArray(saved.sessions) ? saved.sessions : [];
             state.sessions.forEach(ensureSessionShape);
             state.activeSessionId = saved.activeSessionId || null;
+            state.activeRunId = saved.activeRunId || null;
             state.sidebarCollapsed = Boolean(saved.sidebarCollapsed);
         } catch (error) {
             state.sessions = [];
@@ -2513,15 +3394,74 @@
         if (!state.activeSessionId) {
             state.activeSessionId = state.sessions[0].sessionId;
         }
+        const session = ensureSessionShape(activeSession());
+        applyRuntimeView(session?.runtimeView || emptyRuntimeView());
     }
 
     function persistState() {
-        localStorage.setItem(STORE_KEY, JSON.stringify({
-            mode: state.mode,
-            sessions: state.sessions,
-            activeSessionId: state.activeSessionId,
-            sidebarCollapsed: state.sidebarCollapsed
-        }));
+        syncRunViewToActiveSession();
+        try {
+            localStorage.setItem(STORE_KEY, JSON.stringify({
+                mode: state.mode,
+                sessions: state.sessions.map(persistableSession),
+                activeSessionId: state.activeSessionId,
+                activeRunId: state.activeRunId,
+                sidebarCollapsed: state.sidebarCollapsed
+            }));
+        } catch (error) {
+            console.warn("AutoAgent UI state persistence skipped:", error);
+        }
+    }
+
+    function persistableSession(session) {
+        const shaped = ensureSessionShape({...session});
+        return {
+            ...shaped,
+            debugRecords: (shaped.debugRecords || []).slice(0, 80),
+            runtimeView: persistableRuntimeView(shaped.runtimeView)
+        };
+    }
+
+    function persistableRuntimeView(view) {
+        const runtime = normalizeRuntimeView(view);
+        return {
+            ...runtime,
+            events: runtime.events.slice(-160).map(event => ({
+                eventId: event.eventId,
+                runId: event.runId,
+                seq: event.seq,
+                eventType: event.eventType,
+                title: event.title,
+                message: event.message,
+                artifactId: event.artifactId,
+                pendingId: event.pendingId,
+                safePayload: compactObject(event.safePayload, 1800),
+                createdAt: event.createdAt
+            })),
+            runtimeSubAgentEvents: (runtime.runtimeSubAgentEvents || []).slice(-160).map(event => ({
+                runId: event.runId,
+                seq: event.seq,
+                eventType: event.eventType,
+                title: event.title,
+                message: event.message,
+                safePayload: compactObject(event.safePayload, 1800),
+                createdAt: event.createdAt
+            })),
+            artifacts: runtime.artifacts.slice(-40),
+            debugDetails: {traces: [], evidence: [], toolCalls: [], payloads: {}},
+            seenDebugTraceKeys: []
+        };
+    }
+
+    function compactObject(value, maxChars = 2000) {
+        if (!value) return value;
+        try {
+            const text = JSON.stringify(value);
+            if (text.length <= maxChars) return value;
+            return {truncated: true, preview: text.slice(0, maxChars)};
+        } catch (error) {
+            return {truncated: true, preview: String(value).slice(0, maxChars)};
+        }
     }
 
     function applySidebarState() {
@@ -2544,10 +3484,10 @@
         ensureSessionShape(session);
         state.sessions.unshift(session);
         if (activate) {
+            closeStream();
+            syncRunViewToActiveSession();
             state.activeSessionId = session.sessionId;
-            state.activeRunId = null;
-            state.status = "idle";
-            resetRunViewState();
+            applyRuntimeView(session.runtimeView);
         }
         persistState();
         return session;
@@ -2563,9 +3503,7 @@
         if (state.activeSessionId === sessionId) {
             closeStream();
             state.activeSessionId = state.sessions[0].sessionId;
-            state.activeRunId = null;
-            state.status = "idle";
-            resetRunViewState();
+            applyRuntimeView(ensureSessionShape(activeSession()).runtimeView);
         }
         persistState();
         renderAll();
@@ -2591,10 +3529,24 @@
         return state.sessions.find(item => item.sessionId === state.activeSessionId) || state.sessions[0];
     }
 
+    function sessionById(sessionId) {
+        return state.sessions.find(item => item.sessionId === sessionId) || null;
+    }
+
+    function sessionForRunId(runId) {
+        if (!runId) return null;
+        return state.sessions.find(session => {
+            ensureSessionShape(session);
+            if (session.runtimeView?.activeRunId === runId) return true;
+            return (session.messages || []).some(message => message.meta?.runId === runId);
+        }) || null;
+    }
+
     function ensureSessionShape(session) {
         if (!session) return session;
         session.messages = Array.isArray(session.messages) ? session.messages : [];
         session.debugRecords = Array.isArray(session.debugRecords) ? session.debugRecords : [];
+        session.runtimeView = normalizeRuntimeView(session.runtimeView || {});
         return session;
     }
 
@@ -2603,15 +3555,112 @@
         return session?.debugRecords || [];
     }
 
+    function emptyRuntimeView() {
+        return {
+            activeRunId: null,
+            status: "idle",
+            events: [],
+            artifacts: [],
+            pendingInputs: [],
+            answeredPendingIds: [],
+            seenEventKeys: [],
+            seenDebugTraceKeys: [],
+            debugDetails: {traces: [], evidence: [], toolCalls: [], payloads: {}},
+            runtimeSubAgentEvents: [],
+            streamStatus: "idle",
+            lastStreamError: null,
+            runtimePanelsEverShown: false
+        };
+    }
+
+    function normalizeRuntimeView(view) {
+        const base = emptyRuntimeView();
+        const next = {...base, ...(view || {})};
+        next.events = Array.isArray(next.events) ? next.events : [];
+        next.artifacts = Array.isArray(next.artifacts) ? next.artifacts : [];
+        next.pendingInputs = Array.isArray(next.pendingInputs) ? next.pendingInputs : [];
+        next.answeredPendingIds = Array.isArray(next.answeredPendingIds) ? next.answeredPendingIds : [];
+        next.seenEventKeys = Array.isArray(next.seenEventKeys) ? next.seenEventKeys : [];
+        next.seenDebugTraceKeys = Array.isArray(next.seenDebugTraceKeys) ? next.seenDebugTraceKeys : [];
+        next.debugDetails = {
+            traces: Array.isArray(next.debugDetails?.traces) ? next.debugDetails.traces : [],
+            evidence: Array.isArray(next.debugDetails?.evidence) ? next.debugDetails.evidence : [],
+            toolCalls: Array.isArray(next.debugDetails?.toolCalls) ? next.debugDetails.toolCalls : [],
+            payloads: next.debugDetails?.payloads && typeof next.debugDetails.payloads === "object" ? next.debugDetails.payloads : {}
+        };
+        next.runtimeSubAgentEvents = Array.isArray(next.runtimeSubAgentEvents) ? next.runtimeSubAgentEvents : [];
+        next.status = normalizeStatus(next.status || "idle");
+        next.runtimePanelsEverShown = Boolean(next.runtimePanelsEverShown);
+        return next;
+    }
+
+    function serializeCurrentRunView() {
+        return normalizeRuntimeView({
+            activeRunId: state.activeRunId || null,
+            status: normalizeStatus(state.status || "idle"),
+            events: state.events || [],
+            artifacts: state.artifacts || [],
+            pendingInputs: [...(state.pendingInputs || new Map()).entries()],
+            answeredPendingIds: [...(state.answeredPendingIds || new Set()).values()],
+            seenEventKeys: [...(state.seenEventKeys || new Set()).values()],
+            seenDebugTraceKeys: [...(state.seenDebugTraceKeys || new Set()).values()],
+            debugDetails: state.debugDetails || {traces: [], evidence: [], toolCalls: [], payloads: {}},
+            runtimeSubAgentEvents: state.runtimeSubAgentEvents || [],
+            streamStatus: state.streamStatus || "idle",
+            lastStreamError: state.lastStreamError || null,
+            runtimePanelsEverShown: Boolean(state.runtimePanelsEverShown)
+        });
+    }
+
+    function syncRunViewToActiveSession() {
+        const session = ensureSessionShape(activeSession());
+        if (!session) return;
+        session.runtimeView = serializeCurrentRunView();
+    }
+
+    function applyRuntimeView(view = {}) {
+        const runtime = normalizeRuntimeView(view);
+        invalidateRuntimeInsight();
+        state.activeRunId = runtime.activeRunId || null;
+        state.status = runtime.status || "idle";
+        state.events = runtime.events;
+        state.artifacts = runtime.artifacts;
+        state.pendingInputs = new Map(runtime.pendingInputs);
+        state.answeredPendingIds = new Set(runtime.answeredPendingIds);
+        state.seenEventKeys = new Set(runtime.seenEventKeys);
+        state.seenDebugTraceKeys = new Set(runtime.seenDebugTraceKeys);
+        state.debugDetails = runtime.debugDetails;
+        state.runtimeSubAgentEvents = runtime.runtimeSubAgentEvents || [];
+        state.streamStatus = runtime.streamStatus || "idle";
+        state.lastStreamError = runtime.lastStreamError || null;
+        state.runtimePanelsEverShown = Boolean(runtime.runtimePanelsEverShown);
+    }
+
+    function isActiveRunContext(runId = state.activeRunId, sessionId = state.activeSessionId) {
+        return Boolean(runId)
+            && sessionId === state.activeSessionId
+            && runId === state.activeRunId;
+    }
+
     function resetRunViewState() {
+        debugRefreshTimers.forEach(timer => window.clearTimeout(timer));
+        debugRefreshTimers.clear();
+        invalidateRuntimeInsight();
+        state.activeRunId = null;
+        state.status = "idle";
         state.events = [];
         state.artifacts = [];
         state.pendingInputs = new Map();
         state.answeredPendingIds = new Set();
         state.seenEventKeys = new Set();
+        state.seenDebugTraceKeys = new Set();
         state.debugDetails = {traces: [], evidence: [], toolCalls: [], payloads: {}};
+        state.runtimeSubAgentEvents = [];
         state.streamStatus = "idle";
         state.lastStreamError = null;
+        state.runtimePanelsEverShown = false;
+        syncRunViewToActiveSession();
+        updateRuntimePanelVisibility();
     }
 
     function setMode(mode) {
@@ -2628,7 +3677,26 @@
         state.status = normalizeStatus(status);
         els.statusPill.textContent = state.status;
         els.statusPill.className = `status-pill ${statusClass(state.status)}`;
-        renderDebug();
+        updateRuntimePanelVisibility();
+        syncRunViewToActiveSession();
+        scheduleRender("debug");
+    }
+
+    function shouldShowRuntimePanels() {
+        if (state.runtimePanelsEverShown) return true;
+        if (!state.activeRunId) return false;
+        const hasRunEvents = state.events.some(event => event.runId === state.activeRunId);
+        const hasDebugTraces = (state.debugDetails.traces || []).some(trace => !trace.runId || trace.runId === state.activeRunId);
+        const hasAssistantRun = Boolean(currentAssistantMessage(state.activeRunId));
+        return hasRunEvents || hasDebugTraces || hasAssistantRun || state.status !== "idle";
+    }
+
+    function updateRuntimePanelVisibility() {
+        const visible = shouldShowRuntimePanels();
+        if (visible) {
+            state.runtimePanelsEverShown = true;
+        }
+        document.body.classList.toggle("runtime-panels-visible", visible);
     }
 
     function recordDebug(type, title, detail = {}, level = "info") {
@@ -2644,10 +3712,10 @@
             createdAt: new Date().toISOString()
         });
         if (records.length > 300) {
-            records.length = 300;
+            records.length = 160;
         }
-        persistState();
-        renderDebug();
+        schedulePersistState(500);
+        scheduleRender("debug");
     }
 
     function normalizeStatus(status) {
@@ -2709,7 +3777,8 @@
     function currentAssistantMessage(runId = state.activeRunId) {
         const session = activeSession();
         return [...session.messages].reverse().find(message => message.role === "assistant" && (
-            message.meta?.runId === runId || (!message.meta?.runId && message.meta?.thinking && !message.meta?.final)
+            message.meta?.runId === runId
+            || (runId === state.activeRunId && !message.meta?.runId && message.meta?.thinking && !message.meta?.final)
         ));
     }
 
@@ -2722,21 +3791,43 @@
         renderMessages();
     }
 
+    function migrateRunId(previousRunId, nextRunId) {
+        if (!previousRunId || !nextRunId || previousRunId === nextRunId) return;
+        invalidateRuntimeInsight();
+        const session = activeSession();
+        (session.messages || []).forEach(message => {
+            if (message.meta?.runId === previousRunId) {
+                message.meta.runId = nextRunId;
+            }
+            if (Array.isArray(message.meta?.events)) {
+                message.meta.events.forEach(event => {
+                    if (event.runId === previousRunId) event.runId = nextRunId;
+                });
+            }
+        });
+        state.events.forEach(event => {
+            if (event.runId === previousRunId) event.runId = nextRunId;
+        });
+        state.activeRunId = nextRunId;
+        state.seenEventKeys = new Set([...state.seenEventKeys].map(key => key.replace(previousRunId, nextRunId)));
+    }
+
     function attachEventToAssistant(event) {
         const message = currentAssistantMessage(event.runId);
         if (!message) return;
         message.meta.events = Array.isArray(message.meta.events) ? message.meta.events : [];
         if (!message.meta.events.some(item => item.eventId === event.eventId || (item.runId === event.runId && item.seq === event.seq))) {
             message.meta.events.push(event);
-            persistState();
+            syncAssistantRuntimeInsight(event.runId);
+            schedulePersistState();
         }
     }
 
-    function addEvent(event) {
+    function addEvent(event, expectedRunId = state.activeRunId, expectedSessionId = state.activeSessionId) {
         const safePayload = event.safePayload || event.payload || {};
         const normalized = {
             eventId: event.eventId || `evt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            runId: event.runId || state.activeRunId,
+            runId: event.runId || expectedRunId || state.activeRunId,
             seq: event.seq || state.events.length + 1,
             eventType: event.eventType || "STATUS_CHANGED",
             title: event.title || event.phase || event.status || "运行中",
@@ -2746,12 +3837,15 @@
             safePayload,
             createdAt: event.createdAt || new Date().toISOString()
         };
+        if (!isActiveRunContext(normalized.runId, expectedSessionId)) return;
         const eventKey = event.eventId ? `id:${event.eventId}` : `seq:${normalized.runId}:${normalized.seq}`;
         if (state.seenEventKeys.has(eventKey)) return;
         state.seenEventKeys.add(eventKey);
         state.events.push(normalized);
+        captureSubAgentRuntimeEvent(normalized);
         recordDebug("EVENT", `${normalized.eventType} ${displayEventTitle(normalized)}`, normalized.safePayload || {});
         attachEventToAssistant(normalized);
+        scheduleBackendDebugRefresh(normalized.runId, 900, expectedSessionId);
 
         if (normalized.pendingId) {
             seedPendingInputFromEvent(normalized);
@@ -2769,25 +3863,69 @@
             clearRunRecovery(normalized.runId);
             state.streamStatus = "completed";
             setStatus("completed");
-            addFinalForScenario(normalized.runId);
+            addFinalForScenario(normalized.runId, expectedSessionId);
         } else if (normalized.eventType === "RUN_FAILED") {
             clearRunRecovery(normalized.runId);
             state.streamStatus = "failed";
             setStatus("failed");
-            addAssistantFinal(displayEventMessage(normalized) || "运行过程中发生错误，流程已停止。");
-            loadBackendDebug(normalized.runId);
+            addAssistantFinal(displayEventMessage(normalized) || "运行过程中发生错误，流程已停止。", normalized.runId);
+            loadBackendDebug(normalized.runId, {expectedSessionId});
         } else if (terminalBefore) {
-            renderDebug();
+            scheduleRender("debug");
         } else if (normalized.pendingId) {
             setStatus("waiting_user");
         } else {
             setStatus(normalized.title || "running");
         }
-        renderMessages();
-        renderDebug();
+        invalidateRuntimeInsight();
+        syncAssistantRuntimeInsight(normalized.runId);
+        syncRunViewToActiveSession();
+        schedulePersistState();
+        scheduleRender("runtime", "debug");
+        scheduleRenderDelayed("debug-trace-messages", 180, "messages");
     }
 
-    async function addFinalForScenario(runId = state.activeRunId) {
+    async function addDebugTrace(trace, expectedRunId = state.activeRunId, expectedSessionId = state.activeSessionId) {
+        if (!trace || !isActiveRunContext(trace.runId || expectedRunId, expectedSessionId)) return;
+        const traceKey = trace.traceId ? `id:${trace.traceId}` : `seq:${trace.runId || state.activeRunId}:${trace.seq || ""}:${trace.actionType || ""}:${trace.componentName || ""}`;
+        if (state.seenDebugTraceKeys.has(traceKey)) return;
+        state.seenDebugTraceKeys.add(traceKey);
+        state.debugDetails.traces = Array.isArray(state.debugDetails.traces) ? state.debugDetails.traces : [];
+        state.debugDetails.traces.push(trace);
+        state.debugDetails.traces.sort((a, b) => Number(a.seq || 0) - Number(b.seq || 0));
+        await hydrateTracePayloads(trace.runId || state.activeRunId, [trace], expectedSessionId);
+        if (!isActiveRunContext(trace.runId || expectedRunId, expectedSessionId)) return;
+        invalidateRuntimeInsight();
+        syncAssistantRuntimeInsight(trace.runId || expectedRunId);
+        syncRunViewToActiveSession();
+        schedulePersistState();
+        scheduleRender("messages", "runtime", "debug");
+    }
+
+    function captureSubAgentRuntimeEvent(event) {
+        const payload = event?.safePayload || {};
+        if (!payload.subAgentEventType) return;
+        state.runtimeSubAgentEvents = Array.isArray(state.runtimeSubAgentEvents) ? state.runtimeSubAgentEvents : [];
+        const key = event.eventId || `${event.runId}:${event.seq}:${payload.subAgentEventType}:${payload.childRunId || payload.taskId || ""}`;
+        if (state.runtimeSubAgentEvents.some(item => item.key === key)) return;
+        state.runtimeSubAgentEvents.push({
+            key,
+            runId: event.runId,
+            seq: event.seq,
+            eventType: payload.subAgentEventType,
+            title: event.title,
+            message: event.message,
+            safePayload: payload,
+            createdAt: event.createdAt
+        });
+        state.runtimeSubAgentEvents.sort((a, b) => Number(a.seq || 0) - Number(b.seq || 0));
+        if (state.runtimeSubAgentEvents.length > 180) {
+            state.runtimeSubAgentEvents = state.runtimeSubAgentEvents.slice(-180);
+        }
+    }
+
+    async function addFinalForScenario(runId = state.activeRunId, expectedSessionId = state.activeSessionId) {
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
         if (state.mode === "mock" || String(runId || "").startsWith("mock-")) {
             const scenario = state.activeScenario || "simple_final";
             addAssistantFinal(finalMessages[scenario] || finalMessages.simple_final);
@@ -2795,16 +3933,26 @@
         }
         try {
             const result = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/final`);
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
             recordDebug("API", "Loaded final response", {runId, status: result?.status, completed: result?.completed});
             if (result?.finalAnswer) {
                 addAssistantFinal(result.finalAnswer, runId);
             }
-            loadBackendDebug(runId);
+            loadBackendDebug(runId, {expectedSessionId});
         } catch (error) {
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
             recordDebug("ERROR", "Final response read failed", {runId, message: error.message}, "error");
-            addAssistantFinal(`最终回答读取失败：${error.message}`, runId);
+            await loadBackendDebug(runId, {silent: true, expectedSessionId});
+            const fallback = latestFinalCandidateFromDebug(runId);
+            addAssistantFinal(fallback || `最终回答读取失败：${error.message}`, runId);
             toast(`最终回答读取失败：${error.message}`);
         }
+    }
+
+    function latestFinalCandidateFromDebug(runId = state.activeRunId) {
+        const actions = extractActionSnapshots(runId);
+        const finalAction = [...actions].reverse().find(action => String(action.action || "").toUpperCase() === "FINAL");
+        return finalAction?.stateDelta?.finalAnswerCandidate?.content || "";
     }
 
     function addAssistantFinal(text, runId = state.activeRunId) {
@@ -2814,8 +3962,11 @@
         message.meta.final = true;
         message.meta.thinking = false;
         message.meta.events = Array.isArray(message.meta.events) ? message.meta.events : [...state.events];
+        invalidateRuntimeInsight();
+        syncAssistantRuntimeInsight(runId);
+        syncRunViewToActiveSession();
         persistState();
-        renderMessages();
+        scheduleRender("messages", "runtime", "debug");
     }
 
     function ensurePendingInput(pendingId) {
@@ -2825,8 +3976,11 @@
             if (pending) state.pendingInputs.set(pendingId, pending);
             return;
         }
-        requestJson(`/agent/runs/${encodeURIComponent(state.activeRunId)}/pending-input`)
+        const runId = state.activeRunId;
+        const sessionId = state.activeSessionId;
+        requestJson(`/agent/runs/${encodeURIComponent(runId)}/pending-input`)
             .then(pending => {
+                if (!isActiveRunContext(runId, sessionId)) return;
                 if (pending?.pendingId) {
                     state.pendingInputs.set(pending.pendingId, pending);
                     recordDebug("API", "Loaded pending input", {
@@ -2835,10 +3989,12 @@
                         options: (pending.options || []).length,
                         allowFreeText: pending.allowFreeText
                     });
-                    renderMessages();
+                    schedulePersistState();
+                    scheduleRender("messages");
                 }
             })
             .catch(error => {
+                if (!isActiveRunContext(runId, sessionId)) return;
                 recordDebug("ERROR", "Pending input load failed", {pendingId, message: error.message}, "error");
                 toast(`用户确认加载失败：${error.message}`);
             });
@@ -2896,19 +4052,21 @@
                 <div class="session-meta">${escapeHtml(formatTime(session.createdAt))}</div>
             `;
             button.addEventListener("click", () => {
+                if (session.sessionId === state.activeSessionId) return;
+                closeStream();
+                syncRunViewToActiveSession();
                 state.activeSessionId = session.sessionId;
-                state.activeRunId = null;
-                setStatus("idle");
-                resetRunViewState();
+                applyRuntimeView(ensureSessionShape(session).runtimeView);
                 persistState();
                 renderAll();
+                resumeActiveRunView();
             });
             const del = document.createElement("button");
             del.type = "button";
             del.className = "session-menu-button";
             del.title = "更多";
             del.setAttribute("aria-label", "更多");
-            del.textContent = "•••";
+            del.textContent = "...";
             del.addEventListener("click", event => {
                 event.stopPropagation();
                 document.querySelectorAll(".session-item.menu-open").forEach(openItem => {
@@ -2949,14 +4107,15 @@
 
     function renderMessages() {
         const session = activeSession();
+        const runEvents = state.activeRunId ? state.events.filter(event => event.runId === state.activeRunId) : [];
         const scroll = els.chatScroll;
         const shouldStickToBottom = isNearBottom(scroll);
         const previousScrollTop = scroll ? scroll.scrollTop : 0;
         const openThinkingKeys = captureOpenThinkingKeys();
-        els.emptyState.classList.toggle("hidden", Boolean(session.messages.length || state.events.length));
+        els.emptyState.classList.toggle("hidden", Boolean(session.messages.length || runEvents.length));
         els.messageStack.innerHTML = "";
         session.messages.forEach(message => els.messageStack.appendChild(renderMessage(message)));
-        state.events.forEach(event => {
+        runEvents.forEach(event => {
             if (event.pendingId && isPendingActive(event.pendingId)) {
                 els.messageStack.appendChild(renderPending(event.pendingId));
             }
@@ -2979,6 +4138,17 @@
         if (!scroll) return true;
         const distance = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
         return distance < 96;
+    }
+
+    function scrollChatToBottom(smooth = false) {
+        const scroll = els.chatScroll;
+        if (!scroll) return;
+        queueMicrotask(() => {
+            scroll.scrollTo({
+                top: scroll.scrollHeight,
+                behavior: smooth ? "smooth" : "auto"
+            });
+        });
     }
 
     function captureOpenThinkingKeys() {
@@ -3018,22 +4188,9 @@
         if (!message.meta?.thinking && !message.meta?.final && !events.length) return "";
         const final = Boolean(message.meta?.final);
         const thinkingKey = message.meta?.runId || message.id;
-        const current = final ? "展开思考内容" : currentThinkingText(events);
-        const rows = events.length ? events.map(event => `
-            <div class="thinking-row">
-                <div>
-                    <div class="thinking-row-title">${escapeHtml(displayEventTitle(event))}</div>
-                    ${displayEventMessage(event) ? `<div class="thinking-row-message">${escapeHtml(displayEventMessage(event))}</div>` : ""}
-                </div>
-            </div>
-        `).join("") : `
-            <div class="thinking-row">
-                <div>
-                    <div class="thinking-row-title">正在思考ing</div>
-                    <div class="thinking-row-message">正在准备回答。</div>
-                </div>
-            </div>
-        `;
+        const insight = buildThinkingInsight(message);
+        const current = final ? "展开思考内容" : currentThinkingText(events, insight);
+        const body = renderThinkingDashboard(insight, events);
         if (final) {
             return `
                 <details class="thinking-final" data-thinking-key="${escapeHtml(thinkingKey)}">
@@ -3043,7 +4200,7 @@
                         </span>
                     </summary>
                     <div class="thinking-final-body">
-                        <div class="thinking-list">${rows}</div>
+                        ${body}
                     </div>
                 </details>
             `;
@@ -3057,18 +4214,543 @@
                     </span>
                 </summary>
                 <div class="thinking-live-body">
-                    <div class="thinking-list">${rows}</div>
+                    ${body}
                 </div>
             </details>
         `;
     }
 
-    function currentThinkingText(events) {
-        if (!events.length) return "正在思考ing";
+    function currentThinkingText(events, insight = null) {
+        if (insight?.latestPlan?.mode) {
+            const mode = String(insight.latestPlan.mode).toUpperCase();
+            if (mode === "DIRECT") return "MainNode：Direct";
+            if (mode === "PER") {
+                return insight.latestPlan.nextStepId
+                    ? `MainNode：PER / ${insight.latestPlan.nextStepId}`
+                    : "MainNode：PER";
+            }
+        }
+        if (!events.length) return "正在思考";
         const last = events[events.length - 1];
         if (last.eventType === "RUN_FAILED") return displayEventTitle(last);
         const active = [...events].reverse().find(event => event.eventType !== "FINAL_READY" && event.eventType !== "RUN_FAILED");
-        return displayEventTitle(active || events[events.length - 1]) || "正在思考ing";
+        return displayEventTitle(active || events[events.length - 1]) || "正在思考";
+    }
+
+    function renderThinkingDashboard(insight, events) {
+        const sections = [];
+        sections.push(renderPlanSectionV3(insight));
+        sections.push(renderRuntimeTrailSection(events));
+        sections.push(renderActionTrailSectionV3(insight));
+        if (insight.subAgents?.length) {
+            sections.push(renderSubAgentSectionV3(insight.subAgents, insight));
+        }
+        return `<div class="thinking-dashboard">${sections.join("")}</div>`;
+    }
+
+    function renderPlanSectionV3(insight) {
+        const plan = insight.latestPlan || {};
+        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const badgeClass = mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
+        const goal = plan.goal || latestActionDecision(insight) || "等待 MainNode 输出规划";
+        const decision = plan.lastDecision || latestActionDecision(insight) || "";
+        const steps = Array.isArray(plan.stepUpdates) ? plan.stepUpdates : [];
+        return `
+            <section class="thinking-section">
+                <div class="thinking-section-head">
+                    <div class="thinking-section-title">MainNode 当前规划</div>
+                    <span class="thinking-badge ${escapeHtml(badgeClass)}">${escapeHtml(localizePlanMode(mode))}</span>
+                </div>
+                <div class="thinking-note">${escapeHtml(goal)}</div>
+                ${decision ? `<div class="thinking-note">当前判断：${escapeHtml(decision)}</div>` : ""}
+                ${plan.nextStepId ? `<div class="thinking-note">下一步：${escapeHtml(plan.nextStepId)}</div>` : ""}
+                ${steps.length ? `
+                    <div class="thinking-plan-steps">
+                        ${steps.map((step, index) => renderPlanStepV3(step, index)).join("")}
+                    </div>
+                ` : `<div class="thinking-note">暂无结构化步骤。</div>`}
+                ${renderLatestActionOutputV3(insight)}
+            </section>
+        `;
+    }
+
+    function renderPlanStepV3(step, index) {
+        const status = String(step.status || "PENDING").toUpperCase();
+        return `
+            <div class="thinking-step">
+                <div class="thinking-step-index">${escapeHtml(step.stepId || `s${index + 1}`)}</div>
+                <div>
+                    <div class="thinking-step-title">${escapeHtml(step.title || step.objective || "未命名步骤")}</div>
+                    ${step.note ? `<div class="thinking-note">${escapeHtml(step.note)}</div>` : ""}
+                </div>
+                <div class="thinking-step-status ${escapeHtml(status.toLowerCase())}">${escapeHtml(localizeStepStatus(status))}</div>
+            </div>
+        `;
+    }
+
+    function renderLatestActionOutputV3(insight) {
+        const action = insight.latestAction;
+        if (!action) {
+            return `
+                <div class="thinking-action-output">
+                    <div class="thinking-action-output-title">本轮动作</div>
+                    <div class="thinking-action-output-text">等待 MainNode 完成本轮结构化输出。</div>
+                </div>
+            `;
+        }
+        return `
+            <div class="thinking-action-output">
+                <div class="thinking-action-output-title">本轮动作：${escapeHtml(localizeActionName(action.action || "UNKNOWN"))}</div>
+                <div class="thinking-action-output-text">${escapeHtml(describeActionOutputCn(action))}</div>
+            </div>
+        `;
+    }
+
+    function renderActionTrailSectionV3(insight) {
+        const actions = insight.actions.slice(-8);
+        if (!actions.length) {
+            return `
+                <section class="thinking-section">
+                    <div class="thinking-section-head">
+                        <div class="thinking-section-title">MainNode 动作历史</div>
+                    </div>
+                    <div class="thinking-note">等待 debug payload 加载后显示每轮 MainNode 的动作输出。</div>
+                </section>
+            `;
+        }
+        return `
+            <section class="thinking-section">
+                <div class="thinking-section-head">
+                    <div class="thinking-section-title">MainNode 动作历史</div>
+                    <span class="thinking-badge">${escapeHtml(String(actions.length))} 轮</span>
+                </div>
+                <div class="thinking-action-trail">
+                    ${actions.map((item, index) => `
+                        <div class="thinking-action-item">
+                            <div class="thinking-action-index">${escapeHtml(String(index + 1))}</div>
+                            <div>
+                                <div class="thinking-action-name">${escapeHtml(localizeActionName(item.action || "UNKNOWN"))}</div>
+                                ${item.decision ? `<div>${escapeHtml(item.decision)}</div>` : ""}
+                                ${item.summary ? `<div>${escapeHtml(item.summary)}</div>` : ""}
+                            </div>
+                        </div>
+                    `).join("")}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderSubAgentSectionV3(subAgents, insight = {}) {
+        return `
+            <section class="thinking-section">
+                <div class="thinking-section-head">
+                    <div class="thinking-section-title">子 Agent 状态</div>
+                    <span class="thinking-badge">${escapeHtml(String(subAgents.length))} 个</span>
+                </div>
+                <div class="thinking-agent-grid">
+                    ${subAgents.map((agent, index) => renderSubAgentMiniItemV3(agent, index, insight)).join("")}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderRuntimeTrailSection(events) {
+        return `
+            <section class="thinking-section">
+                <div class="thinking-section-head">
+                    <div class="thinking-section-title">Runtime 工作轨迹</div>
+                    <span class="thinking-badge">${escapeHtml(String(events.length))} 条</span>
+                </div>
+                ${renderEventRows(events)}
+            </section>
+        `;
+    }
+
+    function renderEventRows(events) {
+        const rows = events.length ? events.map(event => `
+            <div class="thinking-row">
+                <div>
+                    <div class="thinking-row-title">${escapeHtml(displayEventTitle(event))}</div>
+                    ${displayEventMessage(event) ? `<div class="thinking-row-message">${escapeHtml(displayEventMessage(event))}</div>` : ""}
+                </div>
+            </div>
+        `).join("") : `
+            <div class="thinking-row">
+                <div>
+                    <div class="thinking-row-title">正在思考</div>
+                    <div class="thinking-row-message">正在准备回答。</div>
+                </div>
+            </div>
+        `;
+        return `<div class="thinking-list">${rows}</div>`;
+    }
+
+    function buildThinkingInsight(message) {
+        const runId = message.meta?.runId || state.activeRunId;
+        if (runId && runId !== state.activeRunId && message.meta?.runtimeInsight) {
+            return normalizeRuntimeInsightSnapshot(message.meta.runtimeInsight, runId);
+        }
+        return buildRuntimeInsight(runId);
+    }
+
+    function syncAssistantRuntimeInsight(runId = state.activeRunId) {
+        if (!runId || runId !== state.activeRunId) return;
+        const message = currentAssistantMessage(runId);
+        if (!message) return;
+        const insight = buildRuntimeInsight(runId);
+        message.meta.runtimeInsight = compactRuntimeInsightSnapshot(insight);
+        message.meta.events = state.events.filter(event => event.runId === runId).slice(-160);
+    }
+
+    function compactRuntimeInsightSnapshot(insight = {}) {
+        return {
+            runId: insight.runId || null,
+            status: insight.status || state.status || "idle",
+            streamStatus: insight.streamStatus || state.streamStatus || "idle",
+            events: (insight.events || []).slice(-160).map(compactRuntimeEvent),
+            actions: (insight.actions || []).slice(-24).map(action => ({
+                ref: action.ref,
+                seq: action.seq,
+                action: action.action,
+                perUpdate: compactObject(action.perUpdate, 5000),
+                stateDelta: compactObject(action.stateDelta, 5000),
+                decision: action.decision,
+                summary: action.summary
+            })),
+            latestAction: compactObject(insight.latestAction, 5000),
+            latestPlan: compactObject(insight.latestPlan, 5000),
+            currentPhase: insight.currentPhase || null,
+            subAgents: (insight.subAgents || []).slice(0, 24).map(agent => compactObject(agent, 6000)),
+            subAgentEvents: (insight.subAgentEvents || []).slice(-160).map(compactRuntimeEvent)
+        };
+    }
+
+    function compactRuntimeEvent(event = {}) {
+        return {
+            eventId: event.eventId,
+            key: event.key,
+            runId: event.runId,
+            seq: event.seq,
+            eventType: event.eventType,
+            title: event.title,
+            message: event.message,
+            artifactId: event.artifactId,
+            pendingId: event.pendingId,
+            safePayload: compactObject(event.safePayload, 2200),
+            createdAt: event.createdAt
+        };
+    }
+
+    function normalizeRuntimeInsightSnapshot(snapshot = {}, runId = null) {
+        return {
+            runId: snapshot.runId || runId,
+            status: normalizeStatus(snapshot.status || "idle"),
+            streamStatus: snapshot.streamStatus || "idle",
+            events: Array.isArray(snapshot.events) ? snapshot.events : [],
+            traces: [],
+            actions: Array.isArray(snapshot.actions) ? snapshot.actions : [],
+            latestAction: snapshot.latestAction || null,
+            latestPlan: snapshot.latestPlan || null,
+            currentPhase: snapshot.currentPhase || null,
+            subAgents: Array.isArray(snapshot.subAgents) ? snapshot.subAgents : [],
+            subAgentEvents: Array.isArray(snapshot.subAgentEvents) ? snapshot.subAgentEvents : []
+        };
+    }
+
+    function buildRuntimeInsight(runId = state.activeRunId) {
+        const cacheKey = `${runId || ""}:${runtimeInsightVersion}`;
+        if (runtimeInsightCache.has(cacheKey)) {
+            return runtimeInsightCache.get(cacheKey);
+        }
+        const actions = extractActionSnapshots(runId);
+        const latestAction = actions[actions.length - 1] || null;
+        const latestPlan = [...actions].reverse().find(item => item.perUpdate)?.perUpdate || null;
+        const events = runId ? state.events.filter(event => event.runId === runId) : state.events;
+        const traces = runId ? (state.debugDetails.traces || []).filter(trace => !trace.runId || trace.runId === runId) : (state.debugDetails.traces || []);
+        const insight = {
+            runId,
+            status: state.status,
+            streamStatus: state.streamStatus,
+            events,
+            traces,
+            actions,
+            latestAction,
+            latestPlan,
+            currentPhase: latestRuntimePhase(events, traces),
+            subAgents: extractSubAgentSnapshots(runId, actions),
+            subAgentEvents: subAgentEventsForRun(runId)
+        };
+        runtimeInsightCache.set(cacheKey, insight);
+        return insight;
+    }
+
+    function extractActionSnapshots(runId) {
+        if (!runId || runId !== state.activeRunId || !state.debugDetails?.payloads) return [];
+        const actions = [];
+        const pushAction = (object, ref, seq, summary) => {
+            if (!object || (!object.action && !object.perUpdate)) return;
+            actions.push(normalizeActionSnapshot(object, ref, seq, summary));
+        };
+        (state.debugDetails.traces || []).forEach(trace => {
+            if (trace.runId && trace.runId !== runId) return;
+            const tracePayload = debugPayloadObject(trace.payloadRef);
+            const nestedRef = tracePayload?.payloadRef;
+            const isActionTrace = trace.actionType === "action_parsed" || tracePayload?.event === "action_parsed";
+            if (isActionTrace && nestedRef) {
+                pushAction(parseDebugPayloadByRef(nestedRef), nestedRef, Number(trace.seq || actions.length + 1), trace.summary || "");
+            }
+            if (!isActionTrace) {
+                pushAction(parseDebugPayloadByRef(trace.payloadRef), trace.payloadRef, Number(trace.seq || actions.length + 1), trace.summary || "");
+            }
+        });
+        if (!actions.length) {
+            Object.entries(state.debugDetails.payloads || {}).forEach(([ref, payload], index) => {
+                pushAction(parseDebugPayload(payload), ref, index + 1, "");
+            });
+        }
+        const unique = new Map();
+        actions.forEach(action => unique.set(action.ref || `${action.seq}:${action.action}`, action));
+        return [...unique.values()]
+            .sort((a, b) => Number(a.seq || 0) - Number(b.seq || 0));
+    }
+
+    function normalizeActionSnapshot(object, ref, seq, summary) {
+        return {
+            ref,
+            seq,
+            action: object.action || object.actionType || "UNKNOWN",
+            perUpdate: object.perUpdate || null,
+            stateDelta: object.stateDelta || {},
+            decision: object.perUpdate?.lastDecision || object.reason || "",
+            summary: summary || object.summary || ""
+        };
+    }
+
+    function extractSubAgentSnapshots(runId, actions) {
+        if (!runId) return [];
+        const agents = new Map();
+        subAgentEventsForRun(runId).forEach(event => mergeSubAgentEventSnapshot(agents, event));
+        actions.forEach(action => {
+            const request = action.stateDelta?.delegateAgentsRequest;
+            const tasks = Array.isArray(request?.tasks) ? request.tasks : [];
+            tasks.forEach(task => {
+                const key = resolveSubAgentSnapshotKey(agents, task, () => task.taskId || task.name || `task-${agents.size + 1}`);
+                const requestedCapabilities = Array.isArray(task.requestedCapabilities) ? task.requestedCapabilities : [];
+                agents.set(key, {
+                    ...(agents.get(key) || {}),
+                    taskId: task.taskId,
+                    name: task.name,
+                    objective: task.objective,
+                    requiredOutput: task.requiredOutput,
+                    requestedCapabilities,
+                    capabilities: requestedCapabilities,
+                    status: agents.get(key)?.status || "DISPATCHED"
+                });
+            });
+        });
+        (state.debugDetails.evidence || []).forEach(evidence => {
+            const metadata = evidence.metadata || {};
+            const type = String(evidence.evidenceType || "");
+            const isSubAgentEvidence = type.includes("SUB_AGENT")
+                || Boolean(metadata.childRunId)
+                || Boolean(metadata.childName)
+                || Boolean(metadata.childCommitStatus)
+                || Boolean(metadata.childRunStatus);
+            if (!isSubAgentEvidence) return;
+            const childRunId = metadata.childRunId || null;
+            const key = resolveSubAgentSnapshotKey(agents, {
+                childRunId,
+                taskId: metadata.taskId,
+                name: metadata.childName
+            }, () => childRunId || metadata.taskId || metadata.childName || `child-${agents.size + 1}`);
+            const current = agents.get(key) || {};
+            const failed = type.includes("FAILURE") || String(metadata.childRunStatus || "").includes("FAILED");
+            const explicitStatus = String(metadata.childRunStatus || metadata.childCommitStatus || "").toUpperCase();
+            const terminalByMetadata = failed
+                || explicitStatus.includes("COMMIT")
+                || explicitStatus.includes("DONE")
+                || explicitStatus.includes("COMPLETE");
+            const evidenceSummary = evidence.summary || evidence.boundedSnippet || evidence.content || "";
+            agents.set(key, {
+                ...current,
+                taskId: metadata.taskId || current.taskId,
+                name: metadata.childName || current.name,
+                childRunId,
+                status: failed ? "FAILED" : (explicitStatus || current.status || "RUNNING"),
+                objective: current.objective || metadata.objective || metadata.task || metadata.requiredOutput,
+                requiredOutput: current.requiredOutput || metadata.requiredOutput,
+                result: terminalByMetadata ? (evidenceSummary || current.result) : current.result,
+                lastEventMessage: terminalByMetadata ? current.lastEventMessage : (evidenceSummary || current.lastEventMessage),
+                requestedCapabilities: current.requestedCapabilities || metadata.requestedCapabilities || metadata.capabilities || [],
+                effectiveCapabilities: metadata.effectiveCapabilities || current.effectiveCapabilities || [],
+                capabilities: current.capabilities || metadata.effectiveCapabilities || metadata.requestedCapabilities || metadata.capabilities || []
+            });
+        });
+        return [...agents.values()];
+    }
+
+    function resolveSubAgentSnapshotKey(agents, candidate = {}, fallbackFactory = null) {
+        const candidates = [
+            candidate.childRunId,
+            candidate.taskId,
+            candidate.name,
+            candidate.childName
+        ].filter(value => value !== undefined && value !== null && String(value).trim() !== "")
+            .map(value => String(value));
+        for (const key of candidates) {
+            if (agents.has(key)) return key;
+        }
+        for (const [key, agent] of agents.entries()) {
+            if (candidates.some(value =>
+                value === String(agent.childRunId || "")
+                || value === String(agent.taskId || "")
+                || value === String(agent.name || "")
+            )) {
+                return key;
+            }
+        }
+        const fallback = typeof fallbackFactory === "function" ? fallbackFactory() : fallbackFactory;
+        return fallback || candidates[0] || `child-${agents.size + 1}`;
+    }
+
+    function subAgentEventsForRun(runId) {
+        return (state.runtimeSubAgentEvents || [])
+            .filter(event => !runId || event.runId === runId)
+            .sort((a, b) => Number(a.seq || 0) - Number(b.seq || 0));
+    }
+
+    function mergeSubAgentEventSnapshot(agents, event) {
+        const payload = event.safePayload || {};
+        const type = String(payload.subAgentEventType || event.eventType || "").toUpperCase();
+        const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+        const childRunIds = Array.isArray(payload.childRunIds) ? payload.childRunIds : [];
+        const batchStatus = subAgentBatchStatusFromRuntimeEvent(type, payload.status);
+        tasks.forEach((task, index) => {
+            const childRunId = childRunIds[index] || task.childRunId || "";
+            const key = resolveSubAgentSnapshotKey(agents, {
+                childRunId,
+                taskId: task.taskId,
+                name: task.name
+            }, () => childRunId || task.taskId || task.name || `task-${agents.size + 1}`);
+            const requestedCapabilities = Array.isArray(task.requestedCapabilities) ? task.requestedCapabilities : [];
+            agents.set(key, {
+                ...(agents.get(key) || {}),
+                taskId: task.taskId,
+                childRunId,
+                name: task.name,
+                objective: task.objective,
+                requiredOutput: task.requiredOutput,
+                requestedCapabilities,
+                capabilities: requestedCapabilities,
+                status: batchStatus || agents.get(key)?.status || "DISPATCHED",
+                lastEventTitle: event.title,
+                lastEventMessage: event.message
+            });
+        });
+        const taskId = payload.taskId;
+        const childRunId = payload.childRunId;
+        if (!taskId && !childRunId && !payload.name) return;
+        const key = resolveSubAgentSnapshotKey(agents, {
+            childRunId,
+            taskId,
+            name: payload.name
+        }, () => childRunId || taskId || payload.name);
+        const task = payload.task || {};
+        const commit = payload.commit || {};
+        const previous = agents.get(key) || {};
+        agents.set(key, {
+            ...previous,
+            taskId: taskId || previous.taskId,
+            childRunId: childRunId || previous.childRunId,
+            name: payload.name || task.name || previous.name,
+            objective: task.objective || previous.objective,
+            requiredOutput: task.requiredOutput || previous.requiredOutput,
+            requestedCapabilities: Array.isArray(task.requestedCapabilities) ? task.requestedCapabilities : previous.requestedCapabilities,
+            effectiveCapabilities: previous.effectiveCapabilities || [],
+            capabilities: Array.isArray(task.requestedCapabilities) ? task.requestedCapabilities : previous.capabilities,
+            status: subAgentStatusFromRuntimeEvent(type, payload.status, previous.status),
+            currentAction: payload.action || previous.currentAction,
+            result: commit.result || previous.result,
+            detail: commit.detail || previous.detail,
+            lastEventTitle: event.title,
+            lastEventMessage: event.message,
+            updatedAt: event.createdAt
+        });
+    }
+
+    function subAgentStatusFromRuntimeEvent(type, status, previous) {
+        const raw = String(status || "").toUpperCase();
+        if (type === "CHILD_AGENT_COMMITTED") return "COMMITTED";
+        if (type === "CHILD_AGENT_FAILED") return "FAILED";
+        if (type === "CHILD_AGENT_STARTED") return "RUNNING";
+        if (type === "CHILD_AGENT_ACTION" || type === "CHILD_AGENT_PROGRESS") return raw || "RUNNING";
+        return raw || previous || "DISPATCHED";
+    }
+
+    function subAgentBatchStatusFromRuntimeEvent(type, status) {
+        const raw = String(status || "").toUpperCase();
+        if (type === "CHILD_AGENT_COMMITTED") return "COMMITTED";
+        if (type === "CHILD_AGENT_FAILED") return "FAILED";
+        if (type === "CHILD_AGENT_STARTED") return "RUNNING";
+        if (type === "CHILD_AGENT_ACTION" || type === "CHILD_AGENT_PROGRESS") return raw || "RUNNING";
+        if (type === "PARENT_WAITING_CHILDREN") return "RUNNING";
+        if (type === "CHILDREN_READY") return null;
+        return raw || null;
+    }
+
+    function latestActionDecision(insight) {
+        const action = insight.actions[insight.actions.length - 1];
+        return action?.decision || action?.summary || "";
+    }
+
+    function debugPayloadObject(payloadRef) {
+        return parseDebugPayload(state.debugDetails.payloads?.[payloadRef]);
+    }
+
+    function parseDebugPayloadByRef(payloadRef) {
+        return parseDebugPayload(state.debugDetails.payloads?.[payloadRef]);
+    }
+
+    function parseDebugPayload(payload) {
+        if (!payload) return null;
+        return parseJsonLike(payload.rawContent) || parseJsonLike(payload.preview) || null;
+    }
+
+    function latestRuntimePhase(events, traces) {
+        const trace = [...(traces || [])].reverse().find(item => item.actionType === "phase_started" || item.actionType === "phase_completed");
+        if (trace?.componentName) {
+            return {
+                code: trace.componentName,
+                status: trace.actionType === "phase_completed" ? "DONE" : "RUNNING"
+            };
+        }
+        const event = [...(events || [])].reverse().find(item => item.title || item.phase || item.status);
+        return {
+            code: event?.title || event?.phase || event?.status || state.status || "idle",
+            status: normalizeStatus(state.status)
+        };
+    }
+
+    function parseJsonLike(value) {
+        if (!value) return null;
+        if (typeof value === "object") return value;
+        if (typeof value !== "string") return null;
+        const text = value.trim();
+        if (!text) return null;
+        try {
+            const parsed = JSON.parse(text);
+            if (typeof parsed === "string") {
+                return parseJsonLike(parsed);
+            }
+            return parsed;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function truncateText(value, maxLength = 160) {
+        const text = String(value || "");
+        return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
     }
 
     function renderMessageActions(message) {
@@ -3179,7 +4861,7 @@
         card.innerHTML = `
             <h3 class="artifact-title">产物已生成</h3>
             <p class="artifact-summary">${escapeHtml(summary || artifactId)}</p>
-            <button class="option-button" type="button">查看内容</button>
+            <button class="option-button" type="button">打开产物</button>
         `;
         card.querySelector("button").addEventListener("click", () => openArtifact(artifactId));
         return card;
@@ -3214,6 +4896,9 @@
         els.debugStatus.textContent = `${state.status || "idle"} / stream=${state.streamStatus || "idle"}${state.lastStreamError ? " / " + state.lastStreamError : ""}`;
         els.debugMode.textContent = state.mode;
         els.debugApiBase.textContent = API_BASE || location.origin;
+        if (!els.debugDrawer?.classList.contains("open")) {
+            return;
+        }
         const currentRunId = state.activeRunId;
         const runEvents = currentRunId ? state.events.filter(event => event.runId === currentRunId) : state.events;
         els.debugEvents.innerHTML = runEvents.length ? runEvents.map(event => `
@@ -3259,11 +4944,403 @@
         `).join("") : '<div class="debug-event">No artifact</div>';
     }
 
+    function renderRuntimeAside() {
+        if (!els.runtimeAside || !els.mainNodeCard || !els.subAgentCard) return;
+        updateRuntimePanelVisibility();
+        if (!shouldShowRuntimePanels()) {
+            els.mainNodeCard.innerHTML = "";
+            els.subAgentCard.classList.add("hidden");
+            els.subAgentCard.innerHTML = "";
+            return;
+        }
+        try {
+            const insight = buildRuntimeInsight(state.activeRunId);
+            els.mainNodeCard.innerHTML = renderMainNodeMiniCardV3(insight);
+            if (insight.subAgents.length) {
+                els.subAgentCard.classList.remove("hidden");
+                els.subAgentCard.innerHTML = renderSubAgentMiniCardV3(insight.subAgents, insight);
+            } else {
+                els.subAgentCard.classList.add("hidden");
+                els.subAgentCard.innerHTML = "";
+            }
+        } catch (error) {
+            console.error("Runtime panel render failed:", error);
+            recordDebug("ERROR", "Runtime panel render failed", {message: error.message}, "error");
+        }
+    }
+
+    function renderRuntimePanels() {
+        renderRuntimeAside();
+    }
+
+    function renderMainNodeMiniCardV2(insight) {
+        return renderMainNodeMiniCardV3(insight);
+    }
+
+    function renderMainNodeMiniStepV2(step, index) {
+        return renderMainNodeMiniStepV3(step, index, {}, 0);
+    }
+
+    function renderSubAgentMiniCardV2(subAgents, insight = {}) {
+        return renderSubAgentMiniCardV3(subAgents, insight);
+    }
+
+    function renderSubAgentMiniItemV2(agent, index = 0, insight = {}) {
+        return renderSubAgentMiniItemV3(agent, index, insight);
+    }
+
+    function renderMainNodeMiniCardV3(insight) {
+        const plan = insight.latestPlan || {};
+        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const badgeClass = mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
+        const phase = localizeRuntimePhase(insight.currentPhase?.code || state.status || "idle");
+        const streamStatus = localizeRuntimeStatus(insight.streamStatus || "idle");
+        const goal = plan.goal || latestActionDecision(insight) || "等待 MainNode 输出规划";
+        const steps = Array.isArray(plan.stepUpdates) ? plan.stepUpdates : [];
+        const visibleSteps = steps.length ? steps.slice(0, 6) : [];
+        const actionName = localizeActionName(insight.latestAction?.action || "WAITING");
+        return `
+            <div class="runtime-mini-head">
+                <div>
+                    <div class="runtime-mini-title">MainNode 当前规划</div>
+                    <div class="runtime-mini-subtitle">${escapeHtml(phase)} / ${escapeHtml(streamStatus)}</div>
+                </div>
+                <span class="runtime-mini-badge ${escapeHtml(badgeClass)}">${escapeHtml(localizePlanMode(mode))}</span>
+            </div>
+            <div class="runtime-mini-goal">${escapeHtml(truncateText(goal, 150))}</div>
+            ${visibleSteps.length ? `
+                <div class="runtime-mini-steps">
+                    ${visibleSteps.map((step, index) => renderMainNodeMiniStepV3(step, index, insight, visibleSteps.length)).join("")}
+                </div>
+            ` : `<div class="runtime-mini-goal">暂无步骤表；如果是直接处理模式，下方会显示当前动作。</div>`}
+            <div class="runtime-mini-action">
+                <strong>本轮动作：${escapeHtml(actionName)}</strong>
+                ${escapeHtml(describeActionOutputCn(insight.latestAction || {}))}
+            </div>
+        `;
+    }
+
+    function renderMainNodeMiniStepV3(step, index, insight = {}, totalSteps = 0) {
+        const status = displayStepStatus(step, index, insight, totalSteps);
+        const done = status === "DONE" || status === "COMPLETED";
+        const active = status === "IN_PROGRESS" || status === "RUNNING";
+        const failed = status === "FAILED" || status === "BLOCKED" || status === "CANCELLED";
+        const checkClass = failed ? "failed" : done ? "" : active ? "active" : "pending";
+        const mark = done ? "✓" : failed ? "×" : "";
+        return `
+            <div class="runtime-mini-step">
+                <div class="runtime-mini-check ${escapeHtml(checkClass)}">${escapeHtml(mark)}</div>
+                <div>
+                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.objective || step.stepId || "未命名步骤")}</div>
+                    ${step.note ? `<div class="runtime-mini-step-note">${escapeHtml(truncateText(step.note, 90))}</div>` : ""}
+                    <div class="runtime-mini-step-note">状态：${escapeHtml(localizeStepStatus(status))}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderSubAgentMiniCardV3(subAgents) {
+        return `
+            <div class="runtime-mini-head">
+                <div>
+                    <div class="runtime-mini-title">子 Agent</div>
+                    <div class="runtime-mini-subtitle">MainNode 派发的并行任务</div>
+                </div>
+                <span class="runtime-mini-badge committed">${escapeHtml(String(subAgents.length))} 个</span>
+            </div>
+            <div class="runtime-agent-list">
+                ${subAgents.slice(0, 6).map((agent, index) => renderSubAgentMiniItemV3(agent, index)).join("")}
+            </div>
+        `;
+    }
+
+    function renderSubAgentMiniItemV3(agent, index = 0) {
+        const rawStatus = String(agent.status || "DISPATCHED").toUpperCase();
+        const status = deriveSubAgentDisplayStatus(agent, rawStatus);
+        const statusClass = subAgentStatusClass(status);
+        const capabilityView = normalizeSubAgentCapabilities(agent);
+        const color = agentAccentColor(index);
+        const progress = subAgentProgress(status);
+        const running = isSubAgentRunning(agent, status);
+        const title = agent.name || agent.taskId || agent.childRunId || `子 Agent ${index + 1}`;
+        const taskText = agent.objective || agent.task || agent.requiredOutput || (agent.result ? "已收到子 Agent 提交结果" : "等待任务详情");
+        return `
+            <div class="runtime-agent-mini ${running ? "is-running" : ""}" style="--agent-color: ${escapeHtml(color)}">
+                <div class="runtime-agent-head">
+                    <div class="runtime-agent-name">${escapeHtml(title)}</div>
+                    <span class="runtime-mini-badge ${escapeHtml(statusClass)}">${escapeHtml(localizeSubAgentStatus(status))}</span>
+                </div>
+                <div class="runtime-agent-progress"><span style="--progress: ${escapeHtml(String(progress))}%"></span></div>
+                ${renderHoverText(taskText, 150, "runtime-agent-task")}
+                ${agent.requiredOutput ? renderHoverText(`交付要求：${agent.requiredOutput}`, 120, "runtime-mini-step-note") : ""}
+                ${agent.result ? renderHoverText(`结果：${agent.result}`, 120, "runtime-mini-step-note") : ""}
+                ${renderSubAgentCapabilityBlock(capabilityView.requested, capabilityView.effective)}
+            </div>
+        `;
+    }
+
+    function renderHoverText(value, maxLength, className) {
+        const text = String(value || "");
+        const truncated = text.length > maxLength;
+        const visible = truncated ? truncateText(text, maxLength) : text;
+        return `<div class="${escapeHtml(className)} runtime-hover-text ${truncated ? "is-truncated" : ""}" data-full="${escapeHtml(text)}">${escapeHtml(visible)}</div>`;
+    }
+
+    function renderSubAgentCapabilityBlock(requestedCapabilities, effectiveCapabilities) {
+        const requested = uniqueList(requestedCapabilities);
+        const effective = uniqueList(effectiveCapabilities);
+        if (!requested.length && !effective.length) return "";
+        const requestedRow = requested.length
+            ? `<div class="runtime-mini-chips">${requested.map(item => `<span class="runtime-mini-chip">${escapeHtml(localizeCapabilityName(item))}</span>`).join("")}</div>`
+            : `<div class="runtime-agent-task">未记录 MainNode 请求能力</div>`;
+        const effectiveRow = effective.length
+            ? `<div class="runtime-mini-chips">${effective.map(item => `<span class="runtime-mini-chip">${escapeHtml(localizeCapabilityName(item))}</span>`).join("")}</div>`
+            : "";
+        return `
+            <div class="runtime-agent-capability-block">
+                <div class="runtime-agent-capability-title">MainNode 请求能力</div>
+                ${requestedRow}
+                ${effectiveRow ? `<div class="runtime-agent-capability-title">Runtime 实际授权</div>${effectiveRow}` : ""}
+            </div>
+        `;
+    }
+
+    function uniqueList(values) {
+        if (!Array.isArray(values)) return [];
+        return [...new Set(values.filter(item => item !== null && item !== undefined && String(item).trim()))];
+    }
+
+    function normalizeSubAgentCapabilities(agent = {}) {
+        const requested = uniqueList(agent.requestedCapabilities || agent.requestCapabilities || agent.capabilities || []);
+        const effective = uniqueList(agent.effectiveCapabilities || agent.grantedCapabilities || []);
+        return {
+            requested,
+            effective,
+            display: effective.length ? effective : requested
+        };
+    }
+
+    function deriveSubAgentDisplayStatus(agent, status, insight = {}) {
+        const value = String(status || agent?.status || "DISPATCHED").toUpperCase();
+        if (isTerminalSubAgentStatus(value)) return value;
+        if (hasExplicitSubAgentCommit(agent)) return "COMMITTED";
+        const runStatus = normalizeStatus(insight.status || state.status);
+        const streamStatus = String(insight.streamStatus || state.streamStatus || "").toLowerCase();
+        if (runStatus === "failed" || streamStatus === "failed") return "FAILED";
+        if (runStatus === "completed" || streamStatus === "completed" || streamStatus === "closed") return "NO_COMMIT";
+        return value;
+    }
+
+    function subAgentStatusClass(status) {
+        const value = String(status || "").toUpperCase();
+        if (value.includes("NO_COMMIT")) return "failed";
+        if (value.includes("FAIL") || value.includes("BLOCK")) return "failed";
+        if (value.includes("COMMIT") || value.includes("DONE") || value.includes("COMPLETE")) return "committed";
+        return "";
+    }
+
+    function isTerminalSubAgentStatus(status) {
+        const value = String(status || "").toUpperCase();
+        return value.includes("FAIL")
+            || value.includes("BLOCK")
+            || value.includes("COMMIT")
+            || value.includes("NO_COMMIT")
+            || value.includes("DONE")
+            || value.includes("COMPLETE");
+    }
+
+    function isSubAgentRunning(agent, status, insight = {}) {
+        const value = String(status || agent?.status || "").toUpperCase();
+        if (hasExplicitSubAgentCommit(agent)) return false;
+        if (isTerminalSubAgentStatus(value)) return false;
+        const runStatus = normalizeStatus(insight.status || state.status);
+        const streamStatus = String(insight.streamStatus || state.streamStatus || "").toLowerCase();
+        if (runStatus === "completed" || runStatus === "failed" || streamStatus === "completed" || streamStatus === "failed" || streamStatus === "closed") {
+            return false;
+        }
+        return value.includes("DISPATCH") || value.includes("WAIT") || value.includes("RUN") || value.includes("START");
+    }
+
+    function hasExplicitSubAgentCommit(agent = {}) {
+        const status = String(agent.status || "").toUpperCase();
+        const eventType = String(agent.lastEventType || agent.eventType || "").toUpperCase();
+        return status.includes("COMMIT")
+            || status.includes("DONE")
+            || status.includes("COMPLETE")
+            || eventType === "CHILD_AGENT_COMMITTED"
+            || Boolean(agent.completedAt || agent.finishedAt);
+    }
+
+    function localizePlanMode(mode) {
+        const value = String(mode || "").toUpperCase();
+        if (value === "PER") return "规划执行";
+        if (value === "DIRECT") return "直接处理";
+        if (value.includes("FAIL")) return "异常";
+        return "等待中";
+    }
+
+    function localizeRuntimeStatus(status) {
+        const value = String(status || "").toLowerCase();
+        if (value === "open" || value === "receiving") return "接收中";
+        if (value === "connecting") return "连接中";
+        if (value === "completed") return "已完成";
+        if (value === "failed") return "已失败";
+        if (value === "recovering") return "恢复中";
+        if (value === "closed" || value === "disconnected") return "已断开";
+        return "空闲";
+    }
+
+    function localizeRuntimePhase(phase) {
+        const value = String(phase || "").toUpperCase();
+        const map = {
+            RECEIVED: "已接收",
+            PREPARING_CONTEXT: "准备上下文",
+            PLANNING_CONTEXT: "规划上下文",
+            BUILDING_STATE_VIEW: "构建状态视图",
+            INVOKING_MAIN_AGENT: "调用 MainNode",
+            VALIDATING_ACTION: "校验动作",
+            HANDLING_ACTION: "处理动作",
+            PREPARING_TOOL: "准备工具",
+            WAITING_USER: "等待用户",
+            WAITING_CHILDREN: "等待子 Agent",
+            FINAL_DELIVERY: "生成最终回答",
+            COMPLETED: "已完成",
+            FAILED: "已失败",
+            IDLE: "空闲"
+        };
+        return map[value] || value || "空闲";
+    }
+
+    function localizeActionName(action) {
+        const value = String(action || "").toUpperCase();
+        const map = {
+            CALL_TOOL: "调用工具",
+            RETRIEVE_RAG: "检索知识库",
+            ASK_USER: "询问用户",
+            DELEGATE_AGENTS: "委派子 Agent",
+            FINAL: "最终回答",
+            CONTINUE: "继续循环",
+            PLAN: "记录计划",
+            FAIL: "失败",
+            WAITING: "等待输出"
+        };
+        return map[value] || value || "等待输出";
+    }
+
+    function localizeStepStatus(status) {
+        const value = String(status || "").toUpperCase();
+        const map = {
+            PENDING: "待执行",
+            IN_PROGRESS: "执行中",
+            RUNNING: "执行中",
+            DONE: "已完成",
+            COMPLETED: "已完成",
+            BLOCKED: "阻塞",
+            FAILED: "失败",
+            CANCELLED: "已取消"
+        };
+        return map[value] || value || "待执行";
+    }
+
+    function displayStepStatus(step, index, insight = {}, totalSteps = 0) {
+        const raw = String(step?.status || "PENDING").toUpperCase();
+        if (raw === "DONE" || raw === "COMPLETED" || raw === "FAILED" || raw === "BLOCKED" || raw === "CANCELLED") {
+            return raw;
+        }
+        const isLastStep = totalSteps > 0 && index === totalSteps - 1;
+        const latestAction = String(insight.latestAction?.action || "").toUpperCase();
+        const runStatus = String(insight.status || state.status || "").toLowerCase();
+        const streamStatus = String(insight.streamStatus || state.streamStatus || "").toLowerCase();
+        const finalReached = latestAction === "FINAL" || runStatus === "completed" || streamStatus === "completed";
+        if (isLastStep && finalReached) {
+            return "DONE";
+        }
+        return raw;
+    }
+
+    function localizeSubAgentStatus(status) {
+        const value = String(status || "").toUpperCase();
+        if (value.includes("NO_COMMIT")) return "未提交";
+        if (value.includes("FAIL") || value.includes("BLOCK")) return "失败";
+        if (value.includes("COMMIT") || value.includes("DONE") || value.includes("COMPLETE")) return "已提交";
+        if (value.includes("WAIT")) return "等待中";
+        if (value.includes("RUN")) return "执行中";
+        if (value.includes("DISPATCH")) return "已派发";
+        return "处理中";
+    }
+
+    function localizeCapabilityName(name) {
+        const value = String(name || "").toUpperCase();
+        const map = {
+            COMMIT: "提交结果",
+            FAIL: "失败上报",
+            CALL_TOOL: "调用工具",
+            RETRIEVE_RAG: "检索知识库",
+            ASK_USER: "询问用户",
+            FILE_READ: "读取文件",
+            FILE_WRITE: "写入文件",
+            FILE_SEARCH: "搜索文件",
+            MCP_TOOL: "MCP 工具"
+        };
+        return map[value] || name;
+    }
+
+    function subAgentProgress(status) {
+        const value = String(status || "").toUpperCase();
+        if (value.includes("FAIL") || value.includes("BLOCK")) return 100;
+        if (value.includes("COMMIT") || value.includes("DONE") || value.includes("COMPLETE")) return 100;
+        if (value.includes("WAIT")) return 62;
+        if (value.includes("RUN")) return 68;
+        if (value.includes("DISPATCH")) return 42;
+        return 35;
+    }
+
+    function agentAccentColor(index) {
+        const colors = ["#2563eb", "#0891b2", "#4f46e5", "#0284c7", "#0f766e", "#1d4ed8"];
+        return colors[index % colors.length];
+    }
+
+    function describeActionOutputCn(action) {
+        const stateDelta = action.stateDelta || {};
+        const type = String(action.action || "").toUpperCase();
+        if (type === "DELEGATE_AGENTS") {
+            const tasks = stateDelta.delegateAgentsRequest?.tasks || [];
+            const names = tasks.map(item => item.name || item.taskId).filter(Boolean).join("、");
+            return tasks.length ? `派发 ${tasks.length} 个子 Agent：${names}` : "发起子 Agent 委派。";
+        }
+        if (type === "CALL_TOOL") {
+            const request = stateDelta.toolCallRequest || stateDelta.callToolRequest || action.actionInput || {};
+            return `调用工具：${request.toolName || request.toolCode || request.name || "未命名工具"}`;
+        }
+        if (type === "RETRIEVE_RAG") return "发起知识库检索。";
+        if (type === "ASK_USER") return "请求用户补充信息或确认。";
+        if (type === "FINAL") return "准备最终回答。";
+        if (type === "CONTINUE") return action.decision || "继续下一轮主循环。";
+        return action.decision || action.summary || "已输出结构化动作。";
+    }
+
+    function renderMainNodeMiniCard(insight) {
+        return renderMainNodeMiniCardV3(insight);
+    }
+
+    function renderMainNodeMiniStep(step, index) {
+        return renderMainNodeMiniStepV3(step, index, {}, 0);
+    }
+
+    function renderSubAgentMiniCard(subAgents, insight = {}) {
+        return renderSubAgentMiniCardV3(subAgents, insight);
+    }
+
+    function renderSubAgentMiniItem(agent, index = 0, insight = {}) {
+        return renderSubAgentMiniItemV3(agent, index, insight);
+    }
+
     function renderAll() {
         applySidebarState();
         renderSessions();
         renderTopbar();
         renderMessages();
+        renderRuntimeAside();
         renderDebug();
     }
 
@@ -3317,7 +5394,7 @@
         if (action === "like" || action === "dislike") {
             message.meta.feedback = message.meta.feedback === action ? "" : action;
             persistState();
-            renderMessages();
+            scheduleRender("messages");
         }
     }
 
@@ -3355,13 +5432,27 @@
     async function sendMessage() {
         const content = els.messageInput.value.trim();
         if (!content) return;
+        const session = activeSession();
+        const sessionId = session.sessionId;
         els.messageInput.value = "";
         resizeComposerInput();
         closeStream();
         resetRunViewState();
         addMessage("user", content);
         addAssistantThinking();
+        scrollChatToBottom(true);
         setStatus("starting");
+        const pendingRunId = `pending-${sessionId}-${Date.now()}`;
+        state.activeRunId = pendingRunId;
+        assignAssistantRunId(pendingRunId);
+        addEvent({
+            eventId: `local-start-${sessionId}-${Date.now()}`,
+            runId: pendingRunId,
+            eventType: "STATUS_CHANGED",
+            title: "RUN_SUBMITTED",
+            message: "正在提交问题并等待后端创建运行。"
+        }, pendingRunId, sessionId);
+        syncRunViewToActiveSession();
 
         if (state.mode === "mock") {
             await runMockScenarioFromMessage(inferScenario(content));
@@ -3369,7 +5460,6 @@
         }
 
         try {
-            const session = activeSession();
             const result = await requestJson("/agent/chat", {
                 method: "POST",
                 body: JSON.stringify({
@@ -3381,14 +5471,19 @@
                     metadata: {source: "agent_runtime_html"}
                 })
             });
-            state.activeRunId = result.runId;
+            if (sessionId !== state.activeSessionId) return;
+            migrateRunId(pendingRunId, result.runId);
             assignAssistantRunId(result.runId);
             setStatus(result.status || "running");
             recordDebug("API", "Chat run started", result);
             renderTopbar();
-            connectSse(`/agent/runs/${encodeURIComponent(result.runId)}/events/stream`, result.runId);
-            scheduleRunRecovery(result.runId);
+            connectSse(`/agent/runs/${encodeURIComponent(result.runId)}/events/stream`, result.runId, sessionId);
+            connectDebugSse(result.runId, sessionId);
+            scheduleRunRecovery(result.runId, sessionId);
+            scheduleBackendDebugRefresh(result.runId, 500, sessionId);
+            syncRunViewToActiveSession();
         } catch (error) {
+            if (sessionId !== state.activeSessionId) return;
             setStatus("failed");
             recordDebug("ERROR", "Chat request failed", {message: error.message}, "error");
             addAssistantFinal(`后端请求失败：${error.message}`);
@@ -3417,45 +5512,95 @@
         });
     }
 
-    function connectSse(path, runId = state.activeRunId) {
-        closeStream();
+    function connectSse(path, runId = state.activeRunId, expectedSessionId = state.activeSessionId) {
+        closeEventStream();
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
         state.streamStatus = "connecting";
         state.lastStreamError = null;
-        const source = new EventSource(API_BASE + withLastSeq(path));
+        const source = new EventSource(API_BASE + withLastSeq(path, runId));
         state.eventSource = source;
         recordDebug("SSE", "Event stream opened", {runId, path});
         source.onopen = () => {
+            if (!isActiveRunContext(runId, expectedSessionId)) {
+                source.close();
+                return;
+            }
             state.streamStatus = "open";
             state.lastStreamError = null;
             recordDebug("SSE", "Event stream connected", {runId, path});
-            renderDebug();
+            scheduleRender("debug");
         };
         source.addEventListener("agent-event", event => {
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
+            let parsed;
             try {
-                state.streamStatus = "receiving";
-                addEvent(JSON.parse(event.data));
+                parsed = JSON.parse(event.data);
             } catch (error) {
                 state.lastStreamError = error.message;
-                recordDebug("ERROR", "SSE event parse failed", {runId, message: error.message, data: event.data}, "error");
+                recordDebug("ERROR", "SSE event JSON parse failed", {runId, message: error.message, data: event.data}, "error");
                 toast("事件解析失败");
+                return;
+            }
+            try {
+                state.streamStatus = "receiving";
+                addEvent(parsed, runId, expectedSessionId);
+            } catch (error) {
+                state.lastStreamError = error.message;
+                recordDebug("ERROR", "SSE event handling failed", {runId, message: error.message, event: parsed}, "error");
+                toast("事件处理失败");
             }
         });
         source.addEventListener("agent-heartbeat", () => {});
         source.onerror = () => {
+            if (!isActiveRunContext(runId, expectedSessionId)) {
+                source.close();
+                return;
+            }
             const status = normalizeStatus(state.status);
             state.streamStatus = "disconnected";
             state.lastStreamError = "SSE stream disconnected before terminal event.";
             recordDebug("WARN", "Event stream disconnected", {runId, status}, "warn");
             if (status !== "completed" && status !== "failed" && status !== "waiting_user") {
                 toast("事件流已断开，正在恢复状态");
-                recoverRunFromServer(runId, "sse-disconnected");
+                recoverRunFromServer(runId, "sse-disconnected", expectedSessionId);
             }
-            closeStream();
-            renderDebug();
+            closeEventStream();
+            scheduleRender("debug");
         };
     }
 
-    function closeStream() {
+    function connectDebugSse(runId = state.activeRunId, expectedSessionId = state.activeSessionId) {
+        closeDebugStream();
+        if (!runId || state.mode !== "real" || String(runId).startsWith("mock-")) return;
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
+        const lastSeq = (state.debugDetails.traces || [])
+            .filter(trace => !trace.runId || trace.runId === runId)
+            .reduce((max, trace) => Math.max(max, Number(trace.seq || 0)), 0);
+        const path = `/agent/runs/${encodeURIComponent(runId)}/debug/events/stream${lastSeq ? `?lastSeq=${encodeURIComponent(lastSeq)}` : ""}`;
+        const source = new EventSource(API_BASE + path);
+        state.debugEventSource = source;
+        recordDebug("SSE", "Debug event stream opened", {runId, path});
+        source.addEventListener("agent-debug-event", event => {
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
+            try {
+                addDebugTrace(JSON.parse(event.data), runId, expectedSessionId);
+            } catch (error) {
+                recordDebug("ERROR", "Debug SSE event parse failed", {runId, message: error.message, data: event.data}, "error");
+            }
+        });
+        source.addEventListener("agent-debug-heartbeat", () => {});
+        source.onerror = () => {
+            if (!isActiveRunContext(runId, expectedSessionId)) {
+                source.close();
+                return;
+            }
+            recordDebug("WARN", "Debug event stream disconnected", {runId}, "warn");
+            scheduleBackendDebugRefresh(runId, 250, expectedSessionId);
+            closeDebugStream();
+        };
+    }
+
+    function closeEventStream() {
         if (state.eventSource) {
             state.eventSource.close();
             state.eventSource = null;
@@ -3465,8 +5610,19 @@
         }
     }
 
-    function withLastSeq(path) {
-        const runId = state.activeRunId;
+    function closeStream() {
+        closeEventStream();
+        closeDebugStream();
+    }
+
+    function closeDebugStream() {
+        if (state.debugEventSource) {
+            state.debugEventSource.close();
+            state.debugEventSource = null;
+        }
+    }
+
+    function withLastSeq(path, runId = state.activeRunId) {
         const lastSeq = state.events
             .filter(event => !runId || event.runId === runId)
             .reduce((max, event) => Math.max(max, Number(event.seq || 0)), 0);
@@ -3474,16 +5630,16 @@
         return `${path}${path.includes("?") ? "&" : "?"}lastSeq=${encodeURIComponent(lastSeq)}`;
     }
 
-    function scheduleRunRecovery(runId) {
+    function scheduleRunRecovery(runId, expectedSessionId = state.activeSessionId) {
         clearRunRecovery(runId);
         if (!runId || state.mode !== "real") return;
         const timers = [
-            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-3s"), 3000),
-            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-8s"), 8000),
-            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-15s"), 15000),
-            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-30s"), 30000),
-            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-60s"), 60000),
-            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-120s"), 120000)
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-3s", expectedSessionId), 3000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-8s", expectedSessionId), 8000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-15s", expectedSessionId), 15000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-30s", expectedSessionId), 30000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-60s", expectedSessionId), 60000),
+            window.setTimeout(() => recoverRunFromServer(runId, "watchdog-120s", expectedSessionId), 120000)
         ];
         recoveryTimers.set(runId, timers);
     }
@@ -3495,8 +5651,9 @@
         recoveryTimers.delete(runId);
     }
 
-    async function recoverRunFromServer(runId, reason) {
+    async function recoverRunFromServer(runId, reason, expectedSessionId = state.activeSessionId) {
         if (!runId || state.mode !== "real") return;
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
         const status = normalizeStatus(state.status);
         if (status === "completed" || status === "failed") return;
         recordDebug("RECOVERY", "Recovering run state from backend", {runId, reason});
@@ -3505,16 +5662,20 @@
             (events || [])
                 .slice()
                 .sort((first, second) => Number(first.seq || 0) - Number(second.seq || 0))
-                .forEach(addEvent);
+                .forEach(event => addEvent(event, runId, expectedSessionId));
+            await loadBackendDebug(runId, {silent: true, expectedSessionId});
         } catch (error) {
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
             recordDebug("ERROR", "Event replay failed", {runId, reason, message: error.message}, "error");
         }
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
         const nextStatus = normalizeStatus(state.status);
         if (nextStatus === "completed" || nextStatus === "failed" || nextStatus === "waiting_user") {
             return;
         }
         try {
             const final = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/final`);
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
             recordDebug("RECOVERY", "Loaded run final snapshot", {runId, status: final?.status, completed: final?.completed});
             if (final?.completed || String(final?.status || "").toUpperCase() === "COMPLETED") {
                 clearRunRecovery(runId);
@@ -3523,15 +5684,16 @@
                 if (final.finalAnswer) {
                     addAssistantFinal(final.finalAnswer, runId);
                 }
-                await loadBackendDebug(runId);
+                await loadBackendDebug(runId, {expectedSessionId});
             } else if (String(final?.status || "").toUpperCase() === "FAILED") {
                 clearRunRecovery(runId);
                 state.streamStatus = "failed";
                 setStatus("failed");
                 addAssistantFinal("运行过程中发生错误，流程已停止。", runId);
-                await loadBackendDebug(runId);
+                await loadBackendDebug(runId, {expectedSessionId});
             }
         } catch (error) {
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
             recordDebug("ERROR", "Final snapshot recovery failed", {runId, reason, message: error.message}, "error");
         }
         const finalStatus = normalizeStatus(state.status);
@@ -3539,50 +5701,156 @@
             && finalStatus !== "completed"
             && finalStatus !== "failed"
             && finalStatus !== "waiting_user") {
-            markStreamRecovering(runId, reason);
+            markStreamRecovering(runId, reason, expectedSessionId);
         }
     }
 
-    function markStreamRecovering(runId, reason) {
+    function markStreamRecovering(runId, reason, expectedSessionId = state.activeSessionId) {
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
         state.streamStatus = "recovering";
         state.lastStreamError = reason || "stream disconnected";
         recordDebug("WARN", "Event stream is recovering without terminal state", {runId, reason}, "warn");
-        connectSse(`/agent/runs/${encodeURIComponent(runId)}/events/stream`, runId);
+        connectSse(`/agent/runs/${encodeURIComponent(runId)}/events/stream`, runId, expectedSessionId);
+        connectDebugSse(runId, expectedSessionId);
     }
 
-    async function loadBackendDebug(runId = state.activeRunId) {
+    async function resumeActiveRunView() {
+        const runId = state.activeRunId;
+        const expectedSessionId = state.activeSessionId;
+        if (!runId || state.mode !== "real" || String(runId).startsWith("mock-")) return;
+        try {
+            await recoverRunFromServer(runId, "browser-resume", expectedSessionId);
+            await loadBackendDebug(runId, {silent: true, expectedSessionId});
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
+            const status = normalizeStatus(state.status);
+            if (status !== "completed" && status !== "failed" && status !== "waiting_user") {
+                connectSse(`/agent/runs/${encodeURIComponent(runId)}/events/stream`, runId, expectedSessionId);
+                connectDebugSse(runId, expectedSessionId);
+                scheduleRunRecovery(runId, expectedSessionId);
+            }
+        } catch (error) {
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
+            recordDebug("WARN", "Active run resume failed", {runId, message: error.message}, "warn");
+        } finally {
+            if (isActiveRunContext(runId, expectedSessionId)) {
+                renderAll();
+            }
+        }
+    }
+
+    function scheduleBackendDebugRefresh(runId = state.activeRunId, delay = 900, expectedSessionId = state.activeSessionId) {
+        if (!runId || state.mode !== "real" || String(runId).startsWith("mock-")) return;
+        window.clearTimeout(debugRefreshTimers.get(runId));
+        debugRefreshTimers.set(runId, window.setTimeout(() => {
+            debugRefreshTimers.delete(runId);
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
+            loadBackendDebug(runId, {silent: true, expectedSessionId}).catch(error => {
+                if (!isActiveRunContext(runId, expectedSessionId)) return;
+                recordDebug("WARN", "Backend debug refresh failed", {runId, message: error.message}, "warn");
+            });
+        }, delay));
+    }
+
+    async function loadBackendDebug(runId = state.activeRunId, options = {}) {
         if (!runId || state.mode !== "real") return;
+        const expectedSessionId = options.expectedSessionId || state.activeSessionId;
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
         const [tracesResult, evidenceResult, toolCallsResult] = await Promise.allSettled([
             requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/traces?limit=200`),
             requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/evidence`),
             requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/tool-calls`)
         ]);
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
+        const incomingTraces = tracesResult.status === "fulfilled" ? tracesResult.value || [] : [];
         state.debugDetails = {
-            traces: tracesResult.status === "fulfilled" ? tracesResult.value || [] : [],
-            evidence: evidenceResult.status === "fulfilled" ? evidenceResult.value || [] : [],
-            toolCalls: toolCallsResult.status === "fulfilled" ? toolCallsResult.value || [] : [],
-            payloads: {}
+            traces: mergeDebugTraces((state.debugDetails.traces || []).filter(trace => !trace.runId || trace.runId === runId), incomingTraces),
+            evidence: evidenceResult.status === "fulfilled" ? evidenceResult.value || [] : state.debugDetails.evidence || [],
+            toolCalls: toolCallsResult.status === "fulfilled" ? toolCallsResult.value || [] : state.debugDetails.toolCalls || [],
+            payloads: filterPayloadsForRun(state.debugDetails.payloads || {}, runId)
         };
-        state.debugDetails.payloads = await loadDebugPayloads(runId, state.debugDetails.traces);
-        [tracesResult, evidenceResult, toolCallsResult].forEach((result, index) => {
-            if (result.status === "rejected") {
-                const names = ["traces", "evidence", "toolCalls"];
-                recordDebug("ERROR", `Backend debug ${names[index]} failed to load`, {runId, message: result.reason?.message || String(result.reason)}, "error");
-            }
-        });
-        recordDebug("DEBUG", "Loaded backend debug details", {
+        state.debugDetails.payloads = {
+            ...state.debugDetails.payloads,
+            ...(await loadDebugPayloads(runId, state.debugDetails.traces))
+        };
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
+        invalidateRuntimeInsight();
+        syncAssistantRuntimeInsight(runId);
+        if (!options.silent) {
+            [tracesResult, evidenceResult, toolCallsResult].forEach((result, index) => {
+                if (result.status === "rejected") {
+                    const names = ["traces", "evidence", "toolCalls"];
+                    recordDebug("ERROR", `Backend debug ${names[index]} failed to load`, {runId, message: result.reason?.message || String(result.reason)}, "error");
+                }
+            });
+        }
+        if (!options.silent) {
+            recordDebug("DEBUG", "Loaded backend debug details", {
                 runId,
                 traces: state.debugDetails.traces.length,
                 evidence: state.debugDetails.evidence.length,
                 toolCalls: state.debugDetails.toolCalls.length,
                 payloads: Object.keys(state.debugDetails.payloads).length
             });
-            renderDebug();
+        }
+        syncRunViewToActiveSession();
+        schedulePersistState(500);
+        scheduleRender("messages", "runtime", "debug");
+    }
+
+    async function hydrateTracePayloads(runId, traces, expectedSessionId = state.activeSessionId) {
+        if (!runId || !Array.isArray(traces) || !traces.length) return;
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
+        const payloads = await loadDebugPayloads(runId, traces);
+        if (!isActiveRunContext(runId, expectedSessionId)) return;
+        state.debugDetails.payloads = {...(state.debugDetails.payloads || {}), ...payloads};
+    }
+
+    function filterPayloadsForRun(payloads, runId) {
+        const result = {};
+        Object.entries(payloads || {}).forEach(([key, payload]) => {
+            if (!payload?.runId || payload.runId === runId) {
+                result[key] = payload;
+            }
+        });
+        return result;
+    }
+
+    function mergeDebugTraces(current, incoming) {
+        const byKey = new Map();
+        [...(current || []), ...(incoming || [])].forEach(trace => {
+            if (!trace) return;
+            const key = trace.traceId || `${trace.runId || ""}:${trace.seq || ""}:${trace.actionType || ""}:${trace.componentName || ""}`;
+            byKey.set(key, trace);
+            if (trace.traceId) {
+                state.seenDebugTraceKeys.add(`id:${trace.traceId}`);
+            }
+        });
+        return [...byKey.values()].sort((a, b) => Number(a.seq || 0) - Number(b.seq || 0));
     }
 
     async function loadDebugPayloads(runId, traces) {
-        const refs = [...new Set((traces || []).map(trace => trace.payloadRef).filter(Boolean))].slice(0, 80);
-        const entries = await Promise.allSettled(refs.map(async payloadRef => {
+        const loaded = state.debugDetails.payloads || {};
+        const refs = [...new Set((traces || []).map(trace => trace.payloadRef).filter(Boolean))]
+            .filter(ref => !loaded[ref])
+            .filter(ref => !loadingPayloadRefs.has(ref))
+            .slice(0, 60);
+        refs.forEach(ref => loadingPayloadRefs.add(ref));
+        const payloads = await loadPayloadRefs(runId, refs);
+        refs.forEach(ref => loadingPayloadRefs.delete(ref));
+        const nestedRefs = Object.values(payloads)
+            .map(extractNestedPayloadRef)
+            .filter(Boolean)
+            .filter(payloadRef => !payloads[payloadRef] && !loaded[payloadRef])
+            .filter(payloadRef => !loadingPayloadRefs.has(payloadRef))
+            .slice(0, 60);
+        nestedRefs.forEach(ref => loadingPayloadRefs.add(ref));
+        const nestedPayloads = await loadPayloadRefs(runId, nestedRefs);
+        nestedRefs.forEach(ref => loadingPayloadRefs.delete(ref));
+        return {...payloads, ...nestedPayloads};
+    }
+
+    async function loadPayloadRefs(runId, refs) {
+        const entries = await Promise.allSettled((refs || []).map(async payloadRef => {
             const payload = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/debug/payloads/${encodeURIComponent(payloadRef)}`);
             return [payloadRef, payload];
         }));
@@ -3593,6 +5861,11 @@
             }
         });
         return payloads;
+    }
+
+    function extractNestedPayloadRef(payload) {
+        const object = parseJsonLike(payload?.rawContent) || parseJsonLike(payload?.preview);
+        return object?.payloadRef || null;
     }
 
     async function exportDebugToFile() {
@@ -3614,7 +5887,7 @@
                 })
             });
             recordDebug("DEBUG_EXPORT", "Debug snapshot exported", result || {});
-            toast(`Debug 已落库：${result?.path || "已保存"}`);
+            toast(`Debug 已落盘：${result?.path || "已保存"}`);
         } catch (error) {
             recordDebug("ERROR", "Debug export failed", {runId, message: error.message}, "error");
             toast(`Debug 导出失败：${error.message}`);
@@ -3626,39 +5899,44 @@
             toast("请输入回答");
             return;
         }
+        const runId = state.activeRunId;
+        const expectedSessionId = state.activeSessionId;
         state.answeredPendingIds.add(pendingId);
         recordPendingAnswer(pendingId, optionId, freeText);
 
-        if (state.mode === "mock" || !state.activeRunId || state.activeRunId.startsWith("mock-")) {
+        if (state.mode === "mock" || !runId || runId.startsWith("mock-")) {
             setStatus("running");
             window.setTimeout(() => addEvent({
                 eventType: "STATUS_CHANGED",
                 title: "继续处理",
                 message: "已收到你的回复。",
-                runId: state.activeRunId
+                runId
             }), 220);
             window.setTimeout(() => addEvent({
                 eventType: "FINAL_READY",
                 title: "completed",
                 message: "Final response is ready.",
-                runId: state.activeRunId
+                runId
             }), 580);
             return;
         }
 
         try {
-            const result = await requestJson(`/agent/runs/${encodeURIComponent(state.activeRunId)}/user-input`, {
+            const result = await requestJson(`/agent/runs/${encodeURIComponent(runId)}/user-input`, {
                 method: "POST",
                 body: JSON.stringify({pendingId, optionId, freeText, cancelled: false, metadata: {source: "agent_runtime_html"}})
             });
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
             setStatus(result.status || "running");
             recordDebug("API", "Submitted pending user answer", {pendingId, optionId, hasFreeText: Boolean(freeText), result});
-            connectSse(`/agent/runs/${encodeURIComponent(state.activeRunId)}/events/stream`, state.activeRunId);
-            scheduleRunRecovery(state.activeRunId);
+            connectSse(`/agent/runs/${encodeURIComponent(runId)}/events/stream`, runId, expectedSessionId);
+            connectDebugSse(runId, expectedSessionId);
+            scheduleRunRecovery(runId, expectedSessionId);
         } catch (error) {
+            if (!isActiveRunContext(runId, expectedSessionId)) return;
             setStatus("failed");
             recordDebug("ERROR", "Pending user answer failed", {pendingId, message: error.message}, "error");
-            addAssistantFinal(`用户回答提交失败：${error.message}`, state.activeRunId);
+            addAssistantFinal(`用户回答提交失败：${error.message}`, runId);
             toast(`提交失败：${error.message}`);
         }
     }
@@ -3679,7 +5957,7 @@
     }
 
     async function openArtifact(artifactId) {
-        if (state.mode === "mock" || artifactId.startsWith("artifact-mock")) {
+        if (state.mode === "mock" || String(state.activeRunId || "").startsWith("mock-")) {
             addMessage("assistant", `产物 ${artifactId} 已生成。当前 mock 模式不加载完整正文。`, {artifactId});
             return;
         }
@@ -3747,9 +6025,9 @@
 
     function scenarioPrompt(scenario) {
         const prompts = {
-            simple_final: "帮我生成一篇 RAG 相关的八股文，200 字左右",
+            simple_final: "帮我生成一篇 RAG 相关的短文，300 字左右",
             rag_progress: "根据知识库解释 RAG 的核心流程",
-            tool_publish_progress: "把这篇文章发布到 CSDN，发布前让我确认",
+            tool_publish_progress: "鎶婅繖绡囨枃绔犲彂甯冨埌 CSDN锛屽彂甯冨墠璁╂垜纭",
             ask_user_choose_artifact: "把刚才那篇文章重新整理一下",
             artifact_created: "创建一篇结构化文章产物",
             tool_failed: "模拟一次工具调用失败",
@@ -3783,10 +6061,10 @@
             VERIFYING_FINAL: "最终校验",
             PERSISTING_FINAL: "保存回答",
             USER_ANSWERED: "已收到你的回答",
-            "STATUS_CHANGED": "运行中",
-            "ASK_USER": "等待你的确认",
-            "FINAL_READY": "已完成",
-            "RUN_FAILED": "已停止"
+            STATUS_CHANGED: "运行中",
+            ASK_USER: "等待你的确认",
+            FINAL_READY: "已完成",
+            RUN_FAILED: "已停止"
         };
         return map[title] || map[String(title).toLowerCase()] || title;
     }
@@ -3806,7 +6084,7 @@
             "Retrieving knowledge.": "正在检索知识库内容。",
             "Knowledge evidence is ready.": "已找到可用知识证据。",
             "No matching knowledge evidence was found.": "没有找到匹配的知识证据。",
-            "Runtime runs final response guard pipeline.": "正在做最终回答保护。",
+            "Runtime runs final response guard pipeline.": "正在执行最终回答保护。",
             "Runtime persists final response and assistant message.": "正在保存最终回答。",
             "Searching knowledge base.": "正在查找相关知识。",
             "Final response is ready.": "",
@@ -3961,6 +6239,489 @@
         });
     }
 
+    function isParentWaitingForChildren(insight = {}) {
+        const events = insight.subAgentEvents || subAgentEventsForRun(insight.runId);
+        const latest = [...(events || [])].reverse().find(event => event.safePayload?.subAgentEventType);
+        const type = String(latest?.safePayload?.subAgentEventType || "").toUpperCase();
+        const phase = String(insight.currentPhase?.code || "").toUpperCase();
+        return phase === "WAITING_CHILDREN" || type === "PARENT_WAITING_CHILDREN";
+    }
+
+    function renderMainNodeMiniCardV3(insight) {
+        const plan = insight.latestPlan || {};
+        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const waitingChildren = isParentWaitingForChildren(insight);
+        const badgeClass = waitingChildren ? "direct" : mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
+        const phase = waitingChildren ? "等待子 Agent" : localizeRuntimePhase(insight.currentPhase?.code || state.status || "idle");
+        const streamStatus = localizeRuntimeStatus(insight.streamStatus || "idle");
+        const goal = waitingChildren
+            ? `MainNode 已暂停，正在等待 ${insight.subAgents.length || 0} 个子 Agent 并行完成`
+            : (plan.goal || latestActionDecision(insight) || "等待 MainNode 输出规划");
+        const steps = Array.isArray(plan.stepUpdates) ? plan.stepUpdates : [];
+        const visibleSteps = steps.length ? steps.slice(0, 6) : [];
+        const actionName = waitingChildren ? "等待子 Agent" : localizeActionName(insight.latestAction?.action || "WAITING");
+        return `
+            <div class="runtime-mini-head">
+                <div>
+                    <div class="runtime-mini-title">MainNode 当前规划</div>
+                    <div class="runtime-mini-subtitle">${escapeHtml(phase)} / ${escapeHtml(streamStatus)}</div>
+                </div>
+                <span class="runtime-mini-badge ${escapeHtml(badgeClass)}">${escapeHtml(waitingChildren ? "并行等待" : localizePlanMode(mode))}</span>
+            </div>
+            <div class="runtime-mini-goal">${escapeHtml(truncateText(goal, 150))}</div>
+            ${visibleSteps.length ? `
+                <div class="runtime-mini-steps">
+                    ${visibleSteps.map((step, index) => renderMainNodeMiniStepV3(step, index, insight, visibleSteps.length)).join("")}
+                </div>
+            ` : `<div class="runtime-mini-goal">暂无结构化步骤；如果是直接处理模式，下方会显示当前动作。</div>`}
+            <div class="runtime-mini-action">
+                <strong>本轮动作：${escapeHtml(actionName)}</strong>
+                ${escapeHtml(describeActionOutputCn(insight.latestAction || {}))}
+            </div>
+        `;
+    }
+
+    function renderMainNodeMiniStepV3(step, index, insight = {}, totalSteps = 0) {
+        const status = displayStepStatus(step, index, insight, totalSteps);
+        const done = status === "DONE" || status === "COMPLETED";
+        const active = status === "IN_PROGRESS" || status === "RUNNING";
+        const failed = status === "FAILED" || status === "BLOCKED" || status === "CANCELLED";
+        const checkClass = failed ? "failed" : done ? "" : active ? "active" : "pending";
+        const mark = done ? "✓" : failed ? "×" : "";
+        return `
+            <div class="runtime-mini-step">
+                <div class="runtime-mini-check ${escapeHtml(checkClass)}">${escapeHtml(mark)}</div>
+                <div>
+                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.objective || step.stepId || "未命名步骤")}</div>
+                    ${step.note ? `<div class="runtime-mini-step-note">${escapeHtml(truncateText(step.note, 90))}</div>` : ""}
+                    <div class="runtime-mini-step-note">状态：${escapeHtml(localizeStepStatus(status))}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderSubAgentMiniCardV3(subAgents) {
+        return `
+            <div class="runtime-mini-head">
+                <div>
+                    <div class="runtime-mini-title">子 Agent</div>
+                    <div class="runtime-mini-subtitle">MainNode 派发的并行任务</div>
+                </div>
+                <span class="runtime-mini-badge committed">${escapeHtml(String(subAgents.length))} 个</span>
+            </div>
+            <div class="runtime-agent-list">
+                ${subAgents.slice(0, 6).map((agent, index) => renderSubAgentMiniItemV3(agent, index)).join("")}
+            </div>
+        `;
+    }
+
+    function renderSubAgentMiniItemV3(agent, index = 0) {
+        const rawStatus = String(agent.status || "DISPATCHED").toUpperCase();
+        const status = deriveSubAgentDisplayStatus(agent, rawStatus);
+        const statusClass = subAgentStatusClass(status);
+        const capabilityView = normalizeSubAgentCapabilities(agent);
+        const color = agentAccentColor(index);
+        const progress = subAgentProgress(status);
+        const running = isSubAgentRunning(agent, status);
+        const title = agent.name || agent.taskId || agent.childRunId || `子 Agent ${index + 1}`;
+        const taskText = agent.objective || agent.task || agent.requiredOutput || (agent.result ? "已收到子 Agent 提交结果" : "等待任务详情");
+        return `
+            <div class="runtime-agent-mini ${running ? "is-running" : ""}" style="--agent-color: ${escapeHtml(color)}">
+                <div class="runtime-agent-head">
+                    <div class="runtime-agent-name">${escapeHtml(title)}</div>
+                    <span class="runtime-mini-badge ${escapeHtml(statusClass)}">${escapeHtml(localizeSubAgentStatus(status))}</span>
+                </div>
+                <div class="runtime-agent-progress"><span style="--progress: ${escapeHtml(String(progress))}%"></span></div>
+                ${renderHoverText(taskText, 150, "runtime-agent-task")}
+                ${agent.currentAction ? `<div class="runtime-mini-step-note">当前动作：${escapeHtml(localizeActionName(agent.currentAction))}</div>` : ""}
+                ${agent.lastEventMessage ? renderHoverText(`进度：${agent.lastEventMessage}`, 120, "runtime-mini-step-note") : ""}
+                ${agent.requiredOutput ? renderHoverText(`交付要求：${agent.requiredOutput}`, 120, "runtime-mini-step-note") : ""}
+                ${agent.result ? renderHoverText(`结果：${agent.result}`, 120, "runtime-mini-step-note") : ""}
+                ${renderSubAgentCapabilityBlock(capabilityView.requested, capabilityView.effective)}
+            </div>
+        `;
+    }
+
+    function renderSubAgentCapabilityBlock(requestedCapabilities, effectiveCapabilities) {
+        const requested = uniqueList(requestedCapabilities);
+        const effective = uniqueList(effectiveCapabilities);
+        if (!requested.length && !effective.length) return "";
+        const requestedRow = requested.length
+            ? `<div class="runtime-mini-chips">${requested.map(item => `<span class="runtime-mini-chip">${escapeHtml(localizeCapabilityName(item))}</span>`).join("")}</div>`
+            : `<div class="runtime-agent-task">未记录 MainNode 请求能力</div>`;
+        const effectiveRow = effective.length
+            ? `<div class="runtime-mini-chips">${effective.map(item => `<span class="runtime-mini-chip">${escapeHtml(localizeCapabilityName(item))}</span>`).join("")}</div>`
+            : "";
+        return `
+            <div class="runtime-agent-capability-block">
+                <div class="runtime-agent-capability-title">MainNode 请求能力</div>
+                ${requestedRow}
+                ${effectiveRow ? `<div class="runtime-agent-capability-title">Runtime 实际授权</div>${effectiveRow}` : ""}
+            </div>
+        `;
+    }
+
+    function localizePlanMode(mode) {
+        const value = String(mode || "").toUpperCase();
+        if (value === "PER") return "规划执行";
+        if (value === "DIRECT") return "直接处理";
+        if (value.includes("FAIL")) return "异常";
+        return "等待中";
+    }
+
+    function localizeRuntimeStatus(status) {
+        const value = String(status || "").toLowerCase();
+        if (value === "open" || value === "receiving") return "接收中";
+        if (value === "connecting") return "连接中";
+        if (value === "completed") return "已完成";
+        if (value === "failed") return "已失败";
+        if (value === "recovering") return "恢复中";
+        if (value === "closed" || value === "disconnected") return "已断开";
+        return "空闲";
+    }
+
+    function localizeRuntimePhase(phase) {
+        const value = String(phase || "").toUpperCase();
+        const map = {
+            RECEIVED: "已接收",
+            PREPARING_CONTEXT: "准备上下文",
+            PLANNING_CONTEXT: "规划上下文",
+            BUILDING_STATE_VIEW: "构建状态视图",
+            CALLING_MAIN_NODE: "调用 MainNode",
+            INVOKING_MAIN_AGENT: "调用 MainNode",
+            VALIDATING_ACTION: "校验动作",
+            HANDLING_ACTION: "处理动作",
+            PREPARING_TOOL: "准备工具",
+            WAITING_USER: "等待用户",
+            WAITING_CHILDREN: "等待子 Agent",
+            FINAL_DELIVERY: "生成最终回答",
+            VERIFYING_FINAL: "校验最终回答",
+            COMPLETED: "已完成",
+            FAILED: "已失败",
+            IDLE: "空闲"
+        };
+        return map[value] || value || "空闲";
+    }
+
+    function localizeActionName(action) {
+        const value = String(action || "").toUpperCase();
+        const map = {
+            CALL_TOOL: "调用工具",
+            RETRIEVE_RAG: "检索知识库",
+            ASK_USER: "询问用户",
+            DELEGATE_AGENTS: "委派子 Agent",
+            FINAL: "最终回答",
+            CONTINUE: "继续循环",
+            PLAN: "记录计划",
+            FAIL: "失败",
+            COMMIT: "提交结果",
+            WAITING: "等待输出"
+        };
+        return map[value] || value || "等待输出";
+    }
+
+    function localizeStepStatus(status) {
+        const value = String(status || "").toUpperCase();
+        const map = {
+            PENDING: "待执行",
+            IN_PROGRESS: "执行中",
+            RUNNING: "执行中",
+            DONE: "已完成",
+            COMPLETED: "已完成",
+            COMMITTED: "已提交",
+            BLOCKED: "阻塞",
+            FAILED: "失败",
+            CANCELLED: "已取消"
+        };
+        return map[value] || value || "待执行";
+    }
+
+    function localizeSubAgentStatus(status) {
+        const value = String(status || "").toUpperCase();
+        if (value.includes("NO_COMMIT")) return "未提交";
+        if (value.includes("FAIL") || value.includes("BLOCK")) return "失败";
+        if (value.includes("COMMIT") || value.includes("DONE") || value.includes("COMPLETE")) return "已提交";
+        if (value.includes("RUN") || value.includes("START") || value.includes("PROGRESS")) return "执行中";
+        if (value.includes("WAIT")) return "等待中";
+        if (value.includes("DISPATCH")) return "已派发";
+        return "待执行";
+    }
+
+    function localizeCapabilityName(capability) {
+        const value = String(capability || "").toUpperCase();
+        const map = {
+            COMMIT: "提交结果",
+            FILE_READ: "读取文件",
+            FILE_WRITE: "写入文件",
+            MCP_TOOL: "调用 MCP",
+            RAG: "检索 RAG",
+            ASK_USER: "询问用户"
+        };
+        return map[value] || value;
+    }
+
+    function isParentWaitingForChildren(insight = {}) {
+        const subAgents = Array.isArray(insight.subAgents) ? insight.subAgents : [];
+        const hasRunningChild = subAgents.some(agent => !isTerminalSubAgentStatus(agent.status));
+        const phase = String(insight.currentPhase?.code || "").toUpperCase();
+        const runStatus = normalizeStatus(insight.status || state.status);
+        const streamStatus = String(insight.streamStatus || state.streamStatus || "").toLowerCase();
+        if (runStatus === "completed" || runStatus === "failed" || streamStatus === "completed" || streamStatus === "failed") {
+            return false;
+        }
+        if (hasRunningChild) return true;
+        const events = insight.subAgentEvents || subAgentEventsForRun(insight.runId);
+        return [...(events || [])].reverse().some(event => {
+            const type = String(event.safePayload?.subAgentEventType || "").toUpperCase();
+            if (type === "CHILDREN_READY") return false;
+            if (type === "PARENT_WAITING_CHILDREN") return true;
+            return false;
+        }) || phase === "WAITING_CHILDREN";
+    }
+
+    function renderMainNodeMiniCardV3(insight) {
+        const plan = insight.latestPlan || {};
+        const waitingChildren = isParentWaitingForChildren(insight);
+        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const badgeClass = waitingChildren ? "direct" : mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
+        const phase = waitingChildren ? "等待子 Agent" : localizeRuntimePhase(insight.currentPhase?.code || state.status || "idle");
+        const streamStatus = localizeRuntimeStatus(insight.streamStatus || "idle");
+        const activeChildren = (insight.subAgents || []).filter(agent => !isTerminalSubAgentStatus(agent.status)).length;
+        const goal = waitingChildren
+            ? `MainNode 已暂停主循环，正在等待 ${activeChildren || insight.subAgents.length || 0} 个子 Agent 并行完成。`
+            : (plan.goal || latestActionDecision(insight) || "等待 MainNode 输出规划");
+        const steps = Array.isArray(plan.stepUpdates) ? plan.stepUpdates : [];
+        const visibleSteps = steps.length ? steps.slice(0, 6) : [];
+        const actionName = waitingChildren ? "等待子 Agent" : localizeActionName(insight.latestAction?.action || "WAITING");
+        return `
+            <div class="runtime-mini-head">
+                <div>
+                    <div class="runtime-mini-title">MainNode 当前规划</div>
+                    <div class="runtime-mini-subtitle">${escapeHtml(phase)} / ${escapeHtml(streamStatus)}</div>
+                </div>
+                <span class="runtime-mini-badge ${escapeHtml(badgeClass)}">${escapeHtml(waitingChildren ? "并行等待" : localizePlanMode(mode))}</span>
+            </div>
+            <div class="runtime-mini-goal">${escapeHtml(truncateText(goal, 150))}</div>
+            ${visibleSteps.length ? `
+                <div class="runtime-mini-steps">
+                    ${visibleSteps.map((step, index) => renderMainNodeMiniStepV3(step, index, insight, visibleSteps.length)).join("")}
+                </div>
+            ` : `<div class="runtime-mini-goal">暂无结构化步骤。若 MainNode 选择直接处理，下方会显示当前动作。</div>`}
+            <div class="runtime-mini-action">
+                <strong>本轮动作：${escapeHtml(actionName)}</strong>
+                ${escapeHtml(describeActionOutputCn(insight.latestAction || {}))}
+            </div>
+        `;
+    }
+
+    function renderMainNodeMiniStepV3(step, index, insight = {}, totalSteps = 0) {
+        const status = displayStepStatus(step, index, insight, totalSteps);
+        const done = status === "DONE" || status === "COMPLETED" || status === "COMMITTED";
+        const active = status === "IN_PROGRESS" || status === "RUNNING";
+        const failed = status === "FAILED" || status === "BLOCKED" || status === "CANCELLED";
+        const checkClass = failed ? "failed" : done ? "" : active ? "active" : "pending";
+        const mark = done ? "✓" : failed ? "×" : "";
+        return `
+            <div class="runtime-mini-step">
+                <div class="runtime-mini-check ${escapeHtml(checkClass)}">${escapeHtml(mark)}</div>
+                <div>
+                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.objective || step.stepId || "未命名步骤")}</div>
+                    ${step.note ? `<div class="runtime-mini-step-note">${escapeHtml(truncateText(step.note, 90))}</div>` : ""}
+                    <div class="runtime-mini-step-note">状态：${escapeHtml(localizeStepStatus(status))}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderSubAgentMiniCardV3(subAgents, insight = {}) {
+        const displayStatuses = subAgents.map(agent => deriveSubAgentDisplayStatus(agent, agent.status, insight));
+        const runningCount = subAgents.filter((agent, index) => isSubAgentRunning(agent, displayStatuses[index], insight)).length;
+        const failedCount = displayStatuses.filter(status => subAgentStatusClass(status) === "failed").length;
+        const subtitle = runningCount ? `并行执行中：${runningCount} 个未完成` : "并行任务已返回";
+        const badgeClass = failedCount ? "failed" : runningCount ? "" : "committed";
+        const badgeText = runningCount ? `${runningCount}/${subAgents.length}` : `${subAgents.length} 个`;
+        return `
+            <div class="runtime-mini-head">
+                <div>
+                    <div class="runtime-mini-title">子 Agent</div>
+                    <div class="runtime-mini-subtitle">${escapeHtml(subtitle)}</div>
+                </div>
+                <span class="runtime-mini-badge ${escapeHtml(badgeClass)}">${escapeHtml(badgeText)}</span>
+            </div>
+            <div class="runtime-agent-list">
+                ${subAgents.slice(0, 8).map((agent, index) => renderSubAgentMiniItemV3(agent, index, insight)).join("")}
+            </div>
+        `;
+    }
+
+    function renderSubAgentMiniItemV3(agent, index = 0, insight = {}) {
+        const rawStatus = String(agent.status || "DISPATCHED").toUpperCase();
+        const status = deriveSubAgentDisplayStatus(agent, rawStatus, insight);
+        const statusClass = subAgentStatusClass(status);
+        const capabilityView = normalizeSubAgentCapabilities(agent);
+        const color = agentAccentColor(index);
+        const progress = subAgentProgress(status);
+        const running = isSubAgentRunning(agent, status, insight);
+        const title = agent.name || agent.taskId || agent.childRunId || `子 Agent ${index + 1}`;
+        const taskText = agent.objective || agent.task || agent.requiredOutput || (agent.result ? "已收到子 Agent 提交结果" : "等待任务详情");
+        return `
+            <div class="runtime-agent-mini ${running ? "is-running" : ""}" style="--agent-color: ${escapeHtml(color)}">
+                <div class="runtime-agent-head">
+                    <div class="runtime-agent-name">${escapeHtml(title)}</div>
+                    <span class="runtime-mini-badge ${escapeHtml(statusClass)}">${escapeHtml(localizeSubAgentStatus(status))}</span>
+                </div>
+                <div class="runtime-agent-progress"><span style="--progress: ${escapeHtml(String(progress))}%"></span></div>
+                ${renderHoverText(taskText, 150, "runtime-agent-task")}
+                ${agent.currentAction ? `<div class="runtime-mini-step-note">当前动作：${escapeHtml(localizeActionName(agent.currentAction))}</div>` : ""}
+                ${agent.lastEventMessage ? renderHoverText(`进度：${agent.lastEventMessage}`, 120, "runtime-mini-step-note") : ""}
+                ${agent.requiredOutput ? renderHoverText(`交付要求：${agent.requiredOutput}`, 120, "runtime-mini-step-note") : ""}
+                ${agent.result ? renderHoverText(`结果：${agent.result}`, 120, "runtime-mini-step-note") : ""}
+                ${renderSubAgentCapabilityBlock(capabilityView.requested, capabilityView.effective)}
+            </div>
+        `;
+    }
+
+    function renderSubAgentCapabilityBlock(requestedCapabilities, effectiveCapabilities) {
+        const requested = uniqueList(requestedCapabilities);
+        const effective = uniqueList(effectiveCapabilities);
+        if (!requested.length && !effective.length) return "";
+        const requestedRow = requested.length
+            ? `<div class="runtime-mini-chips">${requested.map(item => `<span class="runtime-mini-chip">${escapeHtml(localizeCapabilityName(item))}</span>`).join("")}</div>`
+            : `<div class="runtime-agent-task">未记录 MainNode 请求能力</div>`;
+        const effectiveRow = effective.length
+            ? `<div class="runtime-mini-chips">${effective.map(item => `<span class="runtime-mini-chip">${escapeHtml(localizeCapabilityName(item))}</span>`).join("")}</div>`
+            : "";
+        return `
+            <div class="runtime-agent-capability-block">
+                <div class="runtime-agent-capability-title">MainNode 请求能力</div>
+                ${requestedRow}
+                ${effectiveRow ? `<div class="runtime-agent-capability-title">Runtime 实际授权</div>${effectiveRow}` : ""}
+            </div>
+        `;
+    }
+
+    function localizePlanMode(mode) {
+        const value = String(mode || "").toUpperCase();
+        if (value === "PER") return "规划执行";
+        if (value === "DIRECT") return "直接处理";
+        if (value.includes("FAIL")) return "异常";
+        return "等待中";
+    }
+
+    function localizeRuntimeStatus(status) {
+        const value = String(status || "").toLowerCase();
+        if (value === "open" || value === "receiving") return "接收中";
+        if (value === "connecting") return "连接中";
+        if (value === "completed") return "已完成";
+        if (value === "failed") return "已失败";
+        if (value === "recovering") return "恢复中";
+        if (value === "closed" || value === "disconnected") return "已断开";
+        return "空闲";
+    }
+
+    function localizeRuntimePhase(phase) {
+        const value = String(phase || "").toUpperCase();
+        const map = {
+            RECEIVED: "已接收",
+            PREPARING_CONTEXT: "准备上下文",
+            PLANNING_CONTEXT: "规划上下文",
+            BUILDING_STATE_VIEW: "构建状态视图",
+            CALLING_MAIN_NODE: "调用 MainNode",
+            INVOKING_MAIN_AGENT: "调用 MainNode",
+            VALIDATING_ACTION: "校验动作",
+            HANDLING_ACTION: "处理动作",
+            PREPARING_TOOL: "准备工具",
+            WAITING_USER: "等待用户",
+            WAITING_CHILDREN: "等待子 Agent",
+            FINAL_DELIVERY: "生成最终回答",
+            VERIFYING_FINAL: "校验最终回答",
+            COMPLETED: "已完成",
+            FAILED: "已失败",
+            IDLE: "空闲"
+        };
+        return map[value] || value || "空闲";
+    }
+
+    function localizeActionName(action) {
+        const value = String(action || "").toUpperCase();
+        const map = {
+            CALL_TOOL: "调用工具",
+            RETRIEVE_RAG: "检索知识库",
+            ASK_USER: "询问用户",
+            DELEGATE_AGENTS: "委派子 Agent",
+            FINAL: "最终回答",
+            CONTINUE: "继续循环",
+            PLAN: "记录计划",
+            FAIL: "失败",
+            COMMIT: "提交结果",
+            WAITING: "等待输出"
+        };
+        return map[value] || value || "等待输出";
+    }
+
+    function localizeStepStatus(status) {
+        const value = String(status || "").toUpperCase();
+        const map = {
+            PENDING: "待执行",
+            IN_PROGRESS: "执行中",
+            RUNNING: "执行中",
+            DONE: "已完成",
+            COMPLETED: "已完成",
+            COMMITTED: "已提交",
+            BLOCKED: "阻塞",
+            FAILED: "失败",
+            CANCELLED: "已取消"
+        };
+        return map[value] || value || "待执行";
+    }
+
+    function localizeSubAgentStatus(status) {
+        const value = String(status || "").toUpperCase();
+        if (value.includes("NO_COMMIT")) return "未提交";
+        if (value.includes("FAIL") || value.includes("BLOCK")) return "失败";
+        if (value.includes("COMMIT") || value.includes("DONE") || value.includes("COMPLETE")) return "已提交";
+        if (value.includes("RUN") || value.includes("START") || value.includes("PROGRESS")) return "执行中";
+        if (value.includes("WAIT")) return "等待中";
+        if (value.includes("DISPATCH")) return "已派发";
+        return "待执行";
+    }
+
+    function localizeCapabilityName(capability) {
+        const value = String(capability || "").toUpperCase();
+        const map = {
+            COMMIT: "提交结果",
+            FAIL: "上报失败",
+            CALL_TOOL: "调用工具",
+            RETRIEVE_RAG: "检索 RAG",
+            RAG: "检索 RAG",
+            ASK_USER: "询问用户",
+            FILE_READ: "读取文件",
+            FILE_WRITE: "写入文件",
+            FILE_SEARCH: "搜索文件",
+            MCP_TOOL: "调用 MCP"
+        };
+        return map[value] || capability;
+    }
+
+    function describeActionOutputCn(action) {
+        const stateDelta = action.stateDelta || {};
+        const type = String(action.action || "").toUpperCase();
+        if (type === "DELEGATE_AGENTS") {
+            const tasks = stateDelta.delegateAgentsRequest?.tasks || [];
+            const names = tasks.map(item => item.name || item.taskId).filter(Boolean).join("、");
+            return tasks.length ? `派发 ${tasks.length} 个子 Agent：${names}` : "发起子 Agent 委派。";
+        }
+        if (type === "CALL_TOOL") {
+            const request = stateDelta.toolCallRequest || stateDelta.callToolRequest || action.actionInput || {};
+            return `调用工具：${request.toolName || request.toolCode || request.name || "未命名工具"}`;
+        }
+        if (type === "RETRIEVE_RAG") return "发起知识库检索。";
+        if (type === "ASK_USER") return "请求用户补充信息或确认。";
+        if (type === "FINAL") return "准备最终回答。";
+        if (type === "CONTINUE") return action.decision || "继续下一轮主循环。";
+        return action.decision || action.summary || "已输出结构化动作。";
+    }
+
     async function boot() {
         loadState();
         bindEvents();
@@ -3969,6 +6730,7 @@
         setStatus(state.status);
         renderAll();
         await loadScenarios();
+        await resumeActiveRunView();
     }
 
     boot();

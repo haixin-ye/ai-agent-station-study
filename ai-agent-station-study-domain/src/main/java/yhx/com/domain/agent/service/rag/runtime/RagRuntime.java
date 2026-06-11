@@ -9,6 +9,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentEvidenceEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.RagHitEntity;
 import yhx.com.domain.agent.model.entity.persistence.RagQueryEntity;
+import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.RagQueryStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RagRuntimeStatusEnumVO;
@@ -92,6 +93,7 @@ public class RagRuntime implements RagRuntimePort {
             List<RagHitVO> hits = retrieveHits(command);
             List<RagHitVO> usableHits = persistHits(command.getRunId(), ragQueryId, hits);
             List<String> evidenceIds = persistEvidence(command.getRunId(), command.getSessionId(), ragQueryId, usableHits);
+            List<MaterializedEvidenceVO> evidence = materializeEvidence(command, evidenceIds, usableHits);
             RagRuntimeStatusEnumVO status = evidenceIds.isEmpty() ? RagRuntimeStatusEnumVO.NO_HIT : RagRuntimeStatusEnumVO.SUCCESS;
             ragExecutionRepository.updateRagQueryStatus(ragQueryId, status.code(), null, null);
             publish(command.getRunId(), status == RagRuntimeStatusEnumVO.SUCCESS ? "KNOWLEDGE_RETRIEVED" : "KNOWLEDGE_NOT_FOUND",
@@ -99,6 +101,7 @@ public class RagRuntime implements RagRuntimePort {
             return RagRuntimeResultVO.builder()
                     .status(status)
                     .evidenceIds(evidenceIds)
+                    .evidence(evidence)
                     .message(status == RagRuntimeStatusEnumVO.SUCCESS ? "RAG evidence created." : "RAG returned no usable evidence.")
                     .build();
         } catch (Exception e) {
@@ -220,6 +223,40 @@ public class RagRuntime implements RagRuntimePort {
             return List.of();
         }
         return evidenceList.stream().map(evidenceRepository::saveEvidence).toList();
+    }
+
+    private List<MaterializedEvidenceVO> materializeEvidence(RagRuntimeCommandVO command,
+                                                             List<String> evidenceIds,
+                                                             List<RagHitVO> hits) {
+        if (evidenceIds == null || evidenceIds.isEmpty() || hits == null || hits.isEmpty()) {
+            return List.of();
+        }
+        List<MaterializedEvidenceVO> materialized = new ArrayList<>();
+        int size = Math.min(evidenceIds.size(), hits.size());
+        for (int i = 0; i < size; i++) {
+            RagHitVO hit = hits.get(i);
+            String content = hit == null ? null : hit.getChunkText();
+            if (isBlank(content)) {
+                continue;
+            }
+            materialized.add(MaterializedEvidenceVO.builder()
+                    .evidenceId(evidenceIds.get(i))
+                    .evidenceType("RAG")
+                    .sourceRef(hit.getRagHitId())
+                    .summary(hit.getTitle())
+                    .boundedSnippet(content)
+                    .content(content)
+                    .contentFormat("text/plain")
+                    .truncated(false)
+                    .totalChars(content.length())
+                    .sourceLoopIndex(command == null ? null : command.getLoopIndex())
+                    .createdAt(LocalDateTime.now())
+                    .metadata(Map.of(
+                            "query", command == null ? "" : command.getQuery(),
+                            "rankNo", hit.getRankNo() == null ? 0 : hit.getRankNo()))
+                    .build());
+        }
+        return materialized;
     }
 
     private int resolveTopK(Map<String, Object> options) {

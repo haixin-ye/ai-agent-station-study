@@ -108,6 +108,23 @@ public class ContractValidator {
                 return ContractValidationResult.failed("MISSING_DELEGATE_TASK_OBJECTIVE", "stateDelta.delegateAgentsRequest.tasks[" + index + "].objective",
                         "Delegated task requires objective.");
             }
+            if (isBlank(task.getString("requiredOutput"))) {
+                return ContractValidationResult.failed("MISSING_DELEGATE_TASK_REQUIRED_OUTPUT", "stateDelta.delegateAgentsRequest.tasks[" + index + "].requiredOutput",
+                        "Delegated task requires requiredOutput.");
+            }
+            JSONArray requestedCapabilities = task.getJSONArray("requestedCapabilities");
+            if (requestedCapabilities == null || requestedCapabilities.isEmpty()) {
+                return ContractValidationResult.failed("MISSING_DELEGATE_TASK_REQUESTED_CAPABILITIES", "stateDelta.delegateAgentsRequest.tasks[" + index + "].requestedCapabilities",
+                        "Delegated task requires requestedCapabilities.");
+            }
+            for (int capabilityIndex = 0; capabilityIndex < requestedCapabilities.size(); capabilityIndex++) {
+                Object capability = requestedCapabilities.get(capabilityIndex);
+                if (!(capability instanceof String value) || value.isBlank()) {
+                    return ContractValidationResult.failed("INVALID_DELEGATE_TASK_REQUESTED_CAPABILITY",
+                            "stateDelta.delegateAgentsRequest.tasks[" + index + "].requestedCapabilities[" + capabilityIndex + "]",
+                            "Delegated task requestedCapabilities must contain non-empty strings.");
+                }
+            }
         }
         return ContractValidationResult.passed();
     }

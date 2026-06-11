@@ -12,6 +12,7 @@ public class OutputContractPromptRenderer {
     public String renderFor(String componentCode, String contractVersion) {
         return switch (componentCode) {
             case "MAIN_AGENT", "FINAL_REPAIR" -> renderMainAgentActionContract();
+            case "GENERIC_SUB_AGENT" -> renderSubAgentActionContract();
             case "CONTEXT_PLANNER" -> renderContextPlannerOutputContract();
             case "RAG_VERIFIER", "TOOL_VERIFIER" -> renderVerificationResultContract();
             case "FINAL_RESPONSE_GUARD" -> renderFinalResponseGuardResultContract();
@@ -23,6 +24,67 @@ public class OutputContractPromptRenderer {
             case "CONVERSATION_ROLLUP" -> renderConversationRollupContract();
             default -> "Return one JSON object that satisfies component contract version " + contractVersion + ".";
         };
+    }
+
+    public String renderSubAgentActionContract() {
+        return """
+                Required contract: SubAgentActionContract
+                Required contract version: generic-sub-agent-action-v1
+
+                Output exactly one valid JSON object.
+
+                Required top-level fields:
+                - action: one of CALL_TOOL, RETRIEVE_RAG, ASK_USER, CONTINUE, COMMIT, FAIL
+
+                Forbidden actions:
+                - FINAL
+                - DELEGATE_AGENTS
+                - DELEGATE_CODE_AGENT
+
+                Common action rules:
+                - Do not include markdown, prose, or hidden reasoning outside the JSON object.
+                - Use only capabilities listed in effectiveCapabilities from the current full context.
+                - If a needed capability is absent, output FAIL with a clear reason.
+
+                Capability-to-action meaning:
+                - COMMIT permits action=COMMIT and structured commit payloads to the parent.
+                - RAG permits action=RETRIEVE_RAG.
+                - MCP_TOOL permits action=CALL_TOOL for parent-provided MCP tool capabilities.
+                - FILE_READ permits action=CALL_TOOL for granted read/discovery workspace file capabilities inside the effective workspace scope, including search_files, list_directory, directory_tree, read_file, and read_multiple_files when those tools are available.
+                - FILE_WRITE permits action=CALL_TOOL for granted file write capabilities inside the effective workspace scope; Runtime policy and approval still apply.
+                - ASK_USER permits action=ASK_USER through Runtime pending input.
+                - If effectiveCapabilities contains only COMMIT, do not output CALL_TOOL, RETRIEVE_RAG, or ASK_USER. Use existing full-context information and then COMMIT, or FAIL/BLOCKED if the task cannot be completed.
+
+                Action-specific schema:
+                - CALL_TOOL: actionInput must contain capabilityCode, toolName, goal, and arguments. capabilityCode must be one of effectiveCapabilities. When effectiveCapabilities contains FILE_READ, use capabilityCode="FILE_READ" with the concrete read/discovery toolName such as search_files, list_directory, directory_tree, read_file, or read_multiple_files. Do not invent leaf capabilityCode values such as file_read_multiple_files.
+                - RETRIEVE_RAG: actionInput must contain query. Optional fields include knowledgeName, topK, reason, sourceHints, and filters.
+                - ASK_USER: actionInput must contain askUserRequest with question and inputMode. FREE_TEXT requires allowFreeText=true and options=[]. SINGLE_CHOICE requires allowFreeText=false and non-empty options. SINGLE_CHOICE_OR_FREE_TEXT requires allowFreeText=true and non-empty options.
+                - CONTINUE: actionInput should contain reason. Use only when the previous handler result requires another child loop.
+                - COMMIT: commit is required. Do not use actionInput as the commit payload.
+                - FAIL: actionInput.message or actionInput.reason is required.
+
+                COMMIT payload schema:
+                - taskId: required, must match the delegated task id.
+                - status: required, one of SUCCESS, PARTIAL, BLOCKED, FAILED.
+                - result: required concise result for the parent.
+                - detail: required when the task used tools, RAG, files, code, or research evidence.
+                - evidenceRefs: optional array of evidence ids or tool/RAG references.
+                - inspectedResources: optional array of files, resources, URLs, or datasets inspected.
+                - assumptions: optional array.
+                - blockers: optional array.
+                - suggestedParentNextStep: optional string.
+                - safeForUserVisibleUse: optional boolean.
+                Keep COMMIT JSON parseable. Do not put long Markdown reports, raw file dumps, raw line breaks, or invalid escapes inside a single JSON string. Put the short conclusion in result, compact plain-text detail in detail, and structured lists in evidenceRefs, inspectedResources, assumptions, and blockers. If a string needs a newline, escape it as \\n.
+
+                Valid examples:
+                {"action":"CALL_TOOL","actionInput":{"capabilityCode":"FILE_READ","toolName":"search_files","goal":"Discover SQL files under the delegated folder before reading them.","arguments":{"path":"E:/project/docs/dev-ops/pgvector","pattern":"**/*.sql"}}}
+                {"action":"CALL_TOOL","actionInput":{"capabilityCode":"FILE_READ","toolName":"read_multiple_files","goal":"Read the discovered source files for this delegated task.","arguments":{"paths":["E:/project/a.java","E:/project/b.java"]}}}
+                {"action":"RETRIEVE_RAG","actionInput":{"query":"Find the uploaded policy section relevant to the delegated question.","topK":3,"reason":"Need private evidence before committing."}}
+                {"action":"ASK_USER","actionInput":{"askUserRequest":{"question":"Which folder should this delegated worker inspect?","inputMode":"FREE_TEXT","allowFreeText":true,"options":[]}}}
+                {"action":"CONTINUE","actionInput":{"reason":"Tool evidence was added to full context; need one more loop to commit with details."}}
+                {"action":"COMMIT","commit":{"taskId":"s1","status":"SUCCESS","result":"The requested files were inspected.","detail":"File A defines the aggregate root. File B defines repository ports.","evidenceRefs":["evidence-tool-1"],"inspectedResources":["E:/project/a.java","E:/project/b.java"],"assumptions":[],"blockers":[],"suggestedParentNextStep":"Use this result to update step s1 in the parent notebook.","safeForUserVisibleUse":false}}
+                {"action":"FAIL","actionInput":{"message":"The delegated task requires FILE_READ, but FILE_READ is not present in effectiveCapabilities."}}
+                """;
     }
 
     public String renderMainAgentActionContract() {
@@ -59,12 +121,22 @@ public class OutputContractPromptRenderer {
                 %s
 
                 Action-specific stateDelta schema:
-                - FINAL: stateDelta must contain finalAnswerCandidate.content. It must not contain ragRequest, toolIntent, askUserRequest, planDraft, nextActionHint, or failure.
+                - FINAL: stateDelta must contain finalAnswerCandidate.content. It must not contain ragRequest, toolIntent, askUserRequest, planDraft, nextActionHint, or failure. FINAL must not claim a requested file write/edit/move/create/save/publish/delete succeeded unless matching Runtime tool evidence is present in MainAgentStateView.
                 - RETRIEVE_RAG: stateDelta must contain ragRequest.query. Optional ragRequest fields include topK, sourceHints, filters, and reason.
-                - CALL_TOOL: stateDelta must contain toolIntent. toolIntent must include capabilityCode, toolName, goal, and arguments. Optional fields include mcpServerCode and expectedOutcome. capabilityCode and toolName must match a tool capability exposed in availableCapabilities. Use the exposed alias values exactly; do not use MCP discovery/internal wrapper names that are not exposed as capabilities. Do not output repeatGuardKey; Runtime owns it.
+                - CALL_TOOL: stateDelta must contain toolIntent. toolIntent must include capabilityCode, toolName, goal, and arguments. Optional fields include mcpServerCode and expectedOutcome. capabilityCode and toolName must match a tool capability exposed in availableCapabilities. Use the exposed alias values exactly; do not use MCP discovery/internal wrapper names that are not exposed as capabilities. Do not output repeatGuardKey; Runtime owns it. For requested file persistence, use CALL_TOOL with the appropriate write/edit/move/create capability until matching tool evidence exists. For long file write content, prefer arguments.contentLines as an array of short JSON strings; Runtime will materialize contentLines into content for the real tool. Do not put raw multiline prose, unescaped quotes, or a very long report/article inside one arguments.content string. An allowed directory is not automatically the project root; only write to a project path that is exact in StateView, conversation, memory, or tool evidence.
                 - ASK_USER: stateDelta must contain askUserRequest.question and askUserRequest.inputMode. FREE_TEXT requires allowFreeText=true and options=[]. SINGLE_CHOICE requires allowFreeText=false and non-empty options. SINGLE_CHOICE_OR_FREE_TEXT requires allowFreeText=true and non-empty options. CONFIRM requires allowFreeText=false and concrete approve/reject-style options.
                 - PLAN: stateDelta may contain planDraft only for rare plan-only or legacy compatibility cases. PLAN is not required for normal PER. If no planDraft is needed, perUpdate must still contain the meaningful plan update.
                 - CONTINUE: stateDelta must contain nextActionHint with a non-empty reason.
+                - DELEGATE_AGENTS: stateDelta must contain delegateAgentsRequest. delegateAgentsRequest.waitMode must be WAIT_ALL. delegateAgentsRequest.tasks must be a non-empty array. Do not output agents, agentId, task, expectedOutcome, or coordinationHint. Runtime accepts only tasks.
+                  Each delegated task must contain taskId, name, objective, requiredOutput, and requestedCapabilities.
+                  taskId: stable id such as "s1" or "rag_summary"; use the same id in notebook step references when practical.
+                  name: short worker name chosen by MainAgent, such as "rag_summarizer".
+                  objective: one atomic, direct task for the child agent. Do not ask a child to solve the whole user request.
+                  boundary: optional scope limit or exclusion.
+                  requiredOutput: exact result shape and detail level expected from the child.
+                  requestedCapabilities: non-empty array selected from RAG, MCP_TOOL, FILE_READ, FILE_WRITE, ASK_USER, COMMIT. Always include COMMIT so the child can return its result. FILE_READ is the read/discovery bundle for workspace-scoped file tasks; use it for directory search/list/tree/read work. Do not request leaf file tool capability names for generic subagents unless those exact names are intentionally granted. Do not include FINAL or DELEGATE_AGENTS for generic subagents.
+                  parentContext: optional object containing bounded background, evidence refs, available tool aliases, or comparison needs.
+                  If requestedCapabilities contains FILE_READ, FILE_WRITE, or any file_system_* capability, parentContext must contain workspaceScope with the exact workspace root path. Do not use workspaceHint.
                 - REPAIR_FINAL: stateDelta must contain finalAnswerCandidate.content and should only be used when Runtime explicitly requests final-answer repair.
                 - FAIL: stateDelta must contain failure.message. Optional failure fields include code, recoverable, and suggestedResolution.
 
@@ -72,10 +144,13 @@ public class OutputContractPromptRenderer {
                 {"perUpdate":{"mode":"DIRECT","lastDecision":"answer ready"},"action":"FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Answer text for the user."}}}
                 {"perUpdate":{"mode":"PER","goal":"retrieve deployment rules","stepUpdates":[{"stepId":"s1","title":"retrieve private evidence","status":"IN_PROGRESS"}],"nextStepId":"s1","lastDecision":"need private evidence"},"action":"RETRIEVE_RAG","stateDelta":{"ragRequest":{"query":"Find the uploaded project document section about deployment rules.","topK":5}}}
                 {"perUpdate":{"mode":"PER","goal":"inspect folder","stepUpdates":[{"stepId":"s1","title":"resolve folder","status":"IN_PROGRESS"}],"nextStepId":"s1","lastDecision":"resolve first"},"action":"CALL_TOOL","stateDelta":{"toolIntent":{"capabilityCode":"file_system_search_files","toolName":"search_files","goal":"Find domain folders before reading files.","arguments":{"path":".","pattern":"**/*domain*"}}}}
-                {"perUpdate":{"mode":"PER","goal":"publish approved content","stepUpdates":[{"stepId":"s1","title":"publish through tool","status":"IN_PROGRESS"}],"nextStepId":"s1","lastDecision":"request tool execution"},"action":"CALL_TOOL","stateDelta":{"toolIntent":{"capabilityCode":"publish_csdn","toolName":"csdn.publish","goal":"Publish approved content.","arguments":{"contentRef":"payload-1"}}}}
+                {"perUpdate":{"mode":"PER","goal":"write requested project file","stepUpdates":[{"stepId":"s1","title":"write requested file","status":"IN_PROGRESS"}],"nextStepId":"s1","lastDecision":"write through permission-gated file tool with JSON-safe content lines"},"action":"CALL_TOOL","stateDelta":{"toolIntent":{"capabilityCode":"file_system_write_file","toolName":"write_file","goal":"Save the requested content under the confirmed project root.","arguments":{"path":"E:/javaProject/ai-agent-station-study/罗勒.txt","contentLines":["屋顶罗勒计划","","一、目标","在屋顶空间建立小规模罗勒种植区。","","二、执行步骤","1. 准备花盆、排水层和疏松土壤。","2. 保证每日充足日照和适度浇水。"]}}}}
+                {"perUpdate":{"mode":"PER","goal":"publish approved content","stepUpdates":[{"stepId":"s1","title":"publish through tool","status":"IN_PROGRESS"}],"nextStepId":"s1","lastDecision":"request tool execution"},"action":"CALL_TOOL","stateDelta":{"toolIntent":{"capabilityCode":"csdn_publisher_publisharticle","toolName":"publishArticle","goal":"Publish approved content.","arguments":{"request":{"title":"Article title","markdowncontent":"Approved Markdown body","tags":"MCP,AutoAgent","description":"Short article summary"}}}}}
                 {"perUpdate":{"mode":"PER","goal":"choose topic","stepUpdates":[{"stepId":"s1","title":"ask topic","status":"BLOCKED"}],"nextStepId":"s1","lastDecision":"need user choice"},"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"Which topic should I use?","inputMode":"SINGLE_CHOICE","options":[{"optionId":"topic_1","label":"MCP deployment","value":{"topic":"MCP deployment"}}]}}}
                 {"perUpdate":{"mode":"PER","goal":"learn hometown","stepUpdates":[{"stepId":"s1","title":"ask hometown","status":"BLOCKED"}],"nextStepId":"s1","lastDecision":"need user answer"},"action":"ASK_USER","stateDelta":{"askUserRequest":{"question":"What is your hometown?","inputMode":"FREE_TEXT","allowFreeText":true,"options":[]}}}
                 {"perUpdate":{"mode":"PER","goal":"answer with evidence","stepUpdates":[{"stepId":"s1","title":"retrieve evidence","status":"PENDING"},{"stepId":"s2","title":"write answer","status":"PENDING"}],"nextStepId":"s1","lastDecision":"user asked to plan before execution"},"action":"PLAN","stateDelta":{"planDraft":{"goal":"answer with evidence","steps":[{"stepId":"s1","title":"retrieve evidence","status":"PENDING"},{"stepId":"s2","title":"write answer","status":"PENDING"}]}}}
+                {"perUpdate":{"mode":"PER","goal":"delegate RAG and MCP summaries then compare","stepUpdates":[{"stepId":"s1","title":"delegate RAG summary","status":"IN_PROGRESS"},{"stepId":"s2","title":"delegate MCP summary","status":"IN_PROGRESS"},{"stepId":"s3","title":"compare child results","status":"PENDING"}],"nextStepId":"s1","lastDecision":"dispatch two atomic child tasks and wait for both commits"},"action":"DELEGATE_AGENTS","stateDelta":{"delegateAgentsRequest":{"waitMode":"WAIT_ALL","tasks":[{"taskId":"s1","name":"rag_summarizer","objective":"Summarize the definition, advantages, and limitations of RAG for later comparison.","boundary":"Do not compare with MCP; only summarize RAG.","requiredOutput":"Return a structured summary with definition, advantages, limitations, and concise comparison-ready notes.","requestedCapabilities":["COMMIT"],"parentContext":{"topic":"RAG","audience":"AutoAgent parent MainAgent"}},{"taskId":"s2","name":"mcp_tool_summarizer","objective":"Summarize the definition, advantages, and limitations of MCP tool calling for later comparison.","boundary":"Do not compare with RAG; only summarize MCP tool calling.","requiredOutput":"Return a structured summary with definition, advantages, limitations, and concise comparison-ready notes.","requestedCapabilities":["COMMIT"],"parentContext":{"topic":"MCP tool calling","audience":"AutoAgent parent MainAgent"}}]}}}
+                {"perUpdate":{"mode":"PER","goal":"analyze mysql and pgvector SQL schemas","stepUpdates":[{"stepId":"s1","title":"delegate mysql SQL analysis","status":"IN_PROGRESS"},{"stepId":"s2","title":"delegate pgvector SQL analysis","status":"IN_PROGRESS"},{"stepId":"s3","title":"compare database responsibilities","status":"PENDING"}],"nextStepId":"s1","lastDecision":"dispatch two file-scoped child tasks with workspaceScope and wait for both commits"},"action":"DELEGATE_AGENTS","stateDelta":{"delegateAgentsRequest":{"waitMode":"WAIT_ALL","tasks":[{"taskId":"s1","name":"mysql_sql_analyzer","objective":"Read the MySQL SQL files and list created tables, responsibilities, and schema focus.","boundary":"Only inspect docs/dev-ops/mysql files. Do not compare with pgvector.","requiredOutput":"Return table groups, table purposes, important columns/indexes, and MySQL-side focus areas.","requestedCapabilities":["FILE_READ","COMMIT"],"parentContext":{"workspaceScope":"E:/javaProject/ai-agent-station-study","filePaths":["E:/javaProject/ai-agent-station-study/docs/dev-ops/mysql/init/auto-agent-main-loop-harness.sql"],"comparisonNeed":"Parent will compare this with pgvector after both child commits."}},{"taskId":"s2","name":"pgvector_sql_analyzer","objective":"Read the pgvector SQL files and list created vector tables, responsibilities, and schema focus.","boundary":"Only inspect docs/dev-ops/pgvector files. Do not compare with MySQL.","requiredOutput":"Return vector table groups, table purposes, embedding columns/indexes, and pgvector-side focus areas.","requestedCapabilities":["FILE_READ","COMMIT"],"parentContext":{"workspaceScope":"E:/javaProject/ai-agent-station-study","filePaths":["E:/javaProject/ai-agent-station-study/docs/dev-ops/pgvector/init/init.sql"],"comparisonNeed":"Parent will compare this with MySQL after both child commits."}}]}}}
                 {"perUpdate":{"mode":"PER","lastDecision":"Need another loop after context update."},"action":"CONTINUE","stateDelta":{"nextActionHint":{"reason":"Need another loop after context update."}}}
                 {"perUpdate":{"mode":"PER","goal":"answer from tool evidence","stepUpdates":[{"stepId":"s1","title":"read requested file","status":"DONE","relatedEvidenceIds":["evidence-tool-1"]}],"factsLearned":[{"factId":"fact-file-1","content":"The requested file content is available in evidence-tool-1.","sourceEvidenceIds":["evidence-tool-1"]}],"lastDecision":"tool evidence is sufficient; answer now"},"action":"FINAL","stateDelta":{"finalAnswerCandidate":{"content":"Summary based on the file evidence: ..."}}}
                 {"perUpdate":{"mode":"PER","goal":"write requested file","stepUpdates":[{"stepId":"s1","title":"write desktop file","status":"FAILED","relatedEvidenceIds":["evidence-tool-failed"],"note":"The file write tool failed; use the evidence message to decide whether a corrected retry is possible."},{"stepId":"s2","title":"choose recovery path","status":"IN_PROGRESS"}],"factsLearned":[{"factId":"fact-tool-failed","content":"The attempted file write failed; see evidence-tool-failed for the concrete tool error.","sourceEvidenceIds":["evidence-tool-failed"]}],"nextStepId":"s2","lastDecision":"tool failed; recover or explain limitation"},"action":"FINAL","stateDelta":{"finalAnswerCandidate":{"content":"I could not save the file because the file tool failed with the reported error. Here is the content so you can still use it: ..."}}}
@@ -165,6 +240,24 @@ public class OutputContractPromptRenderer {
     }
 
     public String renderRepairContract(String originalComponentCode, String contractVersion) {
+        if ("main-agent-action-v1".equals(contractVersion)) {
+            return """
+                    Repair the invalid output for the original MainAgent action contract.
+                    Required output is the same JSON object expected from MainAgent.
+                    Do not add repair explanations.
+
+                    %s
+                    """.formatted(renderMainAgentActionContract());
+        }
+        if ("generic-sub-agent-action-v1".equals(contractVersion)) {
+            return """
+                    Repair the invalid output for the original GenericSubAgent action contract.
+                    Required output is the same JSON object expected from GenericSubAgent.
+                    Do not add repair explanations.
+
+                    %s
+                    """.formatted(renderSubAgentActionContract());
+        }
         return """
                 Repair the invalid output for component %s and contract %s.
                 Required output is the same JSON object expected from the original component.

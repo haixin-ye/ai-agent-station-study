@@ -27,6 +27,19 @@ public class RawOutputParser {
                     .normalizedJson(normalized)
                     .build();
         } catch (Exception e) {
+            String repaired = repairIllegalStringEscapes(normalized);
+            if (!repaired.equals(normalized)) {
+                try {
+                    JSONObject jsonObject = JSON.parseObject(repaired);
+                    return RawOutputParseResult.builder()
+                            .success(true)
+                            .jsonObject(jsonObject)
+                            .normalizedJson(repaired)
+                            .build();
+                } catch (Exception ignored) {
+                    // Keep the original parser error below; it is closer to what the model actually returned.
+                }
+            }
             return failed("INVALID_JSON", e.getMessage());
         }
     }
@@ -95,6 +108,46 @@ public class RawOutputParser {
             return text;
         }
         return text + "}".repeat(objectDepth);
+    }
+
+    private String repairIllegalStringEscapes(String text) {
+        if (text == null || text.indexOf('\\') < 0) {
+            return text;
+        }
+        StringBuilder builder = new StringBuilder(text.length() + 16);
+        boolean inString = false;
+        boolean escaped = false;
+        for (int index = 0; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (escaped) {
+                if (isValidJsonEscape(current)) {
+                    builder.append('\\').append(current);
+                } else if (current == ' ') {
+                    builder.append("\\n");
+                } else {
+                    builder.append("\\\\").append(current);
+                }
+                escaped = false;
+                continue;
+            }
+            if (current == '\\' && inString) {
+                escaped = true;
+                continue;
+            }
+            if (current == '"') {
+                inString = !inString;
+            }
+            builder.append(current);
+        }
+        if (escaped) {
+            builder.append("\\\\");
+        }
+        return builder.toString();
+    }
+
+    private boolean isValidJsonEscape(char value) {
+        return value == '"' || value == '\\' || value == '/' || value == 'b' || value == 'f'
+                || value == 'n' || value == 'r' || value == 't' || value == 'u';
     }
 
     private RawOutputParseResult failed(String code, String message) {

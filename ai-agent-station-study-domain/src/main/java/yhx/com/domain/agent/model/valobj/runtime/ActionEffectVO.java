@@ -20,6 +20,7 @@ public class ActionEffectVO {
     private String action;
     private String status;
     private String message;
+    private String sourceComponent;
     private Integer loopIndex;
     private Map<String, Object> toolIntent;
     private String workId;
@@ -32,4 +33,7 @@ public class ActionEffectVO {
     private List<String> createdArtifactIds;
     private List<UserClarificationVO> userClarifications;
     private PreviousLoopOutcomeVO previousLoopOutcome;
+    private String failureCode;
+    private String failureMessage;
+    private Map<String, Object> metadata;
 }

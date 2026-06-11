@@ -4,8 +4,19 @@ import yhx.com.domain.agent.model.valobj.agent.SubAgentFullContextEntryVO;
 import yhx.com.domain.agent.model.valobj.agent.SubAgentFullContextVO;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
 public class SubAgentFullContextRecorder {
+
+    private final SubAgentFullContextStore store;
+
+    public SubAgentFullContextRecorder() {
+        this(null);
+    }
+
+    public SubAgentFullContextRecorder(SubAgentFullContextStore store) {
+        this.store = store;
+    }
 
     public SubAgentFullContextVO start(String childRunId, String parentRunId, String taskId, String parentTask) {
         SubAgentFullContextVO context = SubAgentFullContextVO.builder()
@@ -28,5 +39,19 @@ public class SubAgentFullContextRecorder {
                 .entryType(entryType)
                 .content(content)
                 .build());
+        persist(context);
+    }
+
+    public Optional<SubAgentFullContextVO> load(String snapshotRef) {
+        if (store == null || snapshotRef == null || snapshotRef.isBlank()) {
+            return Optional.empty();
+        }
+        return store.load(snapshotRef);
+    }
+
+    private void persist(SubAgentFullContextVO context) {
+        if (store != null) {
+            store.save(context);
+        }
     }
 }

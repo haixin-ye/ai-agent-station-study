@@ -6,6 +6,7 @@ import java.util.Optional;
 public enum ChildAgentRunStatusEnumVO {
     PENDING("PENDING", "Child run has been registered but not started."),
     RUNNING("RUNNING", "Child run is executing."),
+    WAITING_USER("WAITING_USER", "Child run is paused until the user answers its pending input."),
     COMMITTED("COMMITTED", "Child run committed a result to the parent."),
     FAILED("FAILED", "Child run failed terminally."),
     BLOCKED("BLOCKED", "Child run is blocked terminally for the current wait set.");

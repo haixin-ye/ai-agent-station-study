@@ -12,9 +12,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,12 +26,15 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AsyncFileRunDiagnosticRepository implements IRunDiagnosticRepository, Closeable {
 
     private static final DiagnosticTask POISON = new DiagnosticTask("__poison__", Map.of());
+    private static final DateTimeFormatter DIRECTORY_DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter FILE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
 
     private final Path baseDirectory;
     private final BlockingQueue<DiagnosticTask> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final AtomicLong sequence = new AtomicLong();
     private final AtomicLong dropped = new AtomicLong();
+    private final Map<String, DiagnosticFileTarget> fileTargetsByRunId = new ConcurrentHashMap<>();
     private final Thread worker;
 
     public AsyncFileRunDiagnosticRepository(Path baseDirectory, int queueCapacity) {
@@ -92,9 +97,10 @@ public class AsyncFileRunDiagnosticRepository implements IRunDiagnosticRepositor
     }
 
     private void write(DiagnosticTask task) throws IOException {
-        Path directory = baseDirectory.resolve(LocalDate.now().toString());
+        DiagnosticFileTarget target = fileTargetsByRunId.computeIfAbsent(task.runId(), this::newFileTarget);
+        Path directory = baseDirectory.resolve(target.directoryName());
         Files.createDirectories(directory);
-        Path file = directory.resolve(safeFileName(task.runId()) + ".jsonl");
+        Path file = directory.resolve(target.fileName());
         Files.writeString(file,
                 JSON.toJSONString(task.entry()) + System.lineSeparator(),
                 StandardCharsets.UTF_8,
@@ -119,6 +125,13 @@ public class AsyncFileRunDiagnosticRepository implements IRunDiagnosticRepositor
         }
     }
 
+    private DiagnosticFileTarget newFileTarget(String runId) {
+        LocalDateTime now = LocalDateTime.now();
+        String directoryName = DIRECTORY_DATE_FORMATTER.format(now.toLocalDate());
+        String fileName = FILE_TIME_FORMATTER.format(now) + "_" + shortRunSuffix(runId) + ".jsonl";
+        return new DiagnosticFileTarget(directoryName, fileName);
+    }
+
     private boolean isImportant(Map<String, Object> entry) {
         String level = String.valueOf(entry.getOrDefault("level", ""));
         String event = String.valueOf(entry.getOrDefault("event", ""));
@@ -135,6 +148,17 @@ public class AsyncFileRunDiagnosticRepository implements IRunDiagnosticRepositor
     private String safeFileName(String value) {
         String normalized = value == null || value.isBlank() ? "run" : value;
         return normalized.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private String shortRunSuffix(String runId) {
+        String normalized = safeFileName(runId).replaceAll("[^A-Za-z0-9]", "");
+        if (normalized.isBlank()) {
+            return "run";
+        }
+        return normalized.length() <= 12 ? normalized : normalized.substring(normalized.length() - 12);
+    }
+
+    private record DiagnosticFileTarget(String directoryName, String fileName) {
     }
 
     private record DiagnosticTask(String runId, Map<String, Object> entry) {

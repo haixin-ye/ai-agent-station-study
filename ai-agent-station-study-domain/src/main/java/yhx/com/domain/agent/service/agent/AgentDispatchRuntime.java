@@ -24,8 +24,9 @@ public class AgentDispatchRuntime {
         if (request == null || request.getTasks() == null || request.getTasks().isEmpty()) {
             throw new IllegalArgumentException("delegate request tasks are required.");
         }
+        String batchId = registry.nextDispatchBatchId(parentRunId);
         List<String> childRunIds = request.getTasks().stream()
-                .map(task -> registerChild(parentRunId, request.getWaitMode(), task))
+                .map(task -> registerChild(parentRunId, batchId, request.getWaitMode(), task))
                 .toList();
         return AgentDispatchResultVO.builder()
                 .parentRunId(parentRunId)
@@ -43,13 +44,14 @@ public class AgentDispatchRuntime {
         registry.markFailed(childRunId, failureMessage);
     }
 
-    private String registerChild(String parentRunId, String waitMode, DelegateAgentTaskVO task) {
-        String childRunId = parentRunId + "-child-" + task.getTaskId();
+    private String registerChild(String parentRunId, String batchId, String waitMode, DelegateAgentTaskVO task) {
+        String childRunId = parentRunId + "-child-" + batchId + "-" + task.getTaskId();
         registry.register(ParentChildRunRelationVO.builder()
                 .parentRunId(parentRunId)
                 .childRunId(childRunId)
                 .taskId(task.getTaskId())
                 .childName(task.getName())
+                .dispatchBatchId(batchId)
                 .waitMode(waitMode)
                 .status(ChildAgentRunStatusEnumVO.PENDING)
                 .build());

@@ -26,6 +26,26 @@
         )
     </insert>
 
+    <insert id="upsert" parameterType="yhx.com.infrastructure.dao.po.AgentPayloadPO">
+        INSERT INTO agent_payload (
+            payload_id, payload_type, storage_type, content, content_path, content_sha256,
+            preview, compressed, encrypted, created_at
+        ) VALUES (
+            #{payloadId}, #{payloadType}, #{storageType}, #{content}, #{contentPath}, #{contentSha256},
+            #{preview}, #{compressed}, #{encrypted}, #{createdAt}
+        )
+        ON DUPLICATE KEY UPDATE
+            payload_type = VALUES(payload_type),
+            storage_type = VALUES(storage_type),
+            content = VALUES(content),
+            content_path = VALUES(content_path),
+            content_sha256 = VALUES(content_sha256),
+            preview = VALUES(preview),
+            compressed = VALUES(compressed),
+            encrypted = VALUES(encrypted),
+            created_at = VALUES(created_at)
+    </insert>
+
     <select id="queryByPayloadId" parameterType="java.lang.String" resultMap="AgentPayloadMap">
         SELECT id, payload_id, payload_type, storage_type, content, content_path, content_sha256,
                preview, compressed, encrypted, created_at

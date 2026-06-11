@@ -68,6 +68,14 @@ public class RunEventPublisher {
         append(runId, RunEventTypeEnumVO.FINAL_READY, payload("completed", "Final response is ready.", null, finalMessageId));
     }
 
+    public void subAgentEvent(String runId, String title, String summary, Map<String, Object> safePayload) {
+        Map<String, Object> payload = payload(title, summary, null, null);
+        if (safePayload != null && !safePayload.isEmpty()) {
+            payload.putAll(safePayload);
+        }
+        append(runId, RunEventTypeEnumVO.STATUS_CHANGED, payload);
+    }
+
     public void failed(String runId, String userSafeSummary) {
         AutoAgentHumanLog.stage("任务失败", runId, "任务进入失败状态，用户提示=" + userSafeSummary);
         append(runId, RunEventTypeEnumVO.RUN_FAILED, payload("failed", userSafeSummary, null, null));

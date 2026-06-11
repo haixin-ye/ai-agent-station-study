@@ -178,7 +178,11 @@ public class ToolInvocationRequestBuilder {
             return null;
         }
         if (!isBlank(intent.getCapabilityCode())) {
-            return capabilityRegistry.findCapability(intent.getCapabilityCode()).orElse(null);
+            CapabilitySpecVO direct = capabilityRegistry.findCapability(intent.getCapabilityCode()).orElse(null);
+            if (direct != null) {
+                return direct;
+            }
+            return capabilityRegistry.findCapabilityByAbstractGrant(intent.getCapabilityCode(), intent.getMcpServerCode(), intent.getToolName()).orElse(null);
         }
         return capabilityRegistry.findUniqueCapabilityByTool(intent.getMcpServerCode(), intent.getToolName()).orElse(null);
     }

@@ -8,6 +8,10 @@ public interface IPayloadRepository {
 
     String savePayload(AgentPayloadEntity payload);
 
+    default String saveOrUpdatePayload(AgentPayloadEntity payload) {
+        return savePayload(payload);
+    }
+
     Optional<AgentPayloadEntity> findPayload(String payloadId);
 
     default Optional<String> findContent(String payloadId) {

@@ -6,6 +6,7 @@ import java.util.Optional;
 public enum RuntimeStepStatusEnumVO {
     CONTINUE("CONTINUE", "Runtime should continue the same run loop."),
     WAITING_USER("WAITING_USER", "Runtime is paused and waiting for user input."),
+    WAITING_CHILDREN("WAITING_CHILDREN", "Runtime is paused and waiting for delegated child agents."),
     COMPLETED("COMPLETED", "Runtime completed the run."),
     FAILED("FAILED", "Runtime failed safely."),
     CANCELLED("CANCELLED", "Runtime was cancelled.");

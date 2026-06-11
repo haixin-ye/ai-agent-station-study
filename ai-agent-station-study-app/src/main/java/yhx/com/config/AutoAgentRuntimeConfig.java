@@ -33,6 +33,7 @@ import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
 import yhx.com.domain.agent.service.node.conversationrollup.ConversationRollupNodeService;
+import yhx.com.domain.agent.service.node.genericsubagent.GenericSubAgentNodeService;
 import yhx.com.domain.agent.service.node.mainagent.MainAgentNodeService;
 import yhx.com.domain.agent.service.node.memorygovernance.MemoryGovernanceNodeService;
 import yhx.com.domain.agent.service.node.memoryextraction.MemoryExtractionNodeService;
@@ -58,6 +59,7 @@ import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.PendingInputContinuationDispatcher;
 import yhx.com.domain.agent.service.interaction.PendingInputManager;
 import yhx.com.domain.agent.service.interaction.RagPendingInputHandler;
+import yhx.com.domain.agent.service.interaction.SubAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
@@ -81,6 +83,15 @@ import yhx.com.domain.agent.service.memory.gc.worker.SessionTaskSummaryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.TurnSummaryGcWorker;
 import yhx.com.domain.agent.service.memory.gc.worker.TurnSummarySelfCheckGcWorker;
 import yhx.com.domain.agent.service.modelruntime.NodeRuntimeProfileResolver;
+import yhx.com.domain.agent.service.agent.AgentCapabilityResolver;
+import yhx.com.domain.agent.service.agent.AgentDispatchRuntime;
+import yhx.com.domain.agent.service.agent.ChildAgentResultProjector;
+import yhx.com.domain.agent.service.agent.GenericSubAgentDispatchOrchestrator;
+import yhx.com.domain.agent.service.agent.ParentChildRunRegistry;
+import yhx.com.domain.agent.service.agent.ParentRunResumePort;
+import yhx.com.domain.agent.service.agent.PayloadBackedParentChildRunRegistryStore;
+import yhx.com.domain.agent.service.agent.PayloadBackedSubAgentFullContextStore;
+import yhx.com.domain.agent.service.agent.SubAgentLifecycleEventPublisher;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
 import yhx.com.domain.agent.service.prompt.PromptContentProvider;
 import yhx.com.domain.agent.service.prompt.RepositoryPromptContentProvider;
@@ -112,10 +123,12 @@ import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
 import yhx.com.domain.agent.service.runtime.RuntimePhaseGuard;
 import yhx.com.domain.agent.service.runtime.RuntimeStateMachine;
 import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
+import yhx.com.domain.agent.service.runtime.RunWorkingStateManager;
 import yhx.com.domain.agent.service.runtime.handler.AskUserActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.CallToolActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.ContinueActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.DefaultMainActionDispatcher;
+import yhx.com.domain.agent.service.runtime.handler.DelegateAgentsActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FailActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FinalActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.MainActionHandlerRegistry;
@@ -134,6 +147,7 @@ import yhx.com.infrastructure.adapter.repository.AsyncFileRunDiagnosticRepositor
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -435,6 +449,7 @@ public class AutoAgentRuntimeConfig {
                 new MainAgentPendingInputHandler(),
                 new ToolApprovalPendingInputHandler(toolApprovalServiceProvider::getIfAvailable),
                 new RagPendingInputHandler(),
+                new SubAgentPendingInputHandler(),
                 new FinalRepairPendingInputHandler()));
     }
 
@@ -735,6 +750,76 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public ParentChildRunRegistry parentChildRunRegistry(IPayloadRepository payloadRepository) {
+        return new ParentChildRunRegistry(new PayloadBackedParentChildRunRegistryStore(payloadRepository));
+    }
+
+    @Bean
+    public AgentDispatchRuntime agentDispatchRuntime(ParentChildRunRegistry parentChildRunRegistry) {
+        return new AgentDispatchRuntime(parentChildRunRegistry);
+    }
+
+    @Bean
+    public GenericSubAgentNodeService genericSubAgentNodeService(NodeInvocationPipeline nodeInvocationPipeline,
+                                                                NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
+        return new GenericSubAgentNodeService(nodeInvocationPipeline,
+                nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.GENERIC_SUB_AGENT.name()));
+    }
+
+    @Bean
+    public ChildAgentResultProjector childAgentResultProjector() {
+        return new ChildAgentResultProjector(new RunWorkingStateManager());
+    }
+
+    @Bean
+    public SubAgentLifecycleEventPublisher subAgentLifecycleEventPublisher(RunEventPublisher eventPublisher) {
+        return new SubAgentLifecycleEventPublisher(eventPublisher);
+    }
+
+    @Bean
+    public ParentRunResumePort parentRunResumePort(ObjectProvider<AutoAgentRuntimeService> runtimeServiceProvider,
+                                                   IRunRepository runRepository) {
+        return new RuntimeParentRunResumePort(runtimeServiceProvider, runRepository);
+    }
+
+    @Bean
+    public GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator(AgentDispatchRuntime agentDispatchRuntime,
+                                                                                   ParentChildRunRegistry parentChildRunRegistry,
+                                                                                   ChildAgentResultProjector childAgentResultProjector,
+                                                                                   GenericSubAgentNodeService genericSubAgentNodeService,
+                                                                                   ToolActionOrchestratorPort toolActionOrchestratorPort,
+                                                                                   RagRuntimePort ragRuntimePort,
+                                                                                   UserInteractionManager userInteractionManager,
+                                                                                   IPayloadRepository payloadRepository,
+                                                                                   SubAgentLifecycleEventPublisher subAgentLifecycleEventPublisher,
+                                                                                   ParentRunResumePort parentRunResumePort) {
+        return new GenericSubAgentDispatchOrchestrator(agentDispatchRuntime,
+                parentChildRunRegistry,
+                childAgentResultProjector,
+                Map.of(),
+                genericSubAgentNodeService,
+                new AgentCapabilityResolver(),
+                toolActionOrchestratorPort,
+                ragRuntimePort,
+                userInteractionManager,
+                new PayloadBackedSubAgentFullContextStore(payloadRepository),
+                subAgentLifecycleEventPublisher,
+                parentRunResumePort,
+                null);
+    }
+
+    @Bean
+    public DelegateAgentsActionHandler delegateAgentsActionHandler(AgentDispatchRuntime agentDispatchRuntime,
+                                                                   GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator,
+                                                                   RuntimeFailureFactory failureFactory,
+                                                                   DeveloperTraceRecorder traceRecorder) {
+        return new DelegateAgentsActionHandler(agentDispatchRuntime,
+                genericSubAgentDispatchOrchestrator,
+                failureFactory,
+                traceRecorder);
+    }
+
+    @Bean
     public AutoAgentRuntimeService autoAgentRuntimeService(IConversationRepository conversationRepository,
                                                            IRunRepository runRepository,
                                                            IPayloadRepository payloadRepository,
@@ -748,7 +833,9 @@ public class AutoAgentRuntimeConfig {
                                                            RunEventPublisher eventPublisher,
                                                            RunTranscriptRecorder transcriptRecorder,
                                                            DeveloperTraceRecorder traceRecorder,
-                                                           RunDiagnosticRecorder runDiagnosticRecorder) {
+                                                           RunDiagnosticRecorder runDiagnosticRecorder,
+                                                           ParentChildRunRegistry parentChildRunRegistry,
+                                                           GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator) {
         return new DefaultAutoAgentRuntimeService(conversationRepository,
                 runRepository,
                 payloadRepository,
@@ -756,13 +843,16 @@ public class AutoAgentRuntimeConfig {
                 actionDispatcher,
                 userInteractionManager,
                 loopPolicy,
+                null,
                 stateMachine,
                 failureFactory,
                 phaseGuard,
                 eventPublisher,
                 transcriptRecorder,
                 traceRecorder,
-                runDiagnosticRecorder);
+                runDiagnosticRecorder,
+                parentChildRunRegistry,
+                genericSubAgentDispatchOrchestrator);
     }
 
     private List<CapabilityCandidateVO> capabilityCandidates(CapabilityRegistry capabilityRegistry) {
@@ -784,11 +874,26 @@ public class AutoAgentRuntimeConfig {
     }
 
     private String summary(CapabilitySpecVO spec) {
-        return String.format("tool=%s, permission=%s, approval=%s, risk=%s",
+        String semanticHint = semanticHint(spec);
+        String operationalSummary = String.format("tool=%s, permission=%s, approval=%s, risk=%s",
                 spec.getToolName(),
                 spec.getRequiredPermission() == null ? "NONE" : spec.getRequiredPermission().code(),
                 spec.getApprovalPolicy() == null ? "NEVER" : spec.getApprovalPolicy().code(),
                 spec.getRiskLevel());
+        return semanticHint == null ? operationalSummary : semanticHint + " " + operationalSummary;
+    }
+
+    private String semanticHint(CapabilitySpecVO spec) {
+        if (spec == null || spec.getCapabilityCode() == null) {
+            return null;
+        }
+        return switch (spec.getCapabilityCode()) {
+            case "baidu_ai_search_aisearch" ->
+                    "Use for live/current public web search through Baidu AI Search. Required argument: query.";
+            case "csdn_publisher_publisharticle" ->
+                    "Use to publish an already prepared and approved Markdown article to CSDN. Arguments must contain request.title, request.markdowncontent, request.tags, and request.description.";
+            default -> null;
+        };
     }
 
     private TokenBudgetVO defaultTokenBudget() {

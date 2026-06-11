@@ -1,7 +1,9 @@
 package yhx.com.domain.agent.service.runtime.handler;
 
 import com.alibaba.fastjson.JSON;
+import yhx.com.domain.agent.model.valobj.agent.AgentProfileVO;
 import yhx.com.domain.agent.model.valobj.contract.ContractValidationResult;
+import yhx.com.domain.agent.model.valobj.enums.agent.AgentProfileTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeFailureCodeEnumVO;
@@ -9,6 +11,8 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
+import yhx.com.domain.agent.service.agent.AgentActionPermissionPolicy;
+import yhx.com.domain.agent.service.agent.AgentProfileRegistry;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
@@ -21,6 +25,8 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
     private final ContractValidator contractValidator;
     private final RuntimeFailureFactory failureFactory;
     private final DeveloperTraceRecorder traceRecorder;
+    private final AgentActionPermissionPolicy permissionPolicy;
+    private final AgentProfileVO mainAgentProfile;
 
     public DefaultMainActionDispatcher(MainActionHandlerRegistry handlerRegistry,
                                        ContractValidator contractValidator,
@@ -30,6 +36,24 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
         this.contractValidator = contractValidator == null ? ContractValidator.defaultValidator() : contractValidator;
         this.failureFactory = failureFactory == null ? new RuntimeFailureFactory() : failureFactory;
         this.traceRecorder = traceRecorder;
+        this.permissionPolicy = new AgentActionPermissionPolicy();
+        this.mainAgentProfile = AgentProfileRegistry.defaultRegistry().requireProfile(AgentProfileTypeEnumVO.MAIN_AGENT);
+    }
+
+    public DefaultMainActionDispatcher(MainActionHandlerRegistry handlerRegistry,
+                                       ContractValidator contractValidator,
+                                       RuntimeFailureFactory failureFactory,
+                                       DeveloperTraceRecorder traceRecorder,
+                                       AgentActionPermissionPolicy permissionPolicy,
+                                       AgentProfileVO mainAgentProfile) {
+        this.handlerRegistry = handlerRegistry;
+        this.contractValidator = contractValidator == null ? ContractValidator.defaultValidator() : contractValidator;
+        this.failureFactory = failureFactory == null ? new RuntimeFailureFactory() : failureFactory;
+        this.traceRecorder = traceRecorder;
+        this.permissionPolicy = permissionPolicy == null ? new AgentActionPermissionPolicy() : permissionPolicy;
+        this.mainAgentProfile = mainAgentProfile == null
+                ? AgentProfileRegistry.defaultRegistry().requireProfile(AgentProfileTypeEnumVO.MAIN_AGENT)
+                : mainAgentProfile;
     }
 
     @Override
@@ -49,6 +73,14 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
                         RuntimeFailureCodeEnumVO.MAIN_ACTION_CONTRACT_FAILED, null);
             }
             return failure(context, validationResult.getViolations().toString());
+        }
+
+        String permissionFailure = permissionPolicy.validate(mainAgentProfile,
+                        permissionPolicy.defaultEffectiveCapabilities(mainAgentProfile),
+                        action.getAction())
+                .orElse(null);
+        if (permissionFailure != null) {
+            return failure(context, permissionFailure);
         }
 
         MainActionHandler handler = handlerRegistry.getHandler(actionType);

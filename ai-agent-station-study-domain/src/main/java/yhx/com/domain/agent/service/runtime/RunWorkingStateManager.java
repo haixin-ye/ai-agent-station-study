@@ -62,6 +62,28 @@ public class RunWorkingStateManager {
         mergeEffect(workingState, effect);
     }
 
+    public void applyRuntimeEffect(RuntimeExecutionContext context, ActionEffectVO effect) {
+        if (context == null || effect == null) {
+            return;
+        }
+        if (context.getWorkingState() == null) {
+            context.setWorkingState(initialize(baseStateView(context)));
+        }
+        RunWorkingStateVO workingState = context.getWorkingState();
+        if (workingState == null) {
+            return;
+        }
+        MainActionHandlerResult result = MainActionHandlerResult.builder()
+                .message(effect.getMessage())
+                .createdEvidenceIds(defaultList(effect.getCreatedEvidenceIds()))
+                .createdEvidence(defaultList(effect.getCreatedEvidence()))
+                .createdArtifactIds(defaultList(effect.getCreatedArtifactIds()))
+                .actionEffect(effect)
+                .build();
+        appendWorklog(workingState, context, null, result, effect);
+        mergeEffect(workingState, effect);
+    }
+
     public MainAgentStateViewVO project(RunWorkingStateVO workingState) {
         if (workingState == null || workingState.getBaseStateView() == null) {
             return null;
@@ -112,15 +134,17 @@ public class RunWorkingStateManager {
                 .sequence(sequence)
                 .actionType(firstNonBlank(effect.getAction(), action == null ? null : action.getAction()))
                 .status(firstNonBlank(effect.getStatus(), result.getStatus() == null ? null : result.getStatus().name()))
-                .sourceComponent("MAIN_AGENT")
+                .sourceComponent(firstNonBlank(effect.getSourceComponent(), "MAIN_AGENT"))
                 .request(buildRequestSnapshot(action, effect))
                 .resultRef(effect.getResultRef())
                 .result(buildResultSnapshot(result, effect))
                 .resultEvidenceIds(defaultList(effect.getCreatedEvidenceIds()))
+                .failureCode(effect.getFailureCode())
+                .failureMessage(effect.getFailureMessage())
                 .repeatGuardKey(repeatGuardKey)
                 .startedAt(now)
                 .completedAt(now)
-                .metadata(new LinkedHashMap<>())
+                .metadata(new LinkedHashMap<>(effect.getMetadata() == null ? Map.of() : effect.getMetadata()))
                 .build());
     }
 

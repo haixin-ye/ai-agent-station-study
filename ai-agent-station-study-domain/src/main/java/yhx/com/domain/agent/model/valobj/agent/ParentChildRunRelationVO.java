@@ -16,8 +16,11 @@ public class ParentChildRunRelationVO {
     private String childRunId;
     private String taskId;
     private String childName;
+    private String dispatchBatchId;
     private String waitMode;
     private ChildAgentRunStatusEnumVO status;
     private SubAgentCommitVO commit;
     private String failureMessage;
+    private String pendingInputId;
+    private String fullContextSnapshotRef;
 }

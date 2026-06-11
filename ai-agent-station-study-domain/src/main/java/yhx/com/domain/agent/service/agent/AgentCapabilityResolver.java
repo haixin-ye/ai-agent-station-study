@@ -41,6 +41,7 @@ public class AgentCapabilityResolver {
 
     private boolean isFileCapability(String capabilityCode) {
         return AgentCapabilityCodeEnumVO.FILE_READ.code().equals(capabilityCode)
-                || AgentCapabilityCodeEnumVO.FILE_WRITE.code().equals(capabilityCode);
+                || AgentCapabilityCodeEnumVO.FILE_WRITE.code().equals(capabilityCode)
+                || capabilityCode != null && capabilityCode.startsWith("file_system_");
     }
 }
