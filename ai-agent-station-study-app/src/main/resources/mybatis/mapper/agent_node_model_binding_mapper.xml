@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentNodeModelBindingDao">
+
+    <resultMap id="AgentNodeModelBindingMap" type="yhx.com.infrastructure.dao.po.AgentNodeModelBindingPO">
+        <id column="id" property="id"/>
+        <result column="binding_id" property="bindingId"/>
+        <result column="node_code" property="nodeCode"/>
+        <result column="model_profile_id" property="modelProfileId"/>
+        <result column="prompt_version" property="promptVersion"/>
+        <result column="contract_version" property="contractVersion"/>
+        <result column="temperature" property="temperature"/>
+        <result column="max_output_tokens" property="maxOutputTokens"/>
+        <result column="max_repair_attempts" property="maxRepairAttempts"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="queryActiveByNodeCode" resultMap="AgentNodeModelBindingMap">
+        SELECT id, binding_id, node_code, model_profile_id, prompt_version, contract_version,
+               temperature, max_output_tokens, max_repair_attempts,
+               enabled, created_at, updated_at
+        FROM agent_node_model_binding
+        WHERE node_code = #{nodeCode}
+          AND enabled = 1
+        ORDER BY updated_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="listActive" resultMap="AgentNodeModelBindingMap">
+        SELECT id, binding_id, node_code, model_profile_id, prompt_version, contract_version,
+               temperature, max_output_tokens, max_repair_attempts,
+               enabled, created_at, updated_at
+        FROM agent_node_model_binding
+        WHERE enabled = 1
+        ORDER BY node_code ASC, updated_at DESC
+    </select>
+
+</mapper>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentVectorIndexDao">
+
+    <resultMap id="AgentVectorIndexMap" type="yhx.com.infrastructure.dao.po.AgentVectorIndexPO">
+        <id column="id" property="id"/>
+        <result column="index_id" property="indexId"/>
+        <result column="collection_type" property="collectionType"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="source_id" property="sourceId"/>
+        <result column="vector_id" property="vectorId"/>
+        <result column="user_id" property="userId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="content_hash" property="contentHash"/>
+        <result column="status" property="status"/>
+        <result column="failure_message" property="failureMessage"/>
+        <result column="indexed_at" property="indexedAt"/>
+        <result column="disabled_at" property="disabledAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insertOrUpdate" parameterType="yhx.com.infrastructure.dao.po.AgentVectorIndexPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_vector_index (
+            index_id, collection_type, source_type, source_id, vector_id,
+            user_id, session_id, content_hash, status, failure_message,
+            indexed_at, disabled_at, created_at, updated_at
+        ) VALUES (
+            #{indexId}, #{collectionType}, #{sourceType}, #{sourceId}, #{vectorId},
+            #{userId}, #{sessionId}, #{contentHash}, #{status}, #{failureMessage},
+            #{indexedAt}, #{disabledAt}, #{createdAt}, #{updatedAt}
+        )
+        ON DUPLICATE KEY UPDATE
+            vector_id = VALUES(vector_id),
+            user_id = VALUES(user_id),
+            session_id = VALUES(session_id),
+            content_hash = VALUES(content_hash),
+            status = VALUES(status),
+            failure_message = VALUES(failure_message),
+            indexed_at = VALUES(indexed_at),
+            disabled_at = VALUES(disabled_at),
+            updated_at = VALUES(updated_at)
+    </insert>
+
+    <select id="queryBySource" resultMap="AgentVectorIndexMap">
+        SELECT id, index_id, collection_type, source_type, source_id, vector_id,
+               user_id, session_id, content_hash, status, failure_message,
+               indexed_at, disabled_at, created_at, updated_at
+        FROM agent_vector_index
+        WHERE collection_type = #{collectionType}
+          AND source_type = #{sourceType}
+          AND source_id = #{sourceId}
+        LIMIT 1
+    </select>
+
+    <update id="markDisabled">
+        UPDATE agent_vector_index
+        SET status = 'DISABLED',
+            disabled_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE collection_type = #{collectionType}
+          AND source_type = #{sourceType}
+          AND source_id = #{sourceId}
+    </update>
+
+</mapper>

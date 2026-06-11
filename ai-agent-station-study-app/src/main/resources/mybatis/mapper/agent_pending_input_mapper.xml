@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentPendingInputDao">
+
+    <resultMap id="AgentPendingInputMap" type="yhx.com.infrastructure.dao.po.AgentPendingInputPO">
+        <id column="id" property="id"/>
+        <result column="pending_id" property="pendingId"/>
+        <result column="run_id" property="runId"/>
+        <result column="source_component" property="sourceComponent"/>
+        <result column="pending_type" property="pendingType"/>
+        <result column="input_mode" property="inputMode"/>
+        <result column="status" property="status"/>
+        <result column="question" property="question"/>
+        <result column="options_ref" property="optionsRef"/>
+        <result column="answer_schema_ref" property="answerSchemaRef"/>
+        <result column="continuation_ref" property="continuationRef"/>
+        <result column="user_answer_ref" property="userAnswerRef"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="answered_at" property="answeredAt"/>
+        <result column="expires_at" property="expiresAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentPendingInputPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_pending_input (
+            pending_id, run_id, source_component, pending_type, input_mode, status, question,
+            options_ref, answer_schema_ref, continuation_ref, user_answer_ref, created_at, answered_at, expires_at
+        ) VALUES (
+            #{pendingId}, #{runId}, #{sourceComponent}, #{pendingType}, #{inputMode}, #{status}, #{question},
+            #{optionsRef}, #{answerSchemaRef}, #{continuationRef}, #{userAnswerRef}, #{createdAt}, #{answeredAt}, #{expiresAt}
+        )
+    </insert>
+
+    <select id="queryActiveByRunId" parameterType="java.lang.String" resultMap="AgentPendingInputMap">
+        SELECT id, pending_id, run_id, source_component, pending_type, input_mode, status, question,
+               options_ref, answer_schema_ref, continuation_ref, user_answer_ref, created_at, answered_at, expires_at
+        FROM agent_pending_input
+        WHERE run_id = #{runId}
+          AND status = 'PENDING'
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="queryByPendingId" parameterType="java.lang.String" resultMap="AgentPendingInputMap">
+        SELECT id, pending_id, run_id, source_component, pending_type, input_mode, status, question,
+               options_ref, answer_schema_ref, continuation_ref, user_answer_ref, created_at, answered_at, expires_at
+        FROM agent_pending_input
+        WHERE pending_id = #{pendingId}
+        LIMIT 1
+    </select>
+
+    <update id="markAnswered">
+        UPDATE agent_pending_input
+        SET status = 'ANSWERED', user_answer_ref = #{userAnswerRef}, answered_at = NOW()
+        WHERE pending_id = #{pendingId}
+    </update>
+
+    <update id="markCancelled" parameterType="java.lang.String">
+        UPDATE agent_pending_input
+        SET status = 'CANCELLED', answered_at = NOW()
+        WHERE pending_id = #{pendingId}
+    </update>
+
+    <update id="markExpired" parameterType="java.lang.String">
+        UPDATE agent_pending_input
+        SET status = 'EXPIRED'
+        WHERE pending_id = #{pendingId}
+    </update>
+
+</mapper>

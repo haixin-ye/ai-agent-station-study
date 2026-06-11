@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentToolCallDao">
+
+    <resultMap id="AgentToolCallMap" type="yhx.com.infrastructure.dao.po.AgentToolCallPO">
+        <id column="id" property="id"/>
+        <result column="tool_call_id" property="toolCallId"/>
+        <result column="tool_invocation_id" property="toolInvocationId"/>
+        <result column="run_id" property="runId"/>
+        <result column="tool_name" property="toolName"/>
+        <result column="mcp_server_name" property="mcpServerName"/>
+        <result column="mcp_transport_type" property="mcpTransportType"/>
+        <result column="status" property="status"/>
+        <result column="input_schema_ref" property="inputSchemaRef"/>
+        <result column="intent_ref" property="intentRef"/>
+        <result column="arguments_ref" property="argumentsRef"/>
+        <result column="receipt_ref" property="receiptRef"/>
+        <result column="failure_code" property="failureCode"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentToolCallPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_tool_call (
+            tool_call_id, tool_invocation_id, run_id, tool_name, mcp_server_name, mcp_transport_type,
+            status, input_schema_ref, intent_ref, arguments_ref, receipt_ref, failure_code, created_at, updated_at
+        ) VALUES (
+            #{toolCallId}, #{toolInvocationId}, #{runId}, #{toolName}, #{mcpServerName}, #{mcpTransportType},
+            #{status}, #{inputSchemaRef}, #{intentRef}, #{argumentsRef}, #{receiptRef}, #{failureCode}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="queryByToolCallId" parameterType="java.lang.String" resultMap="AgentToolCallMap">
+        SELECT id, tool_call_id, tool_invocation_id, run_id, tool_name, mcp_server_name, mcp_transport_type,
+               status, input_schema_ref, intent_ref, arguments_ref, receipt_ref, failure_code, created_at, updated_at
+        FROM agent_tool_call
+        WHERE tool_call_id = #{toolCallId}
+        LIMIT 1
+    </select>
+
+    <update id="updateStatus">
+        UPDATE agent_tool_call
+        SET status = #{status}, updated_at = NOW()
+        WHERE tool_call_id = #{toolCallId}
+    </update>
+
+    <update id="saveReceipt">
+        UPDATE agent_tool_call
+        SET arguments_ref = #{argumentsRef}, receipt_ref = #{receiptRef}, status = 'SUCCEEDED', updated_at = NOW()
+        WHERE tool_call_id = #{toolCallId}
+    </update>
+
+    <update id="saveReceiptWithStatus">
+        UPDATE agent_tool_call
+        SET arguments_ref = #{argumentsRef},
+            receipt_ref = #{receiptRef},
+            status = #{status},
+            failure_code = #{failureCode},
+            updated_at = NOW()
+        WHERE tool_call_id = #{toolCallId}
+    </update>
+
+</mapper>

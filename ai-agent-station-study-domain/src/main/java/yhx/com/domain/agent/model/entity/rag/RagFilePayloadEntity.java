@@ -1,0 +1,24 @@
+package yhx.com.domain.agent.model.entity.rag;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * RAG file payload.
+ *
+ * @author yhx
+ */
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class RagFilePayloadEntity {
+
+    private String fileName;
+
+    private byte[] content;
+
+}
+

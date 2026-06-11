@@ -1,0 +1,145 @@
+package yhx.com.infrastructure.adapter.repository;
+
+import jakarta.annotation.Resource;
+import org.springframework.stereotype.Repository;
+import yhx.com.domain.agent.adapter.repository.IMemoryTaskRepository;
+import yhx.com.domain.agent.model.entity.persistence.AgentMemoryTaskEntity;
+import yhx.com.infrastructure.dao.IAgentMemoryTaskDao;
+import yhx.com.infrastructure.dao.po.AgentMemoryTaskPO;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public class MemoryTaskRepository implements IMemoryTaskRepository {
+
+    @Resource
+    private IAgentMemoryTaskDao agentMemoryTaskDao;
+
+    @Override
+    public String createTask(AgentMemoryTaskEntity task) {
+        if (task.getTaskId() == null || task.getTaskId().isBlank()) {
+            task.setTaskId("memory-task-" + UUID.randomUUID());
+        }
+        if (task.getCreatedAt() == null) {
+            task.setCreatedAt(LocalDateTime.now());
+        }
+        if (task.getUpdatedAt() == null) {
+            task.setUpdatedAt(LocalDateTime.now());
+        }
+        agentMemoryTaskDao.insert(toPO(task));
+        return task.getTaskId();
+    }
+
+    @Override
+    public Optional<AgentMemoryTaskEntity> findByTaskId(String taskId) {
+        return Optional.ofNullable(agentMemoryTaskDao.queryByTaskId(taskId)).map(this::toEntity);
+    }
+
+    @Override
+    public boolean hasOpenTask(String taskType, String sessionId) {
+        if (taskType == null || taskType.isBlank() || sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countOpenTask(taskType, sessionId) > 0;
+    }
+
+    @Override
+    public boolean hasOpenTaskType(String taskType) {
+        if (taskType == null || taskType.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countOpenTaskByType(taskType) > 0;
+    }
+
+    @Override
+    public boolean hasTaskForTurn(String taskType, String turnId) {
+        if (taskType == null || taskType.isBlank() || turnId == null || turnId.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countTaskByTypeAndTurn(taskType, turnId) > 0;
+    }
+
+    @Override
+    public boolean hasOpenTaskForTurn(String taskType, String turnId) {
+        if (taskType == null || taskType.isBlank() || turnId == null || turnId.isBlank()) {
+            return false;
+        }
+        return agentMemoryTaskDao.countOpenTaskByTypeAndTurn(taskType, turnId) > 0;
+    }
+
+    @Override
+    public List<AgentMemoryTaskEntity> listRetryableFailedTasks(int maxAttempts, int limit) {
+        if (maxAttempts <= 0 || limit <= 0) {
+            return List.of();
+        }
+        return agentMemoryTaskDao.listRetryableFailedTasks(maxAttempts, limit).stream()
+                .map(this::toEntity)
+                .toList();
+    }
+
+    @Override
+    public List<AgentMemoryTaskEntity> listTasks(String status, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return agentMemoryTaskDao.listTasks(status, limit).stream()
+                .map(this::toEntity)
+                .toList();
+    }
+
+    @Override
+    public void markRunning(String taskId) {
+        agentMemoryTaskDao.updateRunning(taskId);
+    }
+
+    @Override
+    public void markSucceeded(String taskId, String outputRef) {
+        agentMemoryTaskDao.updateSucceeded(taskId, outputRef);
+    }
+
+    @Override
+    public void markFailed(String taskId, String failureCode, String failureMessage) {
+        agentMemoryTaskDao.updateFailed(taskId, failureCode, failureMessage);
+    }
+
+    private AgentMemoryTaskPO toPO(AgentMemoryTaskEntity entity) {
+        return AgentMemoryTaskPO.builder()
+                .taskId(entity.getTaskId())
+                .taskType(entity.getTaskType())
+                .sessionId(entity.getSessionId())
+                .runId(entity.getRunId())
+                .turnId(entity.getTurnId())
+                .status(entity.getStatus())
+                .attemptCount(entity.getAttemptCount())
+                .failureCode(entity.getFailureCode())
+                .failureMessage(entity.getFailureMessage())
+                .inputRef(entity.getInputRef())
+                .outputRef(entity.getOutputRef())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .completedAt(entity.getCompletedAt())
+                .build();
+    }
+
+    private AgentMemoryTaskEntity toEntity(AgentMemoryTaskPO po) {
+        return AgentMemoryTaskEntity.builder()
+                .taskId(po.getTaskId())
+                .taskType(po.getTaskType())
+                .sessionId(po.getSessionId())
+                .runId(po.getRunId())
+                .turnId(po.getTurnId())
+                .status(po.getStatus())
+                .attemptCount(po.getAttemptCount())
+                .failureCode(po.getFailureCode())
+                .failureMessage(po.getFailureMessage())
+                .inputRef(po.getInputRef())
+                .outputRef(po.getOutputRef())
+                .createdAt(po.getCreatedAt())
+                .updatedAt(po.getUpdatedAt())
+                .completedAt(po.getCompletedAt())
+                .build();
+    }
+}

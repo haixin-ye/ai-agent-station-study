@@ -1,0 +1,49 @@
+{
+  "scenarioId": "tool-approval-reject",
+  "description": "Rejected tool approval must not execute MCP tool.",
+  "userMessage": "Publish the selected article to CSDN.",
+  "given": {
+    "historyMessages": [],
+    "artifacts": [
+      {
+        "artifactId": "artifact-001",
+        "title": "RAG Interview Notes"
+      }
+    ],
+    "memories": [],
+    "ragHits": [],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "CALL_TOOL",
+        "stateDelta": {
+          "toolRequest": {
+            "capabilityCode": "publish_csdn",
+            "toolName": "csdn_publish"
+          }
+        }
+      }
+    },
+    {
+      "componentCode": "USER",
+      "response": {
+        "decision": "REJECTED"
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "COMPLETED",
+    "requiredEvents": ["RUN_STARTED", "ASK_USER", "FINAL_READY"],
+    "forbiddenNormalPayloadFragments": ["published successfully", "rawReceipt", "trace"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": false,
+    "toolWasInvoked": false,
+    "pendingInputCreated": true,
+    "inputMode": "SINGLE_CHOICE",
+    "allowFreeText": false
+  }
+}
+

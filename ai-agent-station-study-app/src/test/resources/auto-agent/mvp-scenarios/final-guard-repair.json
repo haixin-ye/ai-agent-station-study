@@ -1,0 +1,47 @@
+{
+  "scenarioId": "final-guard-repair",
+  "description": "Final response guard repairs internal trace leakage before delivery.",
+  "userMessage": "Give me the final answer only.",
+  "given": {
+    "historyMessages": [],
+    "artifacts": [],
+    "memories": [],
+    "ragHits": [],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "FINAL",
+        "stateDelta": {
+          "finalAnswerCandidate": {
+            "content": "Runtime trace says the answer is ready."
+          }
+        }
+      }
+    },
+    {
+      "componentCode": "FINAL_REPAIR",
+      "response": {
+        "action": "REPAIR_FINAL",
+        "stateDelta": {
+          "finalAnswerCandidate": {
+            "content": "The answer is ready."
+          }
+        }
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "COMPLETED",
+    "requiredEvents": ["RUN_STARTED", "FINAL_READY"],
+    "forbiddenNormalPayloadFragments": ["Runtime trace", "rawResult", "node"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": false,
+    "toolWasInvoked": false,
+    "pendingInputCreated": false,
+    "repairExpected": true
+  }
+}
+

@@ -1,0 +1,43 @@
+{
+  "scenarioId": "tool-approval-execute",
+  "description": "High-risk MCP tool call requires approval before execution.",
+  "userMessage": "Publish the selected article to CSDN.",
+  "given": {
+    "historyMessages": [],
+    "artifacts": [
+      {
+        "artifactId": "artifact-001",
+        "title": "RAG Interview Notes"
+      }
+    ],
+    "memories": [],
+    "ragHits": [],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "CALL_TOOL",
+        "stateDelta": {
+          "toolRequest": {
+            "capabilityCode": "publish_csdn",
+            "toolName": "csdn_publish"
+          }
+        }
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "WAITING_USER",
+    "requiredEvents": ["RUN_STARTED", "ASK_USER"],
+    "forbiddenNormalPayloadFragments": ["rawReceipt", "rawResult", "trace"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": false,
+    "toolWasInvoked": true,
+    "pendingInputCreated": true,
+    "inputMode": "SINGLE_CHOICE",
+    "allowFreeText": false
+  }
+}
+

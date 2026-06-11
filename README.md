@@ -20,7 +20,7 @@
 | **02. Trigger 层** | `ai-agent-station-study-trigger` | **触发适配层**：系统流量入口。适配标准 RESTful 请求（`AiAgentController`）与异步任务监听。 |
 | **03. Domain 层** | `ai-agent-station-study-domain` | **核心领域层**：系统的“大脑”。封装 Armory 军械库装配逻辑、多种执行策略（Flow/Auto）及领域模型（Entity/VO）。 |
 | **04. Infrastructure 层** | `ai-agent-station-study-infrastructure` | **基础设施层**：资源实现层。负责 MyBatis DAO（MySQL）、Repository 适配实现 及向量数据库集成。 |
-| **05. App 层** | `ai-agent-station-study-app` | **启动配置层**：环境组装中心。管理数据源、线程池、自动装配逻辑（`AiAgentAutoConfiguration`）。 |
+| **05. App 层** | `ai-agent-station-study-app` | **启动配置层**：环境组装中心。管理数据源、线程池、AutoAgent Runtime 配置和 RAG 向量库装配。 |
 | **06. Types 层** | `ai-agent-station-study-types` | **通用类型层**：底层基石。定义全局常量 `Constants`、通用异常 `AppException` 及响应枚举 `ResponseCode`。 |
 
 ### 2️⃣ 模块化 AI 编排 (Design Framework)

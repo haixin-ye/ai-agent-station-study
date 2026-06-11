@@ -1,0 +1,16 @@
+标题：AutoAgent Runtime 主循环设计说明
+
+这份材料描述一个面向通用任务处理的 AutoAgent Runtime。系统的核心目标不是让模型直接控制全部流程，而是把生命周期、权限、工具调用、用户确认、证据记录和最终交付交给确定性的 Runtime 管理。模型只负责在合适的上下文中输出结构化动作，例如 RETRIEVE_RAG、CALL_MCP_TOOL、ASK_USER、CREATE_ARTIFACT 或 FINAL。
+
+一次运行从用户输入开始。Runtime 会创建 runId，加载 session 相关状态，并准备 state view。state view 是模型可见的工作视图，里面包含用户问题、重要历史摘要、可用能力、当前事件、证据列表和必要约束。MainAgentNode 读取 state view 后输出一个 MainAgentAction。Runtime 根据 action 类型选择对应 handler，执行完以后把结果追加到事件、证据或 payload 中，然后进入下一轮 state view 构建。
+
+这种设计的重点是“模型表达意图，Runtime 执行事实”。例如模型说需要检索知识库，Runtime 会构造 RagRuntimeCommand，真正调用向量检索、持久化命中片段、生成 evidenceId，再把 evidenceId 写回 state view。模型不能绕过 Runtime 直接读取数据库，也不能把内部 trace 原样展示给用户。
+
+ASK_USER 是一种暂停恢复机制。当模型需要用户选择、补充信息或批准高风险工具时，Runtime 创建 pending input，并通过前端展示问题。用户回复后，Runtime 根据 pendingId 恢复对应 run，从中断点继续进入主循环。高风险工具审批必须使用确定性的 approve/reject 选项，自由文本不能授权执行。
+
+这个架构适合扩展子 Agent。MainAgent 可以在复杂任务中创建子 Agent，子 Agent 也运行在类似 Runtime 中，但能力表、记忆策略和最终输出通道不同。普通子 Agent 的结果应通过 commit 返回给 MainAgent，而不是直接 final 给用户。CodeAgent 会更特殊，需要工作区、文件读写工具、命令审批和更完整的历史上下文。
+
+可用于召回测试的问题：
+1. AutoAgent 为什么要让 Runtime 管工具调用？
+2. ASK_USER 是如何暂停和恢复运行的？
+3. 子 Agent 的 commit 和 MainAgent 的 final 有什么区别？

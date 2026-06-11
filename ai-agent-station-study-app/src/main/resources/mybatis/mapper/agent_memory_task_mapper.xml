@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentMemoryTaskDao">
+
+    <resultMap id="AgentMemoryTaskMap" type="yhx.com.infrastructure.dao.po.AgentMemoryTaskPO">
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="task_type" property="taskType"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="run_id" property="runId"/>
+        <result column="turn_id" property="turnId"/>
+        <result column="status" property="status"/>
+        <result column="attempt_count" property="attemptCount"/>
+        <result column="failure_code" property="failureCode"/>
+        <result column="failure_message" property="failureMessage"/>
+        <result column="input_ref" property="inputRef"/>
+        <result column="output_ref" property="outputRef"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="completed_at" property="completedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentMemoryTaskPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_memory_task (
+            task_id, task_type, session_id, run_id, turn_id, status, attempt_count,
+            failure_code, failure_message, input_ref, output_ref, created_at, updated_at, completed_at
+        ) VALUES (
+            #{taskId}, #{taskType}, #{sessionId}, #{runId}, #{turnId}, #{status}, #{attemptCount},
+            #{failureCode}, #{failureMessage}, #{inputRef}, #{outputRef}, #{createdAt}, #{updatedAt}, #{completedAt}
+        )
+    </insert>
+
+    <select id="queryByTaskId" resultMap="AgentMemoryTaskMap">
+        SELECT id, task_id, task_type, session_id, run_id, turn_id, status, attempt_count,
+               failure_code, failure_message, input_ref, output_ref, created_at, updated_at, completed_at
+        FROM agent_memory_task
+        WHERE task_id = #{taskId}
+        LIMIT 1
+    </select>
+
+    <select id="countOpenTask" resultType="int">
+        SELECT COUNT(1)
+        FROM agent_memory_task
+        WHERE task_type = #{taskType}
+          AND session_id = #{sessionId}
+          AND status IN ('PENDING', 'RUNNING')
+          AND COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE)
+    </select>
+
+    <select id="countOpenTaskByType" resultType="int">
+        SELECT COUNT(1)
+        FROM agent_memory_task
+        WHERE task_type = #{taskType}
+          AND status IN ('PENDING', 'RUNNING')
+          AND COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE)
+    </select>
+
+    <select id="countTaskByTypeAndTurn" resultType="int">
+        SELECT COUNT(1)
+        FROM agent_memory_task
+        WHERE task_type = #{taskType}
+          AND turn_id = #{turnId}
+    </select>
+
+    <select id="countOpenTaskByTypeAndTurn" resultType="int">
+        SELECT COUNT(1)
+        FROM agent_memory_task
+        WHERE task_type = #{taskType}
+          AND turn_id = #{turnId}
+          AND status IN ('PENDING', 'RUNNING')
+          AND COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE)
+    </select>
+
+    <select id="listRetryableFailedTasks" resultMap="AgentMemoryTaskMap">
+        SELECT id, task_id, task_type, session_id, run_id, turn_id, status, attempt_count,
+               failure_code, failure_message, input_ref, output_ref, created_at, updated_at, completed_at
+        FROM agent_memory_task
+        WHERE status = 'FAILED'
+          AND attempt_count &lt; #{maxAttempts}
+        ORDER BY updated_at ASC, id ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="listTasks" resultMap="AgentMemoryTaskMap">
+        SELECT id, task_id, task_type, session_id, run_id, turn_id, status, attempt_count,
+               failure_code, failure_message, input_ref, output_ref, created_at, updated_at, completed_at
+        FROM agent_memory_task
+        <where>
+            <if test="status != null and status != ''">
+                status = #{status}
+            </if>
+        </where>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="updateRunning">
+        UPDATE agent_memory_task
+        SET status = 'RUNNING',
+            attempt_count = attempt_count + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE task_id = #{taskId}
+    </update>
+
+    <update id="updateSucceeded">
+        UPDATE agent_memory_task
+        SET status = 'SUCCEEDED',
+            output_ref = #{outputRef},
+            updated_at = CURRENT_TIMESTAMP,
+            completed_at = CURRENT_TIMESTAMP
+        WHERE task_id = #{taskId}
+    </update>
+
+    <update id="updateFailed">
+        UPDATE agent_memory_task
+        SET status = 'FAILED',
+            failure_code = #{failureCode},
+            failure_message = #{failureMessage},
+            updated_at = CURRENT_TIMESTAMP,
+            completed_at = CURRENT_TIMESTAMP
+        WHERE task_id = #{taskId}
+    </update>
+
+</mapper>

@@ -37,3 +37,22 @@ build/
 ### Mac OS ###
 .DS_Store
 /.idea/
+/tools/
+/.m2/
+/.m2repo/
+/.superpowers/
+/.mvn-local-settings.xml
+/target-classpath.txt
+/rag_bagua/
+/ai-agent-station-study-app/data/
+/.codex/
+/.codex-tmp-claw-code/
+/AGENTS.md
+/findings.md
+/progress.md
+/task_plan.md
+/docs/superpowers/progress.md
+/data/
+/design-md/
+/git-cloned-repo-*/
+/docs/dev-ops/log/

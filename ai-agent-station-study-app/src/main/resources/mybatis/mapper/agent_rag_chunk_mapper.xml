@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRagChunkDao">
+
+    <resultMap id="AgentRagChunkMap" type="yhx.com.infrastructure.dao.po.AgentRagChunkPO">
+        <id column="id" property="id"/>
+        <result column="chunk_id" property="chunkId"/>
+        <result column="document_id" property="documentId"/>
+        <result column="user_id" property="userId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="chunk_no" property="chunkNo"/>
+        <result column="chunk_type" property="chunkType"/>
+        <result column="heading_path" property="headingPath"/>
+        <result column="summary" property="summary"/>
+        <result column="content_ref" property="contentRef"/>
+        <result column="retrieval_text_ref" property="retrievalTextRef"/>
+        <result column="content_sha256" property="contentSha256"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRagChunkPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_rag_chunk (
+            chunk_id, document_id, user_id, session_id, chunk_no, chunk_type,
+            heading_path, summary, content_ref, retrieval_text_ref,
+            content_sha256, status, created_at, updated_at
+        ) VALUES (
+            #{chunkId}, #{documentId}, #{userId}, #{sessionId}, #{chunkNo}, #{chunkType},
+            #{headingPath}, #{summary}, #{contentRef}, #{retrievalTextRef},
+            #{contentSha256}, #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="queryByChunkId" parameterType="java.lang.String" resultMap="AgentRagChunkMap">
+        SELECT id, chunk_id, document_id, user_id, session_id, chunk_no, chunk_type,
+               heading_path, summary, content_ref, retrieval_text_ref,
+               content_sha256, status, created_at, updated_at
+        FROM agent_rag_chunk
+        WHERE chunk_id = #{chunkId}
+        LIMIT 1
+    </select>
+
+    <select id="queryByChunkIds" resultMap="AgentRagChunkMap">
+        SELECT id, chunk_id, document_id, user_id, session_id, chunk_no, chunk_type,
+               heading_path, summary, content_ref, retrieval_text_ref,
+               content_sha256, status, created_at, updated_at
+        FROM agent_rag_chunk
+        WHERE chunk_id IN
+        <foreach collection="list" item="chunkId" open="(" separator="," close=")">
+            #{chunkId}
+        </foreach>
+    </select>
+
+    <select id="queryByDocumentId" parameterType="java.lang.String" resultMap="AgentRagChunkMap">
+        SELECT id, chunk_id, document_id, user_id, session_id, chunk_no, chunk_type,
+               heading_path, summary, content_ref, retrieval_text_ref,
+               content_sha256, status, created_at, updated_at
+        FROM agent_rag_chunk
+        WHERE document_id = #{documentId}
+        ORDER BY chunk_no ASC
+    </select>
+
+</mapper>

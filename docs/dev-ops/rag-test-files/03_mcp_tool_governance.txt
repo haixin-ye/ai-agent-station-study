@@ -1,0 +1,16 @@
+标题：MCP 工具治理与权限边界
+
+MCP 是一种把外部工具能力暴露给智能体的协议。工具可以来自文件系统、搜索引擎、数据库、浏览器、企业系统或自定义服务。对 AutoAgent 平台来说，MCP 不是简单地把工具挂到模型上，而是由 Runtime 直接调用，模型只输出结构化的工具调用意图。
+
+这种治理方式有几个好处。第一，Runtime 能够根据能力表判断当前 Agent 是否有资格调用某个工具。第二，Runtime 能够对高风险工具发起审批，例如写文件、删除文件、发布文章、执行 shell 命令。第三，Runtime 能够记录 receipt、evidence 和 trace，方便审计。第四，工具失败时可以返回安全错误，而不是把底层异常直接暴露给用户。
+
+工具能力应该分层管理。平台级策略定义系统绝对禁止和允许的边界，例如不允许未授权删除用户目录。Agent 级能力定义某个 Agent 能用哪些能力，例如 MainAgent 可以调用 RAG 和 MCP，普通 ResearchAgent 只能查资料，CodeAgent 可以读取和修改工作区文件。任务级能力则由 MainAgent 在委派子 Agent 时临时授予，例如只允许某个临时 Agent 调用搜索工具。
+
+文件系统 MCP 比较典型。它可能以 stdio 方式启动，例如通过 npx.cmd 启动 @modelcontextprotocol/server-filesystem，并指定可读目录。如果本机 PATH 找不到 npx，MCP 客户端启动会失败。因此系统最好支持 auto-initialize=false，避免应用启动时因为单个 MCP 服务失败而整体崩溃。
+
+在前端体验上，工具调用不应该让用户看到混乱的内部 JSON。普通视图只展示必要进度和审批问题，Debug 抽屉才展示工具调用详情、payload、receipt 和错误堆栈。这样既保留可观测性，又保持用户体验干净。
+
+可用于召回测试的问题：
+1. 为什么 MCP 工具调用要由 Runtime 执行？
+2. Agent 级能力和任务级能力有什么区别？
+3. npx 找不到时文件系统 MCP 可能发生什么问题？

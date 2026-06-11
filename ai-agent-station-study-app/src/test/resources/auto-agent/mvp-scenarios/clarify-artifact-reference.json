@@ -1,0 +1,40 @@
+{
+  "scenarioId": "clarify-artifact-reference",
+  "description": "Ambiguous artifact reference creates same-run clarification pending input.",
+  "userMessage": "Publish that article to CSDN.",
+  "given": {
+    "historyMessages": [],
+    "artifacts": [
+      {
+        "artifactId": "artifact-001",
+        "title": "RAG Interview Notes"
+      },
+      {
+        "artifactId": "artifact-002",
+        "title": "MCP Interview Notes"
+      }
+    ],
+    "memories": [],
+    "ragHits": [],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "CONTEXT_PLANNER",
+      "response": {
+        "status": "NEEDS_USER_CLARIFICATION",
+        "question": "Which article should be used?"
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "WAITING_USER",
+    "requiredEvents": ["RUN_STARTED", "ASK_USER"],
+    "forbiddenNormalPayloadFragments": ["rawResult", "trace", "node1"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": false,
+    "toolWasInvoked": false,
+    "pendingInputCreated": true
+  }
+}
+

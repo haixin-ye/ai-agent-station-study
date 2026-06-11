@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRagCodeFileDao">
+
+    <resultMap id="AgentRagCodeFileMap" type="yhx.com.infrastructure.dao.po.AgentRagCodeFilePO">
+        <id column="id" property="id"/>
+        <result column="code_file_id" property="codeFileId"/>
+        <result column="document_id" property="documentId"/>
+        <result column="repository_url" property="repositoryUrl"/>
+        <result column="branch_name" property="branchName"/>
+        <result column="relative_path" property="relativePath"/>
+        <result column="language" property="language"/>
+        <result column="file_summary" property="fileSummary"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRagCodeFilePO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_rag_code_file (
+            code_file_id, document_id, repository_url, branch_name, relative_path,
+            language, file_summary, status, created_at, updated_at
+        ) VALUES (
+            #{codeFileId}, #{documentId}, #{repositoryUrl}, #{branchName}, #{relativePath},
+            #{language}, #{fileSummary}, #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="queryByDocumentId" parameterType="java.lang.String" resultMap="AgentRagCodeFileMap">
+        SELECT id, code_file_id, document_id, repository_url, branch_name, relative_path,
+               language, file_summary, status, created_at, updated_at
+        FROM agent_rag_code_file
+        WHERE document_id = #{documentId}
+          AND status = 'ACTIVE'
+    </select>
+
+</mapper>

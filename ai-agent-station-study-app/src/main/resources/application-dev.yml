@@ -8,7 +8,7 @@ thread:
       config:
         core-pool-size: 20
         max-pool-size: 50
-        keep-alive-time: 5000
+        keep-alive-time: 10000
         block-queue-size: 5000
         policy: CallerRunsPolicy
 
@@ -58,14 +58,6 @@ spring:
     openai:
       base-url: https://api.apimart.ai
       api-key: XXXXsk-2ikk1D2
-    agent:
-      auto-config:
-        enabled: true
-        client-ids: 3101,3102,3103,3104
-        rag-api-id: "1001"
-        vector_name: "vector_store"
-        embedding-model-name: text-embedding-3-large
-        dimensions: 1536
 
 
 
@@ -94,4 +86,372 @@ mybatis:
 logging:
   level:
     root: info
+    yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder: warn
+    yhx.com.domain.agent.service.runtime.RunEventPublisher: warn
   config: classpath:logback-spring.xml
+
+auto-agent:
+  runtime:
+    enabled: true
+    max-loop-count: 20
+    max-contract-repair-attempts: 1
+    max-final-repair-attempts: 1
+    final-response-guard-enabled: false
+    max-consecutive-continue-actions: 2
+    max-recovery-attempts-per-failure-code: 2
+    main-agent-invocation-mode: ${AUTO_AGENT_MAIN_AGENT_INVOCATION_MODE:TEXT_JSON} # FUNCTION_CALL|TEXT_JSON
+  debug:
+    debug-api-enabled: true
+    debug-sse-enabled: true
+    debug-payload-preview-enabled: true
+    debug-payload-preview-max-chars: 2000
+  rag:
+    enabled: true
+    vector-name: "vector_store"
+    max-queries-per-run: 3
+    max-hits-per-query: 10
+    max-evidence-snippet-chars: 2000
+    asset:
+      recall-timeout-millis: 16000
+      recall-min-score: 0.40
+      recall-top-k: 10
+  context:
+    vector-recall-timeout-millis: 16000
+  mcp:
+    enabled: true
+    servers:
+      - server-id: file-system
+        name: File System MCP
+        transport: STDIO
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+        command: ${AUTO_AGENT_MCP_FILESYSTEM_COMMAND:npx.cmd}
+        args:
+          - -y
+          - "@modelcontextprotocol/server-filesystem"
+          - ${AUTO_AGENT_MCP_FILESYSTEM_ROOT_1:D:/}
+          - ${AUTO_AGENT_MCP_FILESYSTEM_ROOT_2:E:/}
+        auto-initialize: false
+        auto-discover-tools: true
+        auto-register-capabilities: false
+        capability-prefix: file_system
+        default-permission-mode: ASK_USER
+        default-approval-policy: ASK_USER_BEFORE_EXECUTE
+        default-risk-level: MEDIUM
+        request-timeout-seconds: 60
+        tools:
+          - tool-name: read_file
+            description: Read a file from the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: read_multiple_files
+            description: Read multiple files from the configured workspace root in one call.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: list_directory
+            description: List files under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: directory_tree
+            description: Return a recursive directory tree under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: search_files
+            description: Search files under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: get_file_info
+            description: Return metadata for a file or directory under the configured workspace root.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: list_allowed_directories
+            description: List filesystem roots allowed by the configured filesystem MCP server.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+          - tool-name: write_file
+            description: Create or write a file under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+          - tool-name: edit_file
+            description: Apply edits to a file under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+          - tool-name: create_directory
+            description: Create a directory under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+          - tool-name: move_file
+            description: Move or rename a file under the configured workspace root.
+            required-permission: WORKSPACE_WRITE
+            risk-level: HIGH
+            destructive: true
+            schema-less-allowed: true
+      - server-id: baidu-ai-search
+        name: Baidu AI Search MCP
+        transport: SSE
+        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:true}
+        url: http://appbuilder.baidu.com/v2/ai_search/mcp/
+        sse-endpoint: ${AUTO_AGENT_MCP_BAIDU_SEARCH_SSE_ENDPOINT:sse?api_key=Bearer+bce-v3/ALTAK-oACkdcBrv9k3AzEB88B1M/f2b0a6ad1e63ff70b49cdb3770684f68b69971f0}
+        auto-initialize: false
+        auto-discover-tools: true
+        auto-register-capabilities: true
+        capability-prefix: baidu_ai_search
+        default-required-permission: READ_ONLY
+        default-permission-mode: ALLOW
+        default-approval-policy: NEVER
+        default-risk-level: LOW
+        request-timeout-seconds: 100
+        tools:
+          - tool-name: AIsearch
+            description: Search current public web information with Baidu AI Search. Use when the user needs live, recent, or external web information. Required argument is query.
+            required-permission: READ_ONLY
+            risk-level: LOW
+            schema-less-allowed: true
+            input-schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: Search query keywords or natural-language question.
+                instruction:
+                  type: string
+                  description: Optional instruction for result style, filtering, or summary format.
+                model:
+                  type: string
+                  description: Optional model name for search result summarization.
+                search_domain_filter:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional list of domains to restrict search results.
+                resource_type_filter:
+                  type: array
+                  items:
+                    type: object
+                  description: Optional resource type filters such as web/image/video.
+              required:
+                - query
+      - server-id: csdn-publisher
+        name: CSDN Publisher MCP
+        transport: SSE
+        enabled: ${AUTO_AGENT_MCP_CSDN_ENABLED:true}
+        url: ${AUTO_AGENT_MCP_CSDN_URL:http://127.0.0.1:18080}
+        sse-endpoint: ${AUTO_AGENT_MCP_CSDN_SSE_ENDPOINT:/sse}
+        auto-initialize: false
+        auto-discover-tools: true
+        auto-register-capabilities: true
+        capability-prefix: csdn_publisher
+        default-required-permission: EXTERNAL_WRITE
+        default-permission-mode: ASK_USER
+        default-approval-policy: ASK_USER_BEFORE_EXECUTE
+        default-risk-level: HIGH
+        default-destructive: false
+        default-content-mode: SUMMARY_ONLY
+        request-timeout-seconds: 180
+        tools:
+          - tool-name: publishArticle
+            description: Publish an approved Markdown article to CSDN. Requires title, markdowncontent, tags, and description under request.
+            required-permission: EXTERNAL_WRITE
+            risk-level: HIGH
+            destructive: false
+            schema-less-allowed: true
+            input-schema:
+              type: object
+              additionalProperties: false
+              properties:
+                request:
+                  type: object
+                  properties:
+                    title:
+                      type: string
+                      description: Article title.
+                    markdowncontent:
+                      type: string
+                      description: Markdown article body.
+                    tags:
+                      type: string
+                      description: Article tags separated by commas.
+                    description:
+                      type: string
+                      description: Article summary.
+                  required:
+                    - title
+                    - markdowncontent
+                    - tags
+                    - description
+              required:
+                - request
+  capabilities:
+    tools:
+      - capability-id: baidu_ai_search_aisearch
+        capability-type: TOOL
+        display-name: Baidu AI Search
+        mcp-server-id: baidu-ai-search
+        mcp-tool-name: AIsearch
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: FULL_TEXT_REQUIRED
+        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:true}
+      - capability-id: csdn_publisher_publisharticle
+        capability-type: TOOL
+        display-name: Publish CSDN article
+        mcp-server-id: csdn-publisher
+        mcp-tool-name: publishArticle
+        required-permission: EXTERNAL_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: false
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_CSDN_ENABLED:true}
+      - capability-id: file_system_read_file
+        capability-type: TOOL
+        display-name: Read file
+        mcp-server-id: file-system
+        mcp-tool-name: read_file
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: FULL_TEXT_REQUIRED
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_read_multiple_files
+        capability-type: TOOL
+        display-name: Read multiple files
+        mcp-server-id: file-system
+        mcp-tool-name: read_multiple_files
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: FULL_TEXT_REQUIRED
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_list_directory
+        capability-type: TOOL
+        display-name: List directory
+        mcp-server-id: file-system
+        mcp-tool-name: list_directory
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_directory_tree
+        capability-type: TOOL
+        display-name: Directory tree
+        mcp-server-id: file-system
+        mcp-tool-name: directory_tree
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_search_files
+        capability-type: TOOL
+        display-name: Search files
+        mcp-server-id: file-system
+        mcp-tool-name: search_files
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_get_file_info
+        capability-type: TOOL
+        display-name: Get file info
+        mcp-server-id: file-system
+        mcp-tool-name: get_file_info
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_list_allowed_directories
+        capability-type: TOOL
+        display-name: List allowed directories
+        mcp-server-id: file-system
+        mcp-tool-name: list_allowed_directories
+        required-permission: READ_ONLY
+        permission-mode: ALLOW
+        approval-policy: NEVER
+        risk-level: LOW
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_create_file
+        capability-type: TOOL
+        display-name: Create file
+        mcp-server-id: file-system
+        mcp-tool-name: write_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_write_file
+        capability-type: TOOL
+        display-name: Write file
+        mcp-server-id: file-system
+        mcp-tool-name: write_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_edit_file
+        capability-type: TOOL
+        display-name: Edit file
+        mcp-server-id: file-system
+        mcp-tool-name: edit_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_create_directory
+        capability-type: TOOL
+        display-name: Create directory
+        mcp-server-id: file-system
+        mcp-tool-name: create_directory
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
+      - capability-id: file_system_move_file
+        capability-type: TOOL
+        display-name: Move file
+        mcp-server-id: file-system
+        mcp-tool-name: move_file
+        required-permission: WORKSPACE_WRITE
+        permission-mode: ASK_USER
+        approval-policy: ASK_USER_BEFORE_EXECUTE
+        risk-level: HIGH
+        destructive: true
+        default-content-mode: SUMMARY_ONLY
+        enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}

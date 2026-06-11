@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRunTranscriptDao">
+
+    <resultMap id="AgentRunTranscriptMap" type="yhx.com.infrastructure.dao.po.AgentRunTranscriptPO">
+        <id column="id" property="id"/>
+        <result column="block_id" property="blockId"/>
+        <result column="run_id" property="runId"/>
+        <result column="seq" property="seq"/>
+        <result column="block_type" property="blockType"/>
+        <result column="payload_ref" property="payloadRef"/>
+        <result column="compactable" property="compactable"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRunTranscriptPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_run_transcript (
+            block_id, run_id, seq, block_type, payload_ref, compactable, created_at
+        ) VALUES (
+            #{blockId}, #{runId}, #{seq}, #{blockType}, #{payloadRef}, #{compactable}, #{createdAt}
+        )
+    </insert>
+
+    <select id="listByRunId" parameterType="java.lang.String" resultMap="AgentRunTranscriptMap">
+        SELECT id, block_id, run_id, seq, block_type, payload_ref, compactable, created_at
+        FROM agent_run_transcript
+        WHERE run_id = #{runId}
+        ORDER BY seq ASC, created_at ASC
+    </select>
+
+    <select id="listForCompaction" resultMap="AgentRunTranscriptMap">
+        SELECT id, block_id, run_id, seq, block_type, payload_ref, compactable, created_at
+        FROM agent_run_transcript
+        WHERE run_id = #{runId}
+          AND compactable = 1
+          AND seq &lt; #{beforeSeq}
+        ORDER BY seq ASC, created_at ASC
+    </select>
+
+</mapper>

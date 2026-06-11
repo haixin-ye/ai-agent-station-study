@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRunTraceDao">
+
+    <resultMap id="AgentRunTraceMap" type="yhx.com.infrastructure.dao.po.AgentRunTracePO">
+        <id column="id" property="id"/>
+        <result column="trace_id" property="traceId"/>
+        <result column="run_id" property="runId"/>
+        <result column="seq" property="seq"/>
+        <result column="trace_type" property="traceType"/>
+        <result column="payload_ref" property="payloadRef"/>
+        <result column="summary" property="summary"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRunTracePO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_run_trace (trace_id, run_id, seq, trace_type, payload_ref, summary, created_at)
+        VALUES (#{traceId}, #{runId}, #{seq}, #{traceType}, #{payloadRef}, #{summary}, #{createdAt})
+    </insert>
+
+    <select id="queryMaxSeqByRunId" resultType="java.lang.Long">
+        SELECT COALESCE(MAX(seq), 0)
+        FROM agent_run_trace
+        WHERE run_id = #{runId}
+    </select>
+
+    <select id="listByRunId" resultMap="AgentRunTraceMap">
+        SELECT id, trace_id, run_id, seq, trace_type, payload_ref, summary, created_at
+        FROM agent_run_trace
+        WHERE run_id = #{runId}
+        ORDER BY seq ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

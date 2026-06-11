@@ -1,0 +1,22 @@
+package yhx.com.domain.agent.model.valobj.enums.contract;
+
+public enum AgentComponentCodeEnumVO {
+    CONTEXT_PLANNER,
+    MAIN_AGENT,
+    GENERIC_SUB_AGENT,
+    TOOL_RUNTIME,
+    USER_INTERACTION,
+    RAG_VERIFIER,
+    TOOL_VERIFIER,
+    FINAL_RESPONSE_GUARD,
+    FINAL_REPAIR,
+    TURN_SUMMARY,
+    MEMORY_EXTRACTOR,
+    SESSION_TASK_SUMMARY,
+    MEMORY_GOVERNANCE,
+    CONVERSATION_ROLLUP,
+    RAG_ASSET_ANALYZER,
+    VECTOR_EMBEDDING,
+    CONTRACT_REPAIR
+}
+

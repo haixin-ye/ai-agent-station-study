@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentNodePromptDao">
+
+    <resultMap id="AgentNodePromptMap" type="yhx.com.infrastructure.dao.po.AgentNodePromptPO">
+        <id column="id" property="id"/>
+        <result column="prompt_id" property="promptId"/>
+        <result column="agent_id" property="agentId"/>
+        <result column="node_code" property="nodeCode"/>
+        <result column="prompt_version" property="promptVersion"/>
+        <result column="content_ref" property="contentRef"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="listEnabled" resultMap="AgentNodePromptMap">
+        SELECT id, prompt_id, agent_id, node_code, prompt_version, content_ref, enabled, created_at, updated_at
+        FROM agent_node_prompt
+        WHERE agent_id = #{agentId}
+          AND node_code = #{nodeCode}
+          AND enabled = 1
+        ORDER BY updated_at DESC
+    </select>
+
+    <select id="queryByVersion" resultMap="AgentNodePromptMap">
+        SELECT id, prompt_id, agent_id, node_code, prompt_version, content_ref, enabled, created_at, updated_at
+        FROM agent_node_prompt
+        WHERE agent_id = #{agentId}
+          AND node_code = #{nodeCode}
+          AND prompt_version = #{promptVersion}
+        LIMIT 1
+    </select>
+
+</mapper>

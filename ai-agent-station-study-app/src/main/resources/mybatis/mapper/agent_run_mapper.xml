@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRunDao">
+
+    <resultMap id="AgentRunMap" type="yhx.com.infrastructure.dao.po.AgentRunPO">
+        <id column="id" property="id"/>
+        <result column="run_id" property="runId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="user_id" property="userId"/>
+        <result column="agent_id" property="agentId"/>
+        <result column="status" property="status"/>
+        <result column="phase" property="phase"/>
+        <result column="rag_was_used" property="ragWasUsed"/>
+        <result column="final_message_id" property="finalMessageId"/>
+        <result column="final_answer_ref" property="finalAnswerRef"/>
+        <result column="failure_code" property="failureCode"/>
+        <result column="failure_message" property="failureMessage"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRunPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_run (
+            run_id, session_id, user_id, agent_id, status, phase, rag_was_used,
+            final_message_id, final_answer_ref, failure_code, failure_message, created_at, updated_at
+        ) VALUES (
+            #{runId}, #{sessionId}, #{userId}, #{agentId}, #{status}, #{phase}, #{ragWasUsed},
+            #{finalMessageId}, #{finalAnswerRef}, #{failureCode}, #{failureMessage}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updatePhase">
+        UPDATE agent_run
+        SET phase = #{phase}, updated_at = NOW()
+        WHERE run_id = #{runId}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE agent_run
+        SET status = #{status}, failure_code = #{failureCode}, updated_at = NOW()
+        WHERE run_id = #{runId}
+    </update>
+
+    <update id="updateFinalAnswerRef">
+        UPDATE agent_run
+        SET final_answer_ref = #{finalAnswerRef}, updated_at = NOW()
+        WHERE run_id = #{runId}
+    </update>
+
+    <update id="markRagWasUsed" parameterType="java.lang.String">
+        UPDATE agent_run
+        SET rag_was_used = 1, updated_at = NOW()
+        WHERE run_id = #{runId}
+    </update>
+
+    <select id="queryByRunId" parameterType="java.lang.String" resultMap="AgentRunMap">
+        SELECT id, run_id, session_id, user_id, agent_id, status, phase, rag_was_used,
+               final_message_id, final_answer_ref, failure_code, failure_message, created_at, updated_at
+        FROM agent_run
+        WHERE run_id = #{runId}
+    </select>
+
+</mapper>

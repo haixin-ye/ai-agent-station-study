@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentEvidenceDao">
+
+    <resultMap id="AgentEvidenceMap" type="yhx.com.infrastructure.dao.po.AgentEvidencePO">
+        <id column="id" property="id"/>
+        <result column="evidence_id" property="evidenceId"/>
+        <result column="run_id" property="runId"/>
+        <result column="evidence_type" property="evidenceType"/>
+        <result column="source_ref" property="sourceRef"/>
+        <result column="summary" property="summary"/>
+        <result column="confidence" property="confidence"/>
+        <result column="used_by_final" property="usedByFinal"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentEvidencePO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_evidence (
+            evidence_id, run_id, evidence_type, source_ref, summary, confidence, used_by_final, created_at
+        ) VALUES (
+            #{evidenceId}, #{runId}, #{evidenceType}, #{sourceRef}, #{summary}, #{confidence}, #{usedByFinal}, #{createdAt}
+        )
+    </insert>
+
+    <select id="queryByEvidenceId" parameterType="java.lang.String" resultMap="AgentEvidenceMap">
+        SELECT id, evidence_id, run_id, evidence_type, source_ref, summary, confidence, used_by_final, created_at
+        FROM agent_evidence
+        WHERE evidence_id = #{evidenceId}
+        LIMIT 1
+    </select>
+
+    <select id="listByRunId" parameterType="java.lang.String" resultMap="AgentEvidenceMap">
+        SELECT id, evidence_id, run_id, evidence_type, source_ref, summary, confidence, used_by_final, created_at
+        FROM agent_evidence
+        WHERE run_id = #{runId}
+        ORDER BY created_at ASC, id ASC
+    </select>
+
+    <update id="markUsedByFinal">
+        UPDATE agent_evidence
+        SET used_by_final = 1
+        WHERE evidence_id = #{evidenceId}
+    </update>
+
+</mapper>

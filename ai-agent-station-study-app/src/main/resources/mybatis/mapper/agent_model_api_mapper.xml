@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentModelApiDao">
+
+    <resultMap id="AgentModelApiMap" type="yhx.com.infrastructure.dao.po.AgentModelApiPO">
+        <id column="id" property="id"/>
+        <result column="api_id" property="apiId"/>
+        <result column="provider" property="provider"/>
+        <result column="base_url" property="baseUrl"/>
+        <result column="api_key" property="apiKey"/>
+        <result column="completions_path" property="completionsPath"/>
+        <result column="embeddings_path" property="embeddingsPath"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="queryActiveByApiId" resultMap="AgentModelApiMap">
+        SELECT id, api_id, provider, base_url, api_key, completions_path, embeddings_path, enabled, created_at, updated_at
+        FROM agent_model_api
+        WHERE api_id = #{apiId}
+          AND enabled = 1
+        LIMIT 1
+    </select>
+
+</mapper>

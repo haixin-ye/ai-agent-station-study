@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080">
+  <defs>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 16px Arial, sans-serif; fill: #334155; }
+      .node-title { font: 700 16px Arial, sans-serif; fill: #0f172a; }
+      .node-text { font: 13px Arial, sans-serif; fill: #1e293b; }
+      .small { font: 12px Arial, sans-serif; fill: #334155; }
+      .box { fill: #f8fafc; stroke: #64748b; stroke-width: 1.5; rx: 10; }
+      .context-box { fill: #ecfeff; stroke: #0891b2; stroke-width: 1.5; rx: 12; }
+      .arrow { stroke: #334155; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .replan { stroke: #dc2626; stroke-width: 2.2; fill: none; marker-end: url(#arrowheadRed); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#334155"/>
+    </marker>
+    <marker id="arrowheadRed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1080" fill="#ffffff"/>
+  <text x="40" y="50" class="title">Auto-Agent Harness Flow (ReAct Multi-Node)</text>
+  <text x="40" y="80" class="subtitle">User Question -&gt; Plan(Node1) -&gt; Execute(Node2) -&gt; Supervise(Node3) -&gt; Summary(Node4)</text>
+
+  <!-- Main flow nodes -->
+  <rect class="box" x="40" y="130" width="230" height="90"/>
+  <text x="55" y="160" class="node-title">1) User/Frontend</text>
+  <text x="55" y="184" class="node-text">POST /api/v1/agent/auto_agent</text>
+  <text x="55" y="204" class="small">sessionId, message, maxStep, knowledgeName</text>
+
+  <rect class="box" x="330" y="130" width="260" height="90"/>
+  <text x="345" y="160" class="node-title">2) Strategy + Root</text>
+  <text x="345" y="184" class="node-text">Init DynamicContext</text>
+  <text x="345" y="204" class="small">step=1, maxStep, rawGoal, emitter, tokenAcc</text>
+
+  <rect class="box" x="650" y="130" width="220" height="90"/>
+  <text x="665" y="160" class="node-title">3) Node1 Plan</text>
+  <text x="665" y="184" class="node-text">Step1AnalyzerNode</text>
+  <text x="665" y="204" class="small">Output: currentStepPlan</text>
+
+  <rect class="box" x="930" y="130" width="220" height="90"/>
+  <text x="945" y="160" class="node-title">4) Node2 Execute</text>
+  <text x="945" y="184" class="node-text">Step2PrecisionExecutorNode</text>
+  <text x="945" y="204" class="small">Output: executionResult/outcome</text>
+
+  <rect class="box" x="1210" y="130" width="220" height="90"/>
+  <text x="1225" y="160" class="node-title">5) Node3 Supervise</text>
+  <text x="1225" y="184" class="node-text">Step3QualitySupervisorNode</text>
+  <text x="1225" y="204" class="small">Output: supervisionDecision</text>
+
+  <rect class="box" x="1210" y="300" width="220" height="90"/>
+  <text x="1225" y="330" class="node-title">6) Node4 Summary</text>
+  <text x="1225" y="354" class="node-text">Step4LogExecutionSummaryNode</text>
+  <text x="1225" y="374" class="small">Output: finalSummary</text>
+
+  <rect class="box" x="1210" y="470" width="220" height="90"/>
+  <text x="1225" y="500" class="node-title">7) Complete</text>
+  <text x="1225" y="524" class="node-text">token_total + complete SSE</text>
+  <text x="1225" y="544" class="small">Frontend gets final answer</text>
+
+  <!-- DynamicContext area -->
+  <rect class="context-box" x="40" y="620" width="1510" height="400"/>
+  <text x="60" y="655" class="node-title">DynamicContext (Node Contract Bus)</text>
+
+  <text x="70" y="690" class="node-text">Core runtime:</text>
+  <text x="200" y="690" class="small">step, maxStep, isCompleted, executionHistory</text>
+
+  <text x="70" y="720" class="node-text">Task:</text>
+  <text x="200" y="720" class="small">rawUserGoal, sanitizedUserGoal, currentTask</text>
+
+  <text x="70" y="750" class="node-text">Plan contract:</text>
+  <text x="200" y="750" class="small">currentStepPlan, planHistory</text>
+
+  <text x="70" y="780" class="node-text">Execution contract:</text>
+  <text x="200" y="780" class="small">executionResult, executionOutcome(status/errorCode/errorMessage/rawResult), lastToolError</text>
+
+  <text x="70" y="810" class="node-text">Supervision contract:</text>
+  <text x="200" y="810" class="small">supervisionResult, supervisionDecision(decision/assessment/issues/suggestions/score/raw)</text>
+
+  <text x="70" y="840" class="node-text">Final output:</text>
+  <text x="200" y="840" class="small">finalSummary</text>
+
+  <text x="70" y="870" class="node-text">Infra:</text>
+  <text x="200" y="870" class="small">knowledgeName, emitter, tokenUsageAccumulator</text>
+
+  <text x="70" y="900" class="node-text">Extension cache:</text>
+  <text x="200" y="900" class="small">dataObjects (current usage: tool_policy_cache_*)</text>
+
+  <text x="70" y="945" class="node-title">Node IO Contract (who writes what for whom)</text>
+  <text x="70" y="972" class="small">Node1 writes: currentStepPlan/planHistory/sanitizedUserGoal/currentTask -&gt; consumed by Node2/Node3/next Node1</text>
+  <text x="70" y="992" class="small">Node2 writes: executionResult/executionOutcome/lastToolError -&gt; consumed by Node3/next Node1</text>
+  <text x="70" y="1012" class="small">Node3 writes: supervisionResult/supervisionDecision + step/isCompleted update -&gt; consumed by router/next Node1</text>
+
+  <!-- Arrows -->
+  <path class="arrow" d="M270 175 L330 175"/>
+  <path class="arrow" d="M590 175 L650 175"/>
+  <path class="arrow" d="M870 175 L930 175"/>
+  <path class="arrow" d="M1150 175 L1210 175"/>
+
+  <path class="arrow" d="M1320 220 L1320 300"/>
+  <path class="arrow" d="M1320 390 L1320 470"/>
+
+  <!-- Replan loop -->
+  <path class="replan" d="M1210 190 C1080 280, 820 300, 760 220"/>
+  <text x="975" y="285" class="small" fill="#dc2626">if decision=REPLAN and step&lt;=maxStep</text>
+
+  <!-- to context -->
+  <path class="arrow" d="M760 220 L760 620"/>
+  <path class="arrow" d="M1040 220 L1040 620"/>
+  <path class="arrow" d="M1320 560 L1320 620"/>
+</svg>

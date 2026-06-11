@@ -1,0 +1,52 @@
+{
+  "scenarioId": "rag-answer-verified",
+  "description": "Use RAG evidence and verify grounding because ragWasUsed is true.",
+  "userMessage": "Answer with knowledge base evidence about RAG.",
+  "given": {
+    "historyMessages": [],
+    "artifacts": [],
+    "memories": [],
+    "ragHits": [
+      {
+        "hitId": "rag-hit-001",
+        "summary": "RAG retrieves relevant knowledge before generation.",
+        "payloadRef": "payload-rag-001"
+      }
+    ],
+    "toolReceipts": []
+  },
+  "fakeNodeResponses": [
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "RETRIEVE_RAG",
+        "stateDelta": {
+          "ragRequest": {
+            "query": "RAG definition"
+          }
+        }
+      }
+    },
+    {
+      "componentCode": "MAIN_AGENT",
+      "response": {
+        "action": "FINAL",
+        "stateDelta": {
+          "finalAnswerCandidate": {
+            "content": "RAG retrieves relevant knowledge before generation."
+          }
+        }
+      }
+    }
+  ],
+  "expected": {
+    "finalStatus": "COMPLETED",
+    "requiredEvents": ["RUN_STARTED", "STATUS_CHANGED", "FINAL_READY"],
+    "forbiddenNormalPayloadFragments": ["rawResult", "trace", "rawPrompt"],
+    "requiredDebugTraceTypes": ["CONTRACT_VALIDATION"],
+    "ragWasUsed": true,
+    "toolWasInvoked": false,
+    "pendingInputCreated": false
+  }
+}
+
