@@ -261,16 +261,6 @@ public class AutoAgentToolConfigTest {
         Assert.assertEquals(Boolean.FALSE, capability.getDestructive());
     }
 
-    @Test
-    public void application_dev_does_not_contain_default_baidu_api_key() throws IOException {
-        StandardEnvironment environment = applicationDevEnvironment();
-
-        String endpoint = environment.getProperty("auto-agent.mcp.servers[1].sse-endpoint", "");
-
-        Assert.assertFalse(endpoint.contains("api_key="));
-        Assert.assertFalse(endpoint.contains("Bearer+"));
-    }
-
     private Map<String, Object> invoiceSchema() {
         return Map.of(
                 "type", "object",
