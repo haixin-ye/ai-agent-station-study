@@ -29,6 +29,7 @@ import yhx.com.domain.agent.adapter.repository.ITurnSummaryRepository;
 import yhx.com.domain.agent.adapter.repository.IVectorIndexRepository;
 import yhx.com.domain.agent.adapter.repository.IVectorMemoryRepository;
 import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.ToolCapabilityExposurePolicyVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
@@ -47,6 +48,7 @@ import yhx.com.domain.agent.service.context.ContextBudgetManager;
 import yhx.com.domain.agent.service.context.ContextCandidatePreselector;
 import yhx.com.domain.agent.service.context.ContextMaterializer;
 import yhx.com.domain.agent.service.context.ContextPlannerStatusHandler;
+import yhx.com.domain.agent.service.context.ToolCapabilityCandidateProjector;
 import yhx.com.domain.agent.service.context.ContextPreparationService;
 import yhx.com.domain.agent.service.context.ContextSelectionValidator;
 import yhx.com.domain.agent.service.context.ContextTokenEstimator;
@@ -140,8 +142,8 @@ import yhx.com.domain.agent.service.runtime.port.PlanStatePort;
 import yhx.com.domain.agent.service.runtime.port.RagRuntimePort;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
+import yhx.com.domain.agent.service.tool.McpToolRegistry;
 import yhx.com.domain.agent.service.tool.ToolApprovalService;
-import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 import yhx.com.infrastructure.adapter.repository.AsyncFileRunDiagnosticRepository;
 
 import java.nio.file.Path;
@@ -417,18 +419,27 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public ToolCapabilityCandidateProjector toolCapabilityCandidateProjector() {
+        return new ToolCapabilityCandidateProjector();
+    }
+
+    @Bean
     public RuntimeComponentPorts runtimeComponentPorts(ContextPreparationService contextPreparationService,
                                                        ContextPlannerNodeService contextPlannerNodeService,
                                                        ContextPlannerStatusHandler contextPlannerStatusHandler,
                                                        MainAgentNodeService mainAgentNodeService,
                                                        NodeRuntimeProfileResolver nodeRuntimeProfileResolver,
-                                                       ObjectProvider<CapabilityRegistry> capabilityRegistryProvider) {
+                                                       ObjectProvider<CapabilityRegistry> capabilityRegistryProvider,
+                                                       ObjectProvider<McpToolRegistry> mcpToolRegistryProvider,
+                                                       ToolCapabilityCandidateProjector capabilityProjector,
+                                                       AutoAgentCapabilityProperties capabilityProperties) {
         return new DefaultRuntimeComponentPorts(contextPreparationService,
                 contextPlannerNodeService,
                 contextPlannerStatusHandler,
                 mainAgentNodeService,
                 nodeRuntimeProfileResolver.resolveAllActive(),
-                capabilityCandidates(capabilityRegistryProvider.getIfAvailable()),
+                capabilityCandidates(capabilityRegistryProvider.getIfAvailable(),
+                        mcpToolRegistryProvider.getIfAvailable(), capabilityProjector, capabilityProperties),
                 defaultTokenBudget());
     }
 
@@ -855,45 +866,32 @@ public class AutoAgentRuntimeConfig {
                 genericSubAgentDispatchOrchestrator);
     }
 
-    private List<CapabilityCandidateVO> capabilityCandidates(CapabilityRegistry capabilityRegistry) {
-        if (capabilityRegistry == null) {
+    private List<CapabilityCandidateVO> capabilityCandidates(CapabilityRegistry capabilityRegistry,
+                                                              McpToolRegistry mcpToolRegistry,
+                                                              ToolCapabilityCandidateProjector projector,
+                                                              AutoAgentCapabilityProperties properties) {
+        if (capabilityRegistry == null || projector == null) {
             return List.of();
         }
-        return capabilityRegistry.listEnabledCapabilities().stream()
-                .map(this::toCapabilityCandidate)
-                .toList();
+        return projector.projectAll(capabilityRegistry.listEnabledCapabilities(), mcpToolRegistry,
+                exposurePolicy(properties == null ? null : properties.getPromptExposure()));
     }
 
-    private CapabilityCandidateVO toCapabilityCandidate(CapabilitySpecVO spec) {
-        return CapabilityCandidateVO.builder()
-                .capabilityCode(spec.getCapabilityCode())
-                .capabilityType(spec.getCapabilityType())
-                .summary(summary(spec))
-                .enabled(spec.getEnabled())
-                .build();
-    }
-
-    private String summary(CapabilitySpecVO spec) {
-        String semanticHint = semanticHint(spec);
-        String operationalSummary = String.format("tool=%s, permission=%s, approval=%s, risk=%s",
-                spec.getToolName(),
-                spec.getRequiredPermission() == null ? "NONE" : spec.getRequiredPermission().code(),
-                spec.getApprovalPolicy() == null ? "NEVER" : spec.getApprovalPolicy().code(),
-                spec.getRiskLevel());
-        return semanticHint == null ? operationalSummary : semanticHint + " " + operationalSummary;
-    }
-
-    private String semanticHint(CapabilitySpecVO spec) {
-        if (spec == null || spec.getCapabilityCode() == null) {
-            return null;
+    private ToolCapabilityExposurePolicyVO exposurePolicy(AutoAgentCapabilityProperties.PromptExposureProperties properties) {
+        if (properties == null) {
+            return ToolCapabilityExposurePolicyVO.builder().build();
         }
-        return switch (spec.getCapabilityCode()) {
-            case "baidu_ai_search_aisearch" ->
-                    "Use for live/current public web search through Baidu AI Search. Required argument: query.";
-            case "csdn_publisher_publisharticle" ->
-                    "Use to publish an already prepared and approved Markdown article to CSDN. Arguments must contain request.title, request.markdowncontent, request.tags, and request.description.";
-            default -> null;
-        };
+        return ToolCapabilityExposurePolicyVO.builder()
+                .maxTools(properties.getMaxTools())
+                .maxDescriptionChars(properties.getMaxDescriptionChars())
+                .maxSchemaDepth(properties.getMaxSchemaDepth())
+                .maxSchemaPropertiesPerTool(properties.getMaxSchemaPropertiesPerTool())
+                .maxSchemaCharsPerTool(properties.getMaxSchemaCharsPerTool())
+                .maxTotalSchemaChars(properties.getMaxTotalSchemaChars())
+                .maxRequiredArgumentsPerTool(properties.getMaxRequiredArgumentsPerTool())
+                .maxCapabilityCharsPerTool(properties.getMaxCapabilityCharsPerTool())
+                .maxTotalCapabilityChars(properties.getMaxTotalCapabilityChars())
+                .build();
     }
 
     private TokenBudgetVO defaultTokenBudget() {

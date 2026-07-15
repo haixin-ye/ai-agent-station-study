@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import yhx.com.domain.agent.model.valobj.enums.tool.McpToolAvailabilityEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.McpTransportTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.RequiredPermissionEnumVO;
 
@@ -25,4 +26,7 @@ public class McpToolSpecVO {
     private String riskLevel;
     private Boolean destructive;
     private Boolean schemaLessAllowed;
+    @Builder.Default
+    private McpToolAvailabilityEnumVO availability = McpToolAvailabilityEnumVO.AVAILABLE;
+    private String availabilityReason;
 }

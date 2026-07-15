@@ -207,7 +207,7 @@ LOCK TABLES `ai_client_api` WRITE;
 
 INSERT INTO `ai_client_api` (`id`, `api_id`, `base_url`, `api_key`, `completions_path`, `embeddings_path`, `status`, `create_time`, `update_time`)
 VALUES
-	(1,'1001','https://apis.itedus.cn','sk-sLvFUs1wSIgtbWcE03464f199d254cFcA3A5F2A353C8EdDe','v1/chat/completions','v1/embeddings',1,'2025-06-14 12:33:22','2025-07-27 14:50:17');
+	(1,'1001','https://apis.itedus.cn','REPLACE_WITH_OPENAI_API_KEY','v1/chat/completions','v1/embeddings',1,'2025-06-14 12:33:22','2025-07-27 14:50:17');
 
 /*!40000 ALTER TABLE `ai_client_api` ENABLE KEYS */;
 UNLOCK TABLES;
@@ -378,7 +378,7 @@ VALUES
 	(8,'5003','filesystem','stdio','{\n    \"filesystem\": {\n        \"command\": \"npx\",\n        \"args\": [\n            \"-y\",\n            \"@modelcontextprotocol/server-filesystem\",\n            \"/Users/fuzhengwei/Desktop\",\n            \"/Users/fuzhengwei/Desktop\"\n        ]\n    }\n}',180,1,'2025-06-14 12:36:30','2025-07-05 16:31:44'),
 	(9,'5004','g-search','stdio','{\n    \"g-search\": {\n        \"command\": \"npx\",\n        \"args\": [\n            \"-y\",\n            \"g-search-mcp\"\n        ]\n    }\n}',180,1,'2025-06-14 12:36:30','2025-06-14 12:36:40'),
 	(10,'5005','楂樺痉鍦板浘','sse','{\n	\"baseUri\":\"https://mcp.amap.com\",\n        \"sseEndpoint\":\"/sse?key=801aabf79ed055c2ff78603cfe851787\"\n}',180,1,'2025-06-14 12:36:30','2025-06-14 12:36:40'),
-	(12,'5006','baidu-search','sse','{\n	\"baseUri\":\"http://appbuilder.baidu.com/v2/ai_search/mcp/\",\n        \"sseEndpoint\":\"sse?api_key=Bearer+bce-v3/ALTAK-3zODLb9qHozIftQlGwez5/2696e92781f5bf1ba1870e2958f239fd6dc822a4\"\n}',180,1,'2025-06-14 12:36:30','2025-07-27 14:44:17');
+	(12,'5006','baidu-search','sse','{\n	\"baseUri\":\"http://appbuilder.baidu.com/v2/ai_search/mcp/\",\n        \"sseEndpoint\":\"sse?api_key=REPLACE_WITH_BAIDU_API_KEY\"\n}',180,1,'2025-06-14 12:36:30','2025-07-27 14:44:17');
 
 /*!40000 ALTER TABLE `ai_client_tool_mcp` ENABLE KEYS */;
 UNLOCK TABLES;

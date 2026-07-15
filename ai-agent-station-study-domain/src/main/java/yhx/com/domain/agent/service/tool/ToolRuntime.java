@@ -1,5 +1,6 @@
 package yhx.com.domain.agent.service.tool;
 
+import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.adapter.repository.IToolRepository;
 import yhx.com.domain.agent.model.valobj.enums.persistence.ToolCallStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolInvocationStatusEnumVO;
@@ -7,31 +8,44 @@ import yhx.com.domain.agent.model.valobj.tool.McpToolInvokeCommandVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolInvokeResultVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolInvocationRequestVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolInvocationResultVO;
+import yhx.com.domain.agent.model.valobj.tool.ToolSchemaValidationResultVO;
 import yhx.com.domain.agent.service.tool.port.McpToolInvokerPort;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 public class ToolRuntime {
 
-    private static final int TOOL_RESULT_TEXT_LIMIT = 500;
+    private static final int TOOL_SUMMARY_LIMIT = 500;
+    private static final int TOOL_RESULT_TEXT_LIMIT = 300;
     private static final int TOOL_ARGUMENT_VALUE_LIMIT = 500;
 
     private final McpToolInvokerPort mcpToolInvokerPort;
     private final ToolReceiptCapture receiptCapture;
     private final ToolFailureMapper failureMapper;
     private final IToolRepository toolRepository;
+    private final ToolArgumentSchemaValidator schemaValidator;
 
     public ToolRuntime(McpToolInvokerPort mcpToolInvokerPort,
                        ToolReceiptCapture receiptCapture,
                        ToolFailureMapper failureMapper,
                        IToolRepository toolRepository) {
+        this(mcpToolInvokerPort, receiptCapture, failureMapper, toolRepository,
+                new NetworkntToolArgumentSchemaValidator());
+    }
+
+    public ToolRuntime(McpToolInvokerPort mcpToolInvokerPort,
+                       ToolReceiptCapture receiptCapture,
+                       ToolFailureMapper failureMapper,
+                       IToolRepository toolRepository,
+                       ToolArgumentSchemaValidator schemaValidator) {
         this.mcpToolInvokerPort = mcpToolInvokerPort;
         this.receiptCapture = receiptCapture;
         this.failureMapper = failureMapper;
         this.toolRepository = toolRepository;
+        this.schemaValidator = schemaValidator;
     }
 
     public ToolInvocationResultVO invoke(ToolInvocationRequestVO request) {
@@ -40,14 +54,19 @@ public class ToolRuntime {
             markFailure(request, ToolCallStatusEnumVO.FAILED, validationFailure);
             return failure(request, ToolInvocationStatusEnumVO.INVALID_INTENT, validationFailure, validationFailure);
         }
+        ToolSchemaValidationResultVO schemaValidation = schemaValidator.validate(
+                request.getMcpTool().getInputSchema(), request.getArguments());
+        if (!Boolean.TRUE.equals(schemaValidation.getValid())) {
+            log.warn("[AutoAgent][TOOL_ARGUMENT_SCHEMA_VALIDATION_FAILED] serverId={}, toolName={}, schemaHash={}, violationCount={}",
+                    request.getMcpTool().getMcpServerCode(), request.getMcpTool().getToolName(),
+                    schemaValidation.getSchemaHash(),
+                    schemaValidation.getViolations() == null ? 0 : schemaValidation.getViolations().size());
+            markFailure(request, ToolCallStatusEnumVO.FAILED, "TOOL_SCHEMA_ERROR");
+            return schemaFailure(request, schemaValidation);
+        }
         if (Boolean.TRUE.equals(request.getApprovalRequired()) && isBlank(request.getApprovalId())) {
             toolRepository.updateToolCallStatus(request.getToolCallId(), ToolCallStatusEnumVO.APPROVAL_PENDING);
             return failure(request, ToolInvocationStatusEnumVO.NEEDS_USER_ACTION, "TOOL_APPROVAL_REQUIRED", "Tool approval is required before execution.");
-        }
-        String schemaFailure = validateSchema(request.getMcpTool().getInputSchema(), request.getArguments());
-        if (schemaFailure != null) {
-            markFailure(request, ToolCallStatusEnumVO.FAILED, "TOOL_SCHEMA_ERROR");
-            return failure(request, ToolInvocationStatusEnumVO.INVALID_INTENT, "TOOL_SCHEMA_ERROR", schemaFailure);
         }
         toolRepository.updateToolCallStatus(request.getToolCallId(), ToolCallStatusEnumVO.RUNNING);
         McpToolInvokeResultVO invokeResult = mcpToolInvokerPort.invoke(McpToolInvokeCommandVO.builder()
@@ -74,6 +93,8 @@ public class ToolRuntime {
                 .resultTotalBytes(resultContent == null ? null : (long) resultContent.getBytes(StandardCharsets.UTF_8).length)
                 .failureCode(failureCode)
                 .failureMessage(invokeResult == null ? "MCP tool was not called." : invokeResult.getErrorMessage())
+                .schemaHash(schemaValidation.getSchemaHash())
+                .schemaViolations(schemaValidation.getViolations())
                 .build();
     }
 
@@ -85,9 +106,10 @@ public class ToolRuntime {
         if (request == null || request.getMcpTool() == null || isBlank(request.getMcpTool().getToolName())) {
             return truncate(resultText, TOOL_RESULT_TEXT_LIMIT);
         }
-        return "tool=" + request.getMcpTool().getToolName()
+        String summary = "tool=" + request.getMcpTool().getToolName()
                 + ", arguments=" + compactArguments(request.getArguments())
                 + ", result=" + truncate(resultText, TOOL_RESULT_TEXT_LIMIT);
+        return truncate(summary, TOOL_SUMMARY_LIMIT);
     }
 
     private String resultContent(McpToolInvokeResultVO invokeResult) {
@@ -133,41 +155,6 @@ public class ToolRuntime {
         return value.substring(0, maxChars - 12) + "... (" + value.length() + " chars)";
     }
 
-    @SuppressWarnings("unchecked")
-    private String validateSchema(Map<String, Object> inputSchema, Map<String, Object> arguments) {
-        if (inputSchema == null || inputSchema.isEmpty()) {
-            return null;
-        }
-        Object required = inputSchema.get("required");
-        if (!(required instanceof Collection<?> requiredFields)) {
-            return null;
-        }
-        for (Object field : requiredFields) {
-            String name = String.valueOf(field);
-            if (arguments == null || !arguments.containsKey(name) || arguments.get(name) == null) {
-                return "Required tool argument is missing: " + name;
-            }
-        }
-        Object properties = inputSchema.get("properties");
-        if (properties instanceof Map<?, ?> rawProperties && arguments != null) {
-            Map<String, Object> typedProperties = (Map<String, Object>) rawProperties;
-            for (String name : typedProperties.keySet()) {
-                Object value = arguments.get(name);
-                if (value == null) {
-                    continue;
-                }
-                Object propertySpec = typedProperties.get(name);
-                if (propertySpec instanceof Map<?, ?> spec) {
-                    String type = spec.get("type") == null ? null : String.valueOf(spec.get("type"));
-                    if ("string".equals(type) && !(value instanceof String)) {
-                        return "Tool argument must be a string: " + name;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
     private String validateRequest(ToolInvocationRequestVO request) {
         if (request == null) {
             return "TOOL_INVALID_INTENT";
@@ -197,6 +184,19 @@ public class ToolRuntime {
                 .toolInvocationId(request == null ? null : request.getToolInvocationId())
                 .failureCode(failureCode)
                 .failureMessage(failureMessage)
+                .build();
+    }
+
+    private ToolInvocationResultVO schemaFailure(ToolInvocationRequestVO request,
+                                                 ToolSchemaValidationResultVO validation) {
+        return ToolInvocationResultVO.builder()
+                .status(ToolInvocationStatusEnumVO.INVALID_INTENT)
+                .toolCallId(request == null ? null : request.getToolCallId())
+                .toolInvocationId(request == null ? null : request.getToolInvocationId())
+                .failureCode("TOOL_SCHEMA_ERROR")
+                .failureMessage(validation.getSafeMessage())
+                .schemaHash(validation.getSchemaHash())
+                .schemaViolations(validation.getViolations())
                 .build();
     }
 

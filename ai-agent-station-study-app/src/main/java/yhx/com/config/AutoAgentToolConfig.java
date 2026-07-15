@@ -19,6 +19,7 @@ import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
 import yhx.com.domain.agent.adapter.repository.IToolRepository;
 import yhx.com.domain.agent.model.valobj.enums.tool.ApprovalPolicyEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.McpTransportTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.McpToolAvailabilityEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.PermissionModeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.RequiredPermissionEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolArgumentContentModeEnumVO;
@@ -30,6 +31,7 @@ import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
 import yhx.com.domain.agent.service.tool.McpClientRegistry;
 import yhx.com.domain.agent.service.tool.McpToolRegistry;
+import yhx.com.domain.agent.service.tool.NetworkntToolArgumentSchemaValidator;
 import yhx.com.domain.agent.service.tool.PermissionEnforcer;
 import yhx.com.domain.agent.service.tool.ToolActionOrchestrator;
 import yhx.com.domain.agent.service.tool.ToolApprovalKeyGenerator;
@@ -40,6 +42,8 @@ import yhx.com.domain.agent.service.tool.ToolFailureMapper;
 import yhx.com.domain.agent.service.tool.ToolInvocationRequestBuilder;
 import yhx.com.domain.agent.service.tool.ToolReceiptCapture;
 import yhx.com.domain.agent.service.tool.ToolRuntime;
+import yhx.com.domain.agent.service.tool.ToolArgumentSchemaValidator;
+import yhx.com.domain.agent.service.tool.ToolSchemaCanonicalizer;
 import yhx.com.domain.agent.service.tool.ToolTranscriptRecorder;
 import yhx.com.domain.agent.service.tool.ToolVerifier;
 import yhx.com.domain.agent.service.tool.port.McpToolDiscoveryPort;
@@ -62,6 +66,8 @@ import java.util.Set;
 @EnableConfigurationProperties({AutoAgentCapabilityProperties.class, AutoAgentMcpProperties.class})
 @Slf4j
 public class AutoAgentToolConfig {
+
+    private final ToolSchemaCanonicalizer schemaCanonicalizer = new ToolSchemaCanonicalizer();
 
     @Bean
     public CapabilityRegistry capabilityRegistry(AutoAgentCapabilityProperties properties,
@@ -93,8 +99,8 @@ public class AutoAgentToolConfig {
                 try {
                     client = createConfiguredClient(server);
                 } catch (RuntimeException e) {
-                    log.warn("MCP client skipped, serverId={}, transport={}, reason={}",
-                            server.getServerId(), server.getTransport(), e.getMessage());
+                    log.warn("[AutoAgent][MCP_CLIENT_UNAVAILABLE] serverId={}, transport={}, reasonType={}",
+                            server.getServerId(), server.getTransport(), e.getClass().getSimpleName());
                     continue;
                 }
             }
@@ -107,7 +113,14 @@ public class AutoAgentToolConfig {
 
     @Bean
     public McpRuntimeCatalogVO autoAgentMcpRuntimeCatalog(AutoAgentMcpProperties properties,
-                                                          McpToolDiscoveryPort discoveryPort) {
+                                                          McpToolDiscoveryPort discoveryPort,
+                                                          McpClientRegistry mcpClientRegistry) {
+        return buildMcpRuntimeCatalog(properties, discoveryPort, mcpClientRegistry);
+    }
+
+    private McpRuntimeCatalogVO buildMcpRuntimeCatalog(AutoAgentMcpProperties properties,
+                                                       McpToolDiscoveryPort discoveryPort,
+                                                       McpClientRegistry mcpClientRegistry) {
         if (!properties.isEnabled()) {
             return McpRuntimeCatalogVO.builder().tools(List.of()).build();
         }
@@ -116,23 +129,52 @@ public class AutoAgentToolConfig {
             if (!server.isEnabled() || isBlank(server.getServerId())) {
                 continue;
             }
-            if (server.isAutoDiscoverTools() && discoveryPort != null) {
+            McpToolAvailabilityEnumVO serverAvailability = mcpClientRegistry != null
+                    && mcpClientRegistry.hasClient(server.getServerId())
+                    ? McpToolAvailabilityEnumVO.AVAILABLE
+                    : McpToolAvailabilityEnumVO.UNAVAILABLE;
+            String availabilityReason = serverAvailability == McpToolAvailabilityEnumVO.UNAVAILABLE
+                    ? "MCP client is unavailable."
+                    : null;
+            if (server.isAutoDiscoverTools()
+                    && serverAvailability == McpToolAvailabilityEnumVO.AVAILABLE
+                    && discoveryPort != null) {
                 try {
                     for (McpToolSpecVO discovered : discoveryPort.discover(server.getServerId())) {
-                        McpToolSpecVO tool = withServerDefaults(server, discovered);
+                        McpToolSpecVO tool = withAvailability(withServerDefaults(server, discovered),
+                                McpToolAvailabilityEnumVO.AVAILABLE, null);
                         if (tool == null || isBlank(tool.getToolName())) {
                             continue;
                         }
                         merged.put(toolKey(tool.getMcpServerCode(), tool.getToolName()), tool);
+                        log.info("[AutoAgent][MCP_TOOL_DISCOVERED] serverId={}, toolName={}, schemaHash={}, schemaSource=DISCOVERED",
+                                tool.getMcpServerCode(), tool.getToolName(), schemaCanonicalizer.schemaHash(tool.getInputSchema()));
                     }
                 } catch (RuntimeException e) {
-                    log.warn("MCP tool discovery failed, serverId={}, reason={}", server.getServerId(), e.getMessage());
+                    serverAvailability = McpToolAvailabilityEnumVO.DEGRADED;
+                    availabilityReason = "MCP tool discovery failed: " + e.getClass().getSimpleName();
+                    log.warn("[AutoAgent][MCP_TOOL_DISCOVERY_FAILED] serverId={}, reasonType={}",
+                            server.getServerId(), e.getClass().getSimpleName());
                 }
+            } else if (server.isAutoDiscoverTools()
+                    && serverAvailability == McpToolAvailabilityEnumVO.AVAILABLE
+                    && discoveryPort == null) {
+                serverAvailability = McpToolAvailabilityEnumVO.DEGRADED;
+                availabilityReason = "MCP discovery adapter is unavailable.";
             }
             for (AutoAgentMcpProperties.McpToolProperties configuredTool : server.getTools()) {
                 McpToolSpecVO configured = toMcpToolSpec(server, configuredTool);
                 String key = toolKey(configured.getMcpServerCode(), configured.getToolName());
-                merged.put(key, mergeToolSpec(merged.get(key), configured));
+                McpToolSpecVO discovered = merged.get(key);
+                McpToolSpecVO mergedTool = withServerDefaults(server, mergeToolSpec(discovered, configured));
+                if (discovered == null) {
+                    mergedTool = withAvailability(mergedTool, serverAvailability, availabilityReason);
+                }
+                merged.put(key, mergedTool);
+                log.info("[AutoAgent][MCP_TOOL_METADATA_MERGED] serverId={}, toolName={}, schemaHash={}, schemaSource={}",
+                        mergedTool.getMcpServerCode(), mergedTool.getToolName(),
+                        schemaCanonicalizer.schemaHash(mergedTool.getInputSchema()),
+                        discovered == null ? "YAML" : "MERGED");
             }
         }
         return McpRuntimeCatalogVO.builder().tools(new ArrayList<>(merged.values())).build();
@@ -207,12 +249,19 @@ public class AutoAgentToolConfig {
     }
 
     @Bean
-    @ConditionalOnBean({McpToolInvokerPort.class, ToolReceiptCapture.class, ToolFailureMapper.class, IToolRepository.class})
+    public ToolArgumentSchemaValidator toolArgumentSchemaValidator() {
+        return new NetworkntToolArgumentSchemaValidator();
+    }
+
+    @Bean
+    @ConditionalOnBean({McpToolInvokerPort.class, ToolReceiptCapture.class, ToolFailureMapper.class,
+            ToolArgumentSchemaValidator.class, IToolRepository.class})
     public ToolRuntime toolRuntime(McpToolInvokerPort mcpToolInvokerPort,
                                    ToolReceiptCapture receiptCapture,
                                    ToolFailureMapper failureMapper,
-                                   IToolRepository toolRepository) {
-        return new ToolRuntime(mcpToolInvokerPort, receiptCapture, failureMapper, toolRepository);
+                                   IToolRepository toolRepository,
+                                   ToolArgumentSchemaValidator schemaValidator) {
+        return new ToolRuntime(mcpToolInvokerPort, receiptCapture, failureMapper, toolRepository, schemaValidator);
     }
 
     @Bean
@@ -273,10 +322,11 @@ public class AutoAgentToolConfig {
                 .transportType(enumValue(server.getTransport(), McpTransportTypeEnumVO.UNKNOWN))
                 .inputSchemaRef(tool.getInputSchemaRef())
                 .inputSchema(tool.getInputSchema())
-                .requiredPermission(enumValue(tool.getRequiredPermission(), RequiredPermissionEnumVO.NONE))
+                .requiredPermission(requiredPermissionOrNull(tool.getRequiredPermission()))
                 .riskLevel(tool.getRiskLevel())
-                .destructive(tool.isDestructive())
-                .schemaLessAllowed(tool.isSchemaLessAllowed())
+                .destructive(tool.getDestructive())
+                .schemaLessAllowed(tool.getSchemaLessAllowed())
+                .availability(null)
                 .build();
     }
 
@@ -303,6 +353,9 @@ public class AutoAgentToolConfig {
             if (server == null || !server.isAutoRegisterCapabilities()) {
                 continue;
             }
+            if (tool.getAvailability() != McpToolAvailabilityEnumVO.AVAILABLE) {
+                continue;
+            }
             String toolKey = toolKey(tool.getMcpServerCode(), tool.getToolName());
             if (explicitToolKeys.contains(toolKey)) {
                 continue;
@@ -321,7 +374,7 @@ public class AutoAgentToolConfig {
                     .permissionMode(enumValue(server.getDefaultPermissionMode(), PermissionModeEnumVO.ASK_USER))
                     .approvalPolicy(enumValue(server.getDefaultApprovalPolicy(), ApprovalPolicyEnumVO.ASK_USER_BEFORE_EXECUTE))
                     .riskLevel(firstNonBlank(tool.getRiskLevel(), server.getDefaultRiskLevel(), "MEDIUM"))
-                    .destructive(Boolean.TRUE.equals(tool.getDestructive()) || server.isDefaultDestructive())
+                    .destructive(Boolean.TRUE.equals(tool.getDestructive()))
                     .defaultContentMode(enumValue(server.getDefaultContentMode(), ToolArgumentContentModeEnumVO.SUMMARY_ONLY))
                     .workspaceScope(server.getWorkspaceScope())
                     .timeoutMs(resolveToolTimeoutMs(server))
@@ -346,8 +399,10 @@ public class AutoAgentToolConfig {
                 .inputSchema(tool.getInputSchema())
                 .requiredPermission(firstNonNull(tool.getRequiredPermission(), enumValue(server.getDefaultRequiredPermission(), RequiredPermissionEnumVO.NONE)))
                 .riskLevel(firstNonBlank(tool.getRiskLevel(), server.getDefaultRiskLevel(), "MEDIUM"))
-                .destructive(Boolean.TRUE.equals(tool.getDestructive()) || server.isDefaultDestructive())
-                .schemaLessAllowed(Boolean.TRUE.equals(tool.getSchemaLessAllowed()))
+                .destructive(firstNonNull(tool.getDestructive(), server.isDefaultDestructive()))
+                .schemaLessAllowed(firstNonNull(tool.getSchemaLessAllowed(), false))
+                .availability(firstNonNull(tool.getAvailability(), McpToolAvailabilityEnumVO.AVAILABLE))
+                .availabilityReason(tool.getAvailabilityReason())
                 .build();
     }
 
@@ -366,6 +421,30 @@ public class AutoAgentToolConfig {
                 .riskLevel(firstNonBlank(override.getRiskLevel(), base.getRiskLevel()))
                 .destructive(firstNonNull(override.getDestructive(), base.getDestructive()))
                 .schemaLessAllowed(firstNonNull(override.getSchemaLessAllowed(), base.getSchemaLessAllowed()))
+                .availability(firstNonNull(override.getAvailability(), base.getAvailability()))
+                .availabilityReason(firstNonBlank(override.getAvailabilityReason(), base.getAvailabilityReason()))
+                .build();
+    }
+
+    private McpToolSpecVO withAvailability(McpToolSpecVO tool,
+                                           McpToolAvailabilityEnumVO availability,
+                                           String reason) {
+        if (tool == null) {
+            return null;
+        }
+        return McpToolSpecVO.builder()
+                .mcpServerCode(tool.getMcpServerCode())
+                .toolName(tool.getToolName())
+                .description(tool.getDescription())
+                .transportType(tool.getTransportType())
+                .inputSchemaRef(tool.getInputSchemaRef())
+                .inputSchema(tool.getInputSchema())
+                .requiredPermission(tool.getRequiredPermission())
+                .riskLevel(tool.getRiskLevel())
+                .destructive(tool.getDestructive())
+                .schemaLessAllowed(tool.getSchemaLessAllowed())
+                .availability(availability)
+                .availabilityReason(reason)
                 .build();
     }
 
@@ -395,6 +474,10 @@ public class AutoAgentToolConfig {
 
     private RequiredPermissionEnumVO enumValue(String code, RequiredPermissionEnumVO defaultValue) {
         return RequiredPermissionEnumVO.ofCode(normalize(code)).orElse(defaultValue);
+    }
+
+    private RequiredPermissionEnumVO requiredPermissionOrNull(String code) {
+        return RequiredPermissionEnumVO.ofCode(normalize(code)).orElse(null);
     }
 
     private PermissionModeEnumVO enumValue(String code, PermissionModeEnumVO defaultValue) {
@@ -531,6 +614,8 @@ public class AutoAgentToolConfig {
     private void initializeIfNeeded(AutoAgentMcpProperties.McpServerProperties server, McpSyncClient client) {
         if (server.isAutoInitialize()) {
             client.initialize();
+            log.info("[AutoAgent][MCP_SERVER_INITIALIZED] serverId={}, transport={}",
+                    server.getServerId(), server.getTransport());
         }
     }
 

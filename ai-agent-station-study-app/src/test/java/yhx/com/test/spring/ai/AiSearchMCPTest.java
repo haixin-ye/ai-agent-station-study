@@ -5,6 +5,7 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -36,7 +37,7 @@ public class AiSearchMCPTest {
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .openAiApi(OpenAiApi.builder()
                         .baseUrl("https://apis.itedus.cn")
-                        .apiKey("sk-sLvFUs1wSIgtbWcE03464f199d254cFcA3A5F2A353C8EdDe")
+                        .apiKey(requiredEnvironment("AUTO_AGENT_TEST_OPENAI_API_KEY"))
                         .completionsPath("v1/chat/completions")
                         .embeddingsPath("v1/embeddings")
                         .build())
@@ -52,7 +53,7 @@ public class AiSearchMCPTest {
 
     public McpSyncClient sseMcpClient() {
         HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://appbuilder.baidu.com/v2/ai_search/mcp/")
-                .sseEndpoint("sse?api_key=bce-v3/ALTAK-3zODLb9qHozIftQlGwez5/2696e92781f5bf1ba1870e2958f239fd6dc822a4")
+                .sseEndpoint(requiredEnvironment("AUTO_AGENT_MCP_BAIDU_SEARCH_SSE_ENDPOINT"))
                 .build();
 
         McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(360)).build();
@@ -60,6 +61,12 @@ public class AiSearchMCPTest {
         log.info("Tool SSE MCP Initialized {}", init_sse);
 
         return mcpSyncClient;
+    }
+
+    private String requiredEnvironment(String name) {
+        String value = System.getenv(name);
+        Assume.assumeTrue(name + " is required for this integration test.", value != null && !value.isBlank());
+        return value;
     }
 
 }

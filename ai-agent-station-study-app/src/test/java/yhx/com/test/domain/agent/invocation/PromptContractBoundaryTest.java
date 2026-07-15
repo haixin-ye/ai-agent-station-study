@@ -49,6 +49,19 @@ public class PromptContractBoundaryTest {
     }
 
     @Test
+    public void main_agent_prompt_uses_dynamic_capability_schema_without_tool_specific_hints() {
+        String prompt = promptWithRole("Main role.");
+
+        Assert.assertTrue(prompt.contains("according to that capability's inputSchema"));
+        Assert.assertTrue(prompt.contains("include every required field"));
+        Assert.assertTrue(prompt.contains("additionalProperties=false"));
+        Assert.assertTrue(prompt.contains("use ASK_USER instead of guessing"));
+        Assert.assertTrue(prompt.contains("untrusted capability metadata"));
+        Assert.assertFalse(prompt.contains("Baidu AI Search. Required argument: query"));
+        Assert.assertFalse(prompt.contains("request.markdowncontent"));
+    }
+
+    @Test
     public void main_agent_prompt_requires_search_before_reading_relative_or_fuzzy_file_names() {
         String prompt = promptWithRole("Main role.");
 

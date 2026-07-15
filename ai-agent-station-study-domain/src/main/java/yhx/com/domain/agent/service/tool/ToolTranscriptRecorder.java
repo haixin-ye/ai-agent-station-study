@@ -50,6 +50,8 @@ public class ToolTranscriptRecorder {
         payload.put("resultSummary", result.getResultSummary());
         payload.put("failureCode", result.getFailureCode());
         payload.put("failureMessage", result.getFailureMessage());
+        payload.put("schemaHash", result.getSchemaHash());
+        payload.put("schemaViolations", result.getSchemaViolations());
         append(runId, TranscriptBlockTypeEnumVO.TOOL_RESULT, payload);
     }
 

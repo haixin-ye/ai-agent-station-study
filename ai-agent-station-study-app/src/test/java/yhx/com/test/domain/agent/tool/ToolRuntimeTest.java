@@ -16,6 +16,8 @@ import yhx.com.domain.agent.service.tool.ToolRuntime;
 import yhx.com.domain.agent.service.tool.port.McpToolInvokerPort;
 
 import java.util.Map;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ToolRuntimeTest {
 
@@ -136,6 +138,102 @@ public class ToolRuntimeTest {
 
         Assert.assertEquals(ToolInvocationStatusEnumVO.INVALID_INTENT, result.getStatus());
         Assert.assertEquals("TOOL_SCHEMA_ERROR", result.getFailureCode());
+        Assert.assertNotNull(result.getSchemaHash());
+        Assert.assertFalse(result.getSchemaViolations().isEmpty());
+    }
+
+    @Test
+    public void valid_nested_arguments_reach_mcp_invoker() {
+        ToolTestSupport.Repository repository = repository();
+        AtomicInteger calls = new AtomicInteger();
+        ToolRuntime runtime = runtime(repository, command -> {
+            calls.incrementAndGet();
+            return McpToolInvokeResultVO.builder().called(true).success(true)
+                    .receipt(Map.of("contentText", "invoice-created")).build();
+        });
+
+        ToolInvocationResultVO result = runtime.invoke(invoiceRequest(validInvoiceArguments(), false));
+
+        Assert.assertEquals(ToolInvocationStatusEnumVO.SUCCESS, result.getStatus());
+        Assert.assertEquals(1, calls.get());
+        Assert.assertNotNull(result.getSchemaHash());
+    }
+
+    @Test
+    public void nested_schema_errors_are_rejected_before_approval_or_mcp_invocation() {
+        List<Map<String, Object>> invalidArguments = List.of(
+                Map.of("customer", Map.of("name", "Alice"),
+                        "items", List.of(Map.of("name", "Book", "quantity", 1, "price", 10)), "currency", "CNY"),
+                Map.of("customer", Map.of("name", "Alice", "taxId", "T-1"),
+                        "items", List.of(Map.of("name", "Book", "quantity", "one", "price", 10)), "currency", "CNY"),
+                Map.of("customer", Map.of("name", "Alice", "taxId", "T-1"),
+                        "items", List.of(Map.of("name", "Book", "quantity", 1, "price", 10)), "currency", "EUR"),
+                Map.of("customer", Map.of("name", "Alice", "taxId", "T-1"),
+                        "items", List.of(Map.of("name", "Book", "quantity", 1, "price", 10)), "currency", "CNY", "extra", true)
+        );
+
+        for (Map<String, Object> arguments : invalidArguments) {
+            ToolTestSupport.Repository repository = repository();
+            AtomicInteger calls = new AtomicInteger();
+            ToolRuntime runtime = runtime(repository, command -> {
+                calls.incrementAndGet();
+                return McpToolInvokeResultVO.builder().called(true).success(true).build();
+            });
+
+            ToolInvocationResultVO result = runtime.invoke(invoiceRequest(arguments, true));
+
+            Assert.assertEquals(ToolInvocationStatusEnumVO.INVALID_INTENT, result.getStatus());
+            Assert.assertEquals("TOOL_SCHEMA_ERROR", result.getFailureCode());
+            Assert.assertEquals(0, calls.get());
+            Assert.assertNotNull(result.getSchemaHash());
+            Assert.assertFalse(result.getSchemaViolations().isEmpty());
+            Assert.assertTrue(result.getFailureMessage().contains("schemaHash="));
+        }
+    }
+
+    @Test
+    public void schema_validation_diagnostics_do_not_expose_argument_values() {
+        ToolTestSupport.Repository repository = repository();
+        ToolRuntime runtime = runtime(repository, command -> {
+            throw new AssertionError("Invalid arguments must not reach MCP invocation.");
+        });
+        String sensitiveValue = "customer-secret-token-9274";
+        Map<String, Object> arguments = validInvoiceArguments();
+        arguments = new java.util.LinkedHashMap<>(arguments);
+        arguments.put("currency", sensitiveValue);
+
+        ToolInvocationResultVO result = runtime.invoke(invoiceRequest(arguments, false));
+
+        Assert.assertEquals(ToolInvocationStatusEnumVO.INVALID_INTENT, result.getStatus());
+        Assert.assertFalse(result.getFailureMessage().contains(sensitiveValue));
+        Assert.assertFalse(result.getSchemaViolations().toString().contains(sensitiveValue));
+        Assert.assertTrue(result.getSchemaViolations().get(0).getMessage().startsWith("Schema validation failed"));
+    }
+
+    @Test
+    public void schema_validation_identifies_missing_and_additional_property_paths() {
+        ToolTestSupport.Repository missingRepository = repository();
+        ToolInvocationResultVO missing = runtime(missingRepository, command -> {
+            throw new AssertionError("Invalid arguments must not reach MCP invocation.");
+        }).invoke(invoiceRequest(Map.of(
+                "customer", Map.of("name", "Alice"),
+                "items", List.of(Map.of("name", "Book", "quantity", 1, "price", 10)),
+                "currency", "CNY"), false));
+
+        Assert.assertTrue(missing.getSchemaViolations().stream()
+                .anyMatch(item -> item.getPath().contains("taxId") && "MISSING".equals(item.getActualType())));
+
+        ToolTestSupport.Repository extraRepository = repository();
+        ToolInvocationResultVO extra = runtime(extraRepository, command -> {
+            throw new AssertionError("Invalid arguments must not reach MCP invocation.");
+        }).invoke(invoiceRequest(Map.of(
+                "customer", Map.of("name", "Alice", "taxId", "T-1"),
+                "items", List.of(Map.of("name", "Book", "quantity", 1, "price", 10)),
+                "currency", "CNY",
+                "unexpectedField", true), false));
+
+        Assert.assertTrue(extra.getSchemaViolations().stream()
+                .anyMatch(item -> item.getPath().contains("unexpectedField")));
     }
 
     @Test
@@ -170,6 +268,55 @@ public class ToolRuntimeTest {
                 .approvalRequired(approvalRequired)
                 .approvalId(approvalId)
                 .build();
+    }
+
+    private ToolInvocationRequestVO invoiceRequest(Map<String, Object> arguments, boolean approvalRequired) {
+        return ToolInvocationRequestVO.builder()
+                .runId("run-001")
+                .toolCallId("tool-call-001")
+                .toolInvocationId("tool-invocation-001")
+                .mcpTool(McpToolSpecVO.builder()
+                        .mcpServerCode("invoice-server")
+                        .toolName("generate_invoice")
+                        .inputSchema(invoiceSchema())
+                        .build())
+                .arguments(arguments)
+                .argumentsRef("payload-args")
+                .approvalRequired(approvalRequired)
+                .build();
+    }
+
+    private Map<String, Object> validInvoiceArguments() {
+        return Map.of(
+                "customer", Map.of("name", "Alice", "taxId", "T-1"),
+                "items", List.of(Map.of("name", "Book", "quantity", 1, "price", 10)),
+                "currency", "CNY");
+    }
+
+    private Map<String, Object> invoiceSchema() {
+        return Map.of(
+                "type", "object",
+                "additionalProperties", false,
+                "properties", Map.of(
+                        "customer", Map.of(
+                                "type", "object",
+                                "additionalProperties", false,
+                                "properties", Map.of(
+                                        "name", Map.of("type", "string"),
+                                        "taxId", Map.of("type", "string")),
+                                "required", List.of("name", "taxId")),
+                        "items", Map.of(
+                                "type", "array",
+                                "items", Map.of(
+                                        "type", "object",
+                                        "additionalProperties", false,
+                                        "properties", Map.of(
+                                                "name", Map.of("type", "string"),
+                                                "quantity", Map.of("type", "number"),
+                                                "price", Map.of("type", "number")),
+                                        "required", List.of("name", "quantity", "price"))),
+                        "currency", Map.of("type", "string", "enum", List.of("CNY", "USD"))),
+                "required", List.of("customer", "items", "currency"));
     }
 
     private ToolTestSupport.Repository repository() {

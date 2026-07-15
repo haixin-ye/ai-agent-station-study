@@ -1,6 +1,7 @@
 package yhx.com.domain.agent.service.context;
 
 import yhx.com.domain.agent.model.valobj.context.ArtifactChunkVO;
+import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedArtifactContentVO;
 import yhx.com.domain.agent.model.valobj.context.TokenBudgetVO;
@@ -51,6 +52,16 @@ public class ContextBudgetManager {
             stateView.setArtifactContent(shrunk);
         }
         evaluate(stateView, budget);
+        if (Boolean.TRUE.equals(budget.getOverBudget())
+                && stateView.getAvailableCapabilities() != null
+                && !stateView.getAvailableCapabilities().isEmpty()) {
+            List<CapabilityCandidateVO> retained = new ArrayList<>(stateView.getAvailableCapabilities());
+            while (Boolean.TRUE.equals(budget.getOverBudget()) && !retained.isEmpty()) {
+                retained.remove(retained.size() - 1);
+                stateView.setAvailableCapabilities(List.copyOf(retained));
+                evaluate(stateView, budget);
+            }
+        }
         return stateView;
     }
 }
