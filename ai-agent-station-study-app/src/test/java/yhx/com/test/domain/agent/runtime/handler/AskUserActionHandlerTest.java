@@ -1,15 +1,10 @@
 package yhx.com.test.domain.agent.runtime.handler;
 
-import com.alibaba.fastjson.JSON;
 import org.junit.Assert;
 import org.junit.Test;
-import yhx.com.domain.agent.model.entity.persistence.AgentPendingInputEntity;
-import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
-import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
-import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.test.domain.agent.runtime.handler.support.ActionHandlerTestSupport;
 
@@ -19,14 +14,15 @@ import java.util.Map;
 public class AskUserActionHandlerTest {
 
     @Test
-    public void ask_user_routes_through_user_interaction_manager() {
+    public void ask_user_returns_pause_intent_for_runtime_coordination() {
         ActionHandlerTestSupport.FullRepository repository = new ActionHandlerTestSupport.FullRepository();
         MainActionDispatcher dispatcher = dispatcher(repository);
 
         MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(), askAction(true));
 
         Assert.assertEquals(MainActionHandlerStatusEnumVO.WAITING_USER, result.getStatus());
-        Assert.assertEquals(1, repository.pendingInputs.size());
+        Assert.assertNotNull(result.getAskUserRequest());
+        Assert.assertTrue(repository.pendingInputs.isEmpty());
     }
 
     @Test
@@ -36,7 +32,8 @@ public class AskUserActionHandlerTest {
 
         MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(), askAction(true));
 
-        Assert.assertEquals(repository.pendingInputs.keySet().iterator().next(), result.getPendingInputId());
+        Assert.assertNull(result.getPendingInputId());
+        Assert.assertTrue(repository.pendingInputs.isEmpty());
     }
 
     @Test
@@ -68,26 +65,18 @@ public class AskUserActionHandlerTest {
         MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(), vagueChoiceOrFreeTextAskAction());
 
         Assert.assertEquals(MainActionHandlerStatusEnumVO.WAITING_USER, result.getStatus());
-        Assert.assertEquals("FREE_TEXT", repository.pendingInputs.values().iterator().next().getInputMode());
+        Assert.assertEquals("FREE_TEXT", result.getAskUserRequest().getInputMode());
+        Assert.assertTrue(repository.pendingInputs.isEmpty());
     }
 
     @Test
-    public void ask_user_checkpoint_preserves_selected_context_for_resume() {
+    public void ask_user_handler_does_not_capture_runtime_state_before_working_state_apply() {
         ActionHandlerTestSupport.FullRepository repository = new ActionHandlerTestSupport.FullRepository();
         MainActionDispatcher dispatcher = dispatcher(repository);
-        RuntimeExecutionContext context = ActionHandlerTestSupport.context();
-        context.setLastContextSelections(List.of(ContextSelectionVO.builder()
-                .sourceType("MEMORY")
-                .sourceId("memory-1")
-                .build()));
+        MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(), askAction(true));
 
-        dispatcher.dispatch(context, askAction(true));
-
-        AgentPendingInputEntity pending = repository.pendingInputs.values().iterator().next();
-        ContinuationCheckpointVO checkpoint = JSON.parseObject(repository.payloads.get(pending.getContinuationRef()).getContent(),
-                ContinuationCheckpointVO.class);
-        Assert.assertNotNull(checkpoint.getPayload());
-        Assert.assertTrue(JSON.toJSONString(checkpoint.getPayload().get("contextSelections")).contains("memory-1"));
+        Assert.assertEquals(MainActionHandlerStatusEnumVO.WAITING_USER, result.getStatus());
+        Assert.assertTrue(repository.pendingInputs.isEmpty());
     }
 
     private MainActionDispatcher dispatcher(ActionHandlerTestSupport.FullRepository repository) {

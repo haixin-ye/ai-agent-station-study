@@ -1,6 +1,7 @@
 package yhx.com.domain.agent.service.interaction;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IPendingInputRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
@@ -80,16 +81,16 @@ public class PendingInputManager {
         return pendingInputRepository.findByPendingId(pendingId);
     }
 
-    public void markAnswered(String pendingId, String userAnswerRef) {
-        pendingInputRepository.markAnswered(pendingId, userAnswerRef);
+    public boolean markAnswered(String pendingId, String runId, String userAnswerRef) {
+        return pendingInputRepository.markAnswered(pendingId, runId, userAnswerRef) == 1;
     }
 
-    public void markCancelled(String pendingId) {
-        pendingInputRepository.markCancelled(pendingId);
+    public boolean markCancelled(String pendingId, String runId) {
+        return pendingInputRepository.markCancelled(pendingId, runId) == 1;
     }
 
-    public void markExpired(String pendingId) {
-        pendingInputRepository.markExpired(pendingId);
+    public boolean markExpired(String pendingId, String runId) {
+        return pendingInputRepository.markExpired(pendingId, runId) == 1;
     }
 
     private String savePayload(Object value) {
@@ -98,7 +99,7 @@ public class PendingInputManager {
         }
         return payloadRepository.savePayload(AgentPayloadEntity.builder()
                 .payloadType(PayloadTypeEnumVO.JSON)
-                .content(JSON.toJSONString(value))
+                .content(JSON.toJSONString(value, SerializerFeature.DisableCircularReferenceDetect))
                 .preview("pending-input")
                 .createdAt(LocalDateTime.now())
                 .build());

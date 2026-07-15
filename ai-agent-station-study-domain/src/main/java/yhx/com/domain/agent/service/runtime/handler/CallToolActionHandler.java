@@ -57,6 +57,7 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
                     .toolName(toolName)
                     .goal(goal)
                     .rawToolIntent(intent)
+                    .runtimeContext(context)
                     .build());
             if (result == null || result.getStatus() == null) {
                 return safeFailure(context, RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,

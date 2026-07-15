@@ -146,7 +146,7 @@ public class RuntimeTestSupport {
         public final List<AgentRunTranscriptEntity> transcriptBlocks = new ArrayList<>();
 
         @Override
-        public String savePayload(AgentPayloadEntity payload) {
+        public synchronized String savePayload(AgentPayloadEntity payload) {
             String payloadId = payload.getPayloadId() == null ? "payload-" + UUID.randomUUID() : payload.getPayloadId();
             payload.setPayloadId(payloadId);
             payloads.put(payloadId, payload);
@@ -231,10 +231,15 @@ public class RuntimeTestSupport {
         }
 
         @Override
-        public void markAnswered(String pendingId, String userAnswerRef) {
+        public synchronized int markAnswered(String pendingId, String runId, String userAnswerRef) {
             AgentPendingInputEntity pendingInput = pendingInputs.get(pendingId);
+            if (!canConsume(pendingInput, runId)) {
+                return 0;
+            }
             pendingInput.setStatus("ANSWERED");
             pendingInput.setUserAnswerRef(userAnswerRef);
+            pendingInput.setAnsweredAt(java.time.LocalDateTime.now());
+            return 1;
         }
 
         @Override
@@ -251,13 +256,36 @@ public class RuntimeTestSupport {
         }
 
         @Override
-        public void markCancelled(String pendingId) {
-            pendingInputs.get(pendingId).setStatus("CANCELLED");
+        public synchronized int markCancelled(String pendingId, String runId) {
+            AgentPendingInputEntity pendingInput = pendingInputs.get(pendingId);
+            if (!canConsume(pendingInput, runId)) {
+                return 0;
+            }
+            pendingInput.setStatus("CANCELLED");
+            pendingInput.setAnsweredAt(java.time.LocalDateTime.now());
+            return 1;
         }
 
         @Override
-        public void markExpired(String pendingId) {
-            pendingInputs.get(pendingId).setStatus("EXPIRED");
+        public synchronized int markExpired(String pendingId, String runId) {
+            AgentPendingInputEntity pendingInput = pendingInputs.get(pendingId);
+            if (pendingInput == null || !runId.equals(pendingInput.getRunId())
+                    || !"PENDING".equals(pendingInput.getStatus())
+                    || pendingInput.getExpiresAt() == null
+                    || pendingInput.getExpiresAt().isAfter(java.time.LocalDateTime.now())) {
+                return 0;
+            }
+            pendingInput.setStatus("EXPIRED");
+            return 1;
+        }
+
+        private boolean canConsume(AgentPendingInputEntity pendingInput, String runId) {
+            return pendingInput != null
+                    && runId != null
+                    && runId.equals(pendingInput.getRunId())
+                    && "PENDING".equals(pendingInput.getStatus())
+                    && (pendingInput.getExpiresAt() == null
+                    || pendingInput.getExpiresAt().isAfter(java.time.LocalDateTime.now()));
         }
 
         @Override

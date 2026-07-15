@@ -1,12 +1,16 @@
 package yhx.com.domain.agent.service.interaction;
 
 import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.adapter.repository.IPendingInputConsumptionRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPendingInputEntity;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.UserAnswerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputResolutionStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeFailureCodeEnumVO;
@@ -15,10 +19,12 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
 import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateCommand;
 import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateResult;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputConsumptionResultVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserInputResolveCommand;
 import yhx.com.domain.agent.model.valobj.interaction.UserInputResolveResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeContinuationRestoreResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeSafeFailureVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
@@ -26,9 +32,8 @@ import yhx.com.domain.agent.service.runtime.RunTranscriptRecorder;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
+@Slf4j
 public class UserInteractionManager {
 
     private final PendingInputManager pendingInputManager;
@@ -38,7 +43,11 @@ public class UserInteractionManager {
     private final RunEventPublisher eventPublisher;
     private final RunTranscriptRecorder transcriptRecorder;
     private final RuntimeFailureFactory failureFactory;
+    private final RuntimeContinuationSnapshotService continuationSnapshotService;
+    private final PendingInputPauseCoordinator pauseCoordinator;
+    private final IPendingInputConsumptionRepository consumptionRepository;
     private final AskUserRequestPolicy askUserRequestPolicy = new AskUserRequestPolicy();
+    private final RuntimeUserClarificationRecorder clarificationRecorder = new RuntimeUserClarificationRecorder();
 
     public UserInteractionManager(PendingInputManager pendingInputManager,
                                   UserReplyProcessor userReplyProcessor,
@@ -47,6 +56,28 @@ public class UserInteractionManager {
                                   RunEventPublisher eventPublisher,
                                   RunTranscriptRecorder transcriptRecorder,
                                   RuntimeFailureFactory failureFactory) {
+        this(pendingInputManager,
+                userReplyProcessor,
+                continuationDispatcher,
+                payloadRepository,
+                eventPublisher,
+                transcriptRecorder,
+                failureFactory,
+                new RuntimeContinuationSnapshotService(),
+                null,
+                null);
+    }
+
+    public UserInteractionManager(PendingInputManager pendingInputManager,
+                                  UserReplyProcessor userReplyProcessor,
+                                  PendingInputContinuationDispatcher continuationDispatcher,
+                                  IPayloadRepository payloadRepository,
+                                  RunEventPublisher eventPublisher,
+                                  RunTranscriptRecorder transcriptRecorder,
+                                  RuntimeFailureFactory failureFactory,
+                                  RuntimeContinuationSnapshotService continuationSnapshotService,
+                                  PendingInputPauseCoordinator pauseCoordinator,
+                                  IPendingInputConsumptionRepository consumptionRepository) {
         this.pendingInputManager = pendingInputManager;
         this.userReplyProcessor = userReplyProcessor;
         this.continuationDispatcher = continuationDispatcher;
@@ -54,6 +85,13 @@ public class UserInteractionManager {
         this.eventPublisher = eventPublisher;
         this.transcriptRecorder = transcriptRecorder;
         this.failureFactory = failureFactory;
+        this.continuationSnapshotService = continuationSnapshotService == null
+                ? new RuntimeContinuationSnapshotService()
+                : continuationSnapshotService;
+        this.pauseCoordinator = pauseCoordinator == null
+                ? new PendingInputPauseCoordinator(pendingInputManager, null, eventPublisher, this.continuationSnapshotService)
+                : pauseCoordinator;
+        this.consumptionRepository = consumptionRepository;
     }
 
     public PendingInputCreateResult createPendingInput(PendingInputCreateCommand command) {
@@ -64,13 +102,7 @@ public class UserInteractionManager {
                     .failureMessage(validation)
                     .build();
         }
-        String pendingId = pendingInputManager.create(command);
-        eventPublisher.askingUser(command.getRunId(), pendingId, command.getAskUserRequest());
-        return PendingInputCreateResult.builder()
-                .pendingInputId(pendingId)
-                .runId(command.getRunId())
-                .created(true)
-                .build();
+        return pauseCoordinator.pause(command);
     }
 
     public UserInputResolveResult resolveUserInput(UserInputResolveCommand command) {
@@ -84,8 +116,21 @@ public class UserInteractionManager {
     public UserInputResolveResult resolveUserInput(UserInputResolveCommand command, RuntimeExecutionContext context) {
         AgentPendingInputEntity pendingInput = findPendingInput(command);
         if (pendingInput == null) {
-            RuntimeSafeFailureVO failure = failureFactory.missingPendingInput(command == null ? null : command.getRunId());
-            return failed(command, failure);
+            return unresolved(command, null, PendingInputResolutionStatusEnumVO.NOT_FOUND,
+                    "Pending input was not found.");
+        }
+        if (command == null || command.getRunId() == null || !command.getRunId().equals(pendingInput.getRunId())) {
+            return unresolved(command, pendingInput, PendingInputResolutionStatusEnumVO.RUN_MISMATCH,
+                    "Pending input belongs to another Run.");
+        }
+        if (!PendingInputStatusEnumVO.PENDING.code().equals(pendingInput.getStatus())) {
+            return unresolved(command, pendingInput, PendingInputResolutionStatusEnumVO.ALREADY_RESOLVED,
+                    "Pending input was already resolved.");
+        }
+        if (pendingInput.getExpiresAt() != null && !pendingInput.getExpiresAt().isAfter(LocalDateTime.now())) {
+            pendingInputManager.markExpired(pendingInput.getPendingId(), pendingInput.getRunId());
+            return unresolved(command, pendingInput, PendingInputResolutionStatusEnumVO.EXPIRED,
+                    "Pending input has expired.");
         }
         UserAnswerVO answer = userReplyProcessor.process(pendingInput, command);
         if (answer.getStatus() == UserAnswerStatusEnumVO.FAILED) {
@@ -93,26 +138,40 @@ public class UserInteractionManager {
                     .pendingInputId(pendingInput.getPendingId())
                     .userAnswer(answer)
                     .resolved(false)
+                    .resolutionStatus(PendingInputResolutionStatusEnumVO.INVALID_ANSWER)
                     .failureMessage(answer.getFailureMessage())
                     .continuationResult(RuntimeStepResult.builder()
                             .runId(pendingInput.getRunId())
                             .status(RuntimeStepStatusEnumVO.FAILED)
-                            .nextRunStatus(RunStatusEnumVO.FAILED)
-                            .nextPhase(RuntimePhaseEnumVO.FAILED)
+                            .nextRunStatus(null)
+                            .nextPhase(RuntimePhaseEnumVO.RESOLVING_USER_ANSWER)
                             .safeFailure(failureFactory.invalidPendingAnswer(answer.getFailureMessage()))
                             .message(answer.getFailureMessage())
                             .build())
                     .build();
         }
-        if (answer.getStatus() == UserAnswerStatusEnumVO.CANCELLED) {
-            pendingInputManager.markCancelled(pendingInput.getPendingId());
-        } else {
-            String answerRef = savePayload(answer);
-            pendingInputManager.markAnswered(pendingInput.getPendingId(), answerRef);
+        ContinuationCheckpointVO checkpoint = loadContinuation(pendingInput.getContinuationRef());
+        RuntimeContinuationRestoreResultVO restoreResult = continuationSnapshotService.restore(checkpoint, context);
+        if (!restoreResult.isRestored()) {
+            pendingInputManager.markCancelled(pendingInput.getPendingId(), pendingInput.getRunId());
+            return unresolved(command, pendingInput, PendingInputResolutionStatusEnumVO.CHECKPOINT_INVALID,
+                    restoreResult.getMessage());
+        }
+        PendingInputConsumptionResultVO consumption = consume(pendingInput, answer);
+        if (!consumption.isConsumed()) {
+            log.info("[AutoAgent][pending-answer-ignored] runId={}, pendingId={}, reason=ALREADY_RESOLVED",
+                    pendingInput.getRunId(), pendingInput.getPendingId());
+            return unresolved(command, pendingInput, PendingInputResolutionStatusEnumVO.ALREADY_RESOLVED,
+                    "Pending input was resolved by another request.");
+        }
+        log.info("[AutoAgent][pending-answer-accepted] runId={}, pendingId={}, answerStatus={}, loopIndex={}",
+                pendingInput.getRunId(), pendingInput.getPendingId(), answer.getStatus(),
+                context == null ? null : context.getLoopIndex());
+        String answerRef = consumption.getUserAnswerRef();
+        if (answer.getStatus() != UserAnswerStatusEnumVO.CANCELLED) {
             appendUserClarification(context, pendingInput, answer);
             transcriptRecorder.appendUserReply(pendingInput.getRunId(), context == null ? null : context.getLoopIndex(), answer, answerRef);
         }
-        ContinuationCheckpointVO checkpoint = loadContinuation(pendingInput.getContinuationRef());
         if (context != null && context.getRuntimeFacts() != null && checkpoint != null) {
             context.getRuntimeFacts().put("continuationCheckpoint", checkpoint);
         }
@@ -121,6 +180,7 @@ public class UserInteractionManager {
                 .pendingInputId(pendingInput.getPendingId())
                 .userAnswer(answer)
                 .resolved(continuationResult.getStatus() != RuntimeStepStatusEnumVO.FAILED)
+                .resolutionStatus(PendingInputResolutionStatusEnumVO.RESOLVED)
                 .continuationResult(continuationResult)
                 .failureMessage(continuationResult.getMessage())
                 .build();
@@ -164,20 +224,11 @@ public class UserInteractionManager {
                 .orElse(null);
     }
 
-    @SuppressWarnings("unchecked")
     private void appendUserClarification(RuntimeExecutionContext context, AgentPendingInputEntity pendingInput, UserAnswerVO answer) {
         if (context == null || context.getRuntimeFacts() == null || pendingInput == null || answer == null) {
             return;
         }
-        Object existing = context.getRuntimeFacts().get("userClarifications");
-        List<UserClarificationVO> clarifications;
-        if (existing instanceof List<?> list) {
-            clarifications = (List<UserClarificationVO>) list;
-        } else {
-            clarifications = new ArrayList<>();
-            context.getRuntimeFacts().put("userClarifications", clarifications);
-        }
-        clarifications.add(UserClarificationVO.builder()
+        clarificationRecorder.append(context, UserClarificationVO.builder()
                 .sourceComponent(pendingInput.getSourceComponent())
                 .pendingId(pendingInput.getPendingId())
                 .question(pendingInput.getQuestion())
@@ -189,10 +240,13 @@ public class UserInteractionManager {
                 .build());
     }
 
-    private UserInputResolveResult failed(UserInputResolveCommand command, RuntimeSafeFailureVO failure) {
+    private UserInputResolveResult failed(UserInputResolveCommand command,
+                                          RuntimeSafeFailureVO failure,
+                                          PendingInputResolutionStatusEnumVO resolutionStatus) {
         return UserInputResolveResult.builder()
                 .pendingInputId(command == null ? null : command.getPendingId())
                 .resolved(false)
+                .resolutionStatus(resolutionStatus)
                 .continuationResult(RuntimeStepResult.builder()
                         .runId(command == null ? null : command.getRunId())
                         .status(RuntimeStepStatusEnumVO.FAILED)
@@ -202,6 +256,50 @@ public class UserInteractionManager {
                         .message(failure.getDeveloperMessage())
                         .build())
                 .failureMessage(failure.getDeveloperMessage())
+                .build();
+    }
+
+    private PendingInputConsumptionResultVO consume(AgentPendingInputEntity pendingInput, UserAnswerVO answer) {
+        boolean cancelled = answer.getStatus() == UserAnswerStatusEnumVO.CANCELLED;
+        if (consumptionRepository != null) {
+            try {
+                return consumptionRepository.consume(pendingInput.getPendingId(), pendingInput.getRunId(), answer, cancelled);
+            } catch (PendingInputConsumptionConflictException ignored) {
+                return PendingInputConsumptionResultVO.builder().consumed(false).build();
+            }
+        }
+        String answerRef = cancelled ? null : savePayload(answer);
+        boolean consumed = cancelled
+                ? pendingInputManager.markCancelled(pendingInput.getPendingId(), pendingInput.getRunId())
+                : pendingInputManager.markAnswered(pendingInput.getPendingId(), pendingInput.getRunId(), answerRef);
+        return PendingInputConsumptionResultVO.builder()
+                .consumed(consumed)
+                .userAnswerRef(consumed ? answerRef : null)
+                .build();
+    }
+
+    private UserInputResolveResult unresolved(UserInputResolveCommand command,
+                                              AgentPendingInputEntity pendingInput,
+                                              PendingInputResolutionStatusEnumVO status,
+                                              String message) {
+        RuntimeSafeFailureVO failure = failureFactory.invalidPendingAnswer(message);
+        boolean terminal = status == PendingInputResolutionStatusEnumVO.EXPIRED
+                || status == PendingInputResolutionStatusEnumVO.CHECKPOINT_INVALID;
+        return UserInputResolveResult.builder()
+                .pendingInputId(pendingInput == null
+                        ? (command == null ? null : command.getPendingId())
+                        : pendingInput.getPendingId())
+                .resolved(false)
+                .resolutionStatus(status)
+                .continuationResult(RuntimeStepResult.builder()
+                        .runId(command == null ? null : command.getRunId())
+                        .status(RuntimeStepStatusEnumVO.FAILED)
+                        .nextRunStatus(terminal ? RunStatusEnumVO.FAILED : null)
+                        .nextPhase(terminal ? RuntimePhaseEnumVO.FAILED : RuntimePhaseEnumVO.RESOLVING_USER_ANSWER)
+                        .safeFailure(failure)
+                        .message(message)
+                        .build())
+                .failureMessage(message)
                 .build();
     }
 }

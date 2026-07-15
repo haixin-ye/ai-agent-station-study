@@ -8,13 +8,13 @@ public interface IPendingInputRepository {
 
     String createPendingInput(AgentPendingInputEntity pendingInput);
 
-    void markAnswered(String pendingId, String userAnswerRef);
+    int markAnswered(String pendingId, String runId, String userAnswerRef);
 
     Optional<AgentPendingInputEntity> findActivePendingInput(String runId);
 
     Optional<AgentPendingInputEntity> findByPendingId(String pendingId);
 
-    void markCancelled(String pendingId);
+    int markCancelled(String pendingId, String runId);
 
-    void markExpired(String pendingId);
+    int markExpired(String pendingId, String runId);
 }

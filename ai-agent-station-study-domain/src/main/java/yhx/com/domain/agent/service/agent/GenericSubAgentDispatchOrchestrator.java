@@ -316,6 +316,7 @@ public class GenericSubAgentDispatchOrchestrator {
                 .initialContext(task.getParentContext())
                 .sessionId(parentContext == null ? null : parentContext.getSessionId())
                 .userId(parentContext == null ? null : parentContext.getUserId())
+                .parentRuntimeContext(parentContext)
                 .build();
     }
 

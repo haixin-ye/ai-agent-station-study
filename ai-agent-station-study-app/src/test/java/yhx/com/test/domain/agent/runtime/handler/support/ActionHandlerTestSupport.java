@@ -134,7 +134,7 @@ public class ActionHandlerTestSupport {
                                                     UserInteractionManager interactionManager) {
         return List.of(
                 new FinalActionHandler(finalPort, failureFactory, traceRecorder),
-                new AskUserActionHandler(interactionManager, failureFactory, traceRecorder),
+                new AskUserActionHandler(failureFactory, traceRecorder),
                 new RetrieveRagActionHandler(repository, ragPort, eventPublisher, failureFactory, traceRecorder),
                 new CallToolActionHandler(toolPort, failureFactory, traceRecorder),
                 new PlanActionHandler(planPort, failureFactory, traceRecorder),

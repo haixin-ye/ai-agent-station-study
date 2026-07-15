@@ -52,18 +52,28 @@
         UPDATE agent_pending_input
         SET status = 'ANSWERED', user_answer_ref = #{userAnswerRef}, answered_at = NOW()
         WHERE pending_id = #{pendingId}
+          AND run_id = #{runId}
+          AND status = 'PENDING'
+          AND (expires_at IS NULL OR expires_at &gt; NOW())
     </update>
 
-    <update id="markCancelled" parameterType="java.lang.String">
+    <update id="markCancelled">
         UPDATE agent_pending_input
         SET status = 'CANCELLED', answered_at = NOW()
         WHERE pending_id = #{pendingId}
+          AND run_id = #{runId}
+          AND status = 'PENDING'
+          AND (expires_at IS NULL OR expires_at &gt; NOW())
     </update>
 
-    <update id="markExpired" parameterType="java.lang.String">
+    <update id="markExpired">
         UPDATE agent_pending_input
         SET status = 'EXPIRED'
         WHERE pending_id = #{pendingId}
+          AND run_id = #{runId}
+          AND status = 'PENDING'
+          AND expires_at IS NOT NULL
+          AND expires_at &lt;= NOW()
     </update>
 
 </mapper>

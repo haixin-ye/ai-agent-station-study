@@ -2,18 +2,14 @@ package yhx.com.domain.agent.service.runtime.handler;
 
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
-import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
-import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
-import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateCommand;
-import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateResult;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
-import yhx.com.domain.agent.service.interaction.UserInteractionManager;
+import yhx.com.domain.agent.service.interaction.AskUserRequestPolicy;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.MainActionHandler;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
@@ -22,13 +18,11 @@ import java.util.Map;
 
 public class AskUserActionHandler extends MainActionHandlerSupport implements MainActionHandler {
 
-    private final UserInteractionManager userInteractionManager;
+    private final AskUserRequestPolicy askUserRequestPolicy = new AskUserRequestPolicy();
 
-    public AskUserActionHandler(UserInteractionManager userInteractionManager,
-                                RuntimeFailureFactory failureFactory,
+    public AskUserActionHandler(RuntimeFailureFactory failureFactory,
                                 DeveloperTraceRecorder traceRecorder) {
         super(failureFactory, traceRecorder);
-        this.userInteractionManager = userInteractionManager;
     }
 
     @Override
@@ -48,29 +42,10 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
                         .message("User already answered this clarification. Continue with userClarifications.")
                         .build();
             }
-            PendingInputCreateResult pending = userInteractionManager.createPendingInput(PendingInputCreateCommand.builder()
-                    .runId(context.getRunId())
-                    .sessionId(context.getSessionId())
-                    .sourceComponent(MainAgentPendingInputHandler.HANDLER_CODE)
-                    .pendingType(PendingInputTypeEnumVO.MAIN_AGENT_QUESTION.code())
-                    .askUserRequest(request)
-                    .continuation(ContinuationCheckpointVO.builder()
-                            .handler(MainAgentPendingInputHandler.HANDLER_CODE)
-                            .resumePhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
-                            .sourceComponent(MainAgentPendingInputHandler.HANDLER_CODE)
-                            .relatedRunId(context.getRunId())
-                            .relatedLoopIndex(context.getLoopIndex())
-                            .payload(checkpointPayload(context))
-                            .build())
-                    .build());
-            if (!Boolean.TRUE.equals(pending.getCreated())) {
-                return validationFailure(context, pending.getFailureMessage());
-            }
             return MainActionHandlerResult.builder()
                     .status(MainActionHandlerStatusEnumVO.WAITING_USER)
                     .nextPhase(RuntimePhaseEnumVO.WAITING_USER)
                     .askUserRequest(request)
-                    .pendingInputId(pending.getPendingInputId())
                     .message("MainAgent requested user input.")
                     .build();
         } catch (IllegalArgumentException e) {
@@ -79,16 +54,10 @@ public class AskUserActionHandler extends MainActionHandlerSupport implements Ma
     }
 
     private void validateAskUserRequest(AskUserRequestVO request) {
-        if (request == null || isBlank(request.getQuestion()) || isBlank(request.getInputMode())) {
-            throw new IllegalArgumentException("askUserRequest.question and inputMode are required.");
+        String failure = askUserRequestPolicy.normalizeAndValidate(request);
+        if (failure != null) {
+            throw new IllegalArgumentException(failure);
         }
-    }
-
-    private Map<String, Object> checkpointPayload(RuntimeExecutionContext context) {
-        if (context == null || context.getLastContextSelections() == null || context.getLastContextSelections().isEmpty()) {
-            return Map.of();
-        }
-        return Map.of("contextSelections", context.getLastContextSelections());
     }
 
     private boolean alreadyAnswered(RuntimeExecutionContext context, AskUserRequestVO request) {

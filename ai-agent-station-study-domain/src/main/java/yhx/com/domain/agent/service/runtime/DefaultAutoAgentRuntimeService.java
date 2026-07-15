@@ -331,6 +331,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .build());
         transcriptRecorder.appendUserMessage(runId, sessionId, messageId, userPayloadRef);
         eventPublisher.received(runId, "User message received.");
+
         runRepository.updateRunStatus(runId, RunStatusEnumVO.RUNNING, null);
 
         RuntimeExecutionContext context = RuntimeExecutionContext.builder()
@@ -383,6 +384,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                     "Run record is missing during USER_ASK resume: " + resolveCommand.getRunId() + ".", true);
             return failure(resolveCommand.getRunId(), null, failure);
         }
+        if (run.getStatus() != RunStatusEnumVO.WAITING_USER) {
+            return alreadyResolvedResumeResult(run);
+        }
         AgentMessageEntity userMessage = findRunUserMessage(run.getSessionId(), run.getRunId());
         RuntimeExecutionContext context = RuntimeExecutionContext.builder()
                 .runId(resolveCommand.getRunId())
@@ -402,6 +406,11 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, transitionFailure);
         }
         UserInputResolveResult resolveResult = userInteractionManager.resolveUserInput(resolveCommand, context);
+        if (resolveResult.getResolutionStatus()
+                == yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputResolutionStatusEnumVO.ALREADY_RESOLVED) {
+            AgentRunEntity latestRun = runRepository.findRun(resolveCommand.getRunId()).orElse(run);
+            return alreadyResolvedResumeResult(latestRun);
+        }
         RuntimeStepResult continuation = resolveResult.getContinuationResult();
         if (continuation == null) {
             return failRun(context, failureFactory.missingPendingInput(resolveCommand.getRunId()));
@@ -470,6 +479,23 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, transitionFailure);
         }
         return runLoop(context);
+    }
+
+    private RuntimeStepResult alreadyResolvedResumeResult(AgentRunEntity run) {
+        RuntimeStepStatusEnumVO status = switch (run.getStatus()) {
+            case COMPLETED -> RuntimeStepStatusEnumVO.COMPLETED;
+            case CANCELLED -> RuntimeStepStatusEnumVO.CANCELLED;
+            case FAILED -> RuntimeStepStatusEnumVO.FAILED;
+            default -> RuntimeStepStatusEnumVO.CONTINUE;
+        };
+        return RuntimeStepResult.builder()
+                .runId(run.getRunId())
+                .sessionId(run.getSessionId())
+                .status(status)
+                .nextRunStatus(run.getStatus())
+                .nextPhase(run.getPhase())
+                .message("ALREADY_RESOLVED: Run is no longer waiting for this PendingInput.")
+                .build();
     }
 
     @Override
@@ -645,12 +671,14 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, transitionFailure);
         }
         MainAgentActionTypeEnumVO actionType = action == null ? null : MainAgentActionTypeEnumVO.ofCode(action.getAction()).orElse(null);
+
         if (actionType == null) {
             AutoAgentHumanLog.stage("动作校验", context.getRunId(), "检查失败：MainAgent 输出动作为空或未知，原始 action="
                     + (action == null ? null : action.getAction()));
             return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.MAIN_ACTION_CONTRACT_FAILED,
                     RuntimePhaseEnumVO.VALIDATING_ACTION, "MainAgentAction action type is missing or unknown.", true));
         }
+
         AutoAgentHumanLog.stage("动作校验", context.getRunId(), "检查通过：action=" + actionType.code());
             MainAgentActionVO previousAction = context.getLastAction();
             context.setLastAction(action);
@@ -1136,13 +1164,15 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .sourceComponent(handlerCode)
                 .pendingType(pendingType)
                 .askUserRequest(request)
+                .runtimeContext(context)
                 .continuation(ContinuationCheckpointVO.builder()
                         .handler(handlerCode)
                         .resumePhase(resumePhaseFor(handlerCode))
                         .sourceComponent(handlerCode)
                         .relatedRunId(context.getRunId())
                         .relatedLoopIndex(context.getLoopIndex())
-                        .payload(checkpointPayload(context))
+                        .expectedAnswerValueType(request == null ? null : request.getInputMode())
+                        .payload(Map.of())
                         .build())
                 .build());
         if (!Boolean.TRUE.equals(pending.getCreated())) {
@@ -1170,20 +1200,6 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return RuntimePhaseEnumVO.BUILDING_STATE_VIEW;
         }
         return RuntimePhaseEnumVO.PREPARING_CONTEXT;
-    }
-
-    private Map<String, Object> checkpointPayload(RuntimeExecutionContext context) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        if (context == null) {
-            return payload;
-        }
-        if (context.getLastContextSelections() != null && !context.getLastContextSelections().isEmpty()) {
-            payload.put("contextSelections", context.getLastContextSelections());
-        }
-        if (context.getWorkingState() != null) {
-            payload.put("workingState", context.getWorkingState());
-        }
-        return payload;
     }
 
     private RuntimeSafeFailureVO enterPhase(RuntimeExecutionContext context, RuntimePhaseEnumVO nextPhase) {

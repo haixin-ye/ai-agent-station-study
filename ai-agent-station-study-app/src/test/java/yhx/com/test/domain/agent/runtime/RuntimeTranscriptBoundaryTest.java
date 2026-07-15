@@ -95,6 +95,9 @@ public class RuntimeTranscriptBoundaryTest {
 
             @Override
             public MainAgentActionVO invokeMainAgent(RuntimeExecutionContext context) {
+                if (invocationCount.get() > 0) {
+                    resumedContext.set(context);
+                }
                 return invocationCount.getAndIncrement() == 0 ? askUserAction() : finalAction();
             }
         }, true, new RuntimeLoopPolicy());
@@ -169,7 +172,7 @@ public class RuntimeTranscriptBoundaryTest {
     }
 
     @Test
-    public void continued_loop_refreshes_state_view_without_replanning_context() {
+    public void continued_loop_projects_working_state_without_replanning_context() {
         RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
         AtomicInteger prepareCount = new AtomicInteger();
         AtomicInteger refreshCount = new AtomicInteger();
@@ -208,7 +211,7 @@ public class RuntimeTranscriptBoundaryTest {
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.COMPLETED, result.getStatus());
         Assert.assertEquals(1, prepareCount.get());
-        Assert.assertEquals(1, refreshCount.get());
+        Assert.assertEquals(0, refreshCount.get());
         Assert.assertEquals(2, mainCount.get());
     }
 
