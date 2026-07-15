@@ -51,6 +51,40 @@ public class ToolVerifierTest {
         Assert.assertEquals(1, repository.verifications.size());
     }
 
+    @Test
+    public void approval_required_without_approved_record_fails_verification() {
+        ToolTestSupport.Repository repository = repository(ToolCallStatusEnumVO.SUCCEEDED, "payload-receipt");
+        ToolVerifier verifier = new ToolVerifier(repository, repository);
+        ToolInvocationRequestVO request = request();
+        request.setApprovalRequired(true);
+
+        VerificationResultVO result = verifier.verify(request, null);
+
+        Assert.assertEquals("FAILED", result.getStatus());
+        Assert.assertEquals("TOOL_APPROVAL_REQUIRED", result.getFailureCode());
+    }
+
+    @Test
+    public void missing_tool_invocation_id_fails_not_called() {
+        ToolTestSupport.Repository repository = repository(ToolCallStatusEnumVO.SUCCEEDED, "payload-receipt");
+        repository.toolCalls.get("tool-call-001").setToolInvocationId(null);
+
+        VerificationResultVO result = new ToolVerifier(repository, repository).verify(request(), null);
+
+        Assert.assertEquals("FAILED", result.getStatus());
+        Assert.assertEquals("TOOL_NOT_CALLED", result.getFailureCode());
+    }
+
+    @Test
+    public void not_called_status_fails_verification() {
+        ToolTestSupport.Repository repository = repository(ToolCallStatusEnumVO.NOT_CALLED, null);
+
+        VerificationResultVO result = new ToolVerifier(repository, repository).verify(request(), null);
+
+        Assert.assertEquals("FAILED", result.getStatus());
+        Assert.assertEquals("TOOL_NOT_CALLED", result.getFailureCode());
+    }
+
     private ToolInvocationRequestVO request() {
         return ToolInvocationRequestVO.builder()
                 .toolCallId("tool-call-001")

@@ -20,6 +20,10 @@ public class AgentEvidencePO {
     private String evidenceType;
     private String sourceRef;
     private String summary;
+    private String contentRef;
+    private String contentFormat;
+    private String verificationStatus;
+    private String failureCode;
     private BigDecimal confidence;
     private Integer usedByFinal;
     private LocalDateTime createdAt;

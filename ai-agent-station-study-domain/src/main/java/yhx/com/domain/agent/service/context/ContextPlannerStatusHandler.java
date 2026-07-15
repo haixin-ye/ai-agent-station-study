@@ -177,9 +177,24 @@ public class ContextPlannerStatusHandler {
                         .evidenceType(evidence.getEvidenceType())
                         .sourceRef(evidence.getSourceRef())
                         .summary(truncate(evidence.getSummary(), candidates))
-                        .boundedSnippet(truncate(evidence.getSummary(), candidates))
+                        .boundedSnippet(truncate(firstNonBlank(evidence.getContent(), evidence.getSummary()), candidates))
+                        .content(evidence.getContent())
+                        .contentRef(evidence.getContentRef())
+                        .contentFormat(evidence.getContentFormat())
+                        .metadata(evidenceMetadata(evidence))
                         .build())
                 .toList();
+    }
+
+    private Map<String, Object> evidenceMetadata(yhx.com.domain.agent.model.valobj.context.EvidenceCandidateVO evidence) {
+        Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        if (notBlank(evidence.getVerificationStatus())) {
+            metadata.put("verificationStatus", evidence.getVerificationStatus());
+        }
+        if (notBlank(evidence.getFailureCode())) {
+            metadata.put("failureCode", evidence.getFailureCode());
+        }
+        return metadata.isEmpty() ? null : metadata;
     }
 
     private List<yhx.com.domain.agent.model.valobj.context.MaterializedMemoryVO> materializeMemory(ContextCandidateBundleVO candidates) {

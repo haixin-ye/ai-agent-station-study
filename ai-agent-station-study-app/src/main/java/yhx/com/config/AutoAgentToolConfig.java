@@ -272,8 +272,9 @@ public class AutoAgentToolConfig {
 
     @Bean
     @ConditionalOnBean(IEvidenceRepository.class)
-    public ToolEvidenceConverter toolEvidenceConverter(IEvidenceRepository evidenceRepository) {
-        return new ToolEvidenceConverter(evidenceRepository);
+    public ToolEvidenceConverter toolEvidenceConverter(IEvidenceRepository evidenceRepository,
+                                                       IPayloadRepository payloadRepository) {
+        return new ToolEvidenceConverter(evidenceRepository, payloadRepository);
     }
 
     @Bean

@@ -60,6 +60,7 @@ public class FinalActionHandler extends MainActionHandlerSupport implements Main
                 .sourceAction(sourceAction)
                 .finalAnswerCandidate(candidate)
                 .userClarifications(userClarifications(context))
+                .verifiedToolCallRefs(verifiedToolCallRefs(context))
                 .finalRepairCount(context.countersOrInitial().finalRepairCountValue())
                 .build());
         if (result == null || result.getStatus() == null) {
