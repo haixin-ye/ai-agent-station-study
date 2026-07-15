@@ -17,6 +17,7 @@ import java.util.Map;
 public class PendingInputContinuationDispatcher {
 
     private final Map<String, PendingInputContinuationHandler> handlers = new LinkedHashMap<>();
+    private final ContinuationResumePhasePolicy phasePolicy = new ContinuationResumePhasePolicy();
 
     public PendingInputContinuationDispatcher(List<PendingInputContinuationHandler> handlers) {
         if (handlers != null) {
@@ -31,6 +32,10 @@ public class PendingInputContinuationDispatcher {
         PendingInputContinuationHandler handler = handlers.get(checkpoint.getHandler());
         if (handler == null) {
             return failed(context, "Unknown continuation handler: " + checkpoint.getHandler());
+        }
+        if (!phasePolicy.isAllowed(checkpoint.getHandler(), checkpoint.getResumePhase())) {
+            return failed(context, "Resume phase " + checkpoint.getResumePhase()
+                    + " is not allowed for continuation handler " + checkpoint.getHandler() + ".");
         }
         return handler.handle(answer, checkpoint, context);
     }

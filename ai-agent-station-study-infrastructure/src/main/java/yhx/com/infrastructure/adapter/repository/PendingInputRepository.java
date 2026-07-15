@@ -30,8 +30,8 @@ public class PendingInputRepository implements IPendingInputRepository {
     }
 
     @Override
-    public void markAnswered(String pendingId, String userAnswerRef) {
-        agentPendingInputDao.markAnswered(pendingId, userAnswerRef);
+    public int markAnswered(String pendingId, String runId, String userAnswerRef) {
+        return agentPendingInputDao.markAnswered(pendingId, runId, userAnswerRef);
     }
 
     @Override
@@ -45,13 +45,13 @@ public class PendingInputRepository implements IPendingInputRepository {
     }
 
     @Override
-    public void markCancelled(String pendingId) {
-        agentPendingInputDao.markCancelled(pendingId);
+    public int markCancelled(String pendingId, String runId) {
+        return agentPendingInputDao.markCancelled(pendingId, runId);
     }
 
     @Override
-    public void markExpired(String pendingId) {
-        agentPendingInputDao.markExpired(pendingId);
+    public int markExpired(String pendingId, String runId) {
+        return agentPendingInputDao.markExpired(pendingId, runId);
     }
 
     private AgentPendingInputPO toPO(AgentPendingInputEntity entity) {

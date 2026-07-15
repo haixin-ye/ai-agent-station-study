@@ -21,6 +21,8 @@ import yhx.com.domain.agent.service.interaction.ContextPlannerPendingInputHandle
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.PendingInputContinuationDispatcher;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
+import yhx.com.domain.agent.service.interaction.RuntimeContinuationSnapshotService;
+import yhx.com.domain.agent.service.interaction.SubAgentPendingInputHandler;
 import yhx.com.test.domain.agent.runtime.support.RuntimeTestSupport;
 
 import java.util.HashMap;
@@ -46,10 +48,10 @@ public class PendingInputContinuationDispatcherTest {
                         .freeText("继续")
                         .value("继续")
                         .build(),
-                checkpoint(MainAgentPendingInputHandler.HANDLER_CODE), context());
+                checkpoint(MainAgentPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.BUILDING_STATE_VIEW, Map.of()), context());
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.CONTINUE, result.getStatus());
-        Assert.assertEquals(RuntimePhaseEnumVO.PREPARING_CONTEXT, result.getNextPhase());
+        Assert.assertEquals(RuntimePhaseEnumVO.BUILDING_STATE_VIEW, result.getNextPhase());
     }
 
     @Test
@@ -77,6 +79,9 @@ public class PendingInputContinuationDispatcherTest {
                 .nextSequence(7L)
                 .build();
         Object serializedLikeState = JSON.parseObject(JSON.toJSONString(workingState));
+        ContinuationCheckpointVO checkpoint = checkpoint(MainAgentPendingInputHandler.HANDLER_CODE,
+                RuntimePhaseEnumVO.BUILDING_STATE_VIEW, Map.of("workingState", serializedLikeState));
+        new RuntimeContinuationSnapshotService().restore(checkpoint, context);
 
         RuntimeStepResult result = RuntimeTestSupport.defaultContinuationDispatcher().dispatch(UserAnswerVO.builder()
                         .status(UserAnswerStatusEnumVO.RESOLVED)
@@ -84,8 +89,7 @@ public class PendingInputContinuationDispatcherTest {
                         .freeText("continue")
                         .value("continue")
                         .build(),
-                checkpoint(MainAgentPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
-                        Map.of("workingState", serializedLikeState)), context);
+                checkpoint, context);
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.CONTINUE, result.getStatus());
         Assert.assertNotNull(context.getWorkingState());
@@ -100,7 +104,11 @@ public class PendingInputContinuationDispatcherTest {
         RuntimeExecutionContext context = context();
         RuntimeStepResult result = RuntimeTestSupport.defaultContinuationDispatcher().dispatch(answer(Map.of("decision", "APPROVED")),
                 checkpoint(ToolApprovalPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.PREPARING_TOOL,
-                        Map.of("toolIntent", Map.of("capabilityCode", "publish", "goal", "publish content"))), context);
+                        toolApprovalPayload(Map.of(
+                                "capabilityCode", "publish",
+                                "mcpServerCode", "default-mcp",
+                                "toolName", "publish",
+                                "goal", "publish content"))), context);
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.CONTINUE, result.getStatus());
         Assert.assertEquals(RuntimePhaseEnumVO.PREPARING_TOOL, result.getNextPhase());
@@ -112,7 +120,10 @@ public class PendingInputContinuationDispatcherTest {
         RuntimeExecutionContext context = context();
         RuntimeStepResult result = RuntimeTestSupport.defaultContinuationDispatcher().dispatch(answer(Map.of("decision", "REJECTED")),
                 checkpoint(ToolApprovalPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.PREPARING_TOOL,
-                        Map.of("toolIntent", Map.of("capabilityCode", "file_system_write_file", "toolName", "write_file"))), context);
+                        toolApprovalPayload(Map.of(
+                                "capabilityCode", "file_system_write_file",
+                                "mcpServerCode", "file-system",
+                                "toolName", "write_file"))), context);
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.CONTINUE, result.getStatus());
         Assert.assertEquals(RuntimePhaseEnumVO.BUILDING_STATE_VIEW, result.getNextPhase());
@@ -122,6 +133,35 @@ public class PendingInputContinuationDispatcherTest {
         Assert.assertEquals("TOOL_APPROVAL_REJECTED", clarification.getAnswerType());
         Assert.assertEquals("REJECTED", ((Map<?, ?>) clarification.getValue()).get("decision"));
         Assert.assertEquals("write_file", ((Map<?, ?>) clarification.getMetadata().get("toolIntent")).get("toolName"));
+    }
+
+    @Test
+    public void tool_approval_rejects_mismatched_tool_identity() {
+        Map<String, Object> payload = new HashMap<>(toolApprovalPayload(Map.of(
+                "capabilityCode", "file_system_write_file",
+                "mcpServerCode", "file-system",
+                "toolName", "write_file")));
+        payload.put("toolName", "delete_file");
+
+        RuntimeStepResult result = new ToolApprovalPendingInputHandler().handle(
+                answer(Map.of("decision", "APPROVED")),
+                checkpoint(ToolApprovalPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.PREPARING_TOOL, payload),
+                context());
+
+        Assert.assertEquals(RuntimeStepStatusEnumVO.FAILED, result.getStatus());
+        Assert.assertTrue(result.getMessage().contains("identity"));
+    }
+
+    @Test
+    public void sub_agent_resume_rejects_missing_child_task_relation() {
+        RuntimeStepResult result = new SubAgentPendingInputHandler().handle(
+                answer("continue"),
+                checkpoint(SubAgentPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.WAITING_CHILDREN,
+                        Map.of("parentRunId", "run-001")),
+                context());
+
+        Assert.assertEquals(RuntimeStepStatusEnumVO.FAILED, result.getStatus());
+        Assert.assertTrue(result.getMessage().contains("relation"));
     }
 
     @Test
@@ -150,6 +190,7 @@ public class PendingInputContinuationDispatcherTest {
         return ContinuationCheckpointVO.builder()
                 .handler(handler)
                 .resumePhase(resumePhase)
+                .relatedRunId("run-001")
                 .payload(payload)
                 .build();
     }
@@ -160,5 +201,16 @@ public class PendingInputContinuationDispatcherTest {
                 .answerType(UserAnswerTypeEnumVO.OPTION)
                 .value(value)
                 .build();
+    }
+
+    private Map<String, Object> toolApprovalPayload(Map<String, Object> toolIntent) {
+        return Map.of(
+                "approvalKey", "approval-key",
+                "toolCallId", "tool-call-1",
+                "argumentsHash", "args-hash",
+                "capabilityCode", toolIntent.getOrDefault("capabilityCode", "publish"),
+                "mcpServerCode", toolIntent.getOrDefault("mcpServerCode", "default-mcp"),
+                "toolName", toolIntent.getOrDefault("toolName", "publish"),
+                "toolIntent", toolIntent);
     }
 }

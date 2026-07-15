@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 
 import java.time.LocalDateTime;
 
@@ -20,5 +21,6 @@ public class PendingInputCreateCommand {
     private String pendingType;
     private AskUserRequestVO askUserRequest;
     private ContinuationCheckpointVO continuation;
+    private RuntimeExecutionContext runtimeContext;
     private LocalDateTime expiresAt;
 }

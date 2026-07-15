@@ -466,8 +466,10 @@ CREATE TABLE `agent_pending_input` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `answered_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL,
+  `active_run_id` varchar(64) GENERATED ALWAYS AS (CASE WHEN `status` = 'PENDING' THEN `run_id` ELSE NULL END) STORED,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_agent_pending_input_id` (`pending_id`),
+  UNIQUE KEY `uk_agent_pending_input_active_run` (`active_run_id`),
   KEY `idx_agent_pending_input_run_status` (`run_id`, `status`),
   KEY `idx_agent_pending_input_pending_status` (`pending_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent pending user input';

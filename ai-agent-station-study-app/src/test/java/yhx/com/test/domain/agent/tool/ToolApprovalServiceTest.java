@@ -14,6 +14,7 @@ import yhx.com.domain.agent.model.valobj.tool.PermissionDecisionVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionCommandVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionResultVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolIntentVO;
+import yhx.com.domain.agent.model.valobj.tool.McpToolSpecVO;
 import yhx.com.domain.agent.service.tool.ToolApprovalService;
 
 import java.util.Map;
@@ -116,6 +117,42 @@ public class ToolApprovalServiceTest {
         Assert.assertEquals(ToolApprovalStatusEnumVO.REJECTED, repository.approvals.get(approval.getApprovalId()).getStatus());
     }
 
+    @Test
+    public void decided_approval_cannot_be_decided_again() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolApprovalService service = service(repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalEntity approval = approval("key-1", ToolApprovalStatusEnumVO.APPROVED);
+        repository.saveApproval(approval);
+
+        ToolApprovalDecisionResultVO result = service.handleUserDecision(UserAnswerVO.builder()
+                .answerType(UserAnswerTypeEnumVO.OPTION)
+                .value(Map.of("decision", "REJECTED"))
+                .build(), approval);
+
+        Assert.assertEquals(ToolApprovalDecisionStatusEnumVO.DENIED, result.getStatus());
+        Assert.assertEquals("TOOL_APPROVAL_ALREADY_RESOLVED", result.getFailureCode());
+        Assert.assertEquals(ToolApprovalStatusEnumVO.APPROVED, repository.approvals.get(approval.getApprovalId()).getStatus());
+    }
+
+    @Test
+    public void approval_checkpoint_uses_resolved_canonical_tool_identity() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolTestSupport.FakeUserInteractionManager interactionManager = new ToolTestSupport.FakeUserInteractionManager();
+        ToolApprovalService service = service(repository, interactionManager);
+
+        service.ensureApproval(command("key-canonical", ToolIntentVO.builder()
+                .capabilityCode("publish")
+                .toolName("tool")
+                .arguments(Map.of("path", "docs/story.md"))
+                .build()));
+
+        Map<?, ?> payload = interactionManager.lastCommand.getContinuation().getPayload();
+        Map<?, ?> toolIntent = (Map<?, ?>) payload.get("toolIntent");
+        Assert.assertEquals("publish", toolIntent.get("capabilityCode"));
+        Assert.assertEquals("server", toolIntent.get("mcpServerCode"));
+        Assert.assertEquals("tool", toolIntent.get("toolName"));
+    }
+
     private ToolApprovalService service(ToolTestSupport.Repository repository, ToolTestSupport.FakeUserInteractionManager interactionManager) {
         return new ToolApprovalService(repository, repository, interactionManager);
     }
@@ -133,7 +170,13 @@ public class ToolApprovalServiceTest {
                 .argumentsHash("hash-1")
                 .capability(CapabilitySpecVO.builder()
                         .capabilityCode("publish")
+                        .mcpServerCode("server")
+                        .toolName("tool")
                         .permissionMode(PermissionModeEnumVO.ASK_USER)
+                        .build())
+                .toolSpec(McpToolSpecVO.builder()
+                        .mcpServerCode("server")
+                        .toolName("tool")
                         .build())
                 .permissionDecision(PermissionDecisionVO.builder()
                         .status(PermissionDecisionStatusEnumVO.ASK_USER)

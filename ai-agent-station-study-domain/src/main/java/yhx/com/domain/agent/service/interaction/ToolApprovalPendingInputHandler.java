@@ -1,20 +1,22 @@
 package yhx.com.domain.agent.service.interaction;
 
 import yhx.com.domain.agent.model.valobj.enums.interaction.UserAnswerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.persistence.ToolApprovalStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolApprovalDecisionStatusEnumVO;
+import yhx.com.domain.agent.model.entity.persistence.ToolApprovalEntity;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionResultVO;
+import yhx.com.domain.agent.model.valobj.tool.ToolIntentVO;
 import yhx.com.domain.agent.service.tool.ToolApprovalService;
+import com.alibaba.fastjson.JSON;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -23,6 +25,7 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
     public static final String HANDLER_CODE = "TOOL_APPROVAL";
 
     private final Supplier<ToolApprovalService> toolApprovalServiceSupplier;
+    private final RuntimeUserClarificationRecorder clarificationRecorder = new RuntimeUserClarificationRecorder();
 
     public ToolApprovalPendingInputHandler() {
         this(() -> null);
@@ -41,7 +44,18 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
     public RuntimeStepResult handle(UserAnswerVO answer, ContinuationCheckpointVO checkpoint, RuntimeExecutionContext context) {
         Map<String, Object> checkpointPayload = ContinuationCheckpointSupport.payload(checkpoint);
         String approvalKey = ContinuationCheckpointSupport.stringValue(checkpointPayload, "approvalKey");
-        ToolApprovalDecisionResultVO persistedDecision = recordDecision(answer, approvalKey);
+        String payloadFailure = validateSourcePayload(checkpoint, context, checkpointPayload, approvalKey);
+        if (payloadFailure != null) {
+            return failed(context, payloadFailure);
+        }
+        ToolApprovalService toolApprovalService = toolApprovalServiceSupplier.get();
+        ToolApprovalEntity approval = toolApprovalService == null ? null
+                : toolApprovalService.findApprovalByApprovalKey(approvalKey).orElse(null);
+        String approvalFailure = validateApprovalIdentity(context, checkpointPayload, approval, toolApprovalService != null);
+        if (approvalFailure != null) {
+            return failed(context, approvalFailure);
+        }
+        ToolApprovalDecisionResultVO persistedDecision = recordDecision(toolApprovalService, answer, approvalKey);
         if (answer == null || answer.getStatus() == UserAnswerStatusEnumVO.CANCELLED) {
             return RuntimeStepResult.builder()
                     .runId(context.getRunId())
@@ -89,12 +103,8 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
 
     @SuppressWarnings("unchecked")
     private void appendToolDeniedClarification(RuntimeExecutionContext context, UserAnswerVO answer, Map<String, Object> checkpointPayload) {
-        Object existing = context.getRuntimeFacts().get("userClarifications");
-        List<UserClarificationVO> clarifications = existing instanceof List<?> list
-                ? new ArrayList<>((List<UserClarificationVO>) list)
-                : new ArrayList<>();
         Object toolIntent = checkpointPayload == null ? null : checkpointPayload.get("toolIntent");
-        clarifications.add(UserClarificationVO.builder()
+        clarificationRecorder.append(context, UserClarificationVO.builder()
                 .sourceComponent(HANDLER_CODE)
                 .pendingId(answer == null ? null : answer.getPendingId())
                 .question("Tool approval request")
@@ -104,15 +114,69 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
                 .freeText(answer == null ? null : answer.getFreeText())
                 .metadata(toolIntent == null ? Map.of() : Map.of("toolIntent", toolIntent))
                 .build());
-        context.getRuntimeFacts().put("userClarifications", clarifications);
     }
 
-    private ToolApprovalDecisionResultVO recordDecision(UserAnswerVO answer, String approvalKey) {
-        ToolApprovalService toolApprovalService = toolApprovalServiceSupplier.get();
+    private ToolApprovalDecisionResultVO recordDecision(ToolApprovalService toolApprovalService,
+                                                        UserAnswerVO answer,
+                                                        String approvalKey) {
         if (toolApprovalService == null || approvalKey == null || approvalKey.isBlank()) {
             return null;
         }
         return toolApprovalService.handleUserDecisionByApprovalKey(answer, approvalKey);
+    }
+
+    private String validateSourcePayload(ContinuationCheckpointVO checkpoint,
+                                         RuntimeExecutionContext context,
+                                         Map<String, Object> payload,
+                                         String approvalKey) {
+        if (checkpoint == null || context == null || checkpoint.getRelatedRunId() == null
+                || !checkpoint.getRelatedRunId().equals(context.getRunId())) {
+            return "Tool approval checkpoint Run identity is invalid.";
+        }
+        if (approvalKey == null || approvalKey.isBlank()) {
+            return "Tool approval checkpoint is missing approvalKey.";
+        }
+        if (ContinuationCheckpointSupport.stringValue(payload, "toolCallId") == null
+                || ContinuationCheckpointSupport.stringValue(payload, "argumentsHash") == null
+                || ContinuationCheckpointSupport.stringValue(payload, "capabilityCode") == null
+                || ContinuationCheckpointSupport.stringValue(payload, "mcpServerCode") == null
+                || ContinuationCheckpointSupport.stringValue(payload, "toolName") == null
+                || payload.get("toolIntent") == null) {
+            return "Tool approval checkpoint is missing tool identity or arguments hash.";
+        }
+        ToolIntentVO toolIntent = JSON.parseObject(JSON.toJSONString(payload.get("toolIntent")), ToolIntentVO.class);
+        if (toolIntent == null
+                || !same(ContinuationCheckpointSupport.stringValue(payload, "capabilityCode"), toolIntent.getCapabilityCode())
+                || !same(ContinuationCheckpointSupport.stringValue(payload, "mcpServerCode"), toolIntent.getMcpServerCode())
+                || !same(ContinuationCheckpointSupport.stringValue(payload, "toolName"), toolIntent.getToolName())) {
+            return "Tool approval checkpoint tool identity does not match toolIntent.";
+        }
+        return null;
+    }
+
+    private String validateApprovalIdentity(RuntimeExecutionContext context,
+                                            Map<String, Object> payload,
+                                            ToolApprovalEntity approval,
+                                            boolean persistenceAvailable) {
+        if (!persistenceAvailable) {
+            return null;
+        }
+        if (approval == null) {
+            return "Tool approval record is missing.";
+        }
+        if (approval.getStatus() != ToolApprovalStatusEnumVO.PENDING) {
+            return "Tool approval record is already resolved.";
+        }
+        if (!context.getRunId().equals(approval.getRunId())
+                || !ContinuationCheckpointSupport.stringValue(payload, "toolCallId").equals(approval.getToolCallId())
+                || !ContinuationCheckpointSupport.stringValue(payload, "argumentsHash").equals(approval.getArgumentsHash())) {
+            return "Tool approval record does not match checkpoint identity.";
+        }
+        return null;
+    }
+
+    private boolean same(String left, String right) {
+        return left != null && left.equals(right);
     }
 
     private RuntimeStepResult failed(RuntimeExecutionContext context, String message) {

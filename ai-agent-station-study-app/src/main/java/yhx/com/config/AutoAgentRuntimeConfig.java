@@ -18,6 +18,8 @@ import yhx.com.domain.agent.adapter.repository.IModelRuntimeRepository;
 import yhx.com.domain.agent.adapter.repository.INodePromptRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IPendingInputRepository;
+import yhx.com.domain.agent.adapter.repository.IPendingInputConsumptionRepository;
+import yhx.com.domain.agent.adapter.transaction.IInteractionTransactionExecutor;
 import yhx.com.domain.agent.adapter.repository.IRagAssetRepository;
 import yhx.com.domain.agent.adapter.repository.IRagExecutionRepository;
 import yhx.com.domain.agent.adapter.repository.IRunDiagnosticRepository;
@@ -60,10 +62,12 @@ import yhx.com.domain.agent.service.interaction.FinalRepairPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.PendingInputContinuationDispatcher;
 import yhx.com.domain.agent.service.interaction.PendingInputManager;
+import yhx.com.domain.agent.service.interaction.PendingInputPauseCoordinator;
 import yhx.com.domain.agent.service.interaction.RagPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.SubAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
+import yhx.com.domain.agent.service.interaction.RuntimeContinuationSnapshotService;
 import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
 import yhx.com.domain.agent.service.memory.MemoryCandidatePreselector;
@@ -449,6 +453,21 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
+    public RuntimeContinuationSnapshotService runtimeContinuationSnapshotService() {
+        return new RuntimeContinuationSnapshotService();
+    }
+
+    @Bean
+    public PendingInputPauseCoordinator pendingInputPauseCoordinator(PendingInputManager pendingInputManager,
+                                                                     IRunRepository runRepository,
+                                                                     RunEventPublisher eventPublisher,
+                                                                     RuntimeContinuationSnapshotService snapshotService,
+                                                                     IInteractionTransactionExecutor transactionExecutor) {
+        return new PendingInputPauseCoordinator(pendingInputManager, runRepository, eventPublisher,
+                snapshotService, transactionExecutor);
+    }
+
+    @Bean
     public UserReplyProcessor userReplyProcessor(IPayloadRepository payloadRepository) {
         return new UserReplyProcessor(payloadRepository);
     }
@@ -471,14 +490,20 @@ public class AutoAgentRuntimeConfig {
                                                          IPayloadRepository payloadRepository,
                                                          RunEventPublisher eventPublisher,
                                                          RunTranscriptRecorder transcriptRecorder,
-                                                         RuntimeFailureFactory failureFactory) {
+                                                         RuntimeFailureFactory failureFactory,
+                                                         RuntimeContinuationSnapshotService snapshotService,
+                                                         PendingInputPauseCoordinator pauseCoordinator,
+                                                         IPendingInputConsumptionRepository consumptionRepository) {
         return new UserInteractionManager(pendingInputManager,
                 userReplyProcessor,
                 continuationDispatcher,
                 payloadRepository,
                 eventPublisher,
                 transcriptRecorder,
-                failureFactory);
+                failureFactory,
+                snapshotService,
+                pauseCoordinator,
+                consumptionRepository);
     }
 
     @Bean
@@ -710,10 +735,9 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public AskUserActionHandler askUserActionHandler(UserInteractionManager userInteractionManager,
-                                                     RuntimeFailureFactory failureFactory,
+    public AskUserActionHandler askUserActionHandler(RuntimeFailureFactory failureFactory,
                                                      DeveloperTraceRecorder traceRecorder) {
-        return new AskUserActionHandler(userInteractionManager, failureFactory, traceRecorder);
+        return new AskUserActionHandler(failureFactory, traceRecorder);
     }
 
     @Bean

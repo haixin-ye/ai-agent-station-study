@@ -13,9 +13,11 @@ public interface IAgentPendingInputDao {
 
     AgentPendingInputPO queryByPendingId(String pendingId);
 
-    int markAnswered(@Param("pendingId") String pendingId, @Param("userAnswerRef") String userAnswerRef);
+    int markAnswered(@Param("pendingId") String pendingId,
+                     @Param("runId") String runId,
+                     @Param("userAnswerRef") String userAnswerRef);
 
-    int markCancelled(String pendingId);
+    int markCancelled(@Param("pendingId") String pendingId, @Param("runId") String runId);
 
-    int markExpired(String pendingId);
+    int markExpired(@Param("pendingId") String pendingId, @Param("runId") String runId);
 }

@@ -22,4 +22,5 @@ public class ToolActionCommandVO {
     private String goal;
     private Map<String, Object> arguments;
     private Map<String, Object> rawToolIntent;
+    private RuntimeExecutionContext runtimeContext;
 }

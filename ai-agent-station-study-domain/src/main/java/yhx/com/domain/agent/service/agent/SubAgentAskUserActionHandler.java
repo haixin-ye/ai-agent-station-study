@@ -13,6 +13,7 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
 import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateCommand;
 import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateResult;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.interaction.SubAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 
@@ -53,12 +54,14 @@ public class SubAgentAskUserActionHandler implements SubAgentActionHandler {
                 .sourceComponent(HANDLER_CODE)
                 .pendingType(PendingInputTypeEnumVO.CHILD_AGENT_QUESTION.code())
                 .askUserRequest(request)
+                .runtimeContext(parentRuntimeContext(context))
                 .continuation(ContinuationCheckpointVO.builder()
                         .handler(HANDLER_CODE)
                         .resumePhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
                         .sourceComponent(HANDLER_CODE)
-                        .relatedRunId(relation == null ? null : relation.getChildRunId())
+                        .relatedRunId(relation == null ? null : relation.getParentRunId())
                         .relatedLoopIndex(context == null ? null : context.getLoopIndex())
+                        .expectedAnswerValueType(request.getInputMode())
                         .payload(checkpointPayload(context))
                         .build())
                 .build());
@@ -110,6 +113,13 @@ public class SubAgentAskUserActionHandler implements SubAgentActionHandler {
             payload.put("initialContext", context.getCommand().getInitialContext());
         }
         return payload;
+    }
+
+    private RuntimeExecutionContext parentRuntimeContext(SubAgentActionExecutionContextVO context) {
+        if (context != null && context.getCommand() != null && context.getCommand().getParentRuntimeContext() != null) {
+            return context.getCommand().getParentRuntimeContext();
+        }
+        return null;
     }
 
     private SubAgentActionHandlerResultVO failed(ParentChildRunRelationVO relation, String failureMessage) {

@@ -129,6 +129,7 @@ public class ToolInvocationRequestBuilder {
                 .toolSpec(toolSpec)
                 .permissionDecision(permissionDecision)
                 .toolIntent(intent)
+                .runtimeContext(command.getRuntimeContext())
                 .build());
         if (approvalDecision.getStatus() == ToolApprovalDecisionStatusEnumVO.PENDING) {
             toolRepository.updateToolCallStatus(toolCallId, ToolCallStatusEnumVO.APPROVAL_PENDING);

@@ -21,6 +21,7 @@ import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionCommandVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionResultVO;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
+import yhx.com.domain.agent.adapter.transaction.IInteractionTransactionExecutor;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,22 +29,47 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.Optional;
 
 public class ToolApprovalService {
 
     private final IToolRepository toolRepository;
     private final IPayloadRepository payloadRepository;
     private final UserInteractionManager userInteractionManager;
+    private final IInteractionTransactionExecutor transactionExecutor;
 
     public ToolApprovalService(IToolRepository toolRepository,
                                IPayloadRepository payloadRepository,
                                UserInteractionManager userInteractionManager) {
+        this(toolRepository, payloadRepository, userInteractionManager, null);
+    }
+
+    public ToolApprovalService(IToolRepository toolRepository,
+                               IPayloadRepository payloadRepository,
+                               UserInteractionManager userInteractionManager,
+                               IInteractionTransactionExecutor transactionExecutor) {
         this.toolRepository = toolRepository;
         this.payloadRepository = payloadRepository;
         this.userInteractionManager = userInteractionManager;
+        this.transactionExecutor = transactionExecutor;
     }
 
     public ToolApprovalDecisionResultVO ensureApproval(ToolApprovalDecisionCommandVO command) {
+        if (transactionExecutor == null) {
+            return ensureApprovalInternal(command);
+        }
+        try {
+            return transactionExecutor.execute(() -> ensureApprovalInternal(command));
+        } catch (RuntimeException e) {
+            return ToolApprovalDecisionResultVO.builder()
+                    .status(ToolApprovalDecisionStatusEnumVO.DENIED)
+                    .failureCode("TOOL_APPROVAL_PAUSE_FAILED")
+                    .message("Tool approval could not be persisted atomically: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    private ToolApprovalDecisionResultVO ensureApprovalInternal(ToolApprovalDecisionCommandVO command) {
         if (command.getPermissionDecision() == null
                 || command.getPermissionDecision().getStatus() == PermissionDecisionStatusEnumVO.ALLOW) {
             return ToolApprovalDecisionResultVO.builder().status(ToolApprovalDecisionStatusEnumVO.APPROVED).build();
@@ -78,18 +104,22 @@ public class ToolApprovalService {
                 .sourceComponent("ToolApprovalService")
                 .pendingType(PendingInputTypeEnumVO.TOOL_APPROVAL.code())
                 .askUserRequest(request)
+                .runtimeContext(command.getRuntimeContext())
                 .continuation(ContinuationCheckpointVO.builder()
                         .handler(ToolApprovalPendingInputHandler.HANDLER_CODE)
                         .resumePhase(RuntimePhaseEnumVO.PREPARING_TOOL)
                         .sourceComponent("ToolApprovalService")
                         .relatedRunId(command.getRunId())
-                        .payload(Map.of(
-                                "approvalId", approvalId,
-                                "approvalKey", command.getApprovalKey(),
-                                "toolCallId", command.getToolCallId(),
-                                "toolIntent", toolIntentPayload(command)))
+                        .relatedLoopIndex(command.getRuntimeContext() == null ? null : command.getRuntimeContext().getLoopIndex())
+                        .expectedAnswerValueType("OPTION")
+                        .payload(approvalCheckpointPayload(command, approvalId))
                         .build())
                 .build());
+        if (pending == null || !Boolean.TRUE.equals(pending.getCreated())) {
+            throw new IllegalStateException(pending == null
+                    ? "PendingInput creation returned null."
+                    : pending.getFailureMessage());
+        }
         return ToolApprovalDecisionResultVO.builder()
                 .status(ToolApprovalDecisionStatusEnumVO.PENDING)
                 .approval(approval)
@@ -102,6 +132,14 @@ public class ToolApprovalService {
     public ToolApprovalDecisionResultVO handleUserDecision(UserAnswerVO answer, ToolApprovalEntity approval) {
         if (approval == null) {
             return ToolApprovalDecisionResultVO.builder().status(ToolApprovalDecisionStatusEnumVO.DENIED).failureCode("TOOL_APPROVAL_REQUIRED").message("Approval record is missing.").build();
+        }
+        if (approval.getStatus() != ToolApprovalStatusEnumVO.PENDING) {
+            return ToolApprovalDecisionResultVO.builder()
+                    .status(ToolApprovalDecisionStatusEnumVO.DENIED)
+                    .approval(approval)
+                    .failureCode("TOOL_APPROVAL_ALREADY_RESOLVED")
+                    .message("Tool approval was already resolved.")
+                    .build();
         }
         if (answer == null || answer.getAnswerType() == UserAnswerTypeEnumVO.CANCEL) {
             toolRepository.markApprovalCancelled(approval.getApprovalId(), null, LocalDateTime.now());
@@ -234,10 +272,41 @@ public class ToolApprovalService {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> toolIntentPayload(ToolApprovalDecisionCommandVO command) {
-        if (command == null || command.getToolIntent() == null) {
-            return Map.of();
+        Map<String, Object> payload = command == null || command.getToolIntent() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(JSON.parseObject(JSON.toJSONString(command.getToolIntent()), Map.class));
+        if (command != null && command.getCapability() != null) {
+            payload.put("capabilityCode", command.getCapability().getCapabilityCode());
         }
-        return JSON.parseObject(JSON.toJSONString(command.getToolIntent()), Map.class);
+        if (command != null && command.getToolSpec() != null) {
+            payload.put("mcpServerCode", command.getToolSpec().getMcpServerCode());
+            payload.put("toolName", command.getToolSpec().getToolName());
+        }
+        return payload;
+    }
+
+    public Optional<ToolApprovalEntity> findApprovalByApprovalKey(String approvalKey) {
+        if (approvalKey == null || approvalKey.isBlank()) {
+            return Optional.empty();
+        }
+        return toolRepository.findApprovalByApprovalKey(approvalKey);
+    }
+
+    private Map<String, Object> approvalCheckpointPayload(ToolApprovalDecisionCommandVO command, String approvalId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("approvalId", approvalId);
+        payload.put("approvalKey", command.getApprovalKey());
+        payload.put("toolCallId", command.getToolCallId());
+        payload.put("argumentsHash", command.getArgumentsHash());
+        payload.put("toolIntent", toolIntentPayload(command));
+        if (command.getCapability() != null) {
+            payload.put("capabilityCode", command.getCapability().getCapabilityCode());
+        }
+        if (command.getToolSpec() != null) {
+            payload.put("mcpServerCode", command.getToolSpec().getMcpServerCode());
+            payload.put("toolName", command.getToolSpec().getToolName());
+        }
+        return payload;
     }
 
     private String savePayload(Object value) {
