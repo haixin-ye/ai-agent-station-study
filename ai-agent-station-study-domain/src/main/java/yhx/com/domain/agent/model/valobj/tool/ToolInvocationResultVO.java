@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolInvocationStatusEnumVO;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -24,4 +26,6 @@ public class ToolInvocationResultVO {
     private Long resultTotalBytes;
     private String failureCode;
     private String failureMessage;
+    private String schemaHash;
+    private List<ToolSchemaViolationVO> schemaViolations;
 }

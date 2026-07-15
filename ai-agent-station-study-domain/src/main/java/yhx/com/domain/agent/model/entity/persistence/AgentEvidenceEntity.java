@@ -19,6 +19,10 @@ public class AgentEvidenceEntity {
     private String evidenceType;
     private String sourceRef;
     private String summary;
+    private String contentRef;
+    private String contentFormat;
+    private String verificationStatus;
+    private String failureCode;
     private BigDecimal confidence;
     private Boolean usedByFinal;
     private LocalDateTime createdAt;

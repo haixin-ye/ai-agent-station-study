@@ -6,6 +6,7 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,7 +44,7 @@ public class DynamicRateLimitQueryTest {
     public void init() {
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .baseUrl("https://apis.itedus.cn")
-                .apiKey("sk-iL1clxGn4nsegwFS8822Ba0eB5D1461eA0845360Eb9fFfFc")
+                .apiKey(requiredEnvironment("AUTO_AGENT_TEST_OPENAI_API_KEY"))
                 .completionsPath("v1/chat/completions")
                 .embeddingsPath("v1/embeddings")
                 .build();
@@ -73,6 +74,12 @@ public class DynamicRateLimitQueryTest {
         var init = mcpClient.initialize();
         System.out.println("Stdio MCP Initialized: " + init);
         return mcpClient;
+    }
+
+    private String requiredEnvironment(String name) {
+        String value = System.getenv(name);
+        Assume.assumeTrue(name + " is required for this integration test.", value != null && !value.isBlank());
+        return value;
     }
 
     /**

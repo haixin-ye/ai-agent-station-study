@@ -36,6 +36,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <json-schema-validator.version>2.0.4</json-schema-validator.version>
     </properties>
 
 
@@ -107,6 +108,11 @@
                 <groupId>commons-codec</groupId>
                 <artifactId>commons-codec</artifactId>
                 <version>1.15</version>
+            </dependency>
+            <dependency>
+                <groupId>com.networknt</groupId>
+                <artifactId>json-schema-validator</artifactId>
+                <version>${json-schema-validator.version}</version>
             </dependency>
 
             <!-- spring ai 1.0.0 https://central.sonatype.com/artifact/org.springframework.ai/spring-ai-bom -->

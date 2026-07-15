@@ -2,19 +2,23 @@ package yhx.com.domain.agent.service.runtime.handler;
 
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.FailureVO;
+import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeFailureCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
+import yhx.com.domain.agent.model.valobj.runtime.ActionEffectVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class MainActionHandlerSupport {
 
@@ -137,6 +141,66 @@ public class MainActionHandlerSupport {
             }
         }
         return clarifications;
+    }
+
+    protected List<String> verifiedToolCallRefs(RuntimeExecutionContext context) {
+        if (context == null) {
+            return List.of();
+        }
+        Set<String> refs = new LinkedHashSet<>();
+        if (context.getWorkingState() != null) {
+            collectVerifiedActionRefs(context.getWorkingState().getActionHistory(), refs);
+            collectVerifiedEvidenceRefs(context.getWorkingState().getEvidencePack(), refs);
+        }
+        if (context.getLastStateView() != null) {
+            collectVerifiedEvidenceRefs(context.getLastStateView().getEvidencePack(), refs);
+        }
+        return List.copyOf(refs);
+    }
+
+    private void collectVerifiedActionRefs(List<ActionEffectVO> effects, Set<String> refs) {
+        if (effects == null) {
+            return;
+        }
+        effects.stream()
+                .filter(effect -> effect != null
+                        && "CALL_TOOL".equals(effect.getAction())
+                        && "TOOL_SUCCEEDED".equals(effect.getStatus()))
+                .forEach(effect -> collectSourceRefs(effect.getCreatedEvidence(), refs));
+    }
+
+    private void collectVerifiedEvidenceRefs(List<MaterializedEvidenceVO> evidence, Set<String> refs) {
+        if (evidence == null) {
+            return;
+        }
+        evidence.stream()
+                .filter(this::verificationPassed)
+                .forEach(item -> addIfNotBlank(refs, item.getSourceRef()));
+    }
+
+    private void collectSourceRefs(List<MaterializedEvidenceVO> evidence, Set<String> refs) {
+        if (evidence == null) {
+            return;
+        }
+        evidence.forEach(item -> {
+            if (item != null) {
+                addIfNotBlank(refs, item.getSourceRef());
+            }
+        });
+    }
+
+    private boolean verificationPassed(MaterializedEvidenceVO evidence) {
+        if (evidence == null || evidence.getMetadata() == null) {
+            return false;
+        }
+        Object status = evidence.getMetadata().get("verificationStatus");
+        return status != null && "PASSED".equalsIgnoreCase(String.valueOf(status));
+    }
+
+    private void addIfNotBlank(Set<String> refs, String ref) {
+        if (ref != null && !ref.isBlank()) {
+            refs.add(ref);
+        }
     }
 
     @SuppressWarnings("unchecked")

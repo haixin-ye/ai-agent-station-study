@@ -12,6 +12,20 @@ import java.util.Map;
 public class AutoAgentCapabilityProperties {
 
     private List<CapabilityProperties> tools = new ArrayList<>();
+    private PromptExposureProperties promptExposure = new PromptExposureProperties();
+
+    @Data
+    public static class PromptExposureProperties {
+        private int maxTools = 32;
+        private int maxDescriptionChars = 300;
+        private int maxSchemaDepth = 5;
+        private int maxSchemaPropertiesPerTool = 40;
+        private int maxSchemaCharsPerTool = 2400;
+        private int maxTotalSchemaChars = 12000;
+        private int maxRequiredArgumentsPerTool = 64;
+        private int maxCapabilityCharsPerTool = 3200;
+        private int maxTotalCapabilityChars = 10000;
+    }
 
     @Data
     public static class CapabilityProperties {

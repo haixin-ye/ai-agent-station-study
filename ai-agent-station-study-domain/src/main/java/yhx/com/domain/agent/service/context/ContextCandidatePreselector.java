@@ -105,7 +105,7 @@ public class ContextCandidatePreselector {
         this.tokenEstimator = new ContextTokenEstimator();
         this.artifactCandidateRanker = new ArtifactCandidateRanker(tokenEstimator);
         this.memoryCandidatePreselector = new MemoryCandidatePreselector();
-        this.evidenceCandidatePreselector = new EvidenceCandidatePreselector();
+        this.evidenceCandidatePreselector = new EvidenceCandidatePreselector(payloadRepository);
     }
 
     public ContextCandidateBundleVO buildCandidates(ContextPreparationCommand command) {

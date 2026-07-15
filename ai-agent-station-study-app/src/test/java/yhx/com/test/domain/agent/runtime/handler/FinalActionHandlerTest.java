@@ -2,12 +2,16 @@ package yhx.com.test.domain.agent.runtime.handler;
 
 import org.junit.Assert;
 import org.junit.Test;
+import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
+import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.FinalDeliveryStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
+import yhx.com.domain.agent.model.valobj.runtime.ActionEffectVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunWorkingStateVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.test.domain.agent.runtime.handler.support.ActionHandlerTestSupport;
@@ -72,6 +76,54 @@ public class FinalActionHandlerTest {
 
         Assert.assertEquals(MainActionHandlerStatusEnumVO.CONTINUE_LOOP, result.getStatus());
         Assert.assertEquals(RuntimePhaseEnumVO.REPAIRING_FINAL, result.getNextPhase());
+    }
+
+    @Test
+    public void final_action_passes_only_verified_successful_tool_refs_to_delivery() {
+        ActionHandlerTestSupport.FakeFinalDeliveryPort finalPort = new ActionHandlerTestSupport.FakeFinalDeliveryPort();
+        MainActionDispatcher dispatcher = dispatcher(finalPort);
+        RuntimeExecutionContext context = ActionHandlerTestSupport.context();
+        MaterializedEvidenceVO passed = MaterializedEvidenceVO.builder()
+                .evidenceId("evidence-passed")
+                .sourceRef("tool-call-passed")
+                .metadata(Map.of("verificationStatus", "PASSED"))
+                .build();
+        MaterializedEvidenceVO failed = MaterializedEvidenceVO.builder()
+                .evidenceId("evidence-failed")
+                .sourceRef("tool-call-failed")
+                .metadata(Map.of("verificationStatus", "FAILED"))
+                .build();
+        context.setWorkingState(RunWorkingStateVO.builder()
+                .baseStateView(MainAgentStateViewVO.builder().build())
+                .actionHistory(List.of(
+                        ActionEffectVO.builder().action("CALL_TOOL").status("TOOL_SUCCEEDED")
+                                .createdEvidence(List.of(passed)).build(),
+                        ActionEffectVO.builder().action("CALL_TOOL").status("TOOL_FAILED")
+                                .createdEvidence(List.of(failed)).build()))
+                .evidencePack(List.of(passed, failed))
+                .build());
+
+        dispatcher.dispatch(context, finalAction());
+
+        Assert.assertEquals(List.of("tool-call-passed"), finalPort.calls.get(0).getVerifiedToolCallRefs());
+    }
+
+    @Test
+    public void final_action_recovers_verified_tool_refs_from_persisted_state_view_evidence() {
+        ActionHandlerTestSupport.FakeFinalDeliveryPort finalPort = new ActionHandlerTestSupport.FakeFinalDeliveryPort();
+        MainActionDispatcher dispatcher = dispatcher(finalPort);
+        RuntimeExecutionContext context = ActionHandlerTestSupport.context();
+        context.setLastStateView(MainAgentStateViewVO.builder()
+                .evidencePack(List.of(MaterializedEvidenceVO.builder()
+                        .evidenceId("evidence-restored")
+                        .sourceRef("tool-call-restored")
+                        .metadata(Map.of("verificationStatus", "PASSED"))
+                        .build()))
+                .build());
+
+        dispatcher.dispatch(context, finalAction());
+
+        Assert.assertEquals(List.of("tool-call-restored"), finalPort.calls.get(0).getVerifiedToolCallRefs());
     }
 
     private MainActionDispatcher dispatcher(ActionHandlerTestSupport.FakeFinalDeliveryPort finalPort) {

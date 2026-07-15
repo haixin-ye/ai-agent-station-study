@@ -2,6 +2,9 @@ package yhx.com.test.domain.agent.tool;
 
 import org.junit.Assert;
 import org.junit.Test;
+import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
+import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionEffectStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ApprovalPolicyEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.McpTransportTypeEnumVO;
@@ -9,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.enums.tool.PermissionModeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.RequiredPermissionEnumVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionResultVO;
+import yhx.com.domain.agent.model.valobj.invocation.VerificationResultVO;
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolInvokeResultVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolSpecVO;
@@ -103,9 +107,82 @@ public class ToolActionOrchestratorTest {
 
         Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
         Assert.assertFalse(result.getEvidenceIds().isEmpty());
+        Assert.assertEquals(ToolActionEffectStatusEnumVO.TOOL_SUCCEEDED, result.getActionEffectStatus());
         Assert.assertTrue(repository.evidence.get(0).getSummary().contains("ai-agent-station-study-domain"));
         Assert.assertEquals("project structure: ai-agent-station-study-domain", result.getEvidence().get(0).getContent());
         Assert.assertEquals(2, repository.transcripts.size());
+    }
+
+    @Test
+    public void successful_invocation_without_persisted_receipt_is_gated_as_verification_failure() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository() {
+            @Override
+            public String savePayload(AgentPayloadEntity payload) {
+                if (payload.getPayloadType() == PayloadTypeEnumVO.TOOL_RECEIPT) {
+                    return null;
+                }
+                return super.savePayload(payload);
+            }
+        };
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ALLOW,
+                command -> McpToolInvokeResultVO.builder()
+                        .called(true)
+                        .success(true)
+                        .receipt(Map.of("contentText", "UNVERIFIED_PRIVATE_RESULT"))
+                        .build());
+
+        ToolActionResultVO result = orchestrator.handleToolAction(command());
+
+        Assert.assertEquals(ToolActionStatusEnumVO.CONTINUE_LOOP, result.getStatus());
+        Assert.assertEquals(ToolActionEffectStatusEnumVO.TOOL_FAILED, result.getActionEffectStatus());
+        Assert.assertTrue(result.getMessage().contains("receipt"));
+        Assert.assertEquals(1, result.getEvidence().size());
+        Assert.assertTrue(result.getEvidence().get(0).getContent().contains("TOOL_RECEIPT_MISSING"));
+        Assert.assertFalse(result.getEvidence().get(0).getContent().contains("UNVERIFIED_PRIVATE_RESULT"));
+        Assert.assertFalse(repository.evidence.get(0).getSummary().startsWith("Tool action succeeded"));
+    }
+
+    @Test
+    public void missing_verification_result_is_gated_as_tool_failed() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolVerifier missingVerifier = new ToolVerifier(repository, repository) {
+            @Override
+            public VerificationResultVO verify(yhx.com.domain.agent.model.valobj.tool.ToolInvocationRequestVO request,
+                                               yhx.com.domain.agent.model.valobj.tool.ToolInvocationResultVO invocationResult) {
+                return null;
+            }
+        };
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ALLOW,
+                command -> McpToolInvokeResultVO.builder()
+                        .called(true)
+                        .success(true)
+                        .receipt(Map.of("contentText", "UNVERIFIED_RESULT"))
+                        .build(), missingVerifier);
+
+        ToolActionResultVO result = orchestrator.handleToolAction(command());
+
+        Assert.assertEquals(ToolActionEffectStatusEnumVO.TOOL_FAILED, result.getActionEffectStatus());
+        Assert.assertTrue(result.getEvidence().get(0).getContent().contains("TOOL_VERIFICATION_MISSING"));
+        Assert.assertFalse(result.getEvidence().get(0).getContent().contains("UNVERIFIED_RESULT"));
+    }
+
+    @Test
+    public void invocation_failure_remains_tool_failed_without_exposing_receipt_content() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        ToolActionOrchestrator orchestrator = orchestrator(repository, PermissionModeEnumVO.ALLOW,
+                command -> McpToolInvokeResultVO.builder()
+                        .called(true)
+                        .success(false)
+                        .errorCode("MCP_TIMEOUT")
+                        .errorMessage("timed out")
+                        .receipt(Map.of("contentText", "UNTRUSTED_PARTIAL_RESULT"))
+                        .build());
+
+        ToolActionResultVO result = orchestrator.handleToolAction(command());
+
+        Assert.assertEquals(ToolActionEffectStatusEnumVO.TOOL_FAILED, result.getActionEffectStatus());
+        Assert.assertTrue(result.getEvidence().get(0).getContent().contains("MCP_TIMEOUT"));
+        Assert.assertFalse(result.getEvidence().get(0).getContent().contains("UNTRUSTED_PARTIAL_RESULT"));
     }
 
     @Test
@@ -164,6 +241,13 @@ public class ToolActionOrchestratorTest {
     private ToolActionOrchestrator orchestrator(ToolTestSupport.Repository repository,
                                                 PermissionModeEnumVO permissionMode,
                                                 yhx.com.domain.agent.service.tool.port.McpToolInvokerPort invoker) {
+        return orchestrator(repository, permissionMode, invoker, new ToolVerifier(repository, repository));
+    }
+
+    private ToolActionOrchestrator orchestrator(ToolTestSupport.Repository repository,
+                                                PermissionModeEnumVO permissionMode,
+                                                yhx.com.domain.agent.service.tool.port.McpToolInvokerPort invoker,
+                                                ToolVerifier verifier) {
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(List.of(CapabilitySpecVO.builder()
                 .capabilityCode("publish")
                 .mcpServerCode("server")
@@ -183,7 +267,7 @@ public class ToolActionOrchestratorTest {
         ToolInvocationRequestBuilder requestBuilder = new ToolInvocationRequestBuilder(capabilityRegistry, mcpToolRegistry,
                 materializer, new PermissionEnforcer(), approvalService, new ToolApprovalKeyGenerator(), repository, repository);
         ToolRuntime runtime = new ToolRuntime(invoker, new ToolReceiptCapture(repository), new ToolFailureMapper(), repository);
-        return new ToolActionOrchestrator(requestBuilder, runtime, new ToolVerifier(repository, repository),
+        return new ToolActionOrchestrator(requestBuilder, runtime, verifier,
                 new ToolEvidenceConverter(repository), new ToolTranscriptRecorder(repository, repository));
     }
 

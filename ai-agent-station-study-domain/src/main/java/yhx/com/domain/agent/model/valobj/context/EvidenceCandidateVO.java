@@ -17,6 +17,11 @@ public class EvidenceCandidateVO {
     private String evidenceType;
     private String sourceRef;
     private String summary;
+    private String content;
+    private String contentRef;
+    private String contentFormat;
+    private String verificationStatus;
+    private String failureCode;
     private LocalDateTime createdAt;
     private Double score;
 }

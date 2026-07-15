@@ -11,11 +11,15 @@ import org.springframework.core.io.ClassPathResource;
 import yhx.com.config.AutoAgentCapabilityProperties;
 import yhx.com.config.AutoAgentMcpProperties;
 import yhx.com.config.AutoAgentToolConfig;
+import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
+import yhx.com.domain.agent.model.valobj.context.ToolCapabilityExposurePolicyVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ApprovalPolicyEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.McpToolAvailabilityEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.PermissionModeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.RequiredPermissionEnumVO;
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolSpecVO;
+import yhx.com.domain.agent.service.context.ToolCapabilityCandidateProjector;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
 import yhx.com.domain.agent.service.tool.McpClientRegistry;
 import yhx.com.domain.agent.service.tool.McpToolRegistry;
@@ -23,6 +27,7 @@ import yhx.com.domain.agent.service.tool.port.McpToolDiscoveryPort;
 import yhx.com.domain.agent.model.valobj.tool.McpRuntimeCatalogVO;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,13 +69,16 @@ public class AutoAgentToolConfigTest {
         AutoAgentCapabilityProperties capabilityProperties = Binder.get(environment)
                 .bind("auto-agent.capabilities", AutoAgentCapabilityProperties.class)
                 .orElseThrow(() -> new AssertionError("auto-agent.capabilities should bind from application-dev.yml"));
+        Assert.assertEquals(32, capabilityProperties.getPromptExposure().getMaxTools());
+        Assert.assertEquals(2400, capabilityProperties.getPromptExposure().getMaxSchemaCharsPerTool());
+        Assert.assertEquals(12000, capabilityProperties.getPromptExposure().getMaxTotalSchemaChars());
         AutoAgentToolConfig config = new AutoAgentToolConfig();
         McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(mcpProperties, serverId -> List.of(McpToolSpecVO.builder()
                 .mcpServerCode(serverId)
                 .toolName("JavaSDKMCPClient_list_allowed_directories")
                 .description("Spring AI wrapper name that must not become a public capability.")
                 .inputSchema(Map.of("type", "object"))
-                .build()));
+                .build()), availableClients(mcpProperties));
 
         McpToolRegistry toolRegistry = config.mcpToolRegistry(catalog);
         CapabilityRegistry capabilityRegistry = config.capabilityRegistry(capabilityProperties, mcpProperties, catalog);
@@ -109,12 +117,196 @@ public class AutoAgentToolConfigTest {
                 .build());
         AutoAgentToolConfig config = new AutoAgentToolConfig();
 
-        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(mcpProperties, discoveryPort);
+        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(
+                mcpProperties, discoveryPort, availableClients(mcpProperties));
         McpToolRegistry toolRegistry = config.mcpToolRegistry(catalog);
         CapabilityRegistry capabilityRegistry = config.capabilityRegistry(new AutoAgentCapabilityProperties(), mcpProperties, catalog);
 
         Assert.assertEquals("ai_search", toolRegistry.requireTool("baidu-ai-search", "ai_search").getToolName());
         Assert.assertTrue(capabilityRegistry.findCapability("baidu_ai_search_ai_search").isEmpty());
+    }
+
+    @Test
+    public void yaml_only_tool_is_registered_and_exposed_with_schema() {
+        AutoAgentMcpProperties properties = new AutoAgentMcpProperties();
+        AutoAgentMcpProperties.McpServerProperties server = new AutoAgentMcpProperties.McpServerProperties();
+        server.setServerId("invoice-server");
+        server.setTransport("SSE");
+        server.setAutoDiscoverTools(false);
+        server.setAutoRegisterCapabilities(true);
+        server.setCapabilityPrefix("invoice");
+        AutoAgentMcpProperties.McpToolProperties tool = new AutoAgentMcpProperties.McpToolProperties();
+        tool.setToolName("generate_invoice");
+        tool.setDescription("Generate an invoice for a customer.");
+        tool.setInputSchema(invoiceSchema());
+        server.getTools().add(tool);
+        properties.getServers().add(server);
+        AutoAgentToolConfig config = new AutoAgentToolConfig();
+
+        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(properties,
+                serverId -> {
+                    throw new AssertionError("Discovery must not run for YAML-only servers.");
+                }, availableClients(properties));
+        McpToolRegistry toolRegistry = config.mcpToolRegistry(catalog);
+        CapabilityRegistry capabilityRegistry = config.capabilityRegistry(
+                new AutoAgentCapabilityProperties(), properties, catalog);
+        CapabilitySpecVO capability = capabilityRegistry.requireCapability("invoice_generate_invoice");
+        List<CapabilityCandidateVO> candidates = new ToolCapabilityCandidateProjector().projectAll(
+                capabilityRegistry.listEnabledCapabilities(), toolRegistry, ToolCapabilityExposurePolicyVO.builder().build());
+
+        Assert.assertEquals("generate_invoice",
+                toolRegistry.requireTool("invoice-server", "generate_invoice").getToolName());
+        Assert.assertEquals("invoice-server", capability.getMcpServerCode());
+        Assert.assertEquals("generate_invoice", capability.getToolName());
+        Assert.assertEquals(1, candidates.size());
+        Assert.assertTrue(candidates.get(0).getRequiredArguments()
+                .containsAll(List.of("customer", "customer.taxId", "currency")));
+        Assert.assertNotNull(candidates.get(0).getInputSchema());
+        Assert.assertNotNull(candidates.get(0).getSchemaHash());
+    }
+
+    @Test
+    public void yaml_non_empty_metadata_overrides_discovery_and_missing_fields_fall_back() {
+        AutoAgentMcpProperties properties = new AutoAgentMcpProperties();
+        AutoAgentMcpProperties.McpServerProperties server = new AutoAgentMcpProperties.McpServerProperties();
+        server.setServerId("invoice-server");
+        server.setTransport("SSE");
+        server.setAutoDiscoverTools(true);
+        AutoAgentMcpProperties.McpToolProperties configured = new AutoAgentMcpProperties.McpToolProperties();
+        configured.setToolName("generate_invoice");
+        configured.setDescription("YAML invoice description.");
+        configured.setInputSchema(invoiceSchema());
+        server.getTools().add(configured);
+        properties.getServers().add(server);
+
+        McpToolSpecVO discovered = McpToolSpecVO.builder()
+                .mcpServerCode("invoice-server")
+                .toolName("generate_invoice")
+                .description("Discovered description.")
+                .inputSchemaRef("mcp://schemas/invoice")
+                .inputSchema(Map.of("type", "object", "properties", Map.of("legacy", Map.of("type", "string"))))
+                .requiredPermission(RequiredPermissionEnumVO.EXTERNAL_WRITE)
+                .riskLevel("HIGH")
+                .destructive(true)
+                .schemaLessAllowed(true)
+                .build();
+
+        McpToolSpecVO merged = new AutoAgentToolConfig()
+                .autoAgentMcpRuntimeCatalog(properties, serverId -> List.of(discovered), availableClients(properties))
+                .getTools().get(0);
+
+        Assert.assertEquals("YAML invoice description.", merged.getDescription());
+        Assert.assertEquals(invoiceSchema(), merged.getInputSchema());
+        Assert.assertEquals("mcp://schemas/invoice", merged.getInputSchemaRef());
+        Assert.assertEquals(RequiredPermissionEnumVO.EXTERNAL_WRITE, merged.getRequiredPermission());
+        Assert.assertEquals("HIGH", merged.getRiskLevel());
+        Assert.assertEquals(Boolean.TRUE, merged.getDestructive());
+        Assert.assertEquals(Boolean.TRUE, merged.getSchemaLessAllowed());
+    }
+
+    @Test
+    public void unavailable_client_keeps_yaml_metadata_but_does_not_auto_register_capability() {
+        AutoAgentMcpProperties properties = yamlOnlyInvoiceProperties();
+        AutoAgentToolConfig config = new AutoAgentToolConfig();
+
+        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(properties,
+                serverId -> List.of(), new McpClientRegistry(Map.of()));
+        McpToolSpecVO tool = catalog.getTools().get(0);
+        CapabilityRegistry capabilityRegistry = config.capabilityRegistry(
+                new AutoAgentCapabilityProperties(), properties, catalog);
+
+        Assert.assertEquals(McpToolAvailabilityEnumVO.UNAVAILABLE, tool.getAvailability());
+        Assert.assertTrue(capabilityRegistry.findCapability("invoice_generate_invoice").isEmpty());
+    }
+
+    @Test
+    public void missing_client_registry_marks_yaml_metadata_unavailable() {
+        AutoAgentMcpProperties properties = yamlOnlyInvoiceProperties();
+
+        McpRuntimeCatalogVO catalog = new AutoAgentToolConfig().autoAgentMcpRuntimeCatalog(
+                properties, serverId -> List.of(), null);
+
+        Assert.assertEquals(McpToolAvailabilityEnumVO.UNAVAILABLE, catalog.getTools().get(0).getAvailability());
+    }
+
+    @Test
+    public void discovery_failure_marks_yaml_fallback_degraded() {
+        AutoAgentMcpProperties properties = yamlOnlyInvoiceProperties();
+        properties.getServers().get(0).setAutoDiscoverTools(true);
+        McpClientRegistry clients = new McpClientRegistry(Map.of("invoice-server", new Object()));
+
+        McpRuntimeCatalogVO catalog = new AutoAgentToolConfig().autoAgentMcpRuntimeCatalog(properties,
+                serverId -> {
+                    throw new IllegalStateException("endpoint unavailable");
+                }, clients);
+
+        Assert.assertEquals(McpToolAvailabilityEnumVO.DEGRADED, catalog.getTools().get(0).getAvailability());
+    }
+
+    @Test
+    public void explicit_non_destructive_tool_override_survives_auto_capability_registration() {
+        AutoAgentMcpProperties properties = yamlOnlyInvoiceProperties();
+        AutoAgentMcpProperties.McpServerProperties server = properties.getServers().get(0);
+        server.setDefaultDestructive(true);
+        server.getTools().get(0).setDestructive(false);
+        McpClientRegistry clients = new McpClientRegistry(Map.of("invoice-server", new Object()));
+        AutoAgentToolConfig config = new AutoAgentToolConfig();
+
+        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(properties, serverId -> List.of(), clients);
+        CapabilitySpecVO capability = config.capabilityRegistry(
+                new AutoAgentCapabilityProperties(), properties, catalog)
+                .requireCapability("invoice_generate_invoice");
+
+        Assert.assertEquals(Boolean.FALSE, catalog.getTools().get(0).getDestructive());
+        Assert.assertEquals(Boolean.FALSE, capability.getDestructive());
+    }
+
+    @Test
+    public void application_dev_does_not_contain_default_baidu_api_key() throws IOException {
+        StandardEnvironment environment = applicationDevEnvironment();
+
+        String endpoint = environment.getProperty("auto-agent.mcp.servers[1].sse-endpoint", "");
+
+        Assert.assertFalse(endpoint.contains("api_key="));
+        Assert.assertFalse(endpoint.contains("Bearer+"));
+    }
+
+    private Map<String, Object> invoiceSchema() {
+        return Map.of(
+                "type", "object",
+                "additionalProperties", false,
+                "required", List.of("customer", "currency"),
+                "properties", Map.of(
+                        "customer", Map.of(
+                                "type", "object",
+                                "required", List.of("taxId"),
+                                "properties", Map.of("taxId", Map.of("type", "string"))),
+                        "currency", Map.of("type", "string", "enum", List.of("CNY", "USD"))));
+    }
+
+    private AutoAgentMcpProperties yamlOnlyInvoiceProperties() {
+        AutoAgentMcpProperties properties = new AutoAgentMcpProperties();
+        AutoAgentMcpProperties.McpServerProperties server = new AutoAgentMcpProperties.McpServerProperties();
+        server.setServerId("invoice-server");
+        server.setTransport("SSE");
+        server.setAutoDiscoverTools(false);
+        server.setAutoRegisterCapabilities(true);
+        server.setCapabilityPrefix("invoice");
+        AutoAgentMcpProperties.McpToolProperties tool = new AutoAgentMcpProperties.McpToolProperties();
+        tool.setToolName("generate_invoice");
+        tool.setDescription("Generate an invoice for a customer.");
+        tool.setInputSchema(invoiceSchema());
+        server.getTools().add(tool);
+        properties.getServers().add(server);
+        return properties;
+    }
+
+    private McpClientRegistry availableClients(AutoAgentMcpProperties properties) {
+        Map<String, Object> handles = new LinkedHashMap<>();
+        properties.getServers().stream()
+                .filter(AutoAgentMcpProperties.McpServerProperties::isEnabled)
+                .forEach(server -> handles.put(server.getServerId(), new Object()));
+        return new McpClientRegistry(handles);
     }
 
     private void assertWriteCapability(CapabilitySpecVO capability) {

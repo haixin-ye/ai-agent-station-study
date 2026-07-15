@@ -52,9 +52,9 @@ public class AutoAgentMcpProperties {
         private String description;
         private String inputSchemaRef;
         private Map<String, Object> inputSchema;
-        private String requiredPermission = "NONE";
-        private String riskLevel = "LOW";
-        private boolean destructive;
-        private boolean schemaLessAllowed;
+        private String requiredPermission;
+        private String riskLevel;
+        private Boolean destructive;
+        private Boolean schemaLessAllowed;
     }
 }
