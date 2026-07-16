@@ -11,17 +11,22 @@ import yhx.com.domain.agent.service.tool.port.McpToolInvokerPort;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
 
     private final McpClientRegistry mcpClientRegistry;
+    private final Executor mcpExecutor;
 
-    public SpringAiMcpToolInvokerAdapter(McpClientRegistry mcpClientRegistry) {
-        this.mcpClientRegistry = mcpClientRegistry;
+    public SpringAiMcpToolInvokerAdapter(McpClientRegistry mcpClientRegistry, Executor mcpExecutor) {
+        this.mcpClientRegistry = Objects.requireNonNull(mcpClientRegistry, "McpClientRegistry is required.");
+        this.mcpExecutor = Objects.requireNonNull(mcpExecutor, "MCP Executor is required.");
     }
 
     @Override
@@ -53,6 +58,8 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
                     .build();
         } catch (McpToolTimeoutException e) {
             return timeout(command, startedAt, e.getMessage());
+        } catch (McpExecutorSaturatedException e) {
+            return failed(false, "MCP_EXECUTOR_SATURATED", e.getMessage(), startedAt);
         } catch (RuntimeException e) {
             String errorCode = client.isInitialized() ? e.getClass().getSimpleName() : "TOOL_CLIENT_INITIALIZATION_FAILED";
             return McpToolInvokeResultVO.builder()
@@ -73,10 +80,16 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
             ensureInitialized(client);
             return client.callTool(request(command));
         }
-        CompletableFuture<McpSchema.CallToolResult> future = CompletableFuture.supplyAsync(() -> {
-            ensureInitialized(client);
-            return client.callTool(request(command));
-        });
+        CompletableFuture<McpSchema.CallToolResult> future;
+        try {
+            future = CompletableFuture.supplyAsync(() -> {
+                ensureInitialized(client);
+                return client.callTool(request(command));
+            }, mcpExecutor);
+        } catch (RejectedExecutionException error) {
+            throw new McpExecutorSaturatedException(
+                    "MCP tool execution was rejected by the configured executor.", error);
+        }
         try {
             return future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
@@ -134,6 +147,12 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
 
     private static class McpToolTimeoutException extends RuntimeException {
         private McpToolTimeoutException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    private static class McpExecutorSaturatedException extends RuntimeException {
+        private McpExecutorSaturatedException(String message, Throwable cause) {
             super(message, cause);
         }
     }

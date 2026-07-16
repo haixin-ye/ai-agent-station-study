@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.RejectedExecutionException;
 
 public class AsyncTurnSummaryProcessorTest {
 
@@ -89,6 +90,20 @@ public class AsyncTurnSummaryProcessorTest {
         Assert.assertEquals(repositories.summaries.get(0).getSummaryId(), repositories.vectorRecords.get(0).getSourceId());
         Assert.assertEquals(1, repositories.vectorIndexes.size());
         Assert.assertEquals("ACTIVE", repositories.vectorIndexes.get(0).getStatus());
+    }
+
+    @Test
+    public void rejected_summary_submission_leaves_persisted_task_pending() {
+        FakeRepositories repositories = new FakeRepositories();
+        AsyncTurnSummaryProcessor processor = new AsyncTurnSummaryProcessor(command -> {
+            throw new RejectedExecutionException("saturated");
+        }, repositories, repositories, repositories, repositories, new StubTurnSummaryNodeService());
+
+        processor.onTurnCompleted("turn-rejected");
+
+        Assert.assertEquals(1, repositories.tasks.size());
+        Assert.assertEquals("PENDING", repositories.tasks.get(0).getStatus());
+        Assert.assertEquals("turn-rejected", repositories.tasks.get(0).getTurnId());
     }
 
     private static class StubTurnSummaryNodeService extends TurnSummaryNodeService {

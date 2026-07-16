@@ -1,16 +1,63 @@
 server:
   port: 8091
+  tomcat:
+    threads:
+      min-spare: 1
+      max: 10
+    accept-count: 10
 
-# 线程池配置
-thread:
-  pool:
-    executor:
-      config:
-        core-pool-size: 20
-        max-pool-size: 50
-        keep-alive-time: 5000
-        block-queue-size: 5000
-        policy: CallerRunsPolicy
+auto-agent:
+  executors:
+    agent-execution:
+      core-pool-size: 2
+      max-pool-size: 4
+      queue-capacity: 16
+      keep-alive: 30s
+      thread-name-prefix: auto-agent-exec-
+      rejection-policy: CALLER_RUNS
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 5s
+    sse:
+      core-pool-size: 1
+      max-pool-size: 2
+      queue-capacity: 8
+      keep-alive: 30s
+      thread-name-prefix: auto-agent-sse-
+      rejection-policy: ABORT
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: false
+      await-termination: 1s
+    context-recall:
+      core-pool-size: 2
+      max-pool-size: 2
+      queue-capacity: 16
+      keep-alive: 30s
+      thread-name-prefix: auto-agent-context-
+      rejection-policy: CALLER_RUNS
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 5s
+    memory:
+      core-pool-size: 1
+      max-pool-size: 1
+      queue-capacity: 16
+      keep-alive: 30s
+      thread-name-prefix: auto-agent-memory-
+      rejection-policy: ABORT
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 5s
+    mcp:
+      core-pool-size: 1
+      max-pool-size: 2
+      queue-capacity: 8
+      keep-alive: 30s
+      thread-name-prefix: auto-agent-mcp-
+      rejection-policy: ABORT
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 5s
 
 # 数据库配置
 #spring:

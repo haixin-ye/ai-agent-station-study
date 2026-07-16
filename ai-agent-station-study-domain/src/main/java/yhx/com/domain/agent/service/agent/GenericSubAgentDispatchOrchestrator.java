@@ -23,9 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RejectedExecutionException;
 
 public class GenericSubAgentDispatchOrchestrator {
 
@@ -113,7 +112,8 @@ public class GenericSubAgentDispatchOrchestrator {
                                                UserInteractionManager userInteractionManager,
                                                SubAgentFullContextStore fullContextStore) {
         this(dispatchRuntime, registry, projector, nodePortsByChildRunId, defaultNodePort, capabilityResolver,
-                toolActionOrchestratorPort, ragRuntimePort, userInteractionManager, fullContextStore, null, null, null);
+                toolActionOrchestratorPort, ragRuntimePort, userInteractionManager, fullContextStore,
+                null, null, Runnable::run);
     }
 
     public GenericSubAgentDispatchOrchestrator(AgentDispatchRuntime dispatchRuntime,
@@ -143,7 +143,7 @@ public class GenericSubAgentDispatchOrchestrator {
         this.requestValidator = new DelegateAgentsRequestValidator(this.capabilityResolver);
         this.lifecycleEventPublisher = lifecycleEventPublisher;
         this.parentRunResumePort = parentRunResumePort;
-        this.childExecutor = childExecutor == null ? ForkJoinPool.commonPool() : childExecutor;
+        this.childExecutor = Objects.requireNonNull(childExecutor, "Generic subagent Executor is required.");
     }
 
     public GenericSubAgentDispatchOrchestrationResultVO dispatchRunAndProject(RuntimeExecutionContext parentContext,
@@ -206,26 +206,38 @@ public class GenericSubAgentDispatchOrchestrator {
             registry.findByChildRunId(relation.getChildRunId())
                     .ifPresent(latest -> lifecycleEventPublisher.started(parentContext.getRunId(), latest, task));
         }
-        CompletableFuture.runAsync(() -> {
-            runOneChild(parentContext, relation, task);
-            registry.findByChildRunId(relation.getChildRunId()).ifPresent(latest -> {
-                if (lifecycleEventPublisher != null && latest.getStatus() != null && latest.getStatus().terminal()) {
-                    lifecycleEventPublisher.terminal(parentContext.getRunId(), latest);
+        try {
+            childExecutor.execute(() -> {
+                try {
+                    runOneChild(parentContext, relation, task);
+                } catch (Throwable error) {
+                    markChildFailed(relation.getChildRunId(),
+                            error.getMessage() == null ? "Generic subagent failed unexpectedly." : error.getMessage());
+                    if (error instanceof Error fatalError) {
+                        throw fatalError;
+                    }
+                } finally {
+                    publishTerminalAndResume(parentContext.getRunId(), relation.getChildRunId());
                 }
             });
-            resumeParentIfSatisfied(parentContext.getRunId());
-        }, childExecutor).exceptionally(error -> {
-            registry.markFailed(relation.getChildRunId(), error == null || error.getMessage() == null
-                    ? "Generic subagent failed unexpectedly."
-                    : error.getMessage());
-            registry.findByChildRunId(relation.getChildRunId()).ifPresent(latest -> {
-                if (lifecycleEventPublisher != null) {
-                    lifecycleEventPublisher.terminal(parentContext.getRunId(), latest);
-                }
-            });
-            resumeParentIfSatisfied(parentContext.getRunId());
-            return null;
+        } catch (RejectedExecutionException error) {
+            markChildFailed(relation.getChildRunId(),
+                    "Generic subagent execution was rejected by the configured executor.");
+            publishTerminalAndResume(parentContext.getRunId(), relation.getChildRunId());
+        }
+    }
+
+    private void markChildFailed(String childRunId, String message) {
+        registry.markFailed(childRunId, message);
+    }
+
+    private void publishTerminalAndResume(String parentRunId, String childRunId) {
+        registry.findByChildRunId(childRunId).ifPresent(latest -> {
+            if (lifecycleEventPublisher != null && latest.getStatus() != null && latest.getStatus().terminal()) {
+                lifecycleEventPublisher.terminal(parentRunId, latest);
+            }
         });
+        resumeParentIfSatisfied(parentRunId);
     }
 
     private void resumeParentIfSatisfied(String parentRunId) {
@@ -236,7 +248,10 @@ public class GenericSubAgentDispatchOrchestrator {
             lifecycleEventPublisher.parentReady(parentRunId);
         }
         if (parentRunResumePort != null) {
-            parentRunResumePort.resumeParentIfReady(parentRunId);
+            boolean accepted = parentRunResumePort.resumeParentIfReady(parentRunId);
+            if (!accepted) {
+                registry.clearParentResumeRequested(parentRunId);
+            }
         }
     }
 

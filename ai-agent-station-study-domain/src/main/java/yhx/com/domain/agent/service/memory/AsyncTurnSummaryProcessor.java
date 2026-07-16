@@ -1,5 +1,7 @@
 package yhx.com.domain.agent.service.memory;
 
+import lombok.extern.slf4j.Slf4j;
+
 import yhx.com.domain.agent.adapter.repository.IMemoryTaskRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
@@ -13,7 +15,9 @@ import yhx.com.domain.agent.service.node.turnsummary.TurnSummaryNodeService;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
+@Slf4j
 public class AsyncTurnSummaryProcessor implements TurnCompletionPublisher {
 
     private final Executor executor;
@@ -70,6 +74,11 @@ public class AsyncTurnSummaryProcessor implements TurnCompletionPublisher {
                 .attemptCount(0)
                 .createdAt(LocalDateTime.now())
                 .build());
-        executor.execute(() -> worker.handleTurn(taskId, turnId));
+        try {
+            executor.execute(() -> worker.handleTurn(taskId, turnId));
+        } catch (RejectedExecutionException error) {
+            log.warn("[AutoAgent][memory-task-rejected] taskType={}, taskId={}, turnId={}; task remains PENDING",
+                    MemoryTaskTypeEnumVO.TURN_SUMMARY.name(), taskId, turnId, error);
+        }
     }
 }
