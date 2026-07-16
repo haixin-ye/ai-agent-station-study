@@ -3964,7 +3964,13 @@ auto-agent:
 
 Debug defaults must be fail-closed. Production deployments must keep debug API, debug SSE, and raw payload previews disabled unless an explicit admin/developer configuration enables them.
 
-### 9.5 Prompt Storage
+### 9.5 Executor Bulkheads
+
+Project-owned asynchronous work must run through named, lifecycle-managed Spring executors configured under `auto-agent.executors`. Runtime and generic subagent execution, SSE streaming, context recall, memory processing, and timed MCP calls use separate executor bulkheads so saturation in one workload cannot silently consume another workload's capacity.
+
+Production code must not create business executors with `Executors.new*`, construct raw thread pools outside the executor configuration boundary, or rely on `ForkJoinPool.commonPool()`. Executor sizing, queue capacity, keep-alive, thread naming, rejection behavior, and shutdown policy belong in profile YAML. Rejection at each submission boundary must produce a deterministic domain or transport outcome and must not strand Runs, child Runs, persisted memory tasks, or SSE emitters.
+
+### 9.6 Prompt Storage
 
 Database prompt table: `agent_node_prompt`.
 

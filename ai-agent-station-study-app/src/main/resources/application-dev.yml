@@ -1,16 +1,10 @@
 server:
   port: 8091
-
-# 线程池配置
-thread:
-  pool:
-    executor:
-      config:
-        core-pool-size: 20
-        max-pool-size: 50
-        keep-alive-time: 10000
-        block-queue-size: 5000
-        policy: CallerRunsPolicy
+  tomcat:
+    threads:
+      min-spare: 4
+      max: 50
+    accept-count: 50
 
 # 数据库配置；启动时配置数据库资源信息
 spring:
@@ -91,6 +85,57 @@ logging:
   config: classpath:logback-spring.xml
 
 auto-agent:
+  executors:
+    agent-execution:
+      core-pool-size: 4
+      max-pool-size: 8
+      queue-capacity: 32
+      keep-alive: 60s
+      thread-name-prefix: auto-agent-exec-
+      rejection-policy: CALLER_RUNS
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 30s
+    sse:
+      core-pool-size: 4
+      max-pool-size: 8
+      queue-capacity: 16
+      keep-alive: 60s
+      thread-name-prefix: auto-agent-sse-
+      rejection-policy: ABORT
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: false
+      await-termination: 5s
+    context-recall:
+      core-pool-size: 4
+      max-pool-size: 4
+      queue-capacity: 32
+      keep-alive: 60s
+      thread-name-prefix: auto-agent-context-
+      rejection-policy: CALLER_RUNS
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 15s
+    memory:
+      core-pool-size: 4
+      max-pool-size: 4
+      queue-capacity: 128
+      keep-alive: 60s
+      thread-name-prefix: auto-agent-memory-
+      rejection-policy: ABORT
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 30s
+    mcp:
+      core-pool-size: 2
+      max-pool-size: 4
+      queue-capacity: 32
+      keep-alive: 60s
+      thread-name-prefix: auto-agent-mcp-
+      rejection-policy: ABORT
+      allow-core-thread-timeout: false
+      wait-for-tasks-to-complete-on-shutdown: true
+      await-termination: 15s
   runtime:
     enabled: true
     max-loop-count: 20

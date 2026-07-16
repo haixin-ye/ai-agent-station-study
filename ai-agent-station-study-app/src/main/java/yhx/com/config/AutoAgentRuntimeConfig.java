@@ -156,7 +156,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 @Configuration
 @ConditionalOnProperty(prefix = "auto-agent.runtime", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -361,11 +360,6 @@ public class AutoAgentRuntimeConfig {
                 ragAssetRepository,
                 ragProperties.getAsset().getRecallTopK(),
                 ragProperties.getAsset().getRecallMinScore());
-    }
-
-    @Bean("autoAgentContextRecallExecutor")
-    public Executor autoAgentContextRecallExecutor() {
-        return Executors.newFixedThreadPool(4);
     }
 
     @Bean
@@ -584,11 +578,6 @@ public class AutoAgentRuntimeConfig {
                                                                        NodeRuntimeProfileResolver nodeRuntimeProfileResolver) {
         return new ConversationRollupNodeService(nodeInvocationPipeline,
                 nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name()));
-    }
-
-    @Bean("autoAgentMemoryTaskExecutor")
-    public Executor autoAgentMemoryTaskExecutor() {
-        return Executors.newFixedThreadPool(2);
     }
 
     @Bean
@@ -815,8 +804,9 @@ public class AutoAgentRuntimeConfig {
 
     @Bean
     public ParentRunResumePort parentRunResumePort(ObjectProvider<AutoAgentRuntimeService> runtimeServiceProvider,
-                                                   IRunRepository runRepository) {
-        return new RuntimeParentRunResumePort(runtimeServiceProvider, runRepository);
+                                                   IRunRepository runRepository,
+                                                   @Qualifier("autoAgentExecutionExecutor") Executor agentExecutionExecutor) {
+        return new RuntimeParentRunResumePort(runtimeServiceProvider, runRepository, agentExecutionExecutor);
     }
 
     @Bean
@@ -829,7 +819,8 @@ public class AutoAgentRuntimeConfig {
                                                                                    UserInteractionManager userInteractionManager,
                                                                                    IPayloadRepository payloadRepository,
                                                                                    SubAgentLifecycleEventPublisher subAgentLifecycleEventPublisher,
-                                                                                   ParentRunResumePort parentRunResumePort) {
+                                                                                   ParentRunResumePort parentRunResumePort,
+                                                                                   @Qualifier("autoAgentExecutionExecutor") Executor agentExecutionExecutor) {
         return new GenericSubAgentDispatchOrchestrator(agentDispatchRuntime,
                 parentChildRunRegistry,
                 childAgentResultProjector,
@@ -842,7 +833,7 @@ public class AutoAgentRuntimeConfig {
                 new PayloadBackedSubAgentFullContextStore(payloadRepository),
                 subAgentLifecycleEventPublisher,
                 parentRunResumePort,
-                null);
+                agentExecutionExecutor);
     }
 
     @Bean

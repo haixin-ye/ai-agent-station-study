@@ -10,6 +10,8 @@ import yhx.com.domain.agent.service.tool.McpClientRegistry;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -24,7 +26,8 @@ public class SpringAiMcpToolInvokerAdapterTest {
         when(client.isInitialized()).thenReturn(false);
         when(client.initialize()).thenThrow(new IllegalStateException("init failed"));
         SpringAiMcpToolInvokerAdapter adapter = new SpringAiMcpToolInvokerAdapter(
-                new McpClientRegistry(Map.of("file-system", client))
+                new McpClientRegistry(Map.of("file-system", client)),
+                Runnable::run
         );
 
         McpToolInvokeResultVO result = adapter.invoke(McpToolInvokeCommandVO.builder()
@@ -47,7 +50,8 @@ public class SpringAiMcpToolInvokerAdapterTest {
                 false
         ));
         SpringAiMcpToolInvokerAdapter adapter = new SpringAiMcpToolInvokerAdapter(
-                new McpClientRegistry(Map.of("file-system", client))
+                new McpClientRegistry(Map.of("file-system", client)),
+                Runnable::run
         );
 
         McpToolInvokeResultVO result = adapter.invoke(McpToolInvokeCommandVO.builder()
@@ -59,6 +63,55 @@ public class SpringAiMcpToolInvokerAdapterTest {
         Assert.assertTrue(result.isSuccess());
         verify(client).callTool(new McpSchema.CallToolRequest("list_directory",
                 Map.of("path", "E:/javaProject/ai-agent-station-study")));
+    }
+
+    @Test
+    public void timed_call_uses_the_supplied_executor() {
+        McpSyncClient client = successfulClient();
+        AtomicBoolean executorUsed = new AtomicBoolean();
+        SpringAiMcpToolInvokerAdapter adapter = new SpringAiMcpToolInvokerAdapter(
+                new McpClientRegistry(Map.of("file-system", client)),
+                command -> {
+                    executorUsed.set(true);
+                    command.run();
+                });
+
+        McpToolInvokeResultVO result = adapter.invoke(command(1000L));
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertTrue(executorUsed.get());
+    }
+
+    @Test
+    public void rejected_timed_call_returns_deterministic_saturation_failure() {
+        SpringAiMcpToolInvokerAdapter adapter = new SpringAiMcpToolInvokerAdapter(
+                new McpClientRegistry(Map.of("file-system", successfulClient())),
+                command -> {
+                    throw new RejectedExecutionException("saturated");
+                });
+
+        McpToolInvokeResultVO result = adapter.invoke(command(1000L));
+
+        Assert.assertFalse(result.isCalled());
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals("MCP_EXECUTOR_SATURATED", result.getErrorCode());
+    }
+
+    private McpSyncClient successfulClient() {
+        McpSyncClient client = mock(McpSyncClient.class);
+        when(client.isInitialized()).thenReturn(true);
+        when(client.callTool(any(McpSchema.CallToolRequest.class))).thenReturn(new McpSchema.CallToolResult(
+                List.of(new McpSchema.TextContent("ok")), false));
+        return client;
+    }
+
+    private McpToolInvokeCommandVO command(Long timeoutMs) {
+        return McpToolInvokeCommandVO.builder()
+                .mcpServerCode("file-system")
+                .toolName("list_directory")
+                .arguments(Map.of("path", "E:/javaProject/ai-agent-station-study"))
+                .timeoutMs(timeoutMs)
+                .build();
     }
 
 }

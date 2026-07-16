@@ -27,7 +27,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @RestController
 @CrossOrigin("*")
@@ -54,8 +55,8 @@ public class AgentDebugController {
     @Resource
     private SseEmitterRegistry sseEmitterRegistry;
 
-    @Resource
-    private ThreadPoolExecutor threadPoolExecutor;
+    @Resource(name = "autoAgentSseExecutor")
+    private Executor sseExecutor;
 
     @GetMapping("/traces")
     public Response<List<AgentDebugTraceDTO>> listTraces(@PathVariable("runId") String runId,
@@ -157,7 +158,12 @@ public class AgentDebugController {
         debugAccessPolicy.requireDebugSseEnabled();
         String streamKey = "debug:" + runId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, STREAM_TIMEOUT_MS);
-        threadPoolExecutor.execute(() -> streamIncrementalDebugEvents(streamKey, runId, lastSeq));
+        try {
+            sseExecutor.execute(() -> streamIncrementalDebugEvents(streamKey, runId, lastSeq));
+        } catch (RejectedExecutionException error) {
+            log.warn("[AutoAgent][debug-sse-executor-rejected] runId={}", runId, error);
+            sseEmitterRegistry.completeWithError(streamKey, error);
+        }
         return emitter;
     }
 

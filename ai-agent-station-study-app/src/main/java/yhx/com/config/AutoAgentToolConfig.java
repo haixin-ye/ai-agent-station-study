@@ -7,6 +7,7 @@ import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
@@ -62,6 +63,7 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 @Configuration
 @EnableConfigurationProperties({AutoAgentCapabilityProperties.class, AutoAgentMcpProperties.class})
@@ -187,8 +189,9 @@ public class AutoAgentToolConfig {
     }
 
     @Bean
-    public McpToolInvokerPort mcpToolInvokerPort(McpClientRegistry mcpClientRegistry) {
-        return new SpringAiMcpToolInvokerAdapter(mcpClientRegistry);
+    public McpToolInvokerPort mcpToolInvokerPort(McpClientRegistry mcpClientRegistry,
+                                                 @Qualifier("autoAgentMcpExecutor") Executor mcpExecutor) {
+        return new SpringAiMcpToolInvokerAdapter(mcpClientRegistry, mcpExecutor);
     }
 
     @Bean

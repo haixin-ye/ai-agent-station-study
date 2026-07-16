@@ -9,7 +9,9 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeChildrenResumeCommand;
 import yhx.com.domain.agent.service.agent.ParentRunResumePort;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
 
-import java.util.concurrent.CompletableFuture;
+import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -20,19 +22,29 @@ public class RuntimeParentRunResumePort implements ParentRunResumePort {
 
     private final ObjectProvider<AutoAgentRuntimeService> runtimeServiceProvider;
     private final IRunRepository runRepository;
+    private final Executor executor;
 
     public RuntimeParentRunResumePort(ObjectProvider<AutoAgentRuntimeService> runtimeServiceProvider,
-                                      IRunRepository runRepository) {
+                                      IRunRepository runRepository,
+                                      Executor executor) {
         this.runtimeServiceProvider = runtimeServiceProvider;
         this.runRepository = runRepository;
+        this.executor = Objects.requireNonNull(executor, "Parent Run resume Executor is required.");
     }
 
     @Override
-    public void resumeParentIfReady(String parentRunId) {
+    public boolean resumeParentIfReady(String parentRunId) {
         if (parentRunId == null || parentRunId.isBlank()) {
-            return;
+            return false;
         }
-        CompletableFuture.runAsync(() -> resumeWhenParentIsWaiting(parentRunId));
+        try {
+            executor.execute(() -> resumeWhenParentIsWaiting(parentRunId));
+            return true;
+        } catch (RejectedExecutionException error) {
+            log.warn("Parent run resume scheduling was rejected; the waiting run remains retryable, runId={}",
+                    parentRunId, error);
+            return false;
+        }
     }
 
     private void resumeWhenParentIsWaiting(String parentRunId) {

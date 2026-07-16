@@ -13,7 +13,8 @@ import yhx.com.trigger.http.support.AgentResponseSupport;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @RestController
 @CrossOrigin("*")
@@ -25,6 +26,9 @@ public class AgentMockController {
 
     @Resource
     private SseEmitterRegistry sseEmitterRegistry;
+
+    @Resource(name = "autoAgentSseExecutor")
+    private Executor sseExecutor;
 
     @GetMapping("/scenarios")
     public Response<List<AgentMockScenarioDTO>> listScenarios() {
@@ -56,12 +60,20 @@ public class AgentMockController {
         String actualRunId = runId == null || runId.isBlank() ? "mock-" + scenario : runId;
         String streamKey = "mock:" + actualRunId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, 60_000L);
-        CompletableFuture.runAsync(() -> {
-            agentMockScenarioService.buildEvents(scenario, actualRunId).stream()
-                    .map(AgentApiMapper::toMockEvent)
-                    .forEach(event -> sseEmitterRegistry.send(streamKey, "agent-event", event.getEventId(), event));
-            sseEmitterRegistry.complete(streamKey);
-        });
+        try {
+            sseExecutor.execute(() -> {
+                try {
+                    agentMockScenarioService.buildEvents(scenario, actualRunId).stream()
+                            .map(AgentApiMapper::toMockEvent)
+                            .forEach(event -> sseEmitterRegistry.send(streamKey, "agent-event", event.getEventId(), event));
+                    sseEmitterRegistry.complete(streamKey);
+                } catch (RuntimeException error) {
+                    sseEmitterRegistry.completeWithError(streamKey, error);
+                }
+            });
+        } catch (RejectedExecutionException error) {
+            sseEmitterRegistry.completeWithError(streamKey, error);
+        }
         return emitter;
     }
 }

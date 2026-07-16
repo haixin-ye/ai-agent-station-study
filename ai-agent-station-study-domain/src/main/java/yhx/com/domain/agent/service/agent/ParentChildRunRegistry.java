@@ -107,6 +107,12 @@ public class ParentChildRunRegistry {
         return true;
     }
 
+    public synchronized void clearParentResumeRequested(String parentRunId) {
+        if (parentRunId != null && !parentRunId.isBlank()) {
+            resumeRequestedParentRunIds.remove(parentRunId);
+        }
+    }
+
     public synchronized String nextDispatchBatchId(String parentRunId) {
         if (parentRunId == null || parentRunId.isBlank()) {
             throw new IllegalArgumentException("parentRunId is required.");

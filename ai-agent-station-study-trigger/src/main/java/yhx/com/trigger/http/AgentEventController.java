@@ -14,7 +14,8 @@ import yhx.com.trigger.http.support.AgentResponseSupport;
 
 import java.util.Map;
 import java.util.List;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @RestController
 @CrossOrigin("*")
@@ -35,8 +36,8 @@ public class AgentEventController {
     @Resource
     private SseEmitterRegistry sseEmitterRegistry;
 
-    @Resource
-    private ThreadPoolExecutor threadPoolExecutor;
+    @Resource(name = "autoAgentSseExecutor")
+    private Executor sseExecutor;
 
     @GetMapping("/{runId}/events")
     public Response<List<AgentUserVisibleEventDTO>> listEvents(@PathVariable("runId") String runId,
@@ -51,7 +52,12 @@ public class AgentEventController {
                                    @RequestParam(value = "lastSeq", required = false) Long lastSeq) {
         String streamKey = "normal:" + runId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, STREAM_TIMEOUT_MS);
-        threadPoolExecutor.execute(() -> streamIncrementalEvents(streamKey, runId, lastSeq));
+        try {
+            sseExecutor.execute(() -> streamIncrementalEvents(streamKey, runId, lastSeq));
+        } catch (RejectedExecutionException error) {
+            log.warn("[AutoAgent][sse-executor-rejected] runId={}", runId, error);
+            sseEmitterRegistry.completeWithError(streamKey, error);
+        }
         return emitter;
     }
 

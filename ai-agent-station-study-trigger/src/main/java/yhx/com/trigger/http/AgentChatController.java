@@ -15,7 +15,7 @@ import yhx.com.trigger.http.support.AgentResponseSupport;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Executor;
 
 @RestController
 @CrossOrigin("*")
@@ -29,15 +29,15 @@ public class AgentChatController {
     @Resource
     private AgentQueryFacade agentQueryFacade;
 
-    @Resource
-    private ThreadPoolExecutor threadPoolExecutor;
+    @Resource(name = "autoAgentExecutionExecutor")
+    private Executor agentExecutionExecutor;
 
     @PostMapping("/chat")
     public Response<AgentChatResponseDTO> chat(@RequestBody AgentChatRequestDTO request) {
         try {
             String runId = "run-" + UUID.randomUUID();
             String sessionId = firstNonBlank(request == null ? null : request.getSessionId(), "sess-" + UUID.randomUUID());
-            threadPoolExecutor.execute(() -> {
+            agentExecutionExecutor.execute(() -> {
                 try {
                     RuntimeStepResult result = agentRuntimeFacade.startWithRunId(runId,
                             sessionId,
