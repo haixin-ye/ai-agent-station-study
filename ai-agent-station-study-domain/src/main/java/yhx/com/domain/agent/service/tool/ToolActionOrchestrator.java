@@ -40,6 +40,7 @@ public class ToolActionOrchestrator implements ToolActionOrchestratorPort {
                     .status(ToolActionStatusEnumVO.WAITING_USER)
                     .pendingInputId(buildResult.getPendingInputId())
                     .askUserRequest(buildResult.getAskUserRequest())
+                    .pauseIntent(buildResult.getPauseIntent())
                     .message(buildResult.getFailureMessage())
                     .build();
         }

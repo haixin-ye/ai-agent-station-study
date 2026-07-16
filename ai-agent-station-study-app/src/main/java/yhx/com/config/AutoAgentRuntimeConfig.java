@@ -63,6 +63,7 @@ import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.PendingInputContinuationDispatcher;
 import yhx.com.domain.agent.service.interaction.PendingInputManager;
 import yhx.com.domain.agent.service.interaction.PendingInputPauseCoordinator;
+import yhx.com.domain.agent.service.interaction.PendingInputPauseParticipant;
 import yhx.com.domain.agent.service.interaction.RagPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.SubAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
@@ -462,9 +463,10 @@ public class AutoAgentRuntimeConfig {
                                                                      IRunRepository runRepository,
                                                                      RunEventPublisher eventPublisher,
                                                                      RuntimeContinuationSnapshotService snapshotService,
-                                                                     IInteractionTransactionExecutor transactionExecutor) {
+                                                                     IInteractionTransactionExecutor transactionExecutor,
+                                                                     List<PendingInputPauseParticipant> pauseParticipants) {
         return new PendingInputPauseCoordinator(pendingInputManager, runRepository, eventPublisher,
-                snapshotService, transactionExecutor);
+                snapshotService, transactionExecutor, pauseParticipants);
     }
 
     @Bean

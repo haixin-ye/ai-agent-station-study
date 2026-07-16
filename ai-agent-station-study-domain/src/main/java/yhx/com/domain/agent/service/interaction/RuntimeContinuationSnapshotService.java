@@ -12,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.runtime.RunWorkingStateVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeContinuationRestoreResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeContinuationSnapshotVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -163,6 +164,8 @@ public class RuntimeContinuationSnapshotService {
         if (checkpoint.getRelatedLoopIndex() != null) {
             context.setLoopIndex(checkpoint.getRelatedLoopIndex());
         }
+        context.setRecoveryCounters(conservativeLegacyCounters(
+                context.getRecoveryCounters(), checkpoint.getRelatedLoopIndex()));
         if (context.getRuntimeFacts() == null) {
             context.setRuntimeFacts(new HashMap<>());
         }
@@ -172,6 +175,21 @@ public class RuntimeContinuationSnapshotService {
                 .restored(true)
                 .legacyFallback(true)
                 .message("Legacy continuation checkpoint restored with bounded fallback.")
+                .build();
+    }
+
+    private RuntimeRecoveryCounters conservativeLegacyCounters(RuntimeRecoveryCounters current,
+                                                                 Integer relatedLoopIndex) {
+        int restoredLoopCount = Math.max(
+                current == null ? 0 : current.loopCountValue(),
+                relatedLoopIndex == null ? 0 : relatedLoopIndex);
+        return RuntimeRecoveryCounters.builder()
+                .loopCount(restoredLoopCount)
+                .contractRepairCount(Integer.MAX_VALUE)
+                .finalRepairCount(Integer.MAX_VALUE)
+                .toolRetryCount(Integer.MAX_VALUE)
+                .ragRetryCount(Integer.MAX_VALUE)
+                .contextCompressionCount(Integer.MAX_VALUE)
                 .build();
     }
 

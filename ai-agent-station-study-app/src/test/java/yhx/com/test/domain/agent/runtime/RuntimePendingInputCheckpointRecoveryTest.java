@@ -7,12 +7,17 @@ import yhx.com.domain.agent.model.entity.persistence.AgentPendingInputEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputPauseIntentVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeResumeCommand;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStartCommand;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
+import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
+import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.RuntimeComponentPorts;
 import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
@@ -24,6 +29,64 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RuntimePendingInputCheckpointRecoveryTest {
+
+    @Test
+    public void tool_approval_checkpoint_is_created_after_action_is_applied_to_working_state() {
+        RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
+        MainAgentActionVO toolAction = MainAgentActionVO.builder()
+                .action("CALL_TOOL")
+                .stateDelta(Map.of("toolIntent", Map.of(
+                        "capabilityCode", "file_system_write_file",
+                        "toolName", "write_file",
+                        "arguments", Map.of("path", "docs/story.md"))) )
+                .build();
+        AutoAgentRuntimeService runtime = RuntimeTestSupport.runtime(
+                repository,
+                RuntimeTestSupport.fixedPorts(toolAction),
+                (context, action) -> MainActionHandlerResult.builder()
+                        .status(MainActionHandlerStatusEnumVO.WAITING_USER)
+                        .nextPhase(RuntimePhaseEnumVO.WAITING_USER)
+                        .pauseIntent(PendingInputPauseIntentVO.builder()
+                                .handler(ToolApprovalPendingInputHandler.HANDLER_CODE)
+                                .resumePhase(RuntimePhaseEnumVO.PREPARING_TOOL)
+                                .sourceComponent("ToolApprovalService")
+                                .pendingType("TOOL_APPROVAL")
+                                .expectedAnswerValueType("OPTION")
+                                .askUserRequest(yhx.com.domain.agent.model.valobj.context.AskUserRequestVO.builder()
+                                        .question("Approve write_file?")
+                                        .inputMode("SINGLE_CHOICE")
+                                        .allowFreeText(false)
+                                        .options(List.of(
+                                                Map.of("id", "approve", "label", "Approve", "value", "APPROVED"),
+                                                Map.of("id", "reject", "label", "Reject", "value", "REJECTED")))
+                                        .build())
+                                .sourcePayload(Map.of(
+                                        "approvalKey", "approval-key",
+                                        "toolCallId", "tool-call-1",
+                                        "argumentsHash", "hash",
+                                        "toolIntent", Map.of("toolName", "write_file")))
+                                .build())
+                        .message("waiting for approval")
+                        .build(),
+                new RuntimeLoopPolicy());
+
+        RuntimeStepResult waiting = runtime.start(RuntimeStartCommand.builder()
+                .runId("run-tool-checkpoint")
+                .sessionId("sess-tool-checkpoint")
+                .userId("user-1")
+                .agentId("agent-1")
+                .userInput("write a file")
+                .build());
+
+        AgentPendingInputEntity pending = repository.pendingInputs.get(waiting.getPendingInputId());
+        ContinuationCheckpointVO persisted = JSON.parseObject(
+                repository.payloads.get(pending.getContinuationRef()).getContent(), ContinuationCheckpointVO.class);
+        Assert.assertEquals(RuntimeStepStatusEnumVO.WAITING_USER, waiting.getStatus());
+        Assert.assertEquals(1, persisted.getRuntimeSnapshot().getWorkingState().getActionHistory().size());
+        Assert.assertEquals("CALL_TOOL", persisted.getRuntimeSnapshot().getWorkingState()
+                .getActionHistory().get(0).getAction());
+        Assert.assertEquals(1, persisted.getRuntimeSnapshot().getWorkingState().getWorklog().size());
+    }
 
     @Test
     public void plan_execute_pause_json_round_trip_restores_accumulated_state_before_main_agent() {

@@ -132,12 +132,12 @@ public class ToolInvocationRequestBuilder {
                 .runtimeContext(command.getRuntimeContext())
                 .build());
         if (approvalDecision.getStatus() == ToolApprovalDecisionStatusEnumVO.PENDING) {
-            toolRepository.updateToolCallStatus(toolCallId, ToolCallStatusEnumVO.APPROVAL_PENDING);
             return ToolInvocationBuildResultVO.builder()
                     .status(WAITING_USER)
                     .toolCallId(toolCallId)
                     .pendingInputId(approvalDecision.getPendingInputId())
                     .askUserRequest(approvalDecision.getAskUserRequest())
+                    .pauseIntent(approvalDecision.getPauseIntent())
                     .failureCode("TOOL_APPROVAL_REQUIRED")
                     .failureMessage(approvalDecision.getMessage())
                     .build();

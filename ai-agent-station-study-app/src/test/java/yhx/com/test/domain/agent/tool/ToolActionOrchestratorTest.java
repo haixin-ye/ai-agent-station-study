@@ -47,7 +47,9 @@ public class ToolActionOrchestratorTest {
         ToolActionResultVO result = orchestrator.handleToolAction(command());
 
         Assert.assertEquals(ToolActionStatusEnumVO.WAITING_USER, result.getStatus());
-        Assert.assertEquals("pending-tool-1", result.getPendingInputId());
+        Assert.assertNull(result.getPendingInputId());
+        Assert.assertNotNull(result.getPauseIntent());
+        Assert.assertEquals("TOOL_APPROVAL", result.getPauseIntent().getHandler());
     }
 
     @Test
@@ -263,7 +265,7 @@ public class ToolActionOrchestratorTest {
                 .inputSchema(Map.of())
                 .build()));
         ToolArgumentMaterializer materializer = new ToolArgumentMaterializer(repository, repository, repository);
-        ToolApprovalService approvalService = new ToolApprovalService(repository, repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalService approvalService = new ToolApprovalService(repository, repository);
         ToolInvocationRequestBuilder requestBuilder = new ToolInvocationRequestBuilder(capabilityRegistry, mcpToolRegistry,
                 materializer, new PermissionEnforcer(), approvalService, new ToolApprovalKeyGenerator(), repository, repository);
         ToolRuntime runtime = new ToolRuntime(invoker, new ToolReceiptCapture(repository), new ToolFailureMapper(), repository);
@@ -290,7 +292,7 @@ public class ToolActionOrchestratorTest {
                 .inputSchema(Map.of())
                 .build()));
         ToolArgumentMaterializer materializer = new ToolArgumentMaterializer(repository, repository, repository);
-        ToolApprovalService approvalService = new ToolApprovalService(repository, repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalService approvalService = new ToolApprovalService(repository, repository);
         ToolInvocationRequestBuilder requestBuilder = new ToolInvocationRequestBuilder(capabilityRegistry, mcpToolRegistry,
                 materializer, new PermissionEnforcer(), approvalService, new ToolApprovalKeyGenerator(), repository, repository);
         ToolRuntime runtime = new ToolRuntime(invoker, new ToolReceiptCapture(repository), new ToolFailureMapper(), repository);

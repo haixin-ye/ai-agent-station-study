@@ -27,7 +27,6 @@ import yhx.com.domain.agent.model.valobj.enums.tool.ToolArgumentContentModeEnumV
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 import yhx.com.domain.agent.model.valobj.tool.McpRuntimeCatalogVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolSpecVO;
-import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
 import yhx.com.domain.agent.service.tool.McpClientRegistry;
@@ -37,6 +36,7 @@ import yhx.com.domain.agent.service.tool.PermissionEnforcer;
 import yhx.com.domain.agent.service.tool.ToolActionOrchestrator;
 import yhx.com.domain.agent.service.tool.ToolApprovalKeyGenerator;
 import yhx.com.domain.agent.service.tool.ToolApprovalService;
+import yhx.com.domain.agent.service.tool.ToolApprovalPauseParticipant;
 import yhx.com.domain.agent.service.tool.ToolArgumentMaterializer;
 import yhx.com.domain.agent.service.tool.ToolEvidenceConverter;
 import yhx.com.domain.agent.service.tool.ToolFailureMapper;
@@ -215,13 +215,17 @@ public class AutoAgentToolConfig {
     }
 
     @Bean
-    @ConditionalOnBean({IToolRepository.class, IPayloadRepository.class, UserInteractionManager.class,
-            IInteractionTransactionExecutor.class})
+    @ConditionalOnBean({IToolRepository.class, IPayloadRepository.class, IInteractionTransactionExecutor.class})
     public ToolApprovalService toolApprovalService(IToolRepository toolRepository,
-                                                   IPayloadRepository payloadRepository,
-                                                   UserInteractionManager userInteractionManager,
-                                                   IInteractionTransactionExecutor transactionExecutor) {
-        return new ToolApprovalService(toolRepository, payloadRepository, userInteractionManager, transactionExecutor);
+                                                    IPayloadRepository payloadRepository,
+                                                    IInteractionTransactionExecutor transactionExecutor) {
+        return new ToolApprovalService(toolRepository, payloadRepository, transactionExecutor);
+    }
+
+    @Bean
+    @ConditionalOnBean(IToolRepository.class)
+    public ToolApprovalPauseParticipant toolApprovalPauseParticipant(IToolRepository toolRepository) {
+        return new ToolApprovalPauseParticipant(toolRepository);
     }
 
     @Bean

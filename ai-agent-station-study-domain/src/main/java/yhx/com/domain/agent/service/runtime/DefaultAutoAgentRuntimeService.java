@@ -26,6 +26,7 @@ import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
 import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateCommand;
 import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateResult;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputPauseIntentVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserInputResolveCommand;
 import yhx.com.domain.agent.model.valobj.interaction.UserInputResolveResult;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
@@ -714,6 +715,17 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
             workingStateManager.apply(context, action, actionResult);
             RuntimeStepResult stepResult = routeActionResult(context, action, actionResult);
+            boolean runResultApplied = false;
+            if (actionResult != null && actionResult.getDeferredAgentDispatch() != null) {
+                if (stepResult.getStatus() == RuntimeStepStatusEnumVO.WAITING_CHILDREN) {
+                    applyRunResult(context, stepResult);
+                    runResultApplied = true;
+                }
+                RuntimeSafeFailureVO postApplyFailure = completePostApplyActions(context, actionResult);
+                if (postApplyFailure != null) {
+                    return failRun(context, postApplyFailure);
+                }
+            }
             if (stepResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
                 RuntimeSafeFailureVO repeatedActionFailure = repeatedExecutionActionFailure(context, previousAction, actionType, action);
                 if (repeatedActionFailure != null) {
@@ -727,7 +739,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 }
                 continue;
             }
-            applyRunResult(context, stepResult);
+            if (!runResultApplied) {
+                applyRunResult(context, stepResult);
+            }
             return stepResult;
         }
         return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.MISSING_ACTIVE_RUN,
@@ -1044,6 +1058,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, failureFactory.actionHandlerUnavailable(action == null ? null : action.getAction()));
         }
         if (actionResult.getStatus() == MainActionHandlerStatusEnumVO.WAITING_USER) {
+            if (actionResult.getPauseIntent() != null) {
+                return pauseForUser(context, actionResult.getPauseIntent(), actionResult.getMessage());
+            }
             if (actionResult.getPendingInputId() != null && !actionResult.getPendingInputId().isBlank()) {
                 return RuntimeStepResult.builder()
                         .runId(context.getRunId())
@@ -1150,6 +1167,42 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                                            String handlerCode,
                                            String pendingType,
                                            String message) {
+        return pauseForUser(context, PendingInputPauseIntentVO.builder()
+                .handler(handlerCode)
+                .resumePhase(resumePhaseFor(handlerCode))
+                .sourceComponent(handlerCode)
+                .pendingType(pendingType)
+                .expectedAnswerValueType(request == null ? null : request.getInputMode())
+                .askUserRequest(request)
+                .sourcePayload(Map.of())
+                .build(), message);
+    }
+
+    private RuntimeSafeFailureVO completePostApplyActions(RuntimeExecutionContext context,
+                                                          MainActionHandlerResult actionResult) {
+        if (actionResult == null || actionResult.getDeferredAgentDispatch() == null) {
+            return null;
+        }
+        if (genericSubAgentDispatchOrchestrator == null || actionResult.getDeferredAgentRequest() == null) {
+            return failureFactory.create(RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,
+                    context.getCurrentPhase(), "Deferred child dispatch is unavailable after WorkingState update.", false);
+        }
+        try {
+            genericSubAgentDispatchOrchestrator.startPreparedDispatch(
+                    context, actionResult.getDeferredAgentRequest(), actionResult.getDeferredAgentDispatch());
+            return null;
+        } catch (RuntimeException e) {
+            return failureFactory.create(RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,
+                    context.getCurrentPhase(), "Deferred child dispatch failed: " + e.getMessage(), false);
+        }
+    }
+
+    private RuntimeStepResult pauseForUser(RuntimeExecutionContext context,
+                                           PendingInputPauseIntentVO pauseIntent,
+                                           String message) {
+        AskUserRequestVO request = pauseIntent == null ? null : pauseIntent.getAskUserRequest();
+        String handlerCode = pauseIntent == null ? null : pauseIntent.getHandler();
+        String pendingType = pauseIntent == null ? null : pauseIntent.getPendingType();
         diagnostic(context.getRunId(), "PAUSE_FOR_USER_REQUEST", diagnosticMap(
                 "sessionId", context.getSessionId(),
                 "loopIndex", context.getLoopIndex(),
@@ -1161,18 +1214,18 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         PendingInputCreateResult pending = userInteractionManager.createPendingInput(PendingInputCreateCommand.builder()
                 .runId(context.getRunId())
                 .sessionId(context.getSessionId())
-                .sourceComponent(handlerCode)
+                .sourceComponent(pauseIntent.getSourceComponent())
                 .pendingType(pendingType)
                 .askUserRequest(request)
                 .runtimeContext(context)
                 .continuation(ContinuationCheckpointVO.builder()
                         .handler(handlerCode)
-                        .resumePhase(resumePhaseFor(handlerCode))
-                        .sourceComponent(handlerCode)
+                        .resumePhase(pauseIntent.getResumePhase())
+                        .sourceComponent(pauseIntent.getSourceComponent())
                         .relatedRunId(context.getRunId())
                         .relatedLoopIndex(context.getLoopIndex())
-                        .expectedAnswerValueType(request == null ? null : request.getInputMode())
-                        .payload(Map.of())
+                        .expectedAnswerValueType(pauseIntent.getExpectedAnswerValueType())
+                        .payload(pauseIntent.getSourcePayload() == null ? Map.of() : pauseIntent.getSourcePayload())
                         .build())
                 .build());
         if (!Boolean.TRUE.equals(pending.getCreated())) {

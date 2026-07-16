@@ -131,6 +131,33 @@ public class RuntimeContinuationSnapshotServiceTest {
         Assert.assertEquals(Integer.valueOf(99), restored.getLoopIndex());
     }
 
+    @Test
+    public void legacy_checkpoint_restores_only_with_conservative_retry_budget() {
+        ContinuationCheckpointVO checkpoint = ContinuationCheckpointVO.builder()
+                .handler(MainAgentPendingInputHandler.HANDLER_CODE)
+                .resumePhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
+                .relatedRunId("run-snapshot")
+                .relatedLoopIndex(6)
+                .payload(Map.of())
+                .build();
+        RuntimeExecutionContext restored = RuntimeExecutionContext.builder()
+                .runId("run-snapshot")
+                .recoveryCounters(RuntimeRecoveryCounters.initial())
+                .runtimeFacts(new HashMap<>())
+                .build();
+
+        RuntimeContinuationRestoreResultVO result = service.restore(checkpoint, restored);
+
+        Assert.assertTrue(result.isRestored());
+        Assert.assertTrue(result.isLegacyFallback());
+        Assert.assertEquals(Integer.valueOf(6), restored.getRecoveryCounters().getLoopCount());
+        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getToolRetryCount());
+        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getRagRetryCount());
+        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getContractRepairCount());
+        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getFinalRepairCount());
+        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getContextCompressionCount());
+    }
+
     private RuntimeExecutionContext contextWithAccumulatedState() {
         RunWorkingStateVO workingState = RunWorkingStateVO.builder()
                 .notebook(MainAgentNotebookVO.builder()

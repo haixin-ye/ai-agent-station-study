@@ -117,6 +117,71 @@ public class PendingInputAtomicConsumptionTest {
         }
     }
 
+    @Test
+    public void malformed_checkpoint_is_rejected_without_dispatching_continuation() {
+        RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
+        AtomicInteger dispatchCount = new AtomicInteger();
+        UserInteractionManager manager = manager(repository, dispatchCount);
+        String checkpointRef = repository.savePayload(AgentPayloadEntity.builder()
+                .payloadType(PayloadTypeEnumVO.JSON)
+                .content("{malformed-checkpoint")
+                .build());
+        repository.createPendingInput(AgentPendingInputEntity.builder()
+                .pendingId("pending-malformed")
+                .runId("run-malformed")
+                .sourceComponent(MainAgentPendingInputHandler.HANDLER_CODE)
+                .pendingType("MAIN_AGENT_QUESTION")
+                .inputMode("FREE_TEXT")
+                .status("PENDING")
+                .question("Continue?")
+                .continuationRef(checkpointRef)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        UserInputResolveResult result = manager.resolveUserInput(UserInputResolveCommand.builder()
+                        .runId("run-malformed")
+                        .pendingId("pending-malformed")
+                        .freeText("continue")
+                        .build(),
+                context("run-malformed"));
+
+        Assert.assertFalse(result.getResolved());
+        Assert.assertEquals(PendingInputResolutionStatusEnumVO.CHECKPOINT_INVALID, result.getResolutionStatus());
+        Assert.assertEquals("CANCELLED", repository.findByPendingId("pending-malformed").orElseThrow().getStatus());
+        Assert.assertEquals(0, dispatchCount.get());
+    }
+
+    @Test
+    public void post_consumption_failure_returns_terminal_result_instead_of_stranding_run() {
+        RuntimeTestSupport.InMemoryRuntimeRepository repository = new RuntimeTestSupport.InMemoryRuntimeRepository();
+        AtomicInteger dispatchCount = new AtomicInteger();
+        RunTranscriptRecorder brokenTranscript = new RunTranscriptRecorder(repository, repository) {
+            @Override
+            public void appendUserReply(String runId,
+                                        Integer loopIndex,
+                                        yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO answer,
+                                        String payloadRef) {
+                throw new IllegalStateException("transcript unavailable");
+            }
+        };
+        UserInteractionManager manager = manager(repository, dispatchCount, brokenTranscript);
+        createPending(repository, "run-post-consume", "pending-post-consume", null);
+
+        UserInputResolveResult result = manager.resolveUserInput(UserInputResolveCommand.builder()
+                        .runId("run-post-consume")
+                        .pendingId("pending-post-consume")
+                        .freeText("continue")
+                        .build(),
+                context("run-post-consume"));
+
+        Assert.assertFalse(result.getResolved());
+        Assert.assertEquals(PendingInputResolutionStatusEnumVO.RESOLVED, result.getResolutionStatus());
+        Assert.assertEquals(RuntimeStepStatusEnumVO.FAILED, result.getContinuationResult().getStatus());
+        Assert.assertEquals(RunStatusEnumVO.FAILED, result.getContinuationResult().getNextRunStatus());
+        Assert.assertEquals("ANSWERED", repository.findByPendingId("pending-post-consume").orElseThrow().getStatus());
+        Assert.assertEquals(0, dispatchCount.get());
+    }
+
     private UserInputResolveResult resolveTogether(UserInteractionManager manager,
                                                    UserInputResolveCommand command,
                                                    CountDownLatch ready,
@@ -128,9 +193,14 @@ public class PendingInputAtomicConsumptionTest {
 
     private UserInteractionManager manager(RuntimeTestSupport.InMemoryRuntimeRepository repository,
                                            AtomicInteger dispatchCount) {
+        return manager(repository, dispatchCount, new RunTranscriptRecorder(repository, repository));
+    }
+
+    private UserInteractionManager manager(RuntimeTestSupport.InMemoryRuntimeRepository repository,
+                                           AtomicInteger dispatchCount,
+                                           RunTranscriptRecorder transcriptRecorder) {
         RuntimeFailureFactory failureFactory = new RuntimeFailureFactory();
         RunEventPublisher eventPublisher = new RunEventPublisher(repository, repository);
-        RunTranscriptRecorder transcriptRecorder = new RunTranscriptRecorder(repository, repository);
         PendingInputContinuationHandler handler = new PendingInputContinuationHandler() {
             @Override
             public String handlerCode() {
