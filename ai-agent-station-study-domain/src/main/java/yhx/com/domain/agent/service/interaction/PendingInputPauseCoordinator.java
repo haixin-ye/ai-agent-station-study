@@ -12,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
 
 import java.util.Map;
+import java.util.List;
 
 @Slf4j
 public class PendingInputPauseCoordinator {
@@ -21,12 +22,13 @@ public class PendingInputPauseCoordinator {
     private final RunEventPublisher eventPublisher;
     private final RuntimeContinuationSnapshotService snapshotService;
     private final IInteractionTransactionExecutor transactionExecutor;
+    private final List<PendingInputPauseParticipant> participants;
 
     public PendingInputPauseCoordinator(PendingInputManager pendingInputManager,
                                         IRunRepository runRepository,
                                         RunEventPublisher eventPublisher,
                                         RuntimeContinuationSnapshotService snapshotService) {
-        this(pendingInputManager, runRepository, eventPublisher, snapshotService, null);
+        this(pendingInputManager, runRepository, eventPublisher, snapshotService, null, List.of());
     }
 
     public PendingInputPauseCoordinator(PendingInputManager pendingInputManager,
@@ -34,11 +36,21 @@ public class PendingInputPauseCoordinator {
                                         RunEventPublisher eventPublisher,
                                         RuntimeContinuationSnapshotService snapshotService,
                                         IInteractionTransactionExecutor transactionExecutor) {
+        this(pendingInputManager, runRepository, eventPublisher, snapshotService, transactionExecutor, List.of());
+    }
+
+    public PendingInputPauseCoordinator(PendingInputManager pendingInputManager,
+                                        IRunRepository runRepository,
+                                        RunEventPublisher eventPublisher,
+                                        RuntimeContinuationSnapshotService snapshotService,
+                                        IInteractionTransactionExecutor transactionExecutor,
+                                        List<PendingInputPauseParticipant> participants) {
         this.pendingInputManager = pendingInputManager;
         this.runRepository = runRepository;
         this.eventPublisher = eventPublisher;
         this.snapshotService = snapshotService == null ? new RuntimeContinuationSnapshotService() : snapshotService;
         this.transactionExecutor = transactionExecutor;
+        this.participants = participants == null ? List.of() : List.copyOf(participants);
     }
 
     public PendingInputCreateResult pause(PendingInputCreateCommand command) {
@@ -75,6 +87,9 @@ public class PendingInputPauseCoordinator {
         if (pendingInputManager.findActiveByRunId(command.getRunId()).isPresent()) {
             return failed(command, "Run already has an active PendingInput.");
         }
+        participants.stream()
+                .filter(participant -> participant.supports(command.getContinuation().getHandler()))
+                .forEach(participant -> participant.beforePendingInputPersisted(command));
         String pendingId = pendingInputManager.create(command);
         if (runRepository != null) {
             runRepository.updateRunPhase(command.getRunId(), RuntimePhaseEnumVO.WAITING_USER);

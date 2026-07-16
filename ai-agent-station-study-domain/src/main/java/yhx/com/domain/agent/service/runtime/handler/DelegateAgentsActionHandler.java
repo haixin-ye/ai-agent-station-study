@@ -75,11 +75,13 @@ public class DelegateAgentsActionHandler extends MainActionHandlerSupport implem
     }
 
     private MainActionHandlerResult handleWithOrchestrator(RuntimeExecutionContext context, DelegateAgentsRequestVO request) {
-        GenericSubAgentDispatchOrchestrationResultVO orchestrationResult = dispatchOrchestrator.dispatchRunAndProject(context, request);
+        GenericSubAgentDispatchOrchestrationResultVO orchestrationResult = dispatchOrchestrator.prepareDispatch(context, request);
         boolean parentReady = orchestrationResult.isParentReady();
         return MainActionHandlerResult.builder()
                 .status(parentReady ? MainActionHandlerStatusEnumVO.CONTINUE_LOOP : MainActionHandlerStatusEnumVO.WAITING_CHILDREN)
                 .nextPhase(parentReady ? RuntimePhaseEnumVO.BUILDING_STATE_VIEW : RuntimePhaseEnumVO.WAITING_CHILDREN)
+                .deferredAgentRequest(request)
+                .deferredAgentDispatch(orchestrationResult)
                 .actionEffect(ActionEffectVO.builder()
                         .action(MainAgentActionTypeEnumVO.DELEGATE_AGENTS.code())
                         .status(parentReady ? MainActionHandlerStatusEnumVO.CONTINUE_LOOP.code() : MainActionHandlerStatusEnumVO.WAITING_CHILDREN.code())

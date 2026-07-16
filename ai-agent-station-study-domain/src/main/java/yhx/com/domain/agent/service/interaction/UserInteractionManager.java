@@ -168,14 +168,35 @@ public class UserInteractionManager {
                 pendingInput.getRunId(), pendingInput.getPendingId(), answer.getStatus(),
                 context == null ? null : context.getLoopIndex());
         String answerRef = consumption.getUserAnswerRef();
-        if (answer.getStatus() != UserAnswerStatusEnumVO.CANCELLED) {
-            appendUserClarification(context, pendingInput, answer);
-            transcriptRecorder.appendUserReply(pendingInput.getRunId(), context == null ? null : context.getLoopIndex(), answer, answerRef);
+        RuntimeStepResult continuationResult;
+        try {
+            if (answer.getStatus() != UserAnswerStatusEnumVO.CANCELLED) {
+                appendUserClarification(context, pendingInput, answer);
+                transcriptRecorder.appendUserReply(pendingInput.getRunId(),
+                        context == null ? null : context.getLoopIndex(), answer, answerRef);
+            }
+            if (context != null && context.getRuntimeFacts() != null && checkpoint != null) {
+                context.getRuntimeFacts().put("continuationCheckpoint", checkpoint);
+            }
+            continuationResult = continuationDispatcher.dispatch(answer, checkpoint, context);
+        } catch (RuntimeException e) {
+            log.error("[AutoAgent][post-consumption-continuation-failed] runId={}, pendingId={}",
+                    pendingInput.getRunId(), pendingInput.getPendingId(), e);
+            RuntimeSafeFailureVO failure = failureFactory.create(
+                    RuntimeFailureCodeEnumVO.MISSING_ACTIVE_PENDING_INPUT,
+                    RuntimePhaseEnumVO.RESOLVING_USER_ANSWER,
+                    "Continuation failed after PendingInput consumption: " + safeMessage(e),
+                    false);
+            continuationResult = RuntimeStepResult.builder()
+                    .runId(pendingInput.getRunId())
+                    .sessionId(context == null ? null : context.getSessionId())
+                    .status(RuntimeStepStatusEnumVO.FAILED)
+                    .nextRunStatus(RunStatusEnumVO.FAILED)
+                    .nextPhase(RuntimePhaseEnumVO.FAILED)
+                    .safeFailure(failure)
+                    .message(failure.getDeveloperMessage())
+                    .build();
         }
-        if (context != null && context.getRuntimeFacts() != null && checkpoint != null) {
-            context.getRuntimeFacts().put("continuationCheckpoint", checkpoint);
-        }
-        RuntimeStepResult continuationResult = continuationDispatcher.dispatch(answer, checkpoint, context);
         return UserInputResolveResult.builder()
                 .pendingInputId(pendingInput.getPendingId())
                 .userAnswer(answer)
@@ -219,9 +240,15 @@ public class UserInteractionManager {
         if (payloadRepository == null || continuationRef == null) {
             return null;
         }
-        return payloadRepository.findContent(continuationRef)
-                .map(content -> JSON.parseObject(content, ContinuationCheckpointVO.class))
-                .orElse(null);
+        try {
+            return payloadRepository.findContent(continuationRef)
+                    .map(content -> JSON.parseObject(content, ContinuationCheckpointVO.class))
+                    .orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("[AutoAgent][checkpoint-load-failed] continuationRef={}, error={}",
+                    continuationRef, e.getMessage());
+            return null;
+        }
     }
 
     private void appendUserClarification(RuntimeExecutionContext context, AgentPendingInputEntity pendingInput, UserAnswerVO answer) {
@@ -257,6 +284,12 @@ public class UserInteractionManager {
                         .build())
                 .failureMessage(failure.getDeveloperMessage())
                 .build();
+    }
+
+    private String safeMessage(RuntimeException error) {
+        return error.getMessage() == null || error.getMessage().isBlank()
+                ? error.getClass().getSimpleName()
+                : error.getMessage();
     }
 
     private PendingInputConsumptionResultVO consume(AgentPendingInputEntity pendingInput, UserAnswerVO answer) {

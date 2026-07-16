@@ -36,13 +36,16 @@ import yhx.com.domain.agent.service.interaction.UserReplyProcessor;
 import yhx.com.domain.agent.service.runtime.DefaultAutoAgentRuntimeService;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.NoopMainActionDispatcher;
+import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
 import yhx.com.domain.agent.service.runtime.RunTranscriptRecorder;
 import yhx.com.domain.agent.service.runtime.RuntimeComponentPorts;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
+import yhx.com.domain.agent.service.runtime.RuntimeRoutePolicy;
 import yhx.com.domain.agent.service.runtime.RuntimePhaseGuard;
 import yhx.com.domain.agent.service.runtime.RuntimeStateMachine;
+import yhx.com.domain.agent.service.agent.GenericSubAgentDispatchOrchestrator;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -61,6 +64,32 @@ public class RuntimeTestSupport {
                                                          boolean testMode,
                                                          RuntimeLoopPolicy loopPolicy) {
         RuntimeFailureFactory failureFactory = new RuntimeFailureFactory();
+        return runtime(repository, componentPorts,
+                new NoopMainActionDispatcher(testMode, failureFactory), loopPolicy, failureFactory, null);
+    }
+
+    public static DefaultAutoAgentRuntimeService runtime(InMemoryRuntimeRepository repository,
+                                                         RuntimeComponentPorts componentPorts,
+                                                         MainActionDispatcher actionDispatcher,
+                                                         RuntimeLoopPolicy loopPolicy) {
+        return runtime(repository, componentPorts, actionDispatcher, loopPolicy, new RuntimeFailureFactory(), null);
+    }
+
+    public static DefaultAutoAgentRuntimeService runtime(InMemoryRuntimeRepository repository,
+                                                         RuntimeComponentPorts componentPorts,
+                                                         MainActionDispatcher actionDispatcher,
+                                                         RuntimeLoopPolicy loopPolicy,
+                                                         GenericSubAgentDispatchOrchestrator subAgentOrchestrator) {
+        return runtime(repository, componentPorts, actionDispatcher, loopPolicy,
+                new RuntimeFailureFactory(), subAgentOrchestrator);
+    }
+
+    private static DefaultAutoAgentRuntimeService runtime(InMemoryRuntimeRepository repository,
+                                                          RuntimeComponentPorts componentPorts,
+                                                          MainActionDispatcher actionDispatcher,
+                                                          RuntimeLoopPolicy loopPolicy,
+                                                          RuntimeFailureFactory failureFactory,
+                                                          GenericSubAgentDispatchOrchestrator subAgentOrchestrator) {
         DeveloperTraceRecorder traceRecorder = new DeveloperTraceRecorder(repository, repository);
         RunEventPublisher eventPublisher = new RunEventPublisher(repository, repository);
         RunTranscriptRecorder transcriptRecorder = new RunTranscriptRecorder(repository, repository);
@@ -74,12 +103,19 @@ public class RuntimeTestSupport {
                 transcriptRecorder,
                 failureFactory);
         RuntimeStateMachine stateMachine = new RuntimeStateMachine();
+        if (subAgentOrchestrator != null) {
+            return new DefaultAutoAgentRuntimeService(
+                    repository, repository, repository, componentPorts, actionDispatcher, interactionManager,
+                    loopPolicy, new RuntimeRoutePolicy(), stateMachine, failureFactory,
+                    new RuntimePhaseGuard(stateMachine, failureFactory, traceRecorder), eventPublisher,
+                    transcriptRecorder, traceRecorder, null, null, subAgentOrchestrator);
+        }
         return new DefaultAutoAgentRuntimeService(
                 repository,
                 repository,
                 repository,
                 componentPorts,
-                new NoopMainActionDispatcher(testMode, failureFactory),
+                actionDispatcher,
                 interactionManager,
                 loopPolicy,
                 stateMachine,

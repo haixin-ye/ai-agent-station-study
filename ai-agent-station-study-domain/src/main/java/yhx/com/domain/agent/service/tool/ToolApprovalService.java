@@ -5,6 +5,7 @@ import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IToolRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.ToolApprovalEntity;
+import yhx.com.domain.agent.model.entity.persistence.ToolCallEntity;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.UserAnswerTypeEnumVO;
@@ -13,14 +14,11 @@ import yhx.com.domain.agent.model.valobj.enums.persistence.ToolApprovalStatusEnu
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.PermissionDecisionStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolApprovalDecisionStatusEnumVO;
-import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
-import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateCommand;
-import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateResult;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputPauseIntentVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionCommandVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolApprovalDecisionResultVO;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
-import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.adapter.transaction.IInteractionTransactionExecutor;
 
 import java.time.LocalDateTime;
@@ -30,27 +28,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.Optional;
+import java.util.UUID;
 
 public class ToolApprovalService {
 
     private final IToolRepository toolRepository;
     private final IPayloadRepository payloadRepository;
-    private final UserInteractionManager userInteractionManager;
     private final IInteractionTransactionExecutor transactionExecutor;
 
     public ToolApprovalService(IToolRepository toolRepository,
-                               IPayloadRepository payloadRepository,
-                               UserInteractionManager userInteractionManager) {
-        this(toolRepository, payloadRepository, userInteractionManager, null);
+                               IPayloadRepository payloadRepository) {
+        this(toolRepository, payloadRepository, null);
     }
 
     public ToolApprovalService(IToolRepository toolRepository,
                                IPayloadRepository payloadRepository,
-                               UserInteractionManager userInteractionManager,
                                IInteractionTransactionExecutor transactionExecutor) {
         this.toolRepository = toolRepository;
         this.payloadRepository = payloadRepository;
-        this.userInteractionManager = userInteractionManager;
         this.transactionExecutor = transactionExecutor;
     }
 
@@ -83,10 +78,12 @@ public class ToolApprovalService {
         }
         ToolApprovalEntity existing = toolRepository.findApprovalByApprovalKey(command.getApprovalKey()).orElse(null);
         if (existing != null) {
-            return fromExisting(existing);
+            return fromExisting(existing, command);
         }
         AskUserRequestVO request = approvalRequest(command);
+        String approvalId = "approval-" + UUID.randomUUID();
         ToolApprovalEntity approval = ToolApprovalEntity.builder()
+                .approvalId(approvalId)
                 .approvalKey(command.getApprovalKey())
                 .runId(command.getRunId())
                 .toolCallId(command.getToolCallId())
@@ -96,35 +93,11 @@ public class ToolApprovalService {
                 .optionsRef(savePayload(request.getOptions()))
                 .createdAt(LocalDateTime.now())
                 .build();
-        String approvalId = toolRepository.saveApproval(approval);
-        approval.setApprovalId(approvalId);
-        PendingInputCreateResult pending = userInteractionManager.createPendingInput(PendingInputCreateCommand.builder()
-                .runId(command.getRunId())
-                .sessionId(command.getSessionId())
-                .sourceComponent("ToolApprovalService")
-                .pendingType(PendingInputTypeEnumVO.TOOL_APPROVAL.code())
-                .askUserRequest(request)
-                .runtimeContext(command.getRuntimeContext())
-                .continuation(ContinuationCheckpointVO.builder()
-                        .handler(ToolApprovalPendingInputHandler.HANDLER_CODE)
-                        .resumePhase(RuntimePhaseEnumVO.PREPARING_TOOL)
-                        .sourceComponent("ToolApprovalService")
-                        .relatedRunId(command.getRunId())
-                        .relatedLoopIndex(command.getRuntimeContext() == null ? null : command.getRuntimeContext().getLoopIndex())
-                        .expectedAnswerValueType("OPTION")
-                        .payload(approvalCheckpointPayload(command, approvalId))
-                        .build())
-                .build());
-        if (pending == null || !Boolean.TRUE.equals(pending.getCreated())) {
-            throw new IllegalStateException(pending == null
-                    ? "PendingInput creation returned null."
-                    : pending.getFailureMessage());
-        }
         return ToolApprovalDecisionResultVO.builder()
                 .status(ToolApprovalDecisionStatusEnumVO.PENDING)
                 .approval(approval)
-                .pendingInputId(pending.getPendingInputId())
                 .askUserRequest(request)
+                .pauseIntent(approvalPauseIntent(command, approvalId, request))
                 .message("Tool approval is waiting for user decision.")
                 .build();
     }
@@ -172,12 +145,20 @@ public class ToolApprovalService {
         return handleUserDecision(answer, approval);
     }
 
-    private ToolApprovalDecisionResultVO fromExisting(ToolApprovalEntity approval) {
+    private ToolApprovalDecisionResultVO fromExisting(ToolApprovalEntity approval,
+                                                      ToolApprovalDecisionCommandVO command) {
         if (approval.getStatus() == ToolApprovalStatusEnumVO.APPROVED) {
             return ToolApprovalDecisionResultVO.builder().status(ToolApprovalDecisionStatusEnumVO.APPROVED).approval(approval).build();
         }
         if (approval.getStatus() == ToolApprovalStatusEnumVO.PENDING) {
-            return ToolApprovalDecisionResultVO.builder().status(ToolApprovalDecisionStatusEnumVO.PENDING).approval(approval).message("Existing approval is pending.").build();
+            AskUserRequestVO request = approvalRequest(command);
+            return ToolApprovalDecisionResultVO.builder()
+                    .status(ToolApprovalDecisionStatusEnumVO.PENDING)
+                    .approval(approval)
+                    .askUserRequest(request)
+                    .pauseIntent(approvalPauseIntent(command, approval.getApprovalId(), request))
+                    .message("Existing approval is pending.")
+                    .build();
         }
         if (approval.getStatus() == ToolApprovalStatusEnumVO.CANCELLED) {
             return ToolApprovalDecisionResultVO.builder().status(ToolApprovalDecisionStatusEnumVO.CANCELLED).approval(approval).build();
@@ -292,12 +273,21 @@ public class ToolApprovalService {
         return toolRepository.findApprovalByApprovalKey(approvalKey);
     }
 
+    public Optional<ToolCallEntity> findToolCall(String toolCallId) {
+        if (toolCallId == null || toolCallId.isBlank()) {
+            return Optional.empty();
+        }
+        return toolRepository.findToolCall(toolCallId);
+    }
+
     private Map<String, Object> approvalCheckpointPayload(ToolApprovalDecisionCommandVO command, String approvalId) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("approvalId", approvalId);
         payload.put("approvalKey", command.getApprovalKey());
         payload.put("toolCallId", command.getToolCallId());
         payload.put("argumentsHash", command.getArgumentsHash());
+        payload.put("permissionMode", command.getCapability() == null || command.getCapability().getPermissionMode() == null
+                ? null : command.getCapability().getPermissionMode().code());
         payload.put("toolIntent", toolIntentPayload(command));
         if (command.getCapability() != null) {
             payload.put("capabilityCode", command.getCapability().getCapabilityCode());
@@ -307,6 +297,20 @@ public class ToolApprovalService {
             payload.put("toolName", command.getToolSpec().getToolName());
         }
         return payload;
+    }
+
+    private PendingInputPauseIntentVO approvalPauseIntent(ToolApprovalDecisionCommandVO command,
+                                                          String approvalId,
+                                                          AskUserRequestVO request) {
+        return PendingInputPauseIntentVO.builder()
+                .handler(ToolApprovalPendingInputHandler.HANDLER_CODE)
+                .resumePhase(RuntimePhaseEnumVO.PREPARING_TOOL)
+                .sourceComponent("ToolApprovalService")
+                .pendingType(PendingInputTypeEnumVO.TOOL_APPROVAL.code())
+                .expectedAnswerValueType("OPTION")
+                .askUserRequest(request)
+                .sourcePayload(approvalCheckpointPayload(command, approvalId))
+                .build();
     }
 
     private String savePayload(Object value) {

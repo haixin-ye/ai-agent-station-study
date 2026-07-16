@@ -20,8 +20,10 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
 import yhx.com.domain.agent.service.interaction.ContextPlannerPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.PendingInputContinuationDispatcher;
+import yhx.com.domain.agent.service.interaction.PendingInputContinuationHandler;
 import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.RuntimeContinuationSnapshotService;
+import yhx.com.domain.agent.service.interaction.RuntimeUserClarificationRecorder;
 import yhx.com.domain.agent.service.interaction.SubAgentPendingInputHandler;
 import yhx.com.test.domain.agent.runtime.support.RuntimeTestSupport;
 
@@ -172,6 +174,53 @@ public class PendingInputContinuationDispatcherTest {
 
         Assert.assertEquals(RuntimeStepStatusEnumVO.FAILED, result.getStatus());
         Assert.assertNotNull(result.getSafeFailure());
+    }
+
+    @Test
+    public void handler_exception_is_converted_to_safe_failure() {
+        PendingInputContinuationHandler brokenHandler = new PendingInputContinuationHandler() {
+            @Override
+            public String handlerCode() {
+                return MainAgentPendingInputHandler.HANDLER_CODE;
+            }
+
+            @Override
+            public RuntimeStepResult handle(UserAnswerVO answer,
+                                            ContinuationCheckpointVO checkpoint,
+                                            RuntimeExecutionContext context) {
+                throw new IllegalStateException("broken source payload");
+            }
+        };
+        PendingInputContinuationDispatcher dispatcher = new PendingInputContinuationDispatcher(List.of(brokenHandler));
+
+        RuntimeStepResult result = dispatcher.dispatch(answer("continue"),
+                checkpoint(MainAgentPendingInputHandler.HANDLER_CODE,
+                        RuntimePhaseEnumVO.BUILDING_STATE_VIEW, Map.of()), context());
+
+        Assert.assertEquals(RuntimeStepStatusEnumVO.FAILED, result.getStatus());
+        Assert.assertNotNull(result.getSafeFailure());
+        Assert.assertTrue(result.getMessage().contains(MainAgentPendingInputHandler.HANDLER_CODE));
+    }
+
+    @Test
+    public void semantic_clarification_replaces_generic_record_for_same_pending_input() {
+        RuntimeExecutionContext context = context();
+        context.getRuntimeFacts().put("userClarifications", List.of(UserClarificationVO.builder()
+                .pendingId("pending-1")
+                .answerType("OPTION")
+                .value(Map.of("decision", "REJECTED"))
+                .build()));
+
+        new RuntimeUserClarificationRecorder().append(context, UserClarificationVO.builder()
+                .pendingId("pending-1")
+                .answerType("TOOL_APPROVAL_REJECTED")
+                .value(Map.of("decision", "REJECTED"))
+                .build());
+
+        List<?> clarifications = (List<?>) context.getRuntimeFacts().get("userClarifications");
+        Assert.assertEquals(1, clarifications.size());
+        Assert.assertEquals("TOOL_APPROVAL_REJECTED",
+                ((UserClarificationVO) clarifications.get(0)).getAnswerType());
     }
 
     private RuntimeExecutionContext context() {

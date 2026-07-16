@@ -7,6 +7,7 @@ import yhx.com.domain.agent.model.valobj.agent.DelegateAgentTaskVO;
 import yhx.com.domain.agent.model.valobj.agent.DelegateAgentsRequestVO;
 import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentDispatchOrchestrationResultVO;
 import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentOrchestrationResultVO;
+import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentContinuationVO;
 import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentRunCommandVO;
 import yhx.com.domain.agent.model.valobj.agent.ParentChildRunRelationVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.AgentProfileTypeEnumVO;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -146,19 +148,17 @@ public class GenericSubAgentDispatchOrchestrator {
 
     public GenericSubAgentDispatchOrchestrationResultVO dispatchRunAndProject(RuntimeExecutionContext parentContext,
                                                                               DelegateAgentsRequestVO request) {
+        GenericSubAgentDispatchOrchestrationResultVO prepared = prepareDispatch(parentContext, request);
+        startPreparedDispatch(parentContext, request, prepared);
+        return prepared;
+    }
+
+    public GenericSubAgentDispatchOrchestrationResultVO prepareDispatch(RuntimeExecutionContext parentContext,
+                                                                        DelegateAgentsRequestVO request) {
         validate(parentContext, request);
         AgentDispatchResultVO dispatchResult = dispatchRuntime.dispatch(parentContext.getRunId(), request);
         if (lifecycleEventPublisher != null) {
             lifecycleEventPublisher.dispatched(parentContext.getRunId(), dispatchResult, request.getTasks());
-        }
-        for (String childRunId : dispatchResult.getChildRunIds()) {
-            ParentChildRunRelationVO relation = registry.findByChildRunId(childRunId)
-                    .orElseThrow(() -> new IllegalArgumentException("Child relation is missing for dispatched child: " + childRunId));
-            DelegateAgentTaskVO task = findTask(request, relation.getTaskId());
-            startChildAsync(parentContext, relation, task);
-        }
-        if (lifecycleEventPublisher != null) {
-            lifecycleEventPublisher.parentWaiting(parentContext.getRunId(), dispatchResult.getChildRunIds());
         }
         return GenericSubAgentDispatchOrchestrationResultVO.builder()
                 .parentRunId(dispatchResult.getParentRunId())
@@ -167,6 +167,35 @@ public class GenericSubAgentDispatchOrchestrator {
                 .childResults(List.of())
                 .parentReady(false)
                 .build();
+    }
+
+    public void startPreparedDispatch(RuntimeExecutionContext parentContext,
+                                      DelegateAgentsRequestVO request,
+                                      GenericSubAgentDispatchOrchestrationResultVO prepared) {
+        validate(parentContext, request);
+        if (prepared == null
+                || !Objects.equals(parentContext.getRunId(), prepared.getParentRunId())
+                || prepared.getChildRunIds() == null
+                || prepared.getChildRunIds().isEmpty()) {
+            throw new IllegalArgumentException("Prepared child dispatch is missing or belongs to another parent Run.");
+        }
+        List<ParentChildRunRelationVO> relations = new ArrayList<>();
+        List<DelegateAgentTaskVO> tasks = new ArrayList<>();
+        for (String childRunId : prepared.getChildRunIds()) {
+            ParentChildRunRelationVO relation = registry.findByChildRunId(childRunId)
+                    .orElseThrow(() -> new IllegalArgumentException("Child relation is missing for dispatched child: " + childRunId));
+            if (!Objects.equals(parentContext.getRunId(), relation.getParentRunId())) {
+                throw new IllegalArgumentException("Prepared child relation belongs to another parent Run.");
+            }
+            relations.add(relation);
+            tasks.add(findTask(request, relation.getTaskId()));
+        }
+        for (int index = 0; index < relations.size(); index++) {
+            startChildAsync(parentContext, relations.get(index), tasks.get(index));
+        }
+        if (lifecycleEventPublisher != null) {
+            lifecycleEventPublisher.parentWaiting(parentContext.getRunId(), prepared.getChildRunIds());
+        }
     }
 
     private void startChildAsync(RuntimeExecutionContext parentContext,
@@ -273,6 +302,11 @@ public class GenericSubAgentDispatchOrchestrator {
         registry.restoreParent(parentContext.getRunId());
         ParentChildRunRelationVO relation = registry.findByChildRunId(childRunId)
                 .orElseThrow(() -> new IllegalArgumentException("Child relation is missing for child run: " + childRunId));
+        if (!Objects.equals(parentContext.getRunId(), relation.getParentRunId())) {
+            throw new IllegalArgumentException("Child run " + childRunId
+                    + " does not belong to parent Run " + parentContext.getRunId() + ".");
+        }
+        validateContinuationIdentity(parentContext, relation, childRunId, answer);
         GenericSubAgentNodePort nodePort = nodePortFor(childRunId);
         GenericSubAgentRuntime childRuntime = new GenericSubAgentRuntime(
                 registry,
@@ -294,6 +328,26 @@ public class GenericSubAgentDispatchOrchestrator {
                 .childResults(List.of(childResult))
                 .parentReady(registry.isWaitSatisfied(relation.getParentRunId()))
                 .build();
+    }
+
+    private void validateContinuationIdentity(RuntimeExecutionContext parentContext,
+                                                ParentChildRunRelationVO relation,
+                                                String childRunId,
+                                                UserAnswerVO answer) {
+        GenericSubAgentContinuationVO continuation = registry.findContinuation(childRunId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Generic subagent continuation is missing for child run: " + childRunId));
+        if (!Objects.equals(parentContext.getRunId(), continuation.getParentRunId())
+                || !Objects.equals(childRunId, continuation.getChildRunId())
+                || !Objects.equals(relation.getTaskId(), continuation.getTaskId())) {
+            throw new IllegalArgumentException("Generic subagent continuation identity does not match the parent-child relation.");
+        }
+        if (continuation.getPendingInputId() != null
+                && answer != null
+                && answer.getPendingId() != null
+                && !Objects.equals(continuation.getPendingInputId(), answer.getPendingId())) {
+            throw new IllegalArgumentException("Generic subagent continuation belongs to another PendingInput.");
+        }
     }
 
     private GenericSubAgentNodePort nodePortFor(String childRunId) {

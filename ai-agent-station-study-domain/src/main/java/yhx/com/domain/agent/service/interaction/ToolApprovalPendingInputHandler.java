@@ -2,11 +2,13 @@ package yhx.com.domain.agent.service.interaction;
 
 import yhx.com.domain.agent.model.valobj.enums.interaction.UserAnswerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.ToolApprovalStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.persistence.ToolCallStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeStepStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolApprovalDecisionStatusEnumVO;
 import yhx.com.domain.agent.model.entity.persistence.ToolApprovalEntity;
+import yhx.com.domain.agent.model.entity.persistence.ToolCallEntity;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO;
@@ -51,7 +53,11 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
         ToolApprovalService toolApprovalService = toolApprovalServiceSupplier.get();
         ToolApprovalEntity approval = toolApprovalService == null ? null
                 : toolApprovalService.findApprovalByApprovalKey(approvalKey).orElse(null);
-        String approvalFailure = validateApprovalIdentity(context, checkpointPayload, approval, toolApprovalService != null);
+        ToolCallEntity toolCall = toolApprovalService == null ? null
+                : toolApprovalService.findToolCall(ContinuationCheckpointSupport.stringValue(
+                        checkpointPayload, "toolCallId")).orElse(null);
+        String approvalFailure = validateApprovalIdentity(
+                context, checkpointPayload, approval, toolCall, toolApprovalService != null);
         if (approvalFailure != null) {
             return failed(context, approvalFailure);
         }
@@ -157,6 +163,7 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
     private String validateApprovalIdentity(RuntimeExecutionContext context,
                                             Map<String, Object> payload,
                                             ToolApprovalEntity approval,
+                                            ToolCallEntity toolCall,
                                             boolean persistenceAvailable) {
         if (!persistenceAvailable) {
             return null;
@@ -171,6 +178,18 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
                 || !ContinuationCheckpointSupport.stringValue(payload, "toolCallId").equals(approval.getToolCallId())
                 || !ContinuationCheckpointSupport.stringValue(payload, "argumentsHash").equals(approval.getArgumentsHash())) {
             return "Tool approval record does not match checkpoint identity.";
+        }
+        if (toolCall == null) {
+            return "Tool approval persisted tool call is missing.";
+        }
+        if (toolCall.getStatus() != ToolCallStatusEnumVO.APPROVAL_PENDING) {
+            return "Tool approval persisted tool call is not approval-pending.";
+        }
+        if (!context.getRunId().equals(toolCall.getRunId())
+                || !ContinuationCheckpointSupport.stringValue(payload, "toolCallId").equals(toolCall.getToolCallId())
+                || !ContinuationCheckpointSupport.stringValue(payload, "mcpServerCode").equals(toolCall.getMcpServerName())
+                || !ContinuationCheckpointSupport.stringValue(payload, "toolName").equals(toolCall.getToolName())) {
+            return "Tool approval checkpoint does not match the persisted tool call identity.";
         }
         return null;
     }

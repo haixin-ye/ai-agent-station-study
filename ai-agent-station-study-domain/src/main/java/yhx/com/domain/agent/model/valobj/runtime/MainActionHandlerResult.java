@@ -8,6 +8,9 @@ import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputPauseIntentVO;
+import yhx.com.domain.agent.model.valobj.agent.DelegateAgentsRequestVO;
+import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentDispatchOrchestrationResultVO;
 
 import java.util.List;
 
@@ -21,6 +24,9 @@ public class MainActionHandlerResult {
     private RuntimePhaseEnumVO nextPhase;
     private AskUserRequestVO askUserRequest;
     private String pendingInputId;
+    private PendingInputPauseIntentVO pauseIntent;
+    private DelegateAgentsRequestVO deferredAgentRequest;
+    private GenericSubAgentDispatchOrchestrationResultVO deferredAgentDispatch;
     private FinalAnswerCandidateVO finalAnswerCandidate;
     private String finalMessageId;
     private String finalAnswerRef;

@@ -37,7 +37,21 @@ public class PendingInputContinuationDispatcher {
             return failed(context, "Resume phase " + checkpoint.getResumePhase()
                     + " is not allowed for continuation handler " + checkpoint.getHandler() + ".");
         }
-        return handler.handle(answer, checkpoint, context);
+        try {
+            RuntimeStepResult result = handler.handle(answer, checkpoint, context);
+            return result == null
+                    ? failed(context, "Continuation handler " + checkpoint.getHandler() + " returned no result.")
+                    : result;
+        } catch (RuntimeException e) {
+            return failed(context, "Continuation handler " + checkpoint.getHandler()
+                    + " failed safely: " + safeMessage(e));
+        }
+    }
+
+    private String safeMessage(RuntimeException error) {
+        return error.getMessage() == null || error.getMessage().isBlank()
+                ? error.getClass().getSimpleName()
+                : error.getMessage();
     }
 
     private RuntimeStepResult failed(RuntimeExecutionContext context, String message) {

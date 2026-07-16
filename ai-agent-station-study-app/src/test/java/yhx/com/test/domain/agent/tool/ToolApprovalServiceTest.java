@@ -25,7 +25,7 @@ public class ToolApprovalServiceTest {
     public void pending_approval_is_reused_by_approval_key() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
         repository.saveApproval(approval("key-1", ToolApprovalStatusEnumVO.PENDING));
-        ToolApprovalService service = service(repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalService service = service(repository);
 
         ToolApprovalDecisionResultVO result = service.ensureApproval(command("key-1"));
 
@@ -36,23 +36,23 @@ public class ToolApprovalServiceTest {
     @Test
     public void tool_approval_uses_single_choice_without_free_text() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
-        ToolTestSupport.FakeUserInteractionManager interactionManager = new ToolTestSupport.FakeUserInteractionManager();
-        ToolApprovalService service = service(repository, interactionManager);
+        ToolApprovalService service = service(repository);
 
-        service.ensureApproval(command("key-1"));
+        ToolApprovalDecisionResultVO result = service.ensureApproval(command("key-1"));
 
-        Assert.assertEquals("SINGLE_CHOICE", interactionManager.askUserRequest().getInputMode());
-        Assert.assertFalse(interactionManager.askUserRequest().getAllowFreeText());
-        Assert.assertEquals(2, interactionManager.askUserRequest().getOptions().size());
+        Assert.assertTrue("approval must remain a draft until the coordinated pause", repository.approvals.isEmpty());
+        Assert.assertNotNull(result.getPauseIntent().getSourcePayload().get("approvalId"));
+        Assert.assertEquals("SINGLE_CHOICE", result.getPauseIntent().getAskUserRequest().getInputMode());
+        Assert.assertFalse(result.getPauseIntent().getAskUserRequest().getAllowFreeText());
+        Assert.assertEquals(2, result.getPauseIntent().getAskUserRequest().getOptions().size());
     }
 
     @Test
     public void tool_approval_question_summarizes_tool_intent_and_arguments() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
-        ToolTestSupport.FakeUserInteractionManager interactionManager = new ToolTestSupport.FakeUserInteractionManager();
-        ToolApprovalService service = service(repository, interactionManager);
+        ToolApprovalService service = service(repository);
 
-        service.ensureApproval(command("key-1",
+        ToolApprovalDecisionResultVO result = service.ensureApproval(command("key-1",
                 ToolIntentVO.builder()
                         .capabilityCode("file_system_write_file")
                         .toolName("write_file")
@@ -62,7 +62,7 @@ public class ToolApprovalServiceTest {
                                 "content", "Story title\n\nThis is a long replacement content that should be previewed without rendering the full payload."))
                         .build()));
 
-        String question = interactionManager.askUserRequest().getQuestion();
+        String question = result.getPauseIntent().getAskUserRequest().getQuestion();
         Assert.assertTrue(question.contains("write_file"));
         Assert.assertTrue(question.contains("Replace the target file with the expanded story."));
         Assert.assertTrue(question.contains("E:/project/docs/story.md"));
@@ -73,7 +73,7 @@ public class ToolApprovalServiceTest {
     @Test
     public void free_text_does_not_approve_tool() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
-        ToolApprovalService service = service(repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalService service = service(repository);
         ToolApprovalEntity approval = approval("key-1", ToolApprovalStatusEnumVO.PENDING);
         repository.saveApproval(approval);
 
@@ -88,7 +88,7 @@ public class ToolApprovalServiceTest {
     @Test
     public void approve_option_marks_approval_approved() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
-        ToolApprovalService service = service(repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalService service = service(repository);
         ToolApprovalEntity approval = approval("key-1", ToolApprovalStatusEnumVO.PENDING);
         repository.saveApproval(approval);
 
@@ -104,7 +104,7 @@ public class ToolApprovalServiceTest {
     @Test
     public void reject_option_marks_approval_rejected() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
-        ToolApprovalService service = service(repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalService service = service(repository);
         ToolApprovalEntity approval = approval("key-1", ToolApprovalStatusEnumVO.PENDING);
         repository.saveApproval(approval);
 
@@ -120,7 +120,7 @@ public class ToolApprovalServiceTest {
     @Test
     public void decided_approval_cannot_be_decided_again() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
-        ToolApprovalService service = service(repository, new ToolTestSupport.FakeUserInteractionManager());
+        ToolApprovalService service = service(repository);
         ToolApprovalEntity approval = approval("key-1", ToolApprovalStatusEnumVO.APPROVED);
         repository.saveApproval(approval);
 
@@ -137,24 +137,23 @@ public class ToolApprovalServiceTest {
     @Test
     public void approval_checkpoint_uses_resolved_canonical_tool_identity() {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
-        ToolTestSupport.FakeUserInteractionManager interactionManager = new ToolTestSupport.FakeUserInteractionManager();
-        ToolApprovalService service = service(repository, interactionManager);
+        ToolApprovalService service = service(repository);
 
-        service.ensureApproval(command("key-canonical", ToolIntentVO.builder()
+        ToolApprovalDecisionResultVO result = service.ensureApproval(command("key-canonical", ToolIntentVO.builder()
                 .capabilityCode("publish")
                 .toolName("tool")
                 .arguments(Map.of("path", "docs/story.md"))
                 .build()));
 
-        Map<?, ?> payload = interactionManager.lastCommand.getContinuation().getPayload();
+        Map<?, ?> payload = result.getPauseIntent().getSourcePayload();
         Map<?, ?> toolIntent = (Map<?, ?>) payload.get("toolIntent");
         Assert.assertEquals("publish", toolIntent.get("capabilityCode"));
         Assert.assertEquals("server", toolIntent.get("mcpServerCode"));
         Assert.assertEquals("tool", toolIntent.get("toolName"));
     }
 
-    private ToolApprovalService service(ToolTestSupport.Repository repository, ToolTestSupport.FakeUserInteractionManager interactionManager) {
-        return new ToolApprovalService(repository, repository, interactionManager);
+    private ToolApprovalService service(ToolTestSupport.Repository repository) {
+        return new ToolApprovalService(repository, repository);
     }
 
     private ToolApprovalDecisionCommandVO command(String approvalKey) {

@@ -69,6 +69,7 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
                         .nextPhase(RuntimePhaseEnumVO.WAITING_USER)
                         .pendingInputId(result.getPendingInputId())
                         .askUserRequest(result.getAskUserRequest())
+                        .pauseIntent(result.getPauseIntent())
                         .message(result.getMessage())
                         .build();
             }

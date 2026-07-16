@@ -38,6 +38,17 @@ public class RuntimeUserClarificationRecorder {
     }
 
     private void appendIfMissing(List<UserClarificationVO> target, UserClarificationVO clarification) {
+        if (clarification.getPendingId() != null) {
+            for (int index = 0; index < target.size(); index++) {
+                UserClarificationVO existing = target.get(index);
+                if (existing != null && Objects.equals(existing.getPendingId(), clarification.getPendingId())) {
+                    if (!Objects.equals(existing.getAnswerType(), clarification.getAnswerType())) {
+                        target.set(index, clarification);
+                    }
+                    return;
+                }
+            }
+        }
         boolean duplicate = target.stream().anyMatch(existing -> existing != null
                 && Objects.equals(existing.getPendingId(), clarification.getPendingId())
                 && Objects.equals(existing.getAnswerType(), clarification.getAnswerType()));
