@@ -7,11 +7,13 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import yhx.com.api.dto.agent.AgentDebugPayloadDTO;
 import yhx.com.api.dto.agent.AgentDebugTraceDTO;
+import yhx.com.api.dto.agent.AgentObservabilityStudioDTO;
 import yhx.com.api.response.Response;
 import yhx.com.domain.agent.model.entity.persistence.AgentEvidenceEntity;
 import yhx.com.domain.agent.model.entity.persistence.ToolCallEntity;
 import yhx.com.domain.agent.service.api.AgentDebugFacade;
 import yhx.com.domain.agent.service.api.AgentQueryFacade;
+import yhx.com.domain.agent.model.valobj.observability.AgentObservabilitySnapshotVO;
 import yhx.com.domain.agent.service.api.DebugSseEventBridge;
 import yhx.com.domain.agent.service.debug.DebugAccessPolicy;
 import yhx.com.trigger.http.sse.SseEmitterRegistry;
@@ -57,6 +59,23 @@ public class AgentDebugController {
 
     @Resource(name = "autoAgentSseExecutor")
     private Executor sseExecutor;
+
+    @GetMapping("/studio")
+    public Response<AgentObservabilityStudioDTO> loadStudio(@PathVariable("runId") String runId) {
+        try {
+            AgentObservabilitySnapshotVO snapshot = agentDebugFacade.loadStudio(runId);
+            AgentObservabilityStudioDTO studio = AgentApiMapper.toObservabilityStudio(snapshot);
+            if (agentQueryFacade != null) {
+                agentQueryFacade.findActivePendingInput(runId)
+                        .map(input -> AgentApiMapper.toPendingInput(input, agentQueryFacade))
+                        .ifPresent(studio::setPendingInput);
+                studio.setFinalAnswer(agentQueryFacade.findFinalAnswer(runId).orElse(null));
+            }
+            return AgentResponseSupport.success(studio);
+        } catch (Exception e) {
+            return AgentResponseSupport.failed(e.getMessage());
+        }
+    }
 
     @GetMapping("/traces")
     public Response<List<AgentDebugTraceDTO>> listTraces(@PathVariable("runId") String runId,

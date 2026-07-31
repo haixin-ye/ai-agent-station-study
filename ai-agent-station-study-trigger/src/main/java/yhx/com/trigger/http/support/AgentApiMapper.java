@@ -8,6 +8,8 @@ import yhx.com.api.dto.agent.AgentArtifactSummaryDTO;
 import yhx.com.api.dto.agent.AgentArtifactVersionDTO;
 import yhx.com.api.dto.agent.AgentDebugPayloadDTO;
 import yhx.com.api.dto.agent.AgentDebugTraceDTO;
+import yhx.com.api.dto.agent.AgentObservabilityLoopDTO;
+import yhx.com.api.dto.agent.AgentObservabilityStudioDTO;
 import yhx.com.api.dto.agent.AgentFinalResponseDTO;
 import yhx.com.api.dto.agent.AgentMessageDTO;
 import yhx.com.api.dto.agent.AgentMockScenarioDTO;
@@ -16,12 +18,16 @@ import yhx.com.api.dto.agent.AgentPendingOptionDTO;
 import yhx.com.api.dto.agent.AgentRunDTO;
 import yhx.com.api.dto.agent.AgentUserVisibleEventDTO;
 import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentEvidenceEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPendingInputEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunEventEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunTraceEntity;
+import yhx.com.domain.agent.model.entity.persistence.ToolCallEntity;
+import yhx.com.domain.agent.model.valobj.observability.AgentObservabilityLoopVO;
+import yhx.com.domain.agent.model.valobj.observability.AgentObservabilitySnapshotVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.mock.AgentMockEventVO;
 import yhx.com.domain.agent.model.valobj.mock.AgentMockScenarioVO;
@@ -208,6 +214,93 @@ public class AgentApiMapper {
                 .rawContentIncluded(rawIncluded)
                 .rawContent(entity.getContent())
                 .build();
+    }
+
+    public static AgentObservabilityStudioDTO toObservabilityStudio(AgentObservabilitySnapshotVO snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        Map<String, AgentDebugPayloadDTO> payloads = new java.util.LinkedHashMap<>();
+        snapshot.getPayloads().forEach((ref, payload) -> payloads.put(ref, toDebugPayload(payload)));
+        return AgentObservabilityStudioDTO.builder()
+                .header(snapshot.getHeader())
+                .status(snapshot.getStatus())
+                .currentPhase(snapshot.getCurrentPhase())
+                .context(snapshot.getContext())
+                .loops(snapshot.getLoops().stream().map(AgentApiMapper::toObservabilityLoop).toList())
+                .traces(snapshot.getTraces().stream().map(trace -> toDebugTrace(trace, snapshot.getPayloads().get(trace.getPayloadRef()))).toList())
+                .payloads(payloads)
+                .evidence(snapshot.getEvidence().stream().map(AgentApiMapper::toEvidenceMap).toList())
+                .toolCalls(snapshot.getToolCalls().stream().map(AgentApiMapper::toToolMap).toList())
+                .lastSeq(snapshot.getLastSeq())
+                .build();
+    }
+
+    private static AgentDebugTraceDTO toDebugTrace(AgentRunTraceEntity entity, AgentPayloadEntity payloadEntity) {
+        Map<String, Object> payload = payloadEntity == null || payloadEntity.getContent() == null
+                ? Collections.emptyMap()
+                : JSON.parseObject(payloadEntity.getContent(), Map.class);
+        return AgentDebugTraceDTO.builder()
+                .traceId(entity.getTraceId())
+                .runId(entity.getRunId())
+                .seq(entity.getSeq())
+                .traceType(code(entity.getTraceType()))
+                .componentName(string(payload.get("code")))
+                .actionType(string(payload.get("event")))
+                .severity("INFO")
+                .summary(string(payload.get("summary")))
+                .payloadRef(entity.getPayloadRef())
+                .createdAt(entity.getCreatedAt())
+                .build();
+    }
+
+    public static AgentObservabilityLoopDTO toObservabilityLoop(AgentObservabilityLoopVO loop) {
+        return AgentObservabilityLoopDTO.builder()
+                .loopIndex(loop.getLoopIndex())
+                .status(loop.getStatus())
+                .stage(loop.getStage())
+                .startedAt(loop.getStartedAt())
+                .completedAt(loop.getCompletedAt())
+                .stateView(loop.getStateView())
+                .stateViewSources(loop.getStateViewSources())
+                .promptRefs(loop.getPromptRefs())
+                .attempts(loop.getAttempts())
+                .action(loop.getAction())
+                .actionInput(loop.getActionInput())
+                .actionOutput(loop.getActionOutput())
+                .runtimeOutcome(loop.getRuntimeOutcome())
+                .toolResults(loop.getToolResults())
+                .childAgentResults(loop.getChildAgentResults())
+                .checkpoint(loop.getCheckpoint())
+                .error(loop.getError())
+                .build();
+    }
+
+    private static Map<String, Object> toEvidenceMap(AgentEvidenceEntity entity) {
+        Map<String, Object> value = new java.util.LinkedHashMap<>();
+        value.put("evidenceId", entity.getEvidenceId());
+        value.put("runId", entity.getRunId());
+        value.put("evidenceType", entity.getEvidenceType());
+        value.put("sourceRef", entity.getSourceRef());
+        value.put("summary", entity.getSummary());
+        value.put("confidence", entity.getConfidence());
+        value.put("usedByFinal", entity.getUsedByFinal());
+        value.put("createdAt", entity.getCreatedAt());
+        return value;
+    }
+
+    private static Map<String, Object> toToolMap(ToolCallEntity entity) {
+        Map<String, Object> value = new java.util.LinkedHashMap<>();
+        value.put("toolCallId", entity.getToolCallId());
+        value.put("runId", entity.getRunId());
+        value.put("toolName", entity.getToolName());
+        value.put("mcpServerName", entity.getMcpServerName());
+        value.put("status", entity.getStatus() == null ? null : entity.getStatus().code());
+        value.put("argumentsRef", entity.getArgumentsRef());
+        value.put("receiptRef", entity.getReceiptRef());
+        value.put("failureCode", entity.getFailureCode());
+        value.put("createdAt", entity.getCreatedAt());
+        return value;
     }
 
     public static AgentMockScenarioDTO toMockScenario(AgentMockScenarioVO scenario) {
