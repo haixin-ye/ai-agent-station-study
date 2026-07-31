@@ -47,6 +47,18 @@ public class DeveloperTraceRecorder {
         append(runId, TraceTypeEnumVO.NODE_INPUT, payload(loopIndex, "node_invocation", componentCode, payloadRef, null));
     }
 
+    public void nodeInput(String runId, Integer loopIndex, String componentCode, Integer attemptNo,
+                          Map<String, Object> details) {
+        appendDetailed(runId, TraceTypeEnumVO.NODE_INPUT, detailedPayload(loopIndex, "node_input_full",
+                componentCode, attemptNo, details));
+    }
+
+    public void nodeOutput(String runId, Integer loopIndex, String componentCode, Integer attemptNo,
+                           Map<String, Object> details) {
+        appendDetailed(runId, TraceTypeEnumVO.NODE_OUTPUT, detailedPayload(loopIndex, "node_output_full",
+                componentCode, attemptNo, details));
+    }
+
     public void actionParsed(String runId, Integer loopIndex, MainAgentActionTypeEnumVO actionType, String payloadRef) {
         append(runId, TraceTypeEnumVO.CONTRACT_VALIDATION, payload(loopIndex, "action_parsed", actionType == null ? null : actionType.code(), payloadRef, null));
     }
@@ -83,6 +95,23 @@ public class DeveloperTraceRecorder {
                 .payloadRef(payloadRef)
                 .createdAt(LocalDateTime.now())
                 .build());
+    }
+
+    private void appendDetailed(String runId, TraceTypeEnumVO traceType, Map<String, Object> payload) {
+        append(runId, traceType, payload);
+    }
+
+    private Map<String, Object> detailedPayload(Integer loopIndex, String event, String componentCode,
+                                                Integer attemptNo, Map<String, Object> details) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("loopIndex", loopIndex);
+        payload.put("event", event);
+        payload.put("code", componentCode);
+        payload.put("attemptNo", attemptNo);
+        if (details != null) {
+            details.forEach(payload::put);
+        }
+        return payload;
     }
 
     private Map<String, Object> payload(Integer loopIndex, String event, String code, String payloadRef, String summary) {
