@@ -11,6 +11,7 @@ import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IPendingInputRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
+import yhx.com.domain.agent.adapter.repository.IRunContextRepository;
 import yhx.com.domain.agent.adapter.repository.IToolRepository;
 import yhx.com.domain.agent.service.api.AgentDebugFacade;
 import yhx.com.domain.agent.service.api.AgentMockScenarioService;
@@ -71,13 +72,17 @@ public class AutoAgentApiConfig {
                                              IToolRepository toolRepository,
                                              IPayloadRepository payloadRepository,
                                              DebugAccessPolicy debugAccessPolicy,
-                                             DebugPayloadPreviewPolicy debugPayloadPreviewPolicy) {
+                                             DebugPayloadPreviewPolicy debugPayloadPreviewPolicy,
+                                             IRunRepository runRepository,
+                                             IRunContextRepository runContextRepository) {
         return new AgentDebugFacade(eventTraceRepository,
                 evidenceRepository,
                 toolRepository,
                 payloadRepository,
                 debugAccessPolicy,
-                debugPayloadPreviewPolicy);
+                debugPayloadPreviewPolicy,
+                runRepository,
+                runContextRepository);
     }
 
     @Bean
