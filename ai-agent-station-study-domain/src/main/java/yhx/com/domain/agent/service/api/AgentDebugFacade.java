@@ -94,11 +94,19 @@ public class AgentDebugFacade {
         Map<String, Map<String, Object>> traceDetails = parseTraceDetails(payloads);
         List<AgentEvidenceEntity> evidence = evidenceRepository.listRunEvidence(runId);
         List<ToolCallEntity> toolCalls = toolRepository.listRunToolCalls(runId, 100);
+        toolCalls.forEach(tool -> {
+            loadPayload(payloads, tool.getArgumentsRef());
+            loadPayload(payloads, tool.getReceiptRef());
+        });
 
         Map<String, Object> context = new LinkedHashMap<>();
         List<AgentObservabilityLoopVO> loops = new ArrayList<>();
         if (runContextRepository != null) {
             runContextRepository.findContext(runId).ifPresentOrElse(entity -> {
+                loadPayload(payloads, entity.getBaseContextRef());
+                loadPayload(payloads, entity.getTaskLedgerRef());
+                loadPayload(payloads, entity.getRuntimeControlRef());
+                runContextRepository.listLoops(runId).forEach(loop -> loadPayload(payloads, loop.getRecordRef()));
                 context.putAll(contextDetails(entity));
                 loops.addAll(loopDetails(runId, traceDetails, traces, toolCalls));
             }, () -> context.put("available", false));
@@ -192,7 +200,7 @@ public class AgentDebugFacade {
                 .actionInput(map(record.get("actionRequest")))
                 .actionOutput(mainOutput)
                 .runtimeOutcome(map(record.get("runtimeOutcome")))
-                .toolResults("CALL_TOOL".equals(action) ? toolCalls.stream().map(this::toMap).toList() : List.of())
+                .toolResults("CALL_TOOL".equals(action) ? toolCalls.stream().map(this::toToolObservationMap).toList() : List.of())
                 .checkpoint(map(record.get("userInteraction")))
                 .error(errorDetails(record))
                 .build();
@@ -307,6 +315,22 @@ public class AgentDebugFacade {
 
     private Map<String, Object> toMap(Object value) {
         return value == null ? Map.of() : JSON.parseObject(JSON.toJSONString(value), Map.class);
+    }
+
+    private Map<String, Object> toToolObservationMap(ToolCallEntity tool) {
+        Map<String, Object> value = toMap(tool);
+        value.put("arguments", readPayloadMap(tool.getArgumentsRef()));
+        value.put("receipt", readPayloadMap(tool.getReceiptRef()));
+        return value;
+    }
+
+    private void loadPayload(Map<String, AgentPayloadEntity> payloads, String payloadRef) {
+        if (payloadRef == null || payloadRef.isBlank() || payloads.containsKey(payloadRef)) {
+            return;
+        }
+        payloadRepository.findPayload(payloadRef)
+                .map(debugPayloadPreviewPolicy::applyPreviewPolicy)
+                .ifPresent(payload -> payloads.put(payloadRef, payload));
     }
 
     private Map<String, Object> map(Object value) {
