@@ -24,6 +24,7 @@ import yhx.com.domain.agent.service.contract.RawOutputParser;
 import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 import yhx.com.domain.agent.service.prompt.PromptAssembler;
 import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
+import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,6 +45,7 @@ public class NodeInvocationPipeline {
     private final RunDiagnosticRecorder diagnosticRecorder;
     private final FunctionCallMapper functionCallMapper;
     private final NodeFunctionSpecRegistry functionSpecRegistry;
+    private final DeveloperTraceRecorder developerTraceRecorder;
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler, INodeClientPort nodeClientPort) {
         this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
@@ -55,6 +57,15 @@ public class NodeInvocationPipeline {
                                   RunDiagnosticRecorder diagnosticRecorder) {
         this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
                 ContractValidator.defaultValidator(), new NodeOutputMapper(), diagnosticRecorder);
+    }
+
+    public NodeInvocationPipeline(PromptAssembler promptAssembler,
+                                  INodeClientPort nodeClientPort,
+                                  RunDiagnosticRecorder diagnosticRecorder,
+                                  DeveloperTraceRecorder developerTraceRecorder) {
+        this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
+                ContractValidator.defaultValidator(), new NodeOutputMapper(), diagnosticRecorder,
+                FunctionCallMapper.defaultMapper(), NodeFunctionSpecRegistry.defaultRegistry(), developerTraceRecorder);
     }
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler,
@@ -74,7 +85,7 @@ public class NodeInvocationPipeline {
                                   NodeOutputMapper nodeOutputMapper,
                                   RunDiagnosticRecorder diagnosticRecorder) {
         this(promptAssembler, nodeClientPort, rawOutputParser, contractRegistry, contractValidator, nodeOutputMapper,
-                diagnosticRecorder, FunctionCallMapper.defaultMapper(), NodeFunctionSpecRegistry.defaultRegistry());
+                diagnosticRecorder, FunctionCallMapper.defaultMapper(), NodeFunctionSpecRegistry.defaultRegistry(), null);
     }
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler,
@@ -86,6 +97,20 @@ public class NodeInvocationPipeline {
                                   RunDiagnosticRecorder diagnosticRecorder,
                                   FunctionCallMapper functionCallMapper,
                                   NodeFunctionSpecRegistry functionSpecRegistry) {
+        this(promptAssembler, nodeClientPort, rawOutputParser, contractRegistry, contractValidator, nodeOutputMapper,
+                diagnosticRecorder, functionCallMapper, functionSpecRegistry, null);
+    }
+
+    public NodeInvocationPipeline(PromptAssembler promptAssembler,
+                                  INodeClientPort nodeClientPort,
+                                  RawOutputParser rawOutputParser,
+                                  ContractRegistry contractRegistry,
+                                  ContractValidator contractValidator,
+                                  NodeOutputMapper nodeOutputMapper,
+                                  RunDiagnosticRecorder diagnosticRecorder,
+                                  FunctionCallMapper functionCallMapper,
+                                  NodeFunctionSpecRegistry functionSpecRegistry,
+                                  DeveloperTraceRecorder developerTraceRecorder) {
         this.promptAssembler = promptAssembler;
         this.nodeClientPort = nodeClientPort;
         this.rawOutputParser = rawOutputParser;
@@ -95,6 +120,7 @@ public class NodeInvocationPipeline {
         this.diagnosticRecorder = diagnosticRecorder;
         this.functionCallMapper = functionCallMapper == null ? FunctionCallMapper.defaultMapper() : functionCallMapper;
         this.functionSpecRegistry = functionSpecRegistry == null ? NodeFunctionSpecRegistry.defaultRegistry() : functionSpecRegistry;
+        this.developerTraceRecorder = developerTraceRecorder;
     }
 
     public NodeInvocationResult invoke(NodeInvocationCommand command) {
@@ -176,6 +202,7 @@ public class NodeInvocationPipeline {
                 "promptChars", prompt == null ? 0 : prompt.length(),
                 "promptPreview", boundedPreview(prompt, DIAGNOSTIC_PREVIEW_LIMIT)
         ));
+        observeInput(command, promptResult, prompt, repairAttempt, attemptNo);
         String rawOutput;
         NodeClientResponse response;
         try {
@@ -209,6 +236,8 @@ public class NodeInvocationPipeline {
                     .failureMessage(e.getMessage())
                     .repairAttempt(repairAttempt)
                     .build();
+            observeOutput(command, attemptNo, repairAttempt, null, null, null, null,
+                    NodeInvocationFailureTypeEnumVO.CLIENT_ERROR, e.getMessage(), false);
             return new InvocationEvaluation(attempt, null, null, null, false, NodeInvocationFailureTypeEnumVO.CLIENT_ERROR, e.getMessage());
         }
 
@@ -279,13 +308,75 @@ public class NodeInvocationPipeline {
                 .failureMessage(failureMessage)
                 .repairAttempt(repairAttempt)
                 .build();
+        observeOutput(command, attemptNo, repairAttempt, rawOutput, parseResult, validationResult, typedOutput,
+                failureType, failureMessage, success);
         return new InvocationEvaluation(attempt, rawOutput, parseResult, validationResult, typedOutput, success, failureType, failureMessage);
     }
 
+    private void observeInput(NodeInvocationCommand command, PromptAssemblyResult promptResult, String prompt,
+                              boolean repairAttempt, int attemptNo) {
+        if (developerTraceRecorder == null || command == null) {
+            return;
+        }
+        Map<String, Object> details = diagnosticMap(
+                "agentId", command.getAgentId(),
+                "contractVersion", command.getContractVersion(),
+                "promptVersion", command.getPromptVersion(),
+                "modelCode", command.getModelCode(),
+                "inputView", command.getInputView(),
+                "prompt", prompt,
+                "systemPrompt", promptResult == null ? null : promptResult.systemPrompt(),
+                "userPrompt", promptResult == null ? null : promptResult.userPrompt(),
+                "invocationMetadata", command.getInvocationMetadata(),
+                "invocationMode", invocationMode(command, repairAttempt),
+                "functionSpecs", functionSpecs(command, repairAttempt),
+                "repairAttempt", repairAttempt
+        );
+        developerTraceRecorder.nodeInput(command.getRunId(), loopIndex(command), command.getComponentCode(), attemptNo, details);
+    }
+
+    private void observeOutput(NodeInvocationCommand command, int attemptNo, boolean repairAttempt, String rawOutput,
+                               RawOutputParseResult parseResult, ContractValidationResult validationResult,
+                               Object typedOutput, NodeInvocationFailureTypeEnumVO failureType,
+                               String failureMessage, boolean success) {
+        if (developerTraceRecorder == null || command == null) {
+            return;
+        }
+        Map<String, Object> details = diagnosticMap(
+                "agentId", command.getAgentId(),
+                "rawOutput", rawOutput,
+                "parseResult", parseResult,
+                "validationResult", validationResult,
+                "typedOutput", typedOutput,
+                "failureType", failureType == null ? null : failureType.code(),
+                "failureMessage", failureMessage,
+                "repairAttempt", repairAttempt,
+                "success", success
+        );
+        developerTraceRecorder.nodeOutput(command.getRunId(), loopIndex(command), command.getComponentCode(), attemptNo, details);
+    }
+
+    private Integer loopIndex(NodeInvocationCommand command) {
+        if (command == null || command.getInvocationMetadata() == null) {
+            return null;
+        }
+        Object value = command.getInvocationMetadata().get("loopIndex");
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return value == null ? null : Integer.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private ContractValidationResult validate(String componentCode, String normalizedJson) {
-        if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)
-                || AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)) {
+        if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)) {
             return contractValidator.validateMainAgentAction(normalizedJson);
+        }
+        if (AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)) {
+            return contractValidator.validateFinalRepairAction(normalizedJson);
         }
         if (AgentComponentCodeEnumVO.CONTEXT_PLANNER.name().equals(componentCode)) {
             return contractValidator.validateContextPlannerOutput(normalizedJson);
