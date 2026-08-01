@@ -54,7 +54,7 @@ public class AgentDebugFacadeStudioTest {
         stubPayload(payloads, "base", "{\"runId\":\"run-1\",\"sessionId\":\"session-1\"}");
         stubPayload(payloads, "ledger", "{\"version\":4,\"goal\":\"debug\"}");
         stubPayload(payloads, "control", "{\"currentLoop\":2}");
-        stubPayload(payloads, "loop-2", "{\"runId\":\"run-1\",\"loopIndex\":2,\"status\":\"COMPLETED\",\"mainOutput\":{\"action\":\"CALL_TOOL\",\"stateDelta\":{\"toolRequest\":{\"toolName\":\"search\"}}}}");
+        stubPayload(payloads, "loop-2", "{\"runId\":\"run-1\",\"loopIndex\":2,\"status\":\"COMPLETED\",\"mainOutput\":{\"action\":\"CALL_TOOL\",\"stateDelta\":{\"toolRequest\":{\"toolName\":\"search\"}}},\"runtimeOutcome\":{\"status\":\"CONTINUE_LOOP\",\"details\":{\"childAgentResults\":{\"child-1\":{\"taskId\":\"task-1\",\"result\":\"ok\"}}}}}");
         stubPayload(payloads, "node-in", "{\"event\":\"node_input_full\",\"code\":\"MAIN_AGENT\",\"loopIndex\":2,\"attemptNo\":1,\"prompt\":\"FULL PROMPT\",\"inputView\":{\"memoryPack\":[{\"memoryId\":\"m-1\"}],\"ragPack\":[{\"source\":\"doc-1\"}]}}");
         stubPayload(payloads, "node-out", "{\"event\":\"node_output_full\",\"code\":\"MAIN_AGENT\",\"loopIndex\":2,\"attemptNo\":1,\"success\":true,\"rawOutput\":\"{\\\"action\\\":\\\"CALL_TOOL\\\"}\"}");
 
@@ -68,11 +68,14 @@ public class AgentDebugFacadeStudioTest {
         Assert.assertEquals("CALL_TOOL", studio.getLoops().get(0).getAction());
         Assert.assertEquals("FULL PROMPT", studio.getLoops().get(0).getAttempts().get(0).get("prompt"));
         Assert.assertEquals(2, studio.getLoops().get(0).getStateViewSources().size());
+        Assert.assertEquals(1, studio.getLoops().get(0).getChildAgentResults().size());
+        Assert.assertEquals("child-1", studio.getLoops().get(0).getChildAgentResults().get(0).get("childRunId"));
         Assert.assertEquals(Long.valueOf(12L), studio.getLastSeq());
     }
 
     private void stubPayload(IPayloadRepository repository, String id, String content) {
         when(repository.findPayload(id)).thenReturn(Optional.of(AgentPayloadEntity.builder()
                 .payloadId(id).payloadType(PayloadTypeEnumVO.JSON).content(content).preview(content).build()));
+        when(repository.findContent(id)).thenReturn(Optional.of(content));
     }
 }

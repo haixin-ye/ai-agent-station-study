@@ -19,7 +19,9 @@ public class AgentObservabilityStudioFrontendTest {
         for (String token : new String[]{
                 "agent-debug-studio", "/debug/studio", "/debug/events/stream", "stateViewSources",
                 "mainNodePrompt", "showDetail", "renderStructured", "tool_use", "ask_user",
-                "retrieve_rag", "delegate", "ready_to_deliver", "final"}) {
+                "retrieve_rag", "delegate", "ready_to_deliver", "final", "loopSwitcher",
+                "data-loop-filter", "hover-preview", "Tool Results", "Child Agents", "Pending Input",
+                "detail-intro", "resetGraphScroll"}) {
             Assert.assertTrue("missing token: " + token, page.contains(token));
         }
         Assert.assertTrue(chat.contains("agent_observability.html"));

@@ -178,6 +178,7 @@ public class AgentDebugFacade {
         List<Map<String, Object>> outputs = traceMapsForLoop(loop.getLoopIndex(), "node_output_full", traceDetails, traces);
         List<Map<String, Object>> attempts = mergeAttempts(inputs, outputs);
         Map<String, Object> stateView = inputs.isEmpty() ? Map.of() : map(inputs.get(inputs.size() - 1).get("inputView"));
+        Map<String, Object> runtimeOutcome = map(record.get("runtimeOutcome"));
         String action = string(mainOutput.get("action"));
         if (action == null && !outputs.isEmpty()) {
             Map<String, Object> rawAction = parseMap(string(outputs.get(outputs.size() - 1).get("rawOutput")));
@@ -199,8 +200,9 @@ public class AgentDebugFacade {
                 .action(action)
                 .actionInput(map(record.get("actionRequest")))
                 .actionOutput(mainOutput)
-                .runtimeOutcome(map(record.get("runtimeOutcome")))
+                .runtimeOutcome(runtimeOutcome)
                 .toolResults("CALL_TOOL".equals(action) ? toolCalls.stream().map(this::toToolObservationMap).toList() : List.of())
+                .childAgentResults(childAgentResults(runtimeOutcome))
                 .checkpoint(map(record.get("userInteraction")))
                 .error(errorDetails(record))
                 .build();
@@ -268,12 +270,52 @@ public class AgentDebugFacade {
     private Map<String, Object> errorDetails(Map<String, Object> record) {
         Map<String, Object> runtimeOutcome = map(record.get("runtimeOutcome"));
         Map<String, Object> error = new LinkedHashMap<>();
+        for (String key : List.of("status", "code", "summary", "failureCode", "failureMessage", "error", "verificationFailure")) {
+            if (runtimeOutcome.get(key) != null) error.put(key, runtimeOutcome.get(key));
+        }
+        Map<String, Object> details = map(runtimeOutcome.get("details"));
         for (String key : List.of("failureCode", "failureMessage", "error", "verificationFailure")) {
-            if (runtimeOutcome.get(key) != null) {
-                error.put(key, runtimeOutcome.get(key));
-            }
+            if (details.get(key) != null) error.putIfAbsent(key, details.get(key));
         }
         return error;
+    }
+
+    private List<Map<String, Object>> childAgentResults(Map<String, Object> runtimeOutcome) {
+        Map<String, Object> details = map(runtimeOutcome.get("details"));
+        Map<String, Object> projected = map(details.get("childAgentResults"));
+        if (!projected.isEmpty()) {
+            return projected.entrySet().stream().map(entry -> {
+                Map<String, Object> child = map(entry.getValue());
+                child.putIfAbsent("childRunId", entry.getKey());
+                return child;
+            }).toList();
+        }
+        List<Map<String, Object>> direct = mapList(details.get("childResults"));
+        if (!direct.isEmpty()) return direct;
+        Map<String, Object> resultSnapshot = map(details.get("resultSnapshot"));
+        return stringList(resultSnapshot.get("childRunIds")).stream().map(childRunId -> {
+            Map<String, Object> child = new LinkedHashMap<>();
+            child.put("childRunId", childRunId);
+            child.put("status", runtimeOutcome.get("status"));
+            return child;
+        }).toList();
+    }
+
+    private List<Map<String, Object>> mapList(Object value) {
+        if (!(value instanceof Iterable<?> iterable)) return List.of();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object item : iterable) {
+            Map<String, Object> map = map(item);
+            if (!map.isEmpty()) result.add(map);
+        }
+        return result;
+    }
+
+    private List<String> stringList(Object value) {
+        if (!(value instanceof Iterable<?> iterable)) return List.of();
+        List<String> result = new ArrayList<>();
+        for (Object item : iterable) if (item != null) result.add(String.valueOf(item));
+        return result;
     }
 
     private Map<String, AgentPayloadEntity> loadTracePayloads(List<AgentRunTraceEntity> traces) {
