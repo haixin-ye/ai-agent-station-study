@@ -236,8 +236,9 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public NodeInvocationPipeline nodeInvocationPipeline(PromptAssembler promptAssembler,
                                                          INodeClientPort nodeClientPort,
-                                                         RunDiagnosticRecorder runDiagnosticRecorder) {
-        return new NodeInvocationPipeline(promptAssembler, nodeClientPort, runDiagnosticRecorder);
+                                                         RunDiagnosticRecorder runDiagnosticRecorder,
+                                                         DeveloperTraceRecorder developerTraceRecorder) {
+        return new NodeInvocationPipeline(promptAssembler, nodeClientPort, runDiagnosticRecorder, developerTraceRecorder);
     }
 
     @Bean
