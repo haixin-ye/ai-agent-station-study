@@ -53,7 +53,8 @@ public class RagAssetIngestionService {
                 .map(file -> ingestFile(command.getUserId(), command.getSessionId(), "FILE", null, null, null, null,
                         firstNonBlank(file.getFileName(), "uploaded-file"),
                         new String(file.getContent(), StandardCharsets.UTF_8),
-                        null))
+                        null,
+                        command.getIndexingMetadata()))
                 .toList();
     }
 
@@ -76,7 +77,8 @@ public class RagAssetIngestionService {
                         file.getRelativePath(),
                         firstNonBlank(file.getRepositoryName(), "repository") + "/" + file.getRelativePath(),
                         file.getContent(),
-                        file))
+                        file,
+                        null))
                 .toList();
     }
 
@@ -89,7 +91,8 @@ public class RagAssetIngestionService {
                                          String relativePath,
                                          String sourceName,
                                          String text,
-                                         RagGitFileEntity gitFile) {
+                                         RagGitFileEntity gitFile,
+                                         java.util.Map<String, Object> indexingMetadata) {
         validateText(sourceName, text);
         LocalDateTime now = LocalDateTime.now();
         String documentId = "rag-doc-" + UUID.randomUUID();
@@ -118,7 +121,8 @@ public class RagAssetIngestionService {
                 .build();
         ragAssetRepository.saveDocument(document);
         if ("GIT_FILE".equals(sourceType)) {
-            vectorIndexingService.indexDocument(document, firstNonBlank(documentAnalysis.getRetrievalText(), documentIndexText(document, text)));
+            vectorIndexingService.indexDocument(document,
+                    firstNonBlank(documentAnalysis.getRetrievalText(), documentIndexText(document, text)), indexingMetadata);
         }
         if (gitFile != null) {
             ragAssetRepository.saveCodeFile(RagCodeFileEntity.builder()
@@ -154,7 +158,7 @@ public class RagAssetIngestionService {
                     .updatedAt(now)
                     .build();
             ragAssetRepository.saveChunk(chunk);
-            vectorIndexingService.indexChunk(chunk, chunkRetrievalText);
+            vectorIndexingService.indexChunk(chunk, chunkRetrievalText, indexingMetadata);
         }
         document.setStatus("READY");
         document.setUpdatedAt(LocalDateTime.now());
