@@ -166,6 +166,7 @@ public class PgVectorMemoryRepository implements IVectorMemoryRepository {
             sql.append(" AND (occurred_at IS NULL OR occurred_at <= ?)");
             args.add(toTimestamp(filter.getTo()));
         }
+        appendMetadataFilter(sql, args, filter);
         sql.append(" ORDER BY embedding <=> ?::vector LIMIT ?");
         args.add(embedding);
         args.add(topK);
@@ -238,6 +239,15 @@ public class PgVectorMemoryRepository implements IVectorMemoryRepository {
             sql.append(" AND (occurred_at IS NULL OR occurred_at <= ?)");
             args.add(toTimestamp(filter.getTo()));
         }
+        appendMetadataFilter(sql, args, filter);
+    }
+
+    private void appendMetadataFilter(StringBuilder sql, List<Object> args, VectorRecallFilterVO filter) {
+        if (filter == null || filter.getMetadataFilters() == null || filter.getMetadataFilters().isEmpty()) {
+            return;
+        }
+        sql.append(" AND metadata @> ?::jsonb");
+        args.add(JSON.toJSONString(filter.getMetadataFilters()));
     }
 
     private VectorRecallHitVO mapHit(ResultSet rs, int rowNum) throws SQLException {
