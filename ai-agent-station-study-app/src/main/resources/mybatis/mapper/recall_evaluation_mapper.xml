@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IRecallEvaluationDao">
+
+    <sql id="datasetColumns">id, dataset_id AS datasetId, name, description, status,
+        eval_user_id AS evalUserId, eval_session_id AS evalSessionId,
+        corpus_count AS corpusCount, ready_corpus_count AS readyCorpusCount, case_count AS caseCount,
+        failure_code AS failureCode, failure_message AS failureMessage,
+        created_at AS createdAt, updated_at AS updatedAt</sql>
+    <insert id="insertDataset" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationDatasetPO">
+        INSERT INTO agent_recall_eval_dataset
+        (dataset_id, name, description, status, eval_user_id, eval_session_id, corpus_count,
+         ready_corpus_count, case_count, failure_code, failure_message, created_at, updated_at)
+        VALUES (#{datasetId}, #{name}, #{description}, #{status}, #{evalUserId}, #{evalSessionId},
+                #{corpusCount}, #{readyCorpusCount}, #{caseCount}, #{failureCode}, #{failureMessage},
+                #{createdAt}, #{updatedAt})
+    </insert>
+    <select id="findDataset" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationDatasetPO">
+        SELECT <include refid="datasetColumns"/> FROM agent_recall_eval_dataset WHERE dataset_id = #{datasetId} LIMIT 1
+    </select>
+    <select id="listDatasets" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationDatasetPO">
+        SELECT <include refid="datasetColumns"/> FROM agent_recall_eval_dataset WHERE status != 'DELETED' ORDER BY updated_at DESC, id DESC
+    </select>
+    <update id="updateDataset" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationDatasetPO">
+        UPDATE agent_recall_eval_dataset SET name=#{name}, description=#{description}, status=#{status},
+          corpus_count=#{corpusCount}, ready_corpus_count=#{readyCorpusCount}, case_count=#{caseCount},
+          failure_code=#{failureCode}, failure_message=#{failureMessage}, updated_at=#{updatedAt}
+        WHERE dataset_id=#{datasetId}
+    </update>
+
+    <sql id="corpusColumns">id, corpus_item_id AS corpusItemId, dataset_id AS datasetId, external_id AS externalId,
+        item_type AS itemType, title, summary, content_ref AS contentRef, tags_json AS tagsJson,
+        source_type AS sourceType, source_id AS sourceId, parent_source_id AS parentSourceId,
+        source_refs_json AS sourceRefsJson, status, failure_stage AS failureStage,
+        failure_code AS failureCode, failure_message AS failureMessage,
+        created_at AS createdAt, updated_at AS updatedAt</sql>
+    <insert id="insertCorpusItem" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationCorpusItemPO">
+        INSERT INTO agent_recall_eval_corpus_item
+        (corpus_item_id,dataset_id,external_id,item_type,title,summary,content_ref,tags_json,
+         source_type,source_id,parent_source_id,source_refs_json,status,failure_stage,failure_code,
+         failure_message,created_at,updated_at)
+        VALUES (#{corpusItemId},#{datasetId},#{externalId},#{itemType},#{title},#{summary},#{contentRef},#{tagsJson},
+                #{sourceType},#{sourceId},#{parentSourceId},#{sourceRefsJson},#{status},#{failureStage},#{failureCode},
+                #{failureMessage},#{createdAt},#{updatedAt})
+    </insert>
+    <select id="findCorpusItem" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationCorpusItemPO">
+        SELECT <include refid="corpusColumns"/> FROM agent_recall_eval_corpus_item WHERE corpus_item_id=#{corpusItemId} LIMIT 1
+    </select>
+    <select id="findCorpusItemByExternalId" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationCorpusItemPO">
+        SELECT <include refid="corpusColumns"/> FROM agent_recall_eval_corpus_item
+        WHERE dataset_id=#{datasetId} AND external_id=#{externalId} LIMIT 1
+    </select>
+    <select id="listCorpusItems" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationCorpusItemPO">
+        SELECT <include refid="corpusColumns"/> FROM agent_recall_eval_corpus_item
+        WHERE dataset_id=#{datasetId}
+        <if test="status != null and status != ''">AND status=#{status}</if>
+        ORDER BY created_at DESC, id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <update id="updateCorpusItem" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationCorpusItemPO">
+        UPDATE agent_recall_eval_corpus_item SET title=#{title}, summary=#{summary}, content_ref=#{contentRef},
+          tags_json=#{tagsJson}, source_type=#{sourceType}, source_id=#{sourceId}, parent_source_id=#{parentSourceId},
+          source_refs_json=#{sourceRefsJson}, status=#{status}, failure_stage=#{failureStage},
+          failure_code=#{failureCode}, failure_message=#{failureMessage}, updated_at=#{updatedAt}
+        WHERE corpus_item_id=#{corpusItemId}
+    </update>
+
+    <sql id="caseColumns">id, case_id AS caseId, dataset_id AS datasetId, external_id AS externalId,
+        query_text AS queryText, source_scope AS sourceScope, expected_json AS expectedJson,
+        tags_json AS tagsJson, status, created_at AS createdAt, updated_at AS updatedAt</sql>
+    <insert id="insertCase" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationCasePO">
+        INSERT INTO agent_recall_eval_case
+        (case_id,dataset_id,external_id,query_text,source_scope,expected_json,tags_json,status,created_at,updated_at)
+        VALUES (#{caseId},#{datasetId},#{externalId},#{queryText},#{sourceScope},#{expectedJson},#{tagsJson},#{status},#{createdAt},#{updatedAt})
+    </insert>
+    <select id="findCase" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationCasePO">
+        SELECT <include refid="caseColumns"/> FROM agent_recall_eval_case WHERE case_id=#{caseId} LIMIT 1
+    </select>
+    <select id="listCases" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationCasePO">
+        SELECT <include refid="caseColumns"/> FROM agent_recall_eval_case WHERE dataset_id=#{datasetId}
+        <if test="status != null and status != ''">AND status=#{status}</if>
+        ORDER BY created_at ASC, id ASC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <update id="updateCase" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationCasePO">
+        UPDATE agent_recall_eval_case SET query_text=#{queryText}, source_scope=#{sourceScope},
+          expected_json=#{expectedJson}, tags_json=#{tagsJson}, status=#{status}, updated_at=#{updatedAt}
+        WHERE case_id=#{caseId}
+    </update>
+
+    <sql id="runColumns">id, evaluation_run_id AS evaluationRunId, dataset_id AS datasetId, name, status,
+        config_json AS configJson, metrics_json AS metricsJson, total_case_count AS totalCaseCount,
+        completed_case_count AS completedCaseCount, failed_case_count AS failedCaseCount,
+        cancel_requested AS cancelRequested, failure_code AS failureCode, failure_message AS failureMessage,
+        created_at AS createdAt, started_at AS startedAt, completed_at AS completedAt, updated_at AS updatedAt</sql>
+    <insert id="insertRun" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationRunPO">
+        INSERT INTO agent_recall_eval_run
+        (evaluation_run_id,dataset_id,name,status,config_json,metrics_json,total_case_count,
+         completed_case_count,failed_case_count,cancel_requested,failure_code,failure_message,
+         created_at,started_at,completed_at,updated_at)
+        VALUES (#{evaluationRunId},#{datasetId},#{name},#{status},#{configJson},#{metricsJson},#{totalCaseCount},
+                #{completedCaseCount},#{failedCaseCount},#{cancelRequested},#{failureCode},#{failureMessage},
+                #{createdAt},#{startedAt},#{completedAt},#{updatedAt})
+    </insert>
+    <select id="findRun" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationRunPO">
+        SELECT <include refid="runColumns"/> FROM agent_recall_eval_run WHERE evaluation_run_id=#{evaluationRunId} LIMIT 1
+    </select>
+    <select id="listRuns" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationRunPO">
+        SELECT <include refid="runColumns"/> FROM agent_recall_eval_run
+        WHERE dataset_id=#{datasetId} ORDER BY created_at DESC, id DESC LIMIT #{limit}
+    </select>
+    <update id="updateRun" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationRunPO">
+        UPDATE agent_recall_eval_run SET name=#{name}, status=#{status}, config_json=#{configJson},
+          metrics_json=#{metricsJson}, total_case_count=#{totalCaseCount}, completed_case_count=#{completedCaseCount},
+          failed_case_count=#{failedCaseCount}, cancel_requested=#{cancelRequested}, failure_code=#{failureCode},
+          failure_message=#{failureMessage}, started_at=#{startedAt}, completed_at=#{completedAt}, updated_at=#{updatedAt}
+        WHERE evaluation_run_id=#{evaluationRunId}
+    </update>
+
+    <sql id="resultColumns">id, case_result_id AS caseResultId, evaluation_run_id AS evaluationRunId, case_id AS caseId,
+        status, retrieval_latency_ms AS retrievalLatencyMs, planner_latency_ms AS plannerLatencyMs, hit,
+        precision_at_k AS precisionAtK, recall_at_k AS recallAtK, reciprocal_rank AS reciprocalRank,
+        ndcg_at_k AS ndcgAtK, average_precision_at_k AS averagePrecisionAtK, planner_status AS plannerStatus,
+        planner_reason AS plannerReason, planner_selected_ids_json AS plannerSelectedIdsJson,
+        planner_output_json AS plannerOutputJson, failure_stage AS failureStage, failure_code AS failureCode,
+        failure_message AS failureMessage, created_at AS createdAt, updated_at AS updatedAt</sql>
+    <insert id="insertCaseResult" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationCaseResultPO">
+        INSERT INTO agent_recall_eval_case_result
+        (case_result_id,evaluation_run_id,case_id,status,retrieval_latency_ms,planner_latency_ms,hit,
+         precision_at_k,recall_at_k,reciprocal_rank,ndcg_at_k,average_precision_at_k,planner_status,
+         planner_reason,planner_selected_ids_json,planner_output_json,failure_stage,failure_code,
+         failure_message,created_at,updated_at)
+        VALUES (#{caseResultId},#{evaluationRunId},#{caseId},#{status},#{retrievalLatencyMs},#{plannerLatencyMs},#{hit},
+                #{precisionAtK},#{recallAtK},#{reciprocalRank},#{ndcgAtK},#{averagePrecisionAtK},#{plannerStatus},
+                #{plannerReason},#{plannerSelectedIdsJson},#{plannerOutputJson},#{failureStage},#{failureCode},
+                #{failureMessage},#{createdAt},#{updatedAt})
+    </insert>
+    <select id="listCaseResults" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationCaseResultPO">
+        SELECT <include refid="resultColumns"/> FROM agent_recall_eval_case_result
+        WHERE evaluation_run_id=#{evaluationRunId} ORDER BY created_at ASC, id ASC
+    </select>
+
+    <insert id="insertHit" parameterType="yhx.com.infrastructure.dao.po.RecallEvaluationHitPO">
+        INSERT INTO agent_recall_eval_hit
+        (hit_id,evaluation_run_id,case_id,rank_no,retrieval_channel,collection_type,source_type,source_id,
+         parent_source_id,score,expected_grade,selected_by_planner,candidate_json,created_at)
+        VALUES (#{hitId},#{evaluationRunId},#{caseId},#{rankNo},#{retrievalChannel},#{collectionType},#{sourceType},#{sourceId},
+                #{parentSourceId},#{score},#{expectedGrade},#{selectedByPlanner},#{candidateJson},#{createdAt})
+    </insert>
+    <select id="listHits" resultType="yhx.com.infrastructure.dao.po.RecallEvaluationHitPO">
+        SELECT id, hit_id AS hitId, evaluation_run_id AS evaluationRunId, case_id AS caseId, rank_no AS rankNo,
+          retrieval_channel AS retrievalChannel, collection_type AS collectionType, source_type AS sourceType,
+          source_id AS sourceId, parent_source_id AS parentSourceId, score, expected_grade AS expectedGrade,
+          selected_by_planner AS selectedByPlanner, candidate_json AS candidateJson, created_at AS createdAt
+        FROM agent_recall_eval_hit WHERE evaluation_run_id=#{evaluationRunId}
+        <if test="caseId != null and caseId != ''">AND case_id=#{caseId}</if>
+        ORDER BY case_id ASC, rank_no ASC, id ASC
+    </select>
+</mapper>
