@@ -2799,6 +2799,7 @@
                 <button id="newChatBtn" class="ghost-button" type="button">New</button>
                 <button id="debugBtn" class="ghost-button" type="button">Debug</button>
                 <button id="studioBtn" class="ghost-button" type="button">运行观测</button>
+                <button id="recallLabBtn" class="ghost-button" type="button">召回评测</button>
             </div>
         </header>
 
@@ -3198,6 +3199,7 @@
         newChatSmallBtn: document.getElementById("newChatSmallBtn"),
         debugBtn: document.getElementById("debugBtn"),
         studioBtn: document.getElementById("studioBtn"),
+        recallLabBtn: document.getElementById("recallLabBtn"),
         exportDebugBtn: document.getElementById("exportDebugBtn"),
         closeDebugBtn: document.getElementById("closeDebugBtn"),
         drawerBackdrop: document.getElementById("drawerBackdrop"),
@@ -6305,6 +6307,10 @@
                 return;
             }
             const url = `${location.origin}/agent_observability.html?runId=${encodeURIComponent(state.activeRunId)}&api=${encodeURIComponent(API_BASE || location.origin)}`;
+            window.open(url, "_blank", "noopener,noreferrer");
+        });
+        els.recallLabBtn.addEventListener("click", () => {
+            const url = `${location.origin}/recall_evaluation.html?api=${encodeURIComponent(API_BASE || location.origin)}`;
             window.open(url, "_blank", "noopener,noreferrer");
         });
         els.exportDebugBtn.addEventListener("click", exportDebugToFile);

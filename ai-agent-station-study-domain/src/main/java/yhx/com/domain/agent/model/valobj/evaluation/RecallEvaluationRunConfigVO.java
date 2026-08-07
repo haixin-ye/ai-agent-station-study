@@ -20,6 +20,9 @@ public class RecallEvaluationRunConfigVO {
     private String retrievalMode;
     private List<String> collectionTypes;
     private Boolean plannerEnabled;
+    private String plannerModelCode;
+    private Double plannerTemperature;
+    private Integer plannerMaxOutputTokens;
     private Integer caseLimit;
     private Long caseTimeoutMs;
 }

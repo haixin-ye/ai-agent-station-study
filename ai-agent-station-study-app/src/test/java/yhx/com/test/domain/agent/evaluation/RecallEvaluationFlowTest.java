@@ -128,7 +128,7 @@ public class RecallEvaluationFlowTest {
         AtomicInteger plannerCalls = new AtomicInteger();
         RecallEvaluationRunner runner = new RecallEvaluationRunner(evaluations,
                 new VectorContextRecallPreselector(vectors, null, null, memories, payloads), null,
-                candidates -> {
+                (candidates, config) -> {
                     plannerCalls.incrementAndGet();
                     return null;
                 }, new RecallMetricsCalculator());

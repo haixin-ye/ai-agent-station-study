@@ -86,6 +86,12 @@ logging:
   config: classpath:logback-spring.xml
 
 auto-agent:
+  recall-evaluation:
+    core-pool-size: 2
+    max-pool-size: 4
+    queue-capacity: 16
+    max-batch-items: 500
+    max-upload-bytes: 10485760
   executors:
     agent-execution:
       core-pool-size: 4

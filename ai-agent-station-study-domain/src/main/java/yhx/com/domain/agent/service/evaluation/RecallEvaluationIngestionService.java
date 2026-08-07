@@ -3,6 +3,9 @@ package yhx.com.domain.agent.service.evaluation;
 import com.alibaba.fastjson.JSON;
 import yhx.com.domain.agent.adapter.repository.IRecallEvaluationRepository;
 import yhx.com.domain.agent.adapter.repository.IRagAssetRepository;
+import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
+import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
+import yhx.com.domain.agent.adapter.repository.IVectorMemoryRepository;
 import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCorpusItemEntity;
 import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationDatasetEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEntity;
@@ -12,7 +15,11 @@ import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
 import yhx.com.domain.agent.service.memory.LongTermMemoryService;
+import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.rag.RagAssetIngestionService;
+import yhx.com.domain.agent.service.rag.RagVectorIndexingService;
+import yhx.com.domain.agent.model.entity.rag.RagChunkEntity;
+import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
 
 import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
@@ -27,15 +34,104 @@ public class RecallEvaluationIngestionService {
     private final RagAssetIngestionService ragAssetIngestionService;
     private final IRagAssetRepository ragAssetRepository;
     private final LongTermMemoryService longTermMemoryService;
+    private final IMemoryRepository memoryRepository;
+    private final IPayloadRepository payloadRepository;
+    private final IVectorMemoryRepository vectorMemoryRepository;
+    private final MemoryVectorIndexingService memoryVectorIndexingService;
+    private final RagVectorIndexingService ragVectorIndexingService;
 
     public RecallEvaluationIngestionService(IRecallEvaluationRepository evaluationRepository,
                                              RagAssetIngestionService ragAssetIngestionService,
                                              IRagAssetRepository ragAssetRepository,
-                                             LongTermMemoryService longTermMemoryService) {
+                                             LongTermMemoryService longTermMemoryService,
+                                             IMemoryRepository memoryRepository,
+                                             IPayloadRepository payloadRepository,
+                                             IVectorMemoryRepository vectorMemoryRepository,
+                                             MemoryVectorIndexingService memoryVectorIndexingService,
+                                             RagVectorIndexingService ragVectorIndexingService) {
         this.evaluationRepository = evaluationRepository;
         this.ragAssetIngestionService = ragAssetIngestionService;
         this.ragAssetRepository = ragAssetRepository;
         this.longTermMemoryService = longTermMemoryService;
+        this.memoryRepository = memoryRepository;
+        this.payloadRepository = payloadRepository;
+        this.vectorMemoryRepository = vectorMemoryRepository;
+        this.memoryVectorIndexingService = memoryVectorIndexingService;
+        this.ragVectorIndexingService = ragVectorIndexingService;
+    }
+
+    public void disableDataset(String datasetId) {
+        for (RecallEvaluationCorpusItemEntity item : evaluationRepository.listCorpusItems(datasetId, null, 10000, 0)) {
+            disableItem(item.getCorpusItemId());
+        }
+    }
+
+    public RecallEvaluationCorpusItemEntity disableItem(String corpusItemId) {
+        RecallEvaluationCorpusItemEntity item = evaluationRepository.findCorpusItem(corpusItemId)
+                .orElseThrow(() -> new IllegalArgumentException("Evaluation corpus item does not exist: " + corpusItemId));
+        if (isMemory(item)) {
+            if (!isBlank(item.getSourceId())) {
+                VectorCollectionTypeEnumVO collection = "USER_PREFERENCE".equals(item.getItemType())
+                        ? VectorCollectionTypeEnumVO.USER_PREFERENCE : VectorCollectionTypeEnumVO.LONG_TERM_MEMORY;
+                vectorMemoryRepository.disable(collection, item.getSourceId());
+                memoryRepository.updateMemoryLifecycle(item.getSourceId(), "DISABLED", null);
+            }
+        } else {
+            if (!isBlank(item.getSourceId())) {
+                ragAssetRepository.findDocument(item.getSourceId()).ifPresent(document -> {
+                    document.setStatus("DELETED");
+                    ragAssetRepository.updateDocument(document);
+                });
+            }
+            for (String chunkId : sourceRefs(item)) {
+                ragAssetRepository.findChunk(chunkId).ifPresent(chunk -> {
+                    vectorMemoryRepository.disable(ragCollection(chunk), chunkId);
+                    ragAssetRepository.updateChunkStatus(chunkId, "DELETED");
+                });
+            }
+        }
+        item.setStatus("DISABLED");
+        evaluationRepository.updateCorpusItem(item);
+        return item;
+    }
+
+    public RecallEvaluationCorpusItemEntity reindexItem(String corpusItemId) {
+        RecallEvaluationCorpusItemEntity item = evaluationRepository.findCorpusItem(corpusItemId)
+                .orElseThrow(() -> new IllegalArgumentException("Evaluation corpus item does not exist: " + corpusItemId));
+        RecallEvaluationDatasetEntity dataset = evaluationRepository.findDataset(item.getDatasetId())
+                .orElseThrow(() -> new IllegalArgumentException("Evaluation dataset does not exist: " + item.getDatasetId()));
+        Map<String, Object> metadata = Map.of("evalDatasetId", dataset.getDatasetId(),
+                "evalExternalId", item.getExternalId(), "evalCorpusItemId", item.getCorpusItemId());
+        if (isMemory(item)) {
+            if (isBlank(item.getSourceId())) {
+                throw new IllegalStateException("Memory corpus item has no persisted source to reindex.");
+            }
+            AgentMemoryEntity memory = memoryRepository.findMemory(item.getSourceId())
+                    .orElseThrow(() -> new IllegalStateException("Memory source no longer exists: " + item.getSourceId()));
+            memoryVectorIndexingService.indexMemory(memory, metadata);
+        } else {
+            int indexed = 0;
+            for (String chunkId : sourceRefs(item)) {
+                RagChunkEntity chunk = ragAssetRepository.findChunk(chunkId).orElse(null);
+                if (chunk == null) continue;
+                String text = payloadRepository.findContent(firstNonBlank(chunk.getRetrievalTextRef(), chunk.getContentRef())).orElse(null);
+                if (isBlank(text)) continue;
+                ragVectorIndexingService.indexChunk(chunk, text, metadata);
+                ragAssetRepository.updateChunkStatus(chunkId, "ACTIVE");
+                indexed++;
+            }
+            if (indexed == 0) {
+                throw new IllegalStateException("RAG corpus item has no chunks to reindex.");
+            }
+            ragAssetRepository.findDocument(item.getSourceId()).ifPresent(document -> {
+                document.setStatus("READY");
+                ragAssetRepository.updateDocument(document);
+            });
+        }
+        item.setStatus("READY");
+        clearFailure(item);
+        evaluationRepository.updateCorpusItem(item);
+        return item;
     }
 
     public RecallCorpusImportResultVO importBatch(String datasetId, List<RecallCorpusImportItemVO> imports) {
@@ -47,11 +143,13 @@ public class RecallEvaluationIngestionService {
         List<RecallEvaluationCorpusItemEntity> results = new ArrayList<>();
         int accepted = 0;
         int failed = 0;
+        int persisted = 0;
         for (RecallCorpusImportItemVO input : imports) {
             RecallEvaluationCorpusItemEntity item = createPending(dataset, input);
             try {
                 validate(datasetId, input);
                 evaluationRepository.saveCorpusItem(item);
+                persisted++;
                 ingest(dataset, input, item);
                 item.setStatus("READY");
                 clearFailure(item);
@@ -62,16 +160,14 @@ public class RecallEvaluationIngestionService {
                 item.setFailureStage("INGESTION");
                 item.setFailureCode(error instanceof IllegalArgumentException ? "INVALID_CORPUS_ITEM" : "CORPUS_INGESTION_FAILED");
                 item.setFailureMessage(readable(error));
-                if (item.getCorpusItemId() == null) {
-                    evaluationRepository.saveCorpusItem(item);
-                } else {
+                if (item.getCorpusItemId() != null) {
                     evaluationRepository.updateCorpusItem(item);
                 }
                 failed++;
             }
             results.add(item);
         }
-        dataset.setCorpusCount(number(dataset.getCorpusCount()) + imports.size());
+        dataset.setCorpusCount(number(dataset.getCorpusCount()) + persisted);
         dataset.setReadyCorpusCount(number(dataset.getReadyCorpusCount()) + accepted);
         dataset.setStatus(failed > 0 ? "ERROR" : "ACTIVE");
         evaluationRepository.updateDataset(dataset);
@@ -189,5 +285,31 @@ public class RecallEvaluationIngestionService {
 
     private int number(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private boolean isMemory(RecallEvaluationCorpusItemEntity item) {
+        return item != null && ("LONG_TERM_MEMORY".equals(item.getItemType()) || "USER_PREFERENCE".equals(item.getItemType()));
+    }
+
+    private List<String> sourceRefs(RecallEvaluationCorpusItemEntity item) {
+        if (item == null || isBlank(item.getSourceRefsJson())) {
+            return List.of();
+        }
+        try {
+            List<String> values = JSON.parseArray(item.getSourceRefsJson(), String.class);
+            return values == null ? List.of() : values;
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private VectorCollectionTypeEnumVO ragCollection(RagChunkEntity chunk) {
+        if (chunk != null && "CODE_CHUNK".equals(chunk.getChunkType())) {
+            return VectorCollectionTypeEnumVO.RAG_CODE_CHUNK;
+        }
+        if (chunk != null && "FILE_CHUNK".equals(chunk.getChunkType())) {
+            return VectorCollectionTypeEnumVO.RAG_FILE_CHUNK;
+        }
+        return VectorCollectionTypeEnumVO.RAG_CHUNK;
     }
 }

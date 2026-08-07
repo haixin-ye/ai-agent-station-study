@@ -1,0 +1,241 @@
+package yhx.com.trigger.http;
+
+import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import yhx.com.api.dto.agent.evaluation.RecallEvaluationDTO;
+import yhx.com.api.response.Response;
+import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCaseEntity;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCaseImportResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunDetailVO;
+import yhx.com.domain.agent.service.evaluation.RecallEvaluationFacade;
+import yhx.com.trigger.http.support.AgentResponseSupport;
+import yhx.com.trigger.http.support.RecallEvaluationApiMapper;
+
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@RestController
+@Profile("dev")
+@CrossOrigin("*")
+@RequestMapping("/api/v1/dev/recall-evaluations")
+public class RecallEvaluationController {
+    private final RecallEvaluationFacade facade;
+    private final int maxBatchItems;
+    private final long maxUploadBytes;
+
+    public RecallEvaluationController(RecallEvaluationFacade facade,
+                                      @Value("${auto-agent.recall-evaluation.max-batch-items:500}") int maxBatchItems,
+                                      @Value("${auto-agent.recall-evaluation.max-upload-bytes:10485760}") long maxUploadBytes) {
+        this.facade = facade;
+        this.maxBatchItems = maxBatchItems;
+        this.maxUploadBytes = maxUploadBytes;
+    }
+
+    @GetMapping("/datasets")
+    public Response<List<RecallEvaluationDTO.DatasetView>> listDatasets() {
+        return call(() -> facade.listDatasets().stream().map(RecallEvaluationApiMapper::dataset).toList());
+    }
+
+    @PostMapping("/datasets")
+    public Response<RecallEvaluationDTO.DatasetView> createDataset(@RequestBody RecallEvaluationDTO.DatasetRequest request) {
+        return call(() -> RecallEvaluationApiMapper.dataset(facade.createDataset(request.getName(), request.getDescription())));
+    }
+
+    @GetMapping("/datasets/{datasetId}")
+    public Response<RecallEvaluationDTO.DatasetView> getDataset(@PathVariable String datasetId) {
+        return call(() -> RecallEvaluationApiMapper.dataset(facade.getDataset(datasetId)));
+    }
+
+    @PatchMapping("/datasets/{datasetId}")
+    public Response<RecallEvaluationDTO.DatasetView> updateDataset(@PathVariable String datasetId,
+                                                                   @RequestBody RecallEvaluationDTO.DatasetRequest request) {
+        return call(() -> RecallEvaluationApiMapper.dataset(
+                facade.updateDataset(datasetId, request.getName(), request.getDescription())));
+    }
+
+    @DeleteMapping("/datasets/{datasetId}")
+    public Response<RecallEvaluationDTO.DatasetView> deleteDataset(@PathVariable String datasetId) {
+        return call(() -> RecallEvaluationApiMapper.dataset(facade.deleteDataset(datasetId)));
+    }
+
+    @GetMapping("/datasets/{datasetId}/corpus")
+    public Response<List<RecallEvaluationDTO.CorpusItemView>> listCorpus(
+            @PathVariable String datasetId,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "200") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return call(() -> facade.listCorpus(datasetId, status, bounded(limit), Math.max(0, offset)).stream()
+                .map(RecallEvaluationApiMapper::corpus).toList());
+    }
+
+    @PostMapping("/datasets/{datasetId}/corpus/batch")
+    public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> importCorpus(
+            @PathVariable String datasetId,
+            @RequestBody RecallEvaluationDTO.CorpusBatchRequest request) {
+        return call(() -> {
+            requireBatch(request == null ? null : request.getItems());
+            List<RecallCorpusImportItemVO> inputs = request.getItems().stream().map(this::corpusInput).toList();
+            return corpusImportView(facade.importCorpus(datasetId, inputs));
+        });
+    }
+
+    @PostMapping(value = "/datasets/{datasetId}/corpus/files", consumes = "multipart/form-data")
+    public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> importFiles(
+            @PathVariable String datasetId,
+            @RequestParam("files") List<MultipartFile> files) {
+        return call(() -> {
+            requireBatch(files);
+            List<RecallCorpusImportItemVO> inputs = new ArrayList<>();
+            for (MultipartFile file : files) {
+                if (file == null || file.isEmpty()) throw new IllegalArgumentException("Empty files are not allowed.");
+                if (file.getSize() > maxUploadBytes) throw new IllegalArgumentException("A file exceeds the upload size limit.");
+                String name = file.getOriginalFilename() == null ? "document" : file.getOriginalFilename();
+                inputs.add(RecallCorpusImportItemVO.builder().externalId(name).type("RAG_DOCUMENT")
+                        .title(name).content(new String(file.getBytes(), StandardCharsets.UTF_8)).build());
+            }
+            return corpusImportView(facade.importCorpus(datasetId, inputs));
+        });
+    }
+
+    @PostMapping("/datasets/{datasetId}/corpus/{corpusItemId}/reindex")
+    public Response<RecallEvaluationDTO.CorpusItemView> reindexCorpus(@PathVariable String datasetId,
+                                                                     @PathVariable String corpusItemId) {
+        return call(() -> RecallEvaluationApiMapper.corpus(facade.reindexCorpus(datasetId, corpusItemId)));
+    }
+
+    @DeleteMapping("/datasets/{datasetId}/corpus/{corpusItemId}")
+    public Response<RecallEvaluationDTO.CorpusItemView> disableCorpus(@PathVariable String datasetId,
+                                                                     @PathVariable String corpusItemId) {
+        return call(() -> RecallEvaluationApiMapper.corpus(facade.disableCorpus(datasetId, corpusItemId)));
+    }
+
+    @GetMapping("/datasets/{datasetId}/cases")
+    public Response<List<RecallEvaluationDTO.CaseView>> listCases(
+            @PathVariable String datasetId,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "200") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return call(() -> facade.listCases(datasetId, status, bounded(limit), Math.max(0, offset)).stream()
+                .map(RecallEvaluationApiMapper::testCase).toList());
+    }
+
+    @PostMapping("/datasets/{datasetId}/cases/batch")
+    public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CaseView>> importCases(
+            @PathVariable String datasetId,
+            @RequestBody RecallEvaluationDTO.CaseBatchRequest request) {
+        return call(() -> {
+            requireBatch(request == null ? null : request.getItems());
+            RecallCaseImportResultVO result = facade.importCases(datasetId,
+                    request.getItems().stream().map(RecallEvaluationApiMapper::caseInput).toList());
+            return RecallEvaluationDTO.ImportView.<RecallEvaluationDTO.CaseView>builder()
+                    .acceptedCount(result.getAcceptedCount()).failedCount(result.getFailedCount())
+                    .items(result.getCases().stream().map(RecallEvaluationApiMapper::testCase).toList())
+                    .errors(result.getErrors()).build();
+        });
+    }
+
+    @PatchMapping("/datasets/{datasetId}/cases/{caseId}")
+    public Response<RecallEvaluationDTO.CaseView> updateCase(
+            @PathVariable String datasetId,
+            @PathVariable String caseId,
+            @RequestBody RecallEvaluationDTO.CaseUpdateRequest request) {
+        return call(() -> RecallEvaluationApiMapper.testCase(facade.updateCase(datasetId,
+                RecallEvaluationCaseEntity.builder().caseId(caseId).queryText(request.getQuery())
+                        .sourceScope(request.getSourceScope())
+                        .expectedJson(request.getExpected() == null ? null
+                                : JSON.toJSONString(RecallEvaluationApiMapper.expected(request.getExpected())))
+                        .tagsJson(request.getTags() == null ? null : JSON.toJSONString(request.getTags()))
+                        .status(request.getStatus()).build())));
+    }
+
+    @GetMapping("/runs")
+    public Response<List<RecallEvaluationDTO.RunView>> listRuns(@RequestParam String datasetId,
+                                                                @RequestParam(defaultValue = "50") int limit) {
+        return call(() -> facade.listRuns(datasetId, Math.min(200, Math.max(1, limit))).stream()
+                .map(RecallEvaluationApiMapper::run).toList());
+    }
+
+    @PostMapping("/runs")
+    public Response<RecallEvaluationDTO.RunView> startRun(@RequestBody RecallEvaluationDTO.RunRequest request) {
+        return call(() -> RecallEvaluationApiMapper.run(facade.startRun(RecallEvaluationApiMapper.runConfig(request))));
+    }
+
+    @GetMapping("/runs/{runId}")
+    public Response<RecallEvaluationDTO.RunDetailView> getRun(@PathVariable String runId) {
+        return call(() -> runDetail(facade.getRun(runId)));
+    }
+
+    @PostMapping("/runs/{runId}/cancel")
+    public Response<RecallEvaluationDTO.RunView> cancelRun(@PathVariable String runId) {
+        return call(() -> RecallEvaluationApiMapper.run(facade.cancelRun(runId)));
+    }
+
+    @GetMapping("/compare")
+    public Response<RecallEvaluationDTO.ComparisonView> compare(@RequestParam String leftRunId,
+                                                               @RequestParam String rightRunId) {
+        return call(() -> RecallEvaluationApiMapper.comparison(facade.compare(leftRunId, rightRunId)));
+    }
+
+    private RecallEvaluationDTO.RunDetailView runDetail(RecallEvaluationRunDetailVO value) {
+        return RecallEvaluationDTO.RunDetailView.builder().run(RecallEvaluationApiMapper.run(value.getRun()))
+                .metrics(RecallEvaluationApiMapper.metrics(value.getMetrics()))
+                .results(value.getResults().stream().map(RecallEvaluationApiMapper::result).toList())
+                .hits(value.getHits().stream().map(RecallEvaluationApiMapper::hit).toList()).build();
+    }
+
+    private RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView> corpusImportView(
+            RecallCorpusImportResultVO result) {
+        List<String> errors = result.getItems().stream().filter(item -> item.getFailureMessage() != null)
+                .map(item -> item.getExternalId() + ": " + item.getFailureMessage()).toList();
+        return RecallEvaluationDTO.ImportView.<RecallEvaluationDTO.CorpusItemView>builder()
+                .acceptedCount(result.getAcceptedCount()).failedCount(result.getFailedCount())
+                .items(result.getItems().stream().map(RecallEvaluationApiMapper::corpus).toList()).errors(errors).build();
+    }
+
+    private RecallCorpusImportItemVO corpusInput(RecallEvaluationDTO.CorpusItemRequest value) {
+        return RecallCorpusImportItemVO.builder().externalId(value.getExternalId()).type(value.getType())
+                .title(value.getTitle()).summary(value.getSummary()).content(value.getContent())
+                .score(value.getScore() == null ? BigDecimal.ONE : value.getScore()).tags(value.getTags()).build();
+    }
+
+    private int bounded(int limit) {
+        return Math.min(1000, Math.max(1, limit));
+    }
+
+    private void requireBatch(List<?> values) {
+        if (values == null || values.isEmpty()) throw new IllegalArgumentException("At least one item is required.");
+        if (values.size() > maxBatchItems) throw new IllegalArgumentException("Batch size exceeds " + maxBatchItems + " items.");
+    }
+
+    private <T> Response<T> call(CheckedSupplier<T> supplier) {
+        try {
+            return AgentResponseSupport.success(supplier.get());
+        } catch (Exception error) {
+            log.warn("[RecallEvaluation] request failed: {}", error.getMessage(), error);
+            return AgentResponseSupport.failed(error.getMessage());
+        }
+    }
+
+    @FunctionalInterface
+    private interface CheckedSupplier<T> {
+        T get() throws Exception;
+    }
+}

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AutoAgent · Recall Evaluation Lab</title>
+  <link rel="stylesheet" href="recall_evaluation.css">
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div><div class="eyebrow">Retrieval instrumentation</div><h1>召回评测实验室</h1></div>
+    </div>
+    <div class="top-stats">
+      <div class="mini-stat"><span>Dataset</span><strong id="headerDataset">未选择</strong></div>
+      <div class="mini-stat"><span>Corpus Ready</span><strong id="headerCorpus">0 / 0</strong></div>
+      <div class="mini-stat"><span>Cases</span><strong id="headerCases">0</strong></div>
+      <div class="mini-stat"><span>Active Run</span><strong id="headerRun">—</strong></div>
+    </div>
+    <div class="top-actions">
+      <span class="status-dot"></span>
+      <button class="btn" id="refreshBtn">刷新</button>
+      <button class="btn primary" id="newDatasetBtn">新建数据集</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="rail">
+      <div class="rail-head"><span class="rail-title">实验数据集</span><button class="icon-btn" id="railAddBtn" title="新建">＋</button></div>
+      <div class="datasets" id="datasetList"><div class="empty">正在连接评测数据集…</div></div>
+      <div class="rail-foot">DEV ONLY · 数据以 evalDatasetId 隔离，不进入正常 Agent 会话召回。</div>
+    </aside>
+
+    <main class="main">
+      <section class="command">
+        <div class="command-row">
+          <div><h2 id="datasetTitle">选择或创建一个评测数据集</h2><p id="datasetDescription">建立独立语料、问题标签与可复现的召回实验。</p></div>
+          <div class="actions" id="datasetActions">
+            <button class="btn danger" id="deleteDatasetBtn" disabled>停用数据集</button>
+          </div>
+        </div>
+        <nav class="tabs" aria-label="评测模块">
+          <button class="tab active" data-tab="overview">总览</button>
+          <button class="tab" data-tab="corpus">语料库</button>
+          <button class="tab" data-tab="cases">问题与标签</button>
+          <button class="tab" data-tab="experiment">运行实验</button>
+          <button class="tab" data-tab="results">结果与 A/B</button>
+        </nav>
+      </section>
+      <section class="view" id="view">
+        <div class="panel hero-panel"><div class="empty"><div><h3>从一个隔离的数据集开始</h3><p>导入真实 RAG / 长期记忆，建立期望标签，然后批量测量召回质量。</p></div></div></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="modal" id="datasetModal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-head"><h3>新建评测数据集</h3><button class="icon-btn" data-close-modal>×</button></div>
+    <form class="modal-body grid" id="datasetForm">
+      <div class="field"><label>名称</label><input class="input" name="name" required placeholder="例如：售后知识库召回基线"></div>
+      <div class="field"><label>说明</label><textarea name="description" placeholder="记录数据来源、标注口径和实验目标"></textarea></div>
+      <div class="actions"><button class="btn primary" type="submit">创建并进入</button><button class="btn" type="button" data-close-modal>取消</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="importModal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-head"><h3 id="importModalTitle">批量导入</h3><button class="icon-btn" data-close-modal>×</button></div>
+    <form class="modal-body grid" id="importForm">
+      <div class="field"><label>格式</label><select id="importFormat"><option value="jsonl">JSONL</option><option value="csv">CSV</option></select></div>
+      <div class="field"><label>内容</label><textarea id="importText" rows="14" placeholder="每行一个 JSON 对象"></textarea></div>
+      <div class="hint" id="importHint"></div>
+      <div class="actions"><button class="btn primary" type="submit">解析并导入</button><button class="btn" type="button" data-close-modal>取消</button></div>
+    </form>
+  </div>
+</div>
+
+<input id="filePicker" type="file" accept=".txt,.md,text/plain,text/markdown" multiple hidden>
+<div class="toast" id="toast"></div>
+
+<script src="recall_evaluation_logic.js"></script>
+<script src="recall_evaluation.js"></script>
+</body>
+</html>

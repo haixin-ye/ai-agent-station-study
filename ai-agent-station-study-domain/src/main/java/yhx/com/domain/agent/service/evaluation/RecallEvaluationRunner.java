@@ -116,7 +116,7 @@ public class RecallEvaluationRunner {
         metrics.setRetrievalLatencyMs(retrievalLatency);
 
         PlannerOutcome plannerOutcome = Boolean.TRUE.equals(config.getPlannerEnabled())
-                ? invokePlanner(memory, rag, hits, expected) : PlannerOutcome.notInvoked();
+                ? invokePlanner(memory, rag, hits, expected, config) : PlannerOutcome.notInvoked();
         metrics.setPlannerInvoked(plannerOutcome.invoked);
         metrics.setPlannerLatencyMs(plannerOutcome.latencyMs);
         metrics.setPlannerPrecision(plannerOutcome.precision);
@@ -230,7 +230,8 @@ public class RecallEvaluationRunner {
     private PlannerOutcome invokePlanner(DetailedRecallResultVO memory,
                                          DetailedRecallResultVO rag,
                                          List<RecallEvaluationHitEntity> hits,
-                                         List<RecallExpectedItemVO> expected) {
+                                         List<RecallExpectedItemVO> expected,
+                                         RecallEvaluationRunConfigVO config) {
         long startedAt = System.currentTimeMillis();
         try {
             ContextCandidateBundleVO bundle = memory == null || memory.getCandidateBundle() == null
@@ -238,7 +239,7 @@ public class RecallEvaluationRunner {
                     .artifactCandidates(List.of()).evidenceCandidates(List.of()).build()
                     : memory.getCandidateBundle();
             bundle.setRagCandidates(rag == null || rag.getRagCandidates() == null ? List.of() : rag.getRagCandidates());
-            ContextPlannerOutputVO output = planner.plan(bundle);
+            ContextPlannerOutputVO output = planner.plan(bundle, config);
             Set<String> selected = selectedIds(output);
             hits.forEach(hit -> hit.setSelectedByPlanner(selected.contains(hit.getSourceId())
                     || selected.contains(hit.getParentSourceId())));
