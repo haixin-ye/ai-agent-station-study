@@ -57,3 +57,11 @@ build/
 /design-md/
 /git-cloned-repo-*/
 /docs/dev-ops/log/
+/面试问题八股.md
+/.agents/
+/.codex/
+/.codex-tmp-claw-code/
+/.m2/
+/.m2repo/
+/.superpowers/
+/.worktrees/
