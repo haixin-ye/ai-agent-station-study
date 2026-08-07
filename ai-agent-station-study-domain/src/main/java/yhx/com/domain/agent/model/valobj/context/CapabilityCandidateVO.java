@@ -27,6 +27,7 @@ public class CapabilityCandidateVO {
     private String approvalPolicy;
     private String riskLevel;
     private String availability;
+    private String availabilityReason;
     private String summary;
     private Boolean enabled;
 }

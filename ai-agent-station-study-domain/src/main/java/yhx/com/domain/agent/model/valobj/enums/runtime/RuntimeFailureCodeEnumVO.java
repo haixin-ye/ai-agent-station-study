@@ -20,6 +20,8 @@ public enum RuntimeFailureCodeEnumVO {
     MAIN_ACTION_CONTRACT_FAILED("MAIN_ACTION_CONTRACT_FAILED", "Main agent action failed contract validation."),
     MAIN_ACTION_PARSE_FAILED("MAIN_ACTION_PARSE_FAILED", "Main agent action could not be parsed."),
     FINAL_INTERNAL_LEAK("FINAL_INTERNAL_LEAK", "Final answer leaked internal runtime details."),
+    BACKEND_OUT_OF_MEMORY("BACKEND_OUT_OF_MEMORY", "Backend JVM ran out of memory while executing the run."),
+    BACKEND_PROCESS_TERMINATED("BACKEND_PROCESS_TERMINATED", "Backend process ended before the run reached a terminal state."),
     UNEXPECTED_RUNTIME_ERROR("UNEXPECTED_RUNTIME_ERROR", "Unexpected runtime error.");
 
     private final String code;

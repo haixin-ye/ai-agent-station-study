@@ -28,7 +28,7 @@ public class MainAgentActionContractTest {
                 .getRequired(AgentComponentCodeEnumVO.MAIN_AGENT);
 
         Assert.assertEquals("MainAgentActionContract", contract.getName());
-        Assert.assertEquals("main-agent-action-v1", contract.getVersion());
+        Assert.assertEquals("main-agent-action-v2", contract.getVersion());
     }
 
     @Test
@@ -65,6 +65,7 @@ public class MainAgentActionContractTest {
     @Test
     public void test_contractValidator_acceptsValidFinalAction() {
         String raw = "{"
+                + "\"taskUpdate\":{\"lastDecision\":\"Deliver the answer.\"},"
                 + "\"action\":\"FINAL\","
                 + "\"content\":{\"text\":\"hello\"},"
                 + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"hello\"}}"
@@ -107,9 +108,9 @@ public class MainAgentActionContractTest {
     }
 
     @Test
-    public void test_contractValidator_acceptsFailedNotebookStepStatus() {
+    public void test_contractValidator_acceptsFailedTaskStepStatus() {
         String raw = "{"
-                + "\"perUpdate\":{\"mode\":\"PER\",\"stepUpdates\":[{\"stepId\":\"s1\",\"status\":\"FAILED\"}]},"
+                + "\"taskUpdate\":{\"stepUpdates\":[{\"stepId\":\"s1\",\"status\":\"FAILED\"}]},"
                 + "\"action\":\"FINAL\","
                 + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"The tool failed, so I cannot complete it.\"}}"
                 + "}";
@@ -121,9 +122,9 @@ public class MainAgentActionContractTest {
     }
 
     @Test
-    public void test_contractValidator_rejectsInvalidNotebookStepStatus() {
+    public void test_contractValidator_rejectsInvalidTaskStepStatus() {
         String raw = "{"
-                + "\"perUpdate\":{\"mode\":\"PER\",\"stepUpdates\":[{\"stepId\":\"s1\",\"status\":\"MAYBE_DONE\"}]},"
+                + "\"taskUpdate\":{\"stepUpdates\":[{\"stepId\":\"s1\",\"status\":\"MAYBE_DONE\"}]},"
                 + "\"action\":\"FINAL\","
                 + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"hello\"}}"
                 + "}";
@@ -132,7 +133,37 @@ public class MainAgentActionContractTest {
                 .validateMainAgentAction(raw);
 
         Assert.assertFalse(result.isPassed());
-        Assert.assertEquals("INVALID_NOTEBOOK_STEP_STATUS", result.getViolations().get(0).getCode());
+        Assert.assertEquals("INVALID_TASK_STATUS", result.getViolations().get(0).getCode());
+    }
+
+    @Test
+    public void test_contractValidator_rejectsReadyActionWithIncompleteDeliverable() {
+        String raw = "{"
+                + "\"taskUpdate\":{\"deliverableUpdates\":[{\"deliverableId\":\"answer\",\"status\":\"PENDING\"}]},"
+                + "\"action\":\"READY_TO_DELIVER\","
+                + "\"stateDelta\":{\"deliveryRequest\":{\"reason\":\"answer is ready\"}}"
+                + "}";
+
+        ContractValidationResult result = ContractValidator.defaultValidator()
+                .validateMainAgentAction(raw);
+
+        Assert.assertFalse(result.isPassed());
+        Assert.assertEquals("READY_TO_DELIVER_HAS_INCOMPLETE_DELIVERABLE",
+                result.getViolations().get(0).getCode());
+    }
+
+    @Test
+    public void test_contractValidator_acceptsReadyActionWithReadyDeliverable() {
+        String raw = "{"
+                + "\"taskUpdate\":{\"deliverableUpdates\":[{\"deliverableId\":\"answer\",\"status\":\"READY\"}]},"
+                + "\"action\":\"READY_TO_DELIVER\","
+                + "\"stateDelta\":{\"deliveryRequest\":{\"reason\":\"answer is ready\"}}"
+                + "}";
+
+        ContractValidationResult result = ContractValidator.defaultValidator()
+                .validateMainAgentAction(raw);
+
+        Assert.assertTrue(result.isPassed());
     }
 }
 

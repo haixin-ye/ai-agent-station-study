@@ -6,6 +6,7 @@ import yhx.com.domain.agent.model.valobj.agent.AgentProfileVO;
 import yhx.com.domain.agent.model.valobj.agent.DelegateAgentTaskVO;
 import yhx.com.domain.agent.model.valobj.agent.DelegateAgentsRequestVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.AgentDelegationWaitModeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.agent.AgentCapabilityCodeEnumVO;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -59,12 +60,16 @@ public class DelegateAgentsRequestValidator {
         if (isBlank(task.getRequiredOutput())) {
             throw new IllegalArgumentException("Delegated task requires requiredOutput.");
         }
-        if (task.getRequestedCapabilities() == null || task.getRequestedCapabilities().isEmpty()) {
-            throw new IllegalArgumentException("Delegated task requires requestedCapabilities.");
+        Set<String> requestedCapabilities = task.getRequestedCapabilities() == null
+                ? Set.of()
+                : new LinkedHashSet<>(task.getRequestedCapabilities());
+        if (!requestedCapabilities.contains(AgentCapabilityCodeEnumVO.COMMIT.code())) {
+            throw new IllegalArgumentException("Delegated task requestedCapabilities must include COMMIT: "
+                    + task.getTaskId() + ".");
         }
         AgentCapabilityResolutionResultVO resolution = capabilityResolver.resolve(AgentCapabilityResolutionCommandVO.builder()
                 .profile(childProfile)
-                .requestedCapabilityCodes(new LinkedHashSet<>(task.getRequestedCapabilities()))
+                .requestedCapabilityCodes(requestedCapabilities)
                 .workspaceScopePresent(workspaceScopePresent(task))
                 .build());
         if (resolution.getDeniedCapabilityCodes() != null && !resolution.getDeniedCapabilityCodes().isEmpty()) {

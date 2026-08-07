@@ -145,15 +145,18 @@ public class ToolCapabilityCandidateProjectorTest {
     }
 
     @Test
-    public void unavailable_tool_is_not_exposed_even_for_an_explicit_enabled_capability() {
+    public void unavailable_configured_tool_is_exposed_with_health_state_but_not_claimed_available() {
         McpToolSpecVO unavailable = tool(invoiceSchema());
         unavailable.setAvailability(McpToolAvailabilityEnumVO.UNAVAILABLE);
+        unavailable.setAvailabilityReason("MCP client is unavailable.");
 
         List<CapabilityCandidateVO> candidates = new ToolCapabilityCandidateProjector().projectAll(
                 List.of(capability()), new McpToolRegistry(List.of(unavailable)),
                 ToolCapabilityExposurePolicyVO.builder().build());
 
-        Assert.assertTrue(candidates.isEmpty());
+        Assert.assertEquals(1, candidates.size());
+        Assert.assertEquals("UNAVAILABLE", candidates.get(0).getAvailability());
+        Assert.assertEquals("MCP client is unavailable.", candidates.get(0).getAvailabilityReason());
     }
 
     @SuppressWarnings("unchecked")

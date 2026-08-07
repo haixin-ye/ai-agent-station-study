@@ -61,6 +61,8 @@ public class SpringAiMcpToolInvokerAdapterTest {
                 .build());
 
         Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals("ok", result.getResultContent());
+        Assert.assertTrue(String.valueOf(result.getReceipt().get("rawResult")).contains("ok"));
         verify(client).callTool(new McpSchema.CallToolRequest("list_directory",
                 Map.of("path", "E:/javaProject/ai-agent-station-study")));
     }

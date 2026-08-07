@@ -40,6 +40,7 @@ public class AutoAgentMcpProperties {
         private String defaultRiskLevel = "MEDIUM";
         private boolean defaultDestructive;
         private String defaultContentMode = "SUMMARY_ONLY";
+        private String defaultResultContentMode = "SUMMARY_ONLY";
         private String workspaceScope;
         private Long timeoutMs;
         private boolean enabled = true;

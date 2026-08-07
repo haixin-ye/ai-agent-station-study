@@ -49,6 +49,47 @@ public class ToolApprovalPendingInputHandlerTest {
                 repository.findApprovalByApprovalKey("approval-key").orElseThrow().getStatus());
     }
 
+    @Test
+    public void delegated_tool_approval_resumes_the_child_instead_of_the_parent_tool_loop() {
+        ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
+        repository.createToolCall(ToolCallEntity.builder()
+                .toolCallId("tool-call-001")
+                .runId("child-001")
+                .mcpServerName("server")
+                .toolName("write_file")
+                .status(ToolCallStatusEnumVO.APPROVAL_PENDING)
+                .build());
+        repository.saveApproval(ToolApprovalEntity.builder()
+                .approvalKey("approval-key")
+                .runId("child-001")
+                .toolCallId("tool-call-001")
+                .argumentsHash("args-hash")
+                .permissionMode("ASK_USER")
+                .status(ToolApprovalStatusEnumVO.PENDING)
+                .build());
+        ToolApprovalPendingInputHandler handler = handler(repository);
+        ContinuationCheckpointVO checkpoint = checkpoint("write_file");
+        checkpoint.setRelatedRunId("parent-001");
+        Map<String, Object> payload = new HashMap<>(checkpoint.getPayload());
+        payload.put("parentRunId", "parent-001");
+        payload.put("childRunId", "child-001");
+        payload.put("taskId", "task-001");
+        payload.put("approvalRunId", "child-001");
+        checkpoint.setPayload(payload);
+        RuntimeExecutionContext context = RuntimeExecutionContext.builder()
+                .runId("parent-001")
+                .sessionId("sess-parent")
+                .runtimeFacts(new HashMap<>())
+                .build();
+
+        RuntimeStepResult result = handler.handle(approvedAnswer(), checkpoint, context);
+
+        Assert.assertEquals(RuntimeStepStatusEnumVO.WAITING_CHILDREN, result.getStatus());
+        Assert.assertEquals("child-001", context.getRuntimeFacts().get("resumeChildRunId"));
+        Assert.assertEquals(ToolApprovalStatusEnumVO.APPROVED,
+                repository.findApprovalByApprovalKey("approval-key").orElseThrow().getStatus());
+    }
+
     private ToolTestSupport.Repository repositoryWithApproval(ToolCallStatusEnumVO status, String toolName) {
         ToolTestSupport.Repository repository = new ToolTestSupport.Repository();
         repository.createToolCall(ToolCallEntity.builder()

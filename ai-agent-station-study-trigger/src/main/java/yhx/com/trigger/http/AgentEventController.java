@@ -52,10 +52,14 @@ public class AgentEventController {
                                    @RequestParam(value = "lastSeq", required = false) Long lastSeq) {
         String streamKey = "normal:" + runId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, STREAM_TIMEOUT_MS);
+        if (!sseEmitterRegistry.tryAcquireStreamWorker(streamKey)) {
+            return emitter;
+        }
         try {
             sseExecutor.execute(() -> streamIncrementalEvents(streamKey, runId, lastSeq));
         } catch (RejectedExecutionException error) {
             log.warn("[AutoAgent][sse-executor-rejected] runId={}", runId, error);
+            sseEmitterRegistry.releaseStreamWorker(streamKey);
             sseEmitterRegistry.completeWithError(streamKey, error);
         }
         return emitter;
@@ -97,6 +101,8 @@ public class AgentEventController {
         } catch (Exception e) {
             log.error("[AutoAgent][sse-stream-error] runId={}", runId, e);
             sseEmitterRegistry.completeWithError(streamKey, e);
+        } finally {
+            sseEmitterRegistry.releaseStreamWorker(streamKey);
         }
     }
 

@@ -49,7 +49,7 @@ public class RuntimeDeferredSubAgentStartTest {
                         .name("research")
                         .objective("Find the answer")
                         .requiredOutput("A concise result")
-                        .requestedCapabilities(List.of("RAG"))
+                        .requestedCapabilities(List.of("RAG", "COMMIT"))
                         .parentContext(Map.of())
                         .build()))
                 .build();

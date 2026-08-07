@@ -25,6 +25,7 @@ public class GenericSubAgentPromptBuilder {
                         - requiredOutput: the output shape and detail level expected by the parent.
                         - requestedCapabilities: capabilities requested by the parent.
                         - effectiveCapabilities: Runtime-approved capabilities you may actually use.
+                        - availableMcpTools: the MCP tools currently registered for this run, including their canonical capabilityCode, server, toolName, schema, availability, risk, and approval metadata.
                         - parentContext or initialContext: background, evidence references, workspace hints, or other bounded task context.
 
                         Later context entries may include NODE_ACTION, HANDLER_RESULT, USER_ANSWER, RUNTIME_NOTE, COMMIT, WAITING_USER, POLICY_FAILURE, and FAIL.
@@ -35,12 +36,13 @@ public class GenericSubAgentPromptBuilder {
                         Interpret effectiveCapabilities with this table:
                         - COMMIT: you may output action=COMMIT with a structured commit payload to return your work to the parent.
                         - RAG: you may output action=RETRIEVE_RAG to request Runtime RAG retrieval.
-                        - MCP_TOOL: you may output action=CALL_TOOL for a parent-provided MCP tool capability.
+                        - MCP_TOOL: you may output action=CALL_TOOL for any AVAILABLE tool in availableMcpTools. Generic subagents receive this abstract capability by default.
                         - FILE_READ: you may output action=CALL_TOOL for granted read/discovery workspace file capabilities, including search_files, list_directory, directory_tree, read_file, and read_multiple_files when they are exposed in the workspace scope.
                         - FILE_WRITE: you may output action=CALL_TOOL for granted file write capabilities inside the effective workspace scope; Runtime policy and approval still apply.
                         - ASK_USER: you may output action=ASK_USER to ask the user for missing information through Runtime pending input.
 
-                        If effectiveCapabilities contains only COMMIT, you cannot call tools, retrieve RAG, or ask the user. In that case, use only existing full-context information and either COMMIT a sufficient result or FAIL/BLOCKED with a clear blocker.
+                        Runtime resolves the selected catalog entry to its concrete capability and still enforces argument schema, workspace scope, risk policy, and user approval. MCP_TOOL never bypasses approval for publishing, file changes, destructive actions, or other configured risks.
+                        If MCP_TOOL is absent, you cannot call MCP tools. If COMMIT is the only other capability, use existing full-context information and either COMMIT a sufficient result or FAIL/BLOCKED with a clear blocker.
                         If an action's required capability is absent from effectiveCapabilities, do not attempt that action and do not invent a replacement capability.
                         """),
                 layer(PromptLayerTypeEnumVO.TASK_PROCEDURE, "Generic SubAgent Task Procedure", """
@@ -48,7 +50,7 @@ public class GenericSubAgentPromptBuilder {
                         1. Identify the exact delegated objective and required output.
                         2. Check effectiveCapabilities before choosing any action.
                         3. If enough information is already present, produce COMMIT.
-                        4. If a permitted tool or RAG call is needed, use CALL_TOOL or RETRIEVE_RAG with precise arguments.
+                        4. If an AVAILABLE MCP tool is needed, use CALL_TOOL with the exact catalog mcpServerCode and toolName, schema-valid arguments, and the catalog capabilityCode when more than one capability exposes the same toolName. Otherwise use capabilityCode="MCP_TOOL". Runtime will request user approval when policy requires it.
                         5. If genuinely blocked by missing user information, use ASK_USER with the smallest clear question.
                         6. If more loop context is needed after a non-terminal action result, use CONTINUE.
                         7. If the task cannot be completed within the boundary, use FAIL with a clear reason.
@@ -67,7 +69,7 @@ public class GenericSubAgentPromptBuilder {
                         You must never output FINAL.
                         You must never output DELEGATE_AGENTS or DELEGATE_CODE_AGENT.
                         You must never invent capabilities, tool names, evidence ids, files, or results.
-                        CALL_TOOL, RETRIEVE_RAG, and ASK_USER are allowed only when the corresponding capability exists in effectiveCapabilities.
+                        CALL_TOOL, RETRIEVE_RAG, and ASK_USER are allowed only when the corresponding capability exists in effectiveCapabilities. For CALL_TOOL under MCP_TOOL, select only an AVAILABLE entry from availableMcpTools; include its mcpServerCode, and include its concrete capabilityCode whenever the same toolName appears more than once.
                         COMMIT is the normal successful terminal action and requires the COMMIT capability.
                         FAIL is the honest terminal action when the task is impossible, unsafe, outside boundary, or missing required capability.
                         """),
@@ -77,7 +79,9 @@ public class GenericSubAgentPromptBuilder {
                         For file, code, tool, or research tasks, include concrete inspected resources and relevant details.
                         Mention assumptions, blockers, and suggested parent next step when useful.
                         Set safeForUserVisibleUse=true only when the parent may reuse your wording directly as user-facing text.
-                        Keep JSON easy to parse. Do not place long Markdown documents, numbered Markdown reports, or raw file dumps inside one large JSON string. Put the short conclusion in result, a compact plain-text explanation in detail, and use inspectedResources, evidenceRefs, assumptions, blockers, and suggestedParentNextStep for structured detail.
+                        When requiredOutput asks for user-readable content such as a report, itinerary, comparison, draft, or document, put the complete required work product in commit.result. A completion acknowledgement or short summary is not a substitute for the requested body.
+                        commit.detail is a concise work note for the parent: explain method, caveats, or how the result was produced without duplicating the complete result.
+                        Keep JSON easy to parse. Multiline Markdown is allowed in commit.result when it is the required work product, but it must remain a valid JSON string. Use inspectedResources, evidenceRefs, assumptions, blockers, and suggestedParentNextStep for genuinely structured supporting detail.
                         Escape newlines as \\n when you must include them in a string. Do not output invalid escape sequences such as "\\ n", "\\1", "\\*" or raw line breaks inside JSON strings.
                         """),
                 layer(PromptLayerTypeEnumVO.ANTI_EXAMPLES, "Generic SubAgent Anti Examples", """

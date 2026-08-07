@@ -23,6 +23,12 @@ import yhx.com.domain.agent.service.debug.DebugAccessPolicy;
 import yhx.com.domain.agent.service.debug.DebugDataPipeline;
 import yhx.com.domain.agent.service.debug.DebugPayloadPreviewPolicy;
 import yhx.com.domain.agent.service.runtime.AutoAgentRuntimeService;
+import yhx.com.domain.agent.service.runtime.RunOrphanRecoveryService;
+
+import java.lang.management.ManagementFactory;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Configuration
 @EnableConfigurationProperties({AutoAgentDebugProperties.class, AutoAgentLegacyProperties.class})
@@ -74,7 +80,8 @@ public class AutoAgentApiConfig {
                                              DebugAccessPolicy debugAccessPolicy,
                                              DebugPayloadPreviewPolicy debugPayloadPreviewPolicy,
                                              IRunRepository runRepository,
-                                             IRunContextRepository runContextRepository) {
+                                             IRunContextRepository runContextRepository,
+                                             RunOrphanRecoveryService runOrphanRecoveryService) {
         return new AgentDebugFacade(eventTraceRepository,
                 evidenceRepository,
                 toolRepository,
@@ -82,7 +89,16 @@ public class AutoAgentApiConfig {
                 debugAccessPolicy,
                 debugPayloadPreviewPolicy,
                 runRepository,
-                runContextRepository);
+                runContextRepository,
+                runOrphanRecoveryService);
+    }
+
+    @Bean
+    public RunOrphanRecoveryService runOrphanRecoveryService(IRunRepository runRepository) {
+        LocalDateTime processStartedAt = LocalDateTime.ofInstant(
+                Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().getStartTime()),
+                ZoneId.systemDefault());
+        return new RunOrphanRecoveryService(runRepository, processStartedAt);
     }
 
     @Bean

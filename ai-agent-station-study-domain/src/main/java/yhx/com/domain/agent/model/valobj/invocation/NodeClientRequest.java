@@ -19,6 +19,8 @@ public class NodeClientRequest {
     private String componentCode;
     private String modelCode;
     private String prompt;
+    private String systemPrompt;
+    private String userPrompt;
     private Double temperature;
     private Integer maxOutputTokens;
     private Map<String, Object> metadata;

@@ -5,6 +5,7 @@ import yhx.com.domain.agent.model.entity.persistence.AgentArtifactEntity;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.FinalDeliveryStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RagRuntimeStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionStatusEnumVO;
@@ -13,6 +14,8 @@ import yhx.com.domain.agent.model.valobj.runtime.FinalDeliveryResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RagRuntimeCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.RagRuntimeResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
+import yhx.com.domain.agent.model.valobj.runtime.RunContextStateVO;
+import yhx.com.domain.agent.model.valobj.runtime.TaskLedgerVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionResultVO;
 import yhx.com.domain.agent.service.contract.ContractValidator;
@@ -33,20 +36,17 @@ import yhx.com.domain.agent.service.runtime.MainActionHandler;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
 import yhx.com.domain.agent.service.runtime.RunTranscriptRecorder;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
-import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
+import yhx.com.domain.agent.service.runtime.TaskDeliveryReadinessPolicy;
 import yhx.com.domain.agent.service.runtime.handler.AskUserActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.CallToolActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.ContinueActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.DefaultMainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.handler.DelegateAgentsActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FailActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FinalActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.MainActionHandlerRegistry;
-import yhx.com.domain.agent.service.runtime.handler.PlanActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.RepairFinalActionHandler;
+import yhx.com.domain.agent.service.runtime.handler.ReadyToDeliverActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.RetrieveRagActionHandler;
 import yhx.com.domain.agent.service.runtime.port.FinalDeliveryPort;
-import yhx.com.domain.agent.service.runtime.port.PlanStatePort;
 import yhx.com.domain.agent.service.runtime.port.RagRuntimePort;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.test.domain.agent.runtime.support.RuntimeTestSupport;
@@ -67,14 +67,20 @@ public class ActionHandlerTestSupport {
                 .loopIndex(0)
                 .currentPhase(RuntimePhaseEnumVO.HANDLING_ACTION)
                 .runtimeFacts(new LinkedHashMap<>())
+                .runContextState(RunContextStateVO.builder()
+                        .schemaVersion(2)
+                        .contextVersion(1L)
+                        .mainAgentStage(MainAgentStageEnumVO.PLANNING)
+                        .taskLedger(TaskLedgerVO.builder().deliverables(new ArrayList<>()).steps(new ArrayList<>()).build())
+                        .loopTimeline(new ArrayList<>())
+                        .build())
                 .build();
     }
 
     public static MainActionDispatcher dispatcher(FullRepository repository,
                                                   FakeFinalDeliveryPort finalPort,
                                                   FakeRagRuntimePort ragPort,
-                                                  FakeToolActionOrchestratorPort toolPort,
-                                                  FakePlanStatePort planPort) {
+                                                  FakeToolActionOrchestratorPort toolPort) {
         RuntimeFailureFactory failureFactory = new RuntimeFailureFactory();
         DeveloperTraceRecorder traceRecorder = new DeveloperTraceRecorder(repository, repository);
         RunEventPublisher eventPublisher = new RunEventPublisher(repository, repository);
@@ -92,7 +98,7 @@ public class ActionHandlerTestSupport {
                 eventPublisher,
                 transcriptRecorder,
                 failureFactory);
-        List<MainActionHandler> handlers = handlers(repository, finalPort, ragPort, toolPort, planPort,
+        List<MainActionHandler> handlers = handlers(repository, finalPort, ragPort, toolPort,
                 failureFactory, traceRecorder, eventPublisher, interactionManager);
         return new DefaultMainActionDispatcher(new MainActionHandlerRegistry(handlers),
                 ContractValidator.defaultValidator(), failureFactory, traceRecorder);
@@ -101,8 +107,7 @@ public class ActionHandlerTestSupport {
     public static MainActionHandlerRegistry registry(FullRepository repository,
                                                      FakeFinalDeliveryPort finalPort,
                                                      FakeRagRuntimePort ragPort,
-                                                     FakeToolActionOrchestratorPort toolPort,
-                                                     FakePlanStatePort planPort) {
+                                                     FakeToolActionOrchestratorPort toolPort) {
         RuntimeFailureFactory failureFactory = new RuntimeFailureFactory();
         DeveloperTraceRecorder traceRecorder = new DeveloperTraceRecorder(repository, repository);
         RunEventPublisher eventPublisher = new RunEventPublisher(repository, repository);
@@ -119,7 +124,7 @@ public class ActionHandlerTestSupport {
                 eventPublisher,
                 new RunTranscriptRecorder(repository, repository),
                 failureFactory);
-        return new MainActionHandlerRegistry(handlers(repository, finalPort, ragPort, toolPort, planPort,
+        return new MainActionHandlerRegistry(handlers(repository, finalPort, ragPort, toolPort,
                 failureFactory, traceRecorder, eventPublisher, interactionManager));
     }
 
@@ -127,7 +132,6 @@ public class ActionHandlerTestSupport {
                                                     FakeFinalDeliveryPort finalPort,
                                                     FakeRagRuntimePort ragPort,
                                                     FakeToolActionOrchestratorPort toolPort,
-                                                    FakePlanStatePort planPort,
                                                     RuntimeFailureFactory failureFactory,
                                                     DeveloperTraceRecorder traceRecorder,
                                                     RunEventPublisher eventPublisher,
@@ -137,10 +141,8 @@ public class ActionHandlerTestSupport {
                 new AskUserActionHandler(failureFactory, traceRecorder),
                 new RetrieveRagActionHandler(repository, ragPort, eventPublisher, failureFactory, traceRecorder),
                 new CallToolActionHandler(toolPort, failureFactory, traceRecorder),
-                new PlanActionHandler(planPort, failureFactory, traceRecorder),
-                new ContinueActionHandler(new RuntimeLoopPolicy(), failureFactory, traceRecorder),
                 new DelegateAgentsActionHandler(new AgentDispatchRuntime(new ParentChildRunRegistry()), failureFactory, traceRecorder),
-                new RepairFinalActionHandler(finalPort, failureFactory, traceRecorder),
+                new ReadyToDeliverActionHandler(new TaskDeliveryReadinessPolicy(), failureFactory, traceRecorder),
                 new FailActionHandler(finalPort, failureFactory, traceRecorder)
         );
     }
@@ -216,21 +218,6 @@ public class ActionHandlerTestSupport {
                     .evidenceIds(List.of("tool-evidence-001"))
                     .message("tool handled")
                     .build();
-        }
-    }
-
-    public static class FakePlanStatePort implements PlanStatePort {
-        public final Map<String, yhx.com.domain.agent.model.valobj.runtime.PlanStateVO> plans = new LinkedHashMap<>();
-
-        @Override
-        public String savePlan(String runId, yhx.com.domain.agent.model.valobj.runtime.PlanStateVO plan) {
-            plans.put(runId, plan);
-            return "plan-" + runId;
-        }
-
-        @Override
-        public yhx.com.domain.agent.model.valobj.runtime.PlanStateVO findPlan(String runId) {
-            return plans.get(runId);
         }
     }
 

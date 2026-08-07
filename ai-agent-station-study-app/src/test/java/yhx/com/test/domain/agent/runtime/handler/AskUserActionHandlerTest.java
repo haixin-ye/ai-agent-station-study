@@ -83,8 +83,7 @@ public class AskUserActionHandlerTest {
         return ActionHandlerTestSupport.dispatcher(repository,
                 new ActionHandlerTestSupport.FakeFinalDeliveryPort(),
                 new ActionHandlerTestSupport.FakeRagRuntimePort(),
-                new ActionHandlerTestSupport.FakeToolActionOrchestratorPort(),
-                new ActionHandlerTestSupport.FakePlanStatePort());
+                new ActionHandlerTestSupport.FakeToolActionOrchestratorPort());
     }
 
     private MainAgentActionVO askAction(boolean withOptions) {
@@ -92,7 +91,11 @@ public class AskUserActionHandlerTest {
                 ? Map.of("question", "选哪个", "inputMode", "SINGLE_CHOICE", "allowFreeText", false,
                 "options", List.of(Map.of("id", "a", "label", "A", "value", Map.of("choice", "A"))))
                 : Map.of("question", "选哪个", "inputMode", "SINGLE_CHOICE", "allowFreeText", false);
-        return MainAgentActionVO.builder().action("ASK_USER").stateDelta(Map.of("askUserRequest", request)).build();
+        return MainAgentActionVO.builder()
+                .taskUpdate(Map.of("lastDecision", "Ask for the missing user input."))
+                .action("ASK_USER")
+                .stateDelta(Map.of("askUserRequest", request))
+                .build();
     }
 
     private MainAgentActionVO vagueOptionAskAction() {
@@ -104,7 +107,11 @@ public class AskUserActionHandlerTest {
                         Map.of("optionId", "popular-city", "label", "热门城市（如北京、西安、成都等）", "value", Map.of("type", "city-category")),
                         Map.of("optionId", "free-text", "label", "自由输入", "value", Map.of("type", "free-text"))
                 ));
-        return MainAgentActionVO.builder().action("ASK_USER").stateDelta(Map.of("askUserRequest", request)).build();
+        return MainAgentActionVO.builder()
+                .taskUpdate(Map.of("lastDecision", "Ask for the missing user input."))
+                .action("ASK_USER")
+                .stateDelta(Map.of("askUserRequest", request))
+                .build();
     }
 
     private MainAgentActionVO vagueChoiceOrFreeTextAskAction() {
@@ -116,6 +123,10 @@ public class AskUserActionHandlerTest {
                         Map.of("optionId", "popular-city", "label", "热门城市（如北京、西安、成都等）", "value", Map.of("type", "city-category")),
                         Map.of("optionId", "free-text", "label", "自由输入", "value", Map.of("type", "free-text"))
                 ));
-        return MainAgentActionVO.builder().action("ASK_USER").stateDelta(Map.of("askUserRequest", request)).build();
+        return MainAgentActionVO.builder()
+                .taskUpdate(Map.of("lastDecision", "Ask for the missing user input."))
+                .action("ASK_USER")
+                .stateDelta(Map.of("askUserRequest", request))
+                .build();
     }
 }

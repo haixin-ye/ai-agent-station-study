@@ -19,8 +19,13 @@ public class CallToolActionHandlerTest {
         MainActionDispatcher dispatcher = dispatcher(toolPort);
 
         MainActionHandlerResult result = dispatcher.dispatch(ActionHandlerTestSupport.context(), MainAgentActionVO.builder()
+                .taskUpdate(Map.of("lastDecision", "Inspect the directory."))
                 .action("CALL_TOOL")
-                .stateDelta(Map.of("toolIntent", Map.of("toolName", "list_directory")))
+                .stateDelta(Map.of("toolIntent", Map.of(
+                        "capabilityCode", "file_system_list_directory",
+                        "toolName", "list_directory",
+                        "goal", "Inspect the directory.",
+                        "arguments", Map.of("path", "."))))
                 .build());
 
         Assert.assertEquals(MainActionHandlerStatusEnumVO.CONTINUE_LOOP, result.getStatus());
@@ -62,14 +67,18 @@ public class CallToolActionHandlerTest {
         return ActionHandlerTestSupport.dispatcher(new ActionHandlerTestSupport.FullRepository(),
                 new ActionHandlerTestSupport.FakeFinalDeliveryPort(),
                 new ActionHandlerTestSupport.FakeRagRuntimePort(),
-                toolPort,
-                new ActionHandlerTestSupport.FakePlanStatePort());
+                toolPort);
     }
 
     private MainAgentActionVO toolAction() {
         return MainAgentActionVO.builder()
+                .taskUpdate(Map.of("lastDecision", "Read the requested file."))
                 .action("CALL_TOOL")
-                .stateDelta(Map.of("toolIntent", Map.of("capabilityCode", "file_system", "toolName", "read_file")))
+                .stateDelta(Map.of("toolIntent", Map.of(
+                        "capabilityCode", "file_system_read_file",
+                        "toolName", "read_file",
+                        "goal", "Read the requested file.",
+                        "arguments", Map.of("path", "docs/story.md"))))
                 .build();
     }
 }

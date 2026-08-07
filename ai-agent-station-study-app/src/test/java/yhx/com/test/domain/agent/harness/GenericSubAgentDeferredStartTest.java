@@ -97,7 +97,22 @@ public class GenericSubAgentDeferredStartTest {
         fixture.orchestrator.startPreparedDispatch(fixture.parentContext, fixture.request, prepared);
 
         Assert.assertEquals(1, resumeAttempts.get());
-        Assert.assertTrue(fixture.registry.markParentResumeRequested(fixture.parentContext.getRunId()));
+        String batchId = fixture.registry.listChildren(fixture.parentContext.getRunId()).get(0).getDispatchBatchId();
+        Assert.assertTrue(fixture.registry.markParentResumeRequested(fixture.parentContext.getRunId(), batchId));
+    }
+
+    @Test
+    public void completed_second_dispatch_batch_requests_parent_resume_again() {
+        AtomicInteger resumeAttempts = new AtomicInteger();
+        Fixture fixture = fixture(Runnable::run, parentRunId -> {
+            resumeAttempts.incrementAndGet();
+            return true;
+        });
+
+        fixture.orchestrator.dispatchRunAndProject(fixture.parentContext, fixture.request);
+        fixture.orchestrator.dispatchRunAndProject(fixture.parentContext, fixture.request);
+
+        Assert.assertEquals(2, resumeAttempts.get());
     }
 
     @Test
@@ -168,7 +183,7 @@ public class GenericSubAgentDeferredStartTest {
                         .name("research")
                         .objective("Find the answer")
                         .requiredOutput("A concise result")
-                        .requestedCapabilities(List.of("RAG"))
+                        .requestedCapabilities(List.of("RAG", "COMMIT"))
                         .parentContext(Map.of())
                         .build()))
                 .build();

@@ -56,7 +56,7 @@ public class ToolEvidenceConverter {
         return fromSavedEvidence(save(runId, buildResult.getToolCallId(), boundedSummary,
                         null, null, VerificationStatusEnumVO.SKIPPED.code(), failureCode), "TOOL",
                 buildResult.getToolCallId(), boundedSummary, null, null, null, null, null,
-                VerificationStatusEnumVO.SKIPPED.code(), failureCode);
+                VerificationStatusEnumVO.SKIPPED.code(), failureCode, null);
     }
 
     public ToolEvidenceCreationResultVO createVerifiedInvocationEvidencePack(String runId,
@@ -107,7 +107,8 @@ public class ToolEvidenceConverter {
                         contentRef, evidenceFormat, verificationStatus, failureCode),
                 "TOOL", result.getToolCallId(), boundedSummary,
                 evidenceContent, contentRef, evidenceFormat, totalChars, totalBytes,
-                verificationStatus, failureCode);
+                verificationStatus, failureCode,
+                result.getResultContentMode() == null ? null : result.getResultContentMode().code());
     }
 
     public ToolEvidenceCreationResultVO createVerificationFailureEvidencePack(String runId,
@@ -135,7 +136,8 @@ public class ToolEvidenceConverter {
         String contentRef = savePayload(content, "JSON");
         return fromSavedEvidence(save(runId, toolCallId, summary, contentRef, "JSON", verificationStatus, failureCode),
                 "TOOL", toolCallId, summary, content, contentRef, "JSON", content.length(),
-                (long) content.getBytes(StandardCharsets.UTF_8).length, verificationStatus, failureCode);
+                (long) content.getBytes(StandardCharsets.UTF_8).length, verificationStatus, failureCode,
+                resultContentMode(invocationResult));
     }
 
     private void appendBoundedSchemaDiagnostics(Map<String, Object> diagnostics,
@@ -262,7 +264,8 @@ public class ToolEvidenceConverter {
                                                            Integer totalChars,
                                                            Long totalBytes,
                                                            String verificationStatus,
-                                                           String failureCode) {
+                                                           String failureCode,
+                                                           String contentMode) {
         if (evidenceId == null || evidenceId.isBlank()) {
             return emptyResult();
         }
@@ -278,7 +281,7 @@ public class ToolEvidenceConverter {
                 .truncated(false)
                 .totalChars(totalChars)
                 .totalBytes(totalBytes)
-                .metadata(evidenceMetadata(verificationStatus, failureCode))
+                .metadata(evidenceMetadata(verificationStatus, failureCode, contentMode))
                 .build();
         return ToolEvidenceCreationResultVO.builder()
                 .evidenceIds(List.of(evidenceId))
@@ -286,7 +289,9 @@ public class ToolEvidenceConverter {
                 .build();
     }
 
-    private Map<String, Object> evidenceMetadata(String verificationStatus, String failureCode) {
+    private Map<String, Object> evidenceMetadata(String verificationStatus,
+                                                 String failureCode,
+                                                 String contentMode) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (verificationStatus != null && !verificationStatus.isBlank()) {
             metadata.put("verificationStatus", verificationStatus);
@@ -294,7 +299,15 @@ public class ToolEvidenceConverter {
         if (failureCode != null && !failureCode.isBlank()) {
             metadata.put("failureCode", failureCode);
         }
+        if (contentMode != null && !contentMode.isBlank()) {
+            metadata.put("contentMode", contentMode);
+        }
         return metadata.isEmpty() ? null : metadata;
+    }
+
+    private String resultContentMode(ToolInvocationResultVO result) {
+        return result == null || result.getResultContentMode() == null
+                ? null : result.getResultContentMode().code();
     }
 
     private ToolEvidenceCreationResultVO emptyResult() {

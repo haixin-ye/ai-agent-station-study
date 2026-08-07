@@ -10,6 +10,7 @@ import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentOrchestrationResul
 import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentContinuationVO;
 import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentRunCommandVO;
 import yhx.com.domain.agent.model.valobj.agent.ParentChildRunRelationVO;
+import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.AgentProfileTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
@@ -232,16 +233,18 @@ public class GenericSubAgentDispatchOrchestrator {
     }
 
     private void publishTerminalAndResume(String parentRunId, String childRunId) {
-        registry.findByChildRunId(childRunId).ifPresent(latest -> {
-            if (lifecycleEventPublisher != null && latest.getStatus() != null && latest.getStatus().terminal()) {
-                lifecycleEventPublisher.terminal(parentRunId, latest);
+        ParentChildRunRelationVO relation = registry.findByChildRunId(childRunId).orElse(null);
+        if (relation != null) {
+            if (lifecycleEventPublisher != null && relation.getStatus() != null && relation.getStatus().terminal()) {
+                lifecycleEventPublisher.terminal(parentRunId, relation);
             }
-        });
-        resumeParentIfSatisfied(parentRunId);
+            resumeParentIfSatisfied(parentRunId, relation.getDispatchBatchId());
+        }
     }
 
-    private void resumeParentIfSatisfied(String parentRunId) {
-        if (!registry.isWaitSatisfied(parentRunId) || !registry.markParentResumeRequested(parentRunId)) {
+    private void resumeParentIfSatisfied(String parentRunId, String dispatchBatchId) {
+        if (!registry.isWaitSatisfied(parentRunId, dispatchBatchId)
+                || !registry.markParentResumeRequested(parentRunId, dispatchBatchId)) {
             return;
         }
         if (lifecycleEventPublisher != null) {
@@ -250,7 +253,7 @@ public class GenericSubAgentDispatchOrchestrator {
         if (parentRunResumePort != null) {
             boolean accepted = parentRunResumePort.resumeParentIfReady(parentRunId);
             if (!accepted) {
-                registry.clearParentResumeRequested(parentRunId);
+                registry.clearParentResumeRequested(parentRunId, dispatchBatchId);
             }
         }
     }
@@ -321,7 +324,11 @@ public class GenericSubAgentDispatchOrchestrator {
             throw new IllegalArgumentException("Child run " + childRunId
                     + " does not belong to parent Run " + parentContext.getRunId() + ".");
         }
+        GenericSubAgentContinuationVO continuation = registry.findContinuation(childRunId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Generic subagent continuation is missing for child run: " + childRunId));
         validateContinuationIdentity(parentContext, relation, childRunId, answer);
+        rebindParentRuntimeContext(parentContext, continuation);
         GenericSubAgentNodePort nodePort = nodePortFor(childRunId);
         GenericSubAgentRuntime childRuntime = new GenericSubAgentRuntime(
                 registry,
@@ -343,6 +350,18 @@ public class GenericSubAgentDispatchOrchestrator {
                 .childResults(List.of(childResult))
                 .parentReady(registry.isWaitSatisfied(relation.getParentRunId()))
                 .build();
+    }
+
+    /**
+     * RuntimeExecutionContext is deliberately excluded from persisted child snapshots.
+     * Rebind the live parent context before a resumed child can execute another action,
+     * especially a second approval-gated MCP tool call.
+     */
+    private void rebindParentRuntimeContext(RuntimeExecutionContext parentContext,
+                                             GenericSubAgentContinuationVO continuation) {
+        if (continuation != null && continuation.getCommand() != null) {
+            continuation.getCommand().setParentRuntimeContext(parentContext);
+        }
     }
 
     private void validateContinuationIdentity(RuntimeExecutionContext parentContext,
@@ -382,6 +401,7 @@ public class GenericSubAgentDispatchOrchestrator {
                 .task(task)
                 .profile(genericProfile)
                 .effectiveCapabilityCodes(effectiveCapabilities(task))
+                .availableMcpTools(availableMcpTools(parentContext))
                 .initialContext(task.getParentContext())
                 .sessionId(parentContext == null ? null : parentContext.getSessionId())
                 .userId(parentContext == null ? null : parentContext.getUserId())
@@ -399,6 +419,21 @@ public class GenericSubAgentDispatchOrchestrator {
                         .workspaceScopePresent(workspaceScopePresent(task))
                         .build())
                 .getEffectiveCapabilityCodes();
+    }
+
+    private List<CapabilityCandidateVO> availableMcpTools(RuntimeExecutionContext parentContext) {
+        if (parentContext == null || parentContext.getRunContextState() == null
+                || parentContext.getRunContextState().getBaseContext() == null
+                || parentContext.getRunContextState().getBaseContext().getSelectedSessionContext() == null
+                || parentContext.getRunContextState().getBaseContext().getSelectedSessionContext().getAvailableCapabilities() == null) {
+            return List.of();
+        }
+        return parentContext.getRunContextState().getBaseContext().getSelectedSessionContext()
+                .getAvailableCapabilities().stream()
+                .filter(candidate -> candidate != null
+                        && candidate.getMcpServerCode() != null && !candidate.getMcpServerCode().isBlank()
+                        && candidate.getToolName() != null && !candidate.getToolName().isBlank())
+                .toList();
     }
 
     private boolean workspaceScopePresent(DelegateAgentTaskVO task) {

@@ -39,7 +39,7 @@ public class SubAgentActionDispatcher {
                 new ContinueSubAgentActionHandler(),
                 new CommitSubAgentActionHandler(registry),
                 new FailSubAgentActionHandler(registry),
-                new SubAgentCallToolActionHandler(registry, toolActionOrchestratorPort),
+                new SubAgentCallToolActionHandler(registry, toolActionOrchestratorPort, userInteractionManager),
                 new SubAgentRetrieveRagActionHandler(registry, ragRuntimePort),
                 new SubAgentAskUserActionHandler(registry, userInteractionManager)
         ));

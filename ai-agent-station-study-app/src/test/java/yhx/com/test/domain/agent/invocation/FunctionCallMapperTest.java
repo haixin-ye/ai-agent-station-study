@@ -17,10 +17,14 @@ public class FunctionCallMapperTest {
         String normalized = mapper.mapToRawOutput(AgentComponentCodeEnumVO.MAIN_AGENT.name(),
                 NodeFunctionCallVO.builder()
                         .name("main_final_answer")
-                        .arguments(Map.of("content", "ok"))
+                        .arguments(Map.of(
+                                "taskUpdate", Map.of("lastDecision", "Deliver the completed answer."),
+                                "content", "ok"))
                         .build());
 
-        Assert.assertEquals("{\"action\":\"FINAL\",\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"ok\"}}}", normalized);
+        Assert.assertTrue(normalized.contains("\"taskUpdate\""));
+        Assert.assertTrue(normalized.contains("\"action\":\"FINAL\""));
+        Assert.assertTrue(normalized.contains("\"finalAnswerCandidate\":{\"content\":\"ok\"}"));
     }
 
     @Test
@@ -29,9 +33,10 @@ public class FunctionCallMapperTest {
                 NodeFunctionCallVO.builder()
                         .name("main_call_tool")
                         .arguments(Map.of(
+                                "taskUpdate", Map.of("lastDecision", "Inspect the report folder."),
                                 "capabilityCode", "filesystem",
                                 "toolName", "list_directory",
-                                "intent", "List report folder",
+                                "goal", "List report folder",
                                 "arguments", Map.of("path", "E:/report")
                         ))
                         .build());

@@ -47,11 +47,14 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
             receipt.put("rawResult", JSON.toJSONString(callToolResult));
             receipt.put("mcpServerCode", command.getMcpServerCode());
             receipt.put("toolName", command.getToolName());
-            receipt.put("contentText", contentText);
+            receipt.put("isError", toolError);
+            receipt.put("contentItemCount", callToolResult == null || callToolResult.content() == null
+                    ? 0 : callToolResult.content().size());
             return McpToolInvokeResultVO.builder()
                     .called(true)
                     .success(!toolError)
                     .receipt(receipt)
+                    .resultContent(contentText)
                     .errorCode(toolError ? "MCP_TOOL_ERROR" : null)
                     .errorMessage(toolError ? contentText(callToolResult) : null)
                     .latencyMs(System.currentTimeMillis() - startedAt)
@@ -164,7 +167,7 @@ public class SpringAiMcpToolInvokerAdapter implements McpToolInvokerPort {
         List<String> parts = result.content().stream()
                 .map(content -> content instanceof McpSchema.TextContent textContent
                         ? textContent.text()
-                        : String.valueOf(content))
+                        : JSON.toJSONString(content))
                 .toList();
         return String.join("\n", parts);
     }

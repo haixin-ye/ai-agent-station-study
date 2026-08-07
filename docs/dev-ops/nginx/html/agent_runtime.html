@@ -2798,6 +2798,7 @@
             <div class="top-actions">
                 <button id="newChatBtn" class="ghost-button" type="button">New</button>
                 <button id="debugBtn" class="ghost-button" type="button">Debug</button>
+                <button id="studioBtn" class="ghost-button" type="button">运行观测</button>
             </div>
         </header>
 
@@ -2980,9 +2981,22 @@
 
 <script>
     const params = new URLSearchParams(window.location.search);
-    const defaultApiBase = window.location.port === "8091" ? "" : "http://127.0.0.1:8091";
+    const defaultApiBase = "";
     const API_BASE = params.get("api") || localStorage.getItem("autoAgentRuntimeApiBase") || defaultApiBase;
     const STORE_KEY = "autoAgentRuntimeUi:v2";
+    const STUDIO_RUN_SIGNAL_KEY = "autoAgentObservabilityActiveRun:v1";
+    const STUDIO_RUN_CHANNEL = "auto-agent-observability";
+
+    function publishObservabilityRun(runId, sessionId) {
+        if (!runId || !sessionId) return;
+        const signal = {runId, sessionId, announcedAt: Date.now()};
+        localStorage.setItem(STUDIO_RUN_SIGNAL_KEY, JSON.stringify(signal));
+        if ("BroadcastChannel" in window) {
+            const channel = new BroadcastChannel(STUDIO_RUN_CHANNEL);
+            channel.postMessage(signal);
+            channel.close();
+        }
+    }
 
     const fallbackScenarios = [
         {scenario: "simple_final", title: "直接回答", description: "短回答流程。"},
@@ -3183,6 +3197,7 @@
         newChatBtn: document.getElementById("newChatBtn"),
         newChatSmallBtn: document.getElementById("newChatSmallBtn"),
         debugBtn: document.getElementById("debugBtn"),
+        studioBtn: document.getElementById("studioBtn"),
         exportDebugBtn: document.getElementById("exportDebugBtn"),
         closeDebugBtn: document.getElementById("closeDebugBtn"),
         drawerBackdrop: document.getElementById("drawerBackdrop"),
@@ -4221,12 +4236,13 @@
     }
 
     function currentThinkingText(events, insight = null) {
-        if (insight?.latestPlan?.mode) {
-            const mode = String(insight.latestPlan.mode).toUpperCase();
+        if (insight?.latestPlan) {
+            const mode = resolvePlanMode(insight);
             if (mode === "DIRECT") return "MainNode：Direct";
             if (mode === "PER") {
-                return insight.latestPlan.nextStepId
-                    ? `MainNode：PER / ${insight.latestPlan.nextStepId}`
+                const nextStepId = planNextStepId(insight.latestPlan);
+                return nextStepId
+                    ? `MainNode：PER / ${nextStepId}`
                     : "MainNode：PER";
             }
         }
@@ -4250,7 +4266,7 @@
 
     function renderPlanSectionV3(insight) {
         const plan = insight.latestPlan || {};
-        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const mode = resolvePlanMode(insight);
         const badgeClass = mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
         const goal = plan.goal || latestActionDecision(insight) || "等待 MainNode 输出规划";
         const decision = plan.lastDecision || latestActionDecision(insight) || "";
@@ -4263,7 +4279,7 @@
                 </div>
                 <div class="thinking-note">${escapeHtml(goal)}</div>
                 ${decision ? `<div class="thinking-note">当前判断：${escapeHtml(decision)}</div>` : ""}
-                ${plan.nextStepId ? `<div class="thinking-note">下一步：${escapeHtml(plan.nextStepId)}</div>` : ""}
+                ${planNextStepId(plan) ? `<div class="thinking-note">下一步：${escapeHtml(planNextStepId(plan))}</div>` : ""}
                 ${steps.length ? `
                     <div class="thinking-plan-steps">
                         ${steps.map((step, index) => renderPlanStepV3(step, index)).join("")}
@@ -4280,7 +4296,7 @@
             <div class="thinking-step">
                 <div class="thinking-step-index">${escapeHtml(step.stepId || `s${index + 1}`)}</div>
                 <div>
-                    <div class="thinking-step-title">${escapeHtml(step.title || step.objective || "未命名步骤")}</div>
+                    <div class="thinking-step-title">${escapeHtml(step.title || step.description || step.objective || "未命名步骤")}</div>
                     ${step.note ? `<div class="thinking-note">${escapeHtml(step.note)}</div>` : ""}
                 </div>
                 <div class="thinking-step-status ${escapeHtml(status.toLowerCase())}">${escapeHtml(localizeStepStatus(status))}</div>
@@ -4412,7 +4428,7 @@
                 ref: action.ref,
                 seq: action.seq,
                 action: action.action,
-                perUpdate: compactObject(action.perUpdate, 5000),
+                taskUpdate: compactObject(action.taskUpdate || action.perUpdate, 5000),
                 stateDelta: compactObject(action.stateDelta, 5000),
                 decision: action.decision,
                 summary: action.summary
@@ -4442,15 +4458,26 @@
     }
 
     function normalizeRuntimeInsightSnapshot(snapshot = {}, runId = null) {
+        const actions = Array.isArray(snapshot.actions)
+            ? snapshot.actions.map((action, index) => normalizeActionSnapshot(
+                action,
+                action?.ref,
+                action?.seq || index + 1,
+                action?.summary || ""
+            ))
+            : [];
+        const latestPlan = snapshot.latestPlan
+            || [...actions].reverse().find(item => item.taskUpdate)?.taskUpdate
+            || null;
         return {
             runId: snapshot.runId || runId,
             status: normalizeStatus(snapshot.status || "idle"),
             streamStatus: snapshot.streamStatus || "idle",
             events: Array.isArray(snapshot.events) ? snapshot.events : [],
             traces: [],
-            actions: Array.isArray(snapshot.actions) ? snapshot.actions : [],
+            actions,
             latestAction: snapshot.latestAction || null,
-            latestPlan: snapshot.latestPlan || null,
+            latestPlan,
             currentPhase: snapshot.currentPhase || null,
             subAgents: Array.isArray(snapshot.subAgents) ? snapshot.subAgents : [],
             subAgentEvents: Array.isArray(snapshot.subAgentEvents) ? snapshot.subAgentEvents : []
@@ -4464,7 +4491,7 @@
         }
         const actions = extractActionSnapshots(runId);
         const latestAction = actions[actions.length - 1] || null;
-        const latestPlan = [...actions].reverse().find(item => item.perUpdate)?.perUpdate || null;
+        const latestPlan = [...actions].reverse().find(item => item.taskUpdate)?.taskUpdate || null;
         const events = runId ? state.events.filter(event => event.runId === runId) : state.events;
         const traces = runId ? (state.debugDetails.traces || []).filter(trace => !trace.runId || trace.runId === runId) : (state.debugDetails.traces || []);
         const insight = {
@@ -4488,7 +4515,7 @@
         if (!runId || runId !== state.activeRunId || !state.debugDetails?.payloads) return [];
         const actions = [];
         const pushAction = (object, ref, seq, summary) => {
-            if (!object || (!object.action && !object.perUpdate)) return;
+            if (!object || (!object.action && !object.taskUpdate && !object.perUpdate)) return;
             actions.push(normalizeActionSnapshot(object, ref, seq, summary));
         };
         (state.debugDetails.traces || []).forEach(trace => {
@@ -4519,11 +4546,26 @@
             ref,
             seq,
             action: object.action || object.actionType || "UNKNOWN",
-            perUpdate: object.perUpdate || null,
+            taskUpdate: object.taskUpdate || object.perUpdate || null,
             stateDelta: object.stateDelta || {},
-            decision: object.perUpdate?.lastDecision || object.reason || "",
+            decision: (object.taskUpdate || object.perUpdate)?.lastDecision || object.reason || "",
             summary: summary || object.summary || ""
         };
+    }
+
+    function resolvePlanMode(insight = {}) {
+        const plan = insight.latestPlan || {};
+        const explicitMode = String(plan.mode || "").toUpperCase();
+        if (explicitMode) return explicitMode;
+        const hasStructuredPlan = (Array.isArray(plan.stepUpdates) && plan.stepUpdates.length > 0)
+            || (Array.isArray(plan.deliverableUpdates) && plan.deliverableUpdates.length > 0)
+            || Boolean(plan.goal || plan.currentStepId || plan.planRevision);
+        if (hasStructuredPlan) return "PER";
+        return insight.actions?.length ? "DIRECT" : "WAITING";
+    }
+
+    function planNextStepId(plan = {}) {
+        return plan.nextStepId || plan.currentStepId || "";
     }
 
     function extractSubAgentSnapshots(runId, actions) {
@@ -4991,7 +5033,7 @@
 
     function renderMainNodeMiniCardV3(insight) {
         const plan = insight.latestPlan || {};
-        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const mode = resolvePlanMode(insight);
         const badgeClass = mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
         const phase = localizeRuntimePhase(insight.currentPhase?.code || state.status || "idle");
         const streamStatus = localizeRuntimeStatus(insight.streamStatus || "idle");
@@ -5031,7 +5073,7 @@
             <div class="runtime-mini-step">
                 <div class="runtime-mini-check ${escapeHtml(checkClass)}">${escapeHtml(mark)}</div>
                 <div>
-                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.objective || step.stepId || "未命名步骤")}</div>
+                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.description || step.objective || step.stepId || "未命名步骤")}</div>
                     ${step.note ? `<div class="runtime-mini-step-note">${escapeHtml(truncateText(step.note, 90))}</div>` : ""}
                     <div class="runtime-mini-step-note">状态：${escapeHtml(localizeStepStatus(status))}</div>
                 </div>
@@ -5218,6 +5260,7 @@
             RETRIEVE_RAG: "检索知识库",
             ASK_USER: "询问用户",
             DELEGATE_AGENTS: "委派子 Agent",
+            READY_TO_DELIVER: "准备最终交付",
             FINAL: "最终回答",
             CONTINUE: "继续循环",
             PLAN: "记录计划",
@@ -5309,11 +5352,12 @@
             return tasks.length ? `派发 ${tasks.length} 个子 Agent：${names}` : "发起子 Agent 委派。";
         }
         if (type === "CALL_TOOL") {
-            const request = stateDelta.toolCallRequest || stateDelta.callToolRequest || action.actionInput || {};
-            return `调用工具：${request.toolName || request.toolCode || request.name || "未命名工具"}`;
+            const request = stateDelta.toolIntent || stateDelta.toolCallRequest || stateDelta.callToolRequest || action.actionInput || {};
+            return `调用工具：${request.toolName || request.capabilityCode || request.toolCode || request.name || "未命名工具"}`;
         }
         if (type === "RETRIEVE_RAG") return "发起知识库检索。";
         if (type === "ASK_USER") return "请求用户补充信息或确认。";
+        if (type === "READY_TO_DELIVER") return "请求 Runtime 检查全部交付项并进入最终回答阶段。";
         if (type === "FINAL") return "准备最终回答。";
         if (type === "CONTINUE") return action.decision || "继续下一轮主循环。";
         return action.decision || action.summary || "已输出结构化动作。";
@@ -5371,6 +5415,45 @@
         input.closest(".composer")?.classList.toggle("expanded", nextHeight > 44);
     }
 
+    async function copyTextToClipboard(text) {
+        const value = String(text ?? "");
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            try {
+                await navigator.clipboard.writeText(value);
+                return true;
+            } catch (error) {
+                console.warn("Clipboard API write failed; using the browser fallback.", error);
+            }
+        }
+
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.top = "-9999px";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+
+        const selection = document.getSelection();
+        const previousRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+        textarea.focus();
+        textarea.select();
+
+        let copied = false;
+        try {
+            copied = document.execCommand("copy");
+        } catch (error) {
+            console.warn("Clipboard fallback failed.", error);
+        } finally {
+            textarea.remove();
+            if (selection && previousRange) {
+                selection.removeAllRanges();
+                selection.addRange(previousRange);
+            }
+        }
+        return copied;
+    }
+
     async function handleMessageAction(event) {
         const button = event.target.closest("[data-message-action]");
         if (!button) return;
@@ -5378,8 +5461,8 @@
         if (!message) return;
         const action = button.dataset.messageAction;
         if (action === "copy") {
-            await navigator.clipboard?.writeText(message.content || "");
-            toast("已复制");
+            const copied = await copyTextToClipboard(message.content || "");
+            toast(copied ? "\u5df2\u590d\u5236" : "\u590d\u5236\u5931\u8d25\uff0c\u8bf7\u624b\u52a8\u9009\u62e9\u6587\u672c");
             return;
         }
         if (action === "retry") {
@@ -5474,6 +5557,7 @@
             if (sessionId !== state.activeSessionId) return;
             migrateRunId(pendingRunId, result.runId);
             assignAssistantRunId(result.runId);
+            publishObservabilityRun(result.runId, sessionId);
             setStatus(result.status || "running");
             recordDebug("API", "Chat run started", result);
             renderTopbar();
@@ -6215,6 +6299,14 @@
         els.newChatBtn.addEventListener("click", newChat);
         els.newChatSmallBtn.addEventListener("click", newChat);
         els.debugBtn.addEventListener("click", openDebug);
+        els.studioBtn.addEventListener("click", () => {
+            if (!state.activeRunId) {
+                recordDebug("WARN", "No active run for observability studio", {}, "warn");
+                return;
+            }
+            const url = `${location.origin}/agent_observability.html?runId=${encodeURIComponent(state.activeRunId)}&api=${encodeURIComponent(API_BASE || location.origin)}`;
+            window.open(url, "_blank", "noopener,noreferrer");
+        });
         els.exportDebugBtn.addEventListener("click", exportDebugToFile);
         els.closeDebugBtn.addEventListener("click", closeDebug);
         els.drawerBackdrop.addEventListener("click", closeDebug);
@@ -6249,7 +6341,7 @@
 
     function renderMainNodeMiniCardV3(insight) {
         const plan = insight.latestPlan || {};
-        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const mode = resolvePlanMode(insight);
         const waitingChildren = isParentWaitingForChildren(insight);
         const badgeClass = waitingChildren ? "direct" : mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
         const phase = waitingChildren ? "等待子 Agent" : localizeRuntimePhase(insight.currentPhase?.code || state.status || "idle");
@@ -6292,7 +6384,7 @@
             <div class="runtime-mini-step">
                 <div class="runtime-mini-check ${escapeHtml(checkClass)}">${escapeHtml(mark)}</div>
                 <div>
-                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.objective || step.stepId || "未命名步骤")}</div>
+                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.description || step.objective || step.stepId || "未命名步骤")}</div>
                     ${step.note ? `<div class="runtime-mini-step-note">${escapeHtml(truncateText(step.note, 90))}</div>` : ""}
                     <div class="runtime-mini-step-note">状态：${escapeHtml(localizeStepStatus(status))}</div>
                 </div>
@@ -6410,6 +6502,7 @@
             RETRIEVE_RAG: "检索知识库",
             ASK_USER: "询问用户",
             DELEGATE_AGENTS: "委派子 Agent",
+            READY_TO_DELIVER: "准备最终交付",
             FINAL: "最终回答",
             CONTINUE: "继续循环",
             PLAN: "记录计划",
@@ -6482,7 +6575,7 @@
     function renderMainNodeMiniCardV3(insight) {
         const plan = insight.latestPlan || {};
         const waitingChildren = isParentWaitingForChildren(insight);
-        const mode = String(plan.mode || (insight.actions.length ? "DIRECT" : "WAITING")).toUpperCase();
+        const mode = resolvePlanMode(insight);
         const badgeClass = waitingChildren ? "direct" : mode === "DIRECT" ? "direct" : mode.includes("FAIL") ? "failed" : "";
         const phase = waitingChildren ? "等待子 Agent" : localizeRuntimePhase(insight.currentPhase?.code || state.status || "idle");
         const streamStatus = localizeRuntimeStatus(insight.streamStatus || "idle");
@@ -6525,7 +6618,7 @@
             <div class="runtime-mini-step">
                 <div class="runtime-mini-check ${escapeHtml(checkClass)}">${escapeHtml(mark)}</div>
                 <div>
-                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.objective || step.stepId || "未命名步骤")}</div>
+                    <div class="runtime-mini-step-title">${escapeHtml(step.title || step.description || step.objective || step.stepId || "未命名步骤")}</div>
                     ${step.note ? `<div class="runtime-mini-step-note">${escapeHtml(truncateText(step.note, 90))}</div>` : ""}
                     <div class="runtime-mini-step-note">状态：${escapeHtml(localizeStepStatus(status))}</div>
                 </div>
@@ -6649,6 +6742,7 @@
             RETRIEVE_RAG: "检索知识库",
             ASK_USER: "询问用户",
             DELEGATE_AGENTS: "委派子 Agent",
+            READY_TO_DELIVER: "准备最终交付",
             FINAL: "最终回答",
             CONTINUE: "继续循环",
             PLAN: "记录计划",
@@ -6712,11 +6806,12 @@
             return tasks.length ? `派发 ${tasks.length} 个子 Agent：${names}` : "发起子 Agent 委派。";
         }
         if (type === "CALL_TOOL") {
-            const request = stateDelta.toolCallRequest || stateDelta.callToolRequest || action.actionInput || {};
-            return `调用工具：${request.toolName || request.toolCode || request.name || "未命名工具"}`;
+            const request = stateDelta.toolIntent || stateDelta.toolCallRequest || stateDelta.callToolRequest || action.actionInput || {};
+            return `调用工具：${request.toolName || request.capabilityCode || request.toolCode || request.name || "未命名工具"}`;
         }
         if (type === "RETRIEVE_RAG") return "发起知识库检索。";
         if (type === "ASK_USER") return "请求用户补充信息或确认。";
+        if (type === "READY_TO_DELIVER") return "请求 Runtime 检查全部交付项并进入最终回答阶段。";
         if (type === "FINAL") return "准备最终回答。";
         if (type === "CONTINUE") return action.decision || "继续下一轮主循环。";
         return action.decision || action.summary || "已输出结构化动作。";

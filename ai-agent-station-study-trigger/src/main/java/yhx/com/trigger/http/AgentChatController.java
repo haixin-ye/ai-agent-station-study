@@ -48,13 +48,18 @@ public class AgentChatController {
                             request == null ? null : request.getMetadata());
                     log.info("[AutoAgent][chat-async-completed] runId={}, sessionId={}, status={}",
                             runId, sessionId, result == null ? null : result.getStatus());
-                } catch (Exception e) {
-                    log.error("[AutoAgent][chat-async-error] runId={}, sessionId={}", runId, sessionId, e);
+                } catch (Throwable failure) {
                     try {
-                        agentRuntimeFacade.reportUnexpectedFailure(runId, sessionId, e);
-                    } catch (Exception reportError) {
+                        agentRuntimeFacade.reportUnexpectedFailure(runId, sessionId, failure);
+                    } catch (Throwable reportError) {
                         log.error("[AutoAgent][chat-async-error-report-failed] runId={}, sessionId={}",
                                 runId, sessionId, reportError);
+                    }
+                    if (failure instanceof OutOfMemoryError) {
+                        log.error("[AutoAgent][chat-async-fatal] runId={}, sessionId={}, failure=OutOfMemoryError",
+                                runId, sessionId);
+                    } else {
+                        log.error("[AutoAgent][chat-async-error] runId={}, sessionId={}", runId, sessionId, failure);
                     }
                 }
             });

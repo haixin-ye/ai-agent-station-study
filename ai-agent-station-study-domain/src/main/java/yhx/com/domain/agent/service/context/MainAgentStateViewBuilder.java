@@ -26,22 +26,12 @@ public class MainAgentStateViewBuilder {
                 .resolvedArtifacts(command.getCandidates().getArtifactCandidates())
                 .artifactContent(command.getArtifactContent() == null ? List.of() : command.getArtifactContent())
                 .evidencePack(command.getEvidencePack() == null ? List.of() : command.getEvidencePack())
-                .userClarifications(command.getUserClarifications() == null
-                        ? defaultList(command.getCandidates().getUserClarifications())
-                        : command.getUserClarifications())
                 .availableCapabilities(command.getCandidates().getAvailableCapabilities())
                 .pendingAction(command.getCandidates().getPendingAction())
-                .previousLoopOutcome(command.getPreviousLoopOutcome() == null
-                        ? command.getCandidates().getPreviousLoopOutcome()
-                        : command.getPreviousLoopOutcome())
-                .outputContractVersion("main-agent-action-v1")
+                .outputContractVersion("main-agent-action-v2")
                 .tokenBudget(command.getTokenBudget())
                 .failure(command.getFailure())
                 .build();
-    }
-
-    private <T> List<T> defaultList(List<T> value) {
-        return value == null ? List.of() : value;
     }
 
     private List<MessageCandidateVO> mergedMessages(MainAgentStateViewBuildCommand command) {

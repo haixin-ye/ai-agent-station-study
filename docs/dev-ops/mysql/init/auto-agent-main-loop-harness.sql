@@ -269,6 +269,36 @@ CREATE TABLE `agent_run_state_snapshot` (
   KEY `idx_agent_run_state_snapshot_run` (`run_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AutoAgent run state snapshot';
 
+CREATE TABLE `agent_run_context` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `run_id` varchar(64) NOT NULL,
+  `schema_version` int NOT NULL,
+  `main_agent_stage` varchar(32) NOT NULL,
+  `base_context_ref` varchar(64) NOT NULL,
+  `task_ledger_ref` varchar(64) NOT NULL,
+  `runtime_control_ref` varchar(64) NOT NULL,
+  `context_version` bigint NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_run_context_run` (`run_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Canonical AutoAgent run context';
+
+CREATE TABLE `agent_run_loop` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `run_id` varchar(64) NOT NULL,
+  `loop_index` int NOT NULL,
+  `main_agent_stage` varchar(32) NOT NULL,
+  `status` varchar(64) NOT NULL,
+  `record_ref` varchar(64) NOT NULL,
+  `record_version` bigint NOT NULL,
+  `started_at` datetime NOT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_run_loop_index` (`run_id`, `loop_index`),
+  KEY `idx_agent_run_loop_status` (`run_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Canonical causal record index for each AutoAgent loop';
+
 CREATE TABLE `agent_run_transcript` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `block_id` varchar(64) NOT NULL,

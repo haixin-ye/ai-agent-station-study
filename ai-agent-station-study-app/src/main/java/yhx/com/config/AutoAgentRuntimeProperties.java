@@ -15,5 +15,6 @@ public class AutoAgentRuntimeProperties {
     private boolean finalResponseGuardEnabled = true;
     private int maxConsecutiveContinueActions = 1;
     private int maxRecoveryAttemptsPerFailureCode = 2;
+    private int maxMainAgentPromptChars;
     private NodeInvocationModeEnumVO mainAgentInvocationMode = NodeInvocationModeEnumVO.TEXT_JSON;
 }

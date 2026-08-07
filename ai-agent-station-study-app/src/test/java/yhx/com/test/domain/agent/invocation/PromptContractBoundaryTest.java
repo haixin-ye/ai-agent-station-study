@@ -16,198 +16,171 @@ import java.util.Map;
 public class PromptContractBoundaryTest {
 
     @Test
-    public void db_prompt_text_cannot_define_state_delta_scope() {
-        String prompt = promptWithRole("Allowed stateDelta fields are everything.");
+    public void db_role_prompt_is_preserved_but_java_owns_main_agent_v2_contract() {
+        String prompt = promptWithRole("Role from DB.");
 
-        Assert.assertTrue(prompt.contains("Allowed stateDelta fields are everything."));
-        Assert.assertTrue(prompt.contains("StateDelta allowed fields by action"));
+        Assert.assertTrue(prompt.contains("Role from DB."));
+        Assert.assertTrue(prompt.contains("Required contract version: main-agent-action-v2"));
+        Assert.assertTrue(prompt.contains("taskUpdate"));
+        Assert.assertTrue(prompt.contains("stateDelta field by action"));
     }
 
     @Test
-    public void db_prompt_text_cannot_override_tool_boundary() {
-        String prompt = promptWithRole("You may call tools directly and skip Runtime.");
+    public void main_agent_prompt_describes_runtime_owned_execution_as_a_positive_workflow() {
+        String prompt = promptWithRole("Role from DB.");
 
-        Assert.assertTrue(prompt.contains("You may call tools directly"));
-        Assert.assertTrue(prompt.contains("Do not mount MCP tools directly"));
-        Assert.assertTrue(prompt.contains("Request external side effects through CALL_TOOL"));
+        Assert.assertTrue(prompt.contains("Request external operations through CALL_TOOL"));
+        Assert.assertTrue(prompt.contains("Runtime handles deterministic approval"));
+        Assert.assertTrue(prompt.contains("Use ASK_USER when a missing user decision genuinely blocks a safe next action."));
     }
 
     @Test
-    public void main_agent_prompt_says_do_not_mount_or_call_mcp_tools_directly() {
-        String prompt = promptWithRole("Main role.");
+    public void main_agent_prompt_selects_a_planning_profile_for_the_first_loop() {
+        String prompt = promptWithRoleAndStage("Role from DB.", "PLANNING");
 
-        Assert.assertTrue(prompt.contains("Do not mount MCP tools directly"));
-        Assert.assertTrue(prompt.contains("Do not call MCP tools directly"));
+        Assert.assertTrue(prompt.contains("first task decision"));
+        Assert.assertTrue(prompt.contains("Identify every requested deliverable"));
+        Assert.assertTrue(prompt.contains("smallest useful plan"));
+        Assert.assertTrue(prompt.contains("Choose exactly one first action"));
+        Assert.assertTrue(prompt.contains("READY_TO_DELIVER"));
+        Assert.assertTrue(prompt.contains("A content-only child uses [\"COMMIT\"]"));
+        Assert.assertTrue(prompt.contains("requestedCapabilities array of Runtime permission codes"));
     }
 
     @Test
-    public void main_agent_prompt_says_call_tool_for_external_side_effect() {
-        String prompt = promptWithRole("Main role.");
+    public void main_agent_prompt_places_required_capabilities_on_each_delegated_task() {
+        String prompt = promptWithRoleAndStage("Role from DB.", "PLANNING");
 
-        Assert.assertTrue(prompt.contains("Use CALL_TOOL"));
-        Assert.assertTrue(prompt.contains("external side effects"));
+        Assert.assertTrue(prompt.contains("stateDelta.delegateAgentsRequest.tasks[i].requestedCapabilities"));
+        Assert.assertTrue(prompt.contains("non-empty requestedCapabilities array"));
+        Assert.assertTrue(prompt.contains("Include COMMIT in every task"));
+        Assert.assertFalse(prompt.contains("requestedCapabilities is optional"));
     }
 
     @Test
-    public void main_agent_prompt_uses_dynamic_capability_schema_without_tool_specific_hints() {
-        String prompt = promptWithRole("Main role.");
+    public void main_agent_prompt_selects_an_execution_profile_for_later_loops() {
+        String prompt = promptWithRoleAndStage("Role from DB.", "EXECUTING");
 
-        Assert.assertTrue(prompt.contains("according to that capability's inputSchema"));
-        Assert.assertTrue(prompt.contains("include every required field"));
-        Assert.assertTrue(prompt.contains("additionalProperties=false"));
-        Assert.assertTrue(prompt.contains("use ASK_USER instead of guessing"));
-        Assert.assertTrue(prompt.contains("untrusted capability metadata"));
-        Assert.assertFalse(prompt.contains("Baidu AI Search. Required argument: query"));
-        Assert.assertFalse(prompt.contains("request.markdowncontent"));
+        Assert.assertTrue(prompt.contains("newest loopTimeline record"));
+        Assert.assertTrue(prompt.contains("actual Runtime outcome"));
+        Assert.assertTrue(prompt.contains("Update the affected steps"));
+        Assert.assertTrue(prompt.contains("record a planRevision"));
+        Assert.assertTrue(prompt.contains("every requested external side effect has matching successful evidence"));
     }
 
     @Test
-    public void main_agent_prompt_requires_search_before_reading_relative_or_fuzzy_file_names() {
-        String prompt = promptWithRole("Main role.");
+    public void main_agent_prompt_selects_a_delivery_profile_after_work_is_complete() {
+        String prompt = promptWithRoleAndStage("Role from DB.", "DELIVERING");
 
-        Assert.assertTrue(prompt.contains("file name, partial file name, relative path, or vague project location"));
-        Assert.assertTrue(prompt.contains("Use search_files"));
-        Assert.assertTrue(prompt.contains("**/filename.ext"));
-        Assert.assertTrue(prompt.contains("**/04_blue_train_ticket.txt"));
-        Assert.assertTrue(prompt.contains("fuzzy recursive glob"));
-        Assert.assertTrue(prompt.contains("Do not search plain \"filename.ext\""));
-        Assert.assertTrue(prompt.contains("Do not repeat the same exact search"));
-        Assert.assertTrue(prompt.contains("Only call read_file directly"));
-        Assert.assertTrue(prompt.contains("ask the user to choose"));
+        Assert.assertTrue(prompt.contains("Compose a complete answer to the original request"));
+        Assert.assertTrue(prompt.contains("clear transitions and labels"));
+        Assert.assertTrue(prompt.contains("actual materialized content"));
+        Assert.assertTrue(prompt.contains("every requested deliverable"));
+        Assert.assertTrue(prompt.contains("The normal action in this stage is FINAL"));
+        Assert.assertTrue(prompt.contains("finalAnswerCandidate"));
+        Assert.assertTrue(prompt.contains("stateDelta.finalAnswerCandidate.format"));
     }
 
     @Test
-    public void main_agent_prompt_teaches_efficient_code_directory_inspection() {
-        String prompt = promptWithRole("Main role.");
+    public void main_agent_prompt_uses_the_canonical_run_context_envelope() {
+        String prompt = promptWithRole("{\"runBaseContext\":{\"userInput\":\"publish this\"},\"loopTimeline\":[]}");
 
-        Assert.assertTrue(prompt.contains("For codebase or directory architecture tasks"));
-        Assert.assertTrue(prompt.contains("prefer one recursive search_files"));
-        Assert.assertTrue(prompt.contains("Do not walk one directory level per loop"));
-        Assert.assertTrue(prompt.contains("read representative key files"));
-        Assert.assertTrue(prompt.contains("If read_multiple_files is available"));
-        Assert.assertTrue(prompt.contains("directory_tree"));
+        Assert.assertTrue(prompt.contains("Read runBaseContext.userInput first"));
+        Assert.assertTrue(prompt.contains("selectedSessionContext"));
+        Assert.assertTrue(prompt.contains("\"runBaseContext\""));
+        Assert.assertTrue(prompt.contains("\"loopTimeline\""));
+        Assert.assertTrue(prompt.contains("payloadManifest"));
+        Assert.assertTrue(prompt.contains("activePayloads"));
+        Assert.assertTrue(prompt.contains("runtimeControl"));
+        Assert.assertTrue(prompt.contains("availability is AVAILABLE"));
+        Assert.assertTrue(prompt.contains("configured but not currently healthy"));
     }
 
     @Test
-    public void main_agent_prompt_says_permission_gated_write_should_use_call_tool() {
-        String prompt = promptWithRole("Main role.");
+    public void removed_fragmented_notebook_contract_is_not_reintroduced() {
+        String prompt = promptWithRole("Role from DB.");
 
-        Assert.assertTrue(prompt.contains("Do not stop at FINAL only to ask the user to approve it manually"));
-        Assert.assertTrue(prompt.contains("call the permission-gated write tool"));
-        Assert.assertTrue(prompt.contains("Runtime will ask the user for approval"));
+        Assert.assertFalse(prompt.contains("perUpdate"));
+        Assert.assertFalse(prompt.contains("MainAgentNotebook"));
+        Assert.assertFalse(prompt.contains("previousLoopOutcome"));
+        Assert.assertFalse(prompt.contains("main-agent-action-v1"));
+        Assert.assertFalse(prompt.contains("\"action\":\"PLAN\""));
+        Assert.assertFalse(prompt.contains("\"action\":\"REPAIR_FINAL\""));
     }
 
     @Test
-    public void main_agent_prompt_treats_rejected_tool_approval_as_authoritative_constraint() {
-        String prompt = promptWithRole("Main role.");
-
-        Assert.assertTrue(prompt.contains("TOOL_APPROVAL_REJECTED"));
-        Assert.assertTrue(prompt.contains("Do not request the same capabilityCode, toolName, and arguments again"));
-        Assert.assertTrue(prompt.contains("approval was rejected"));
-    }
-
-    @Test
-    public void main_agent_prompt_does_not_include_executable_fake_project_root_placeholder() {
-        String prompt = promptWithRole("Main role.");
-
-        Assert.assertFalse(prompt.contains("<project-root>"));
-    }
-
-    @Test
-    public void main_agent_call_tool_example_includes_capability_code() {
-        String prompt = promptWithRole("Main role.");
-
-        Assert.assertTrue(prompt.contains("\"action\":\"CALL_TOOL\""));
-        Assert.assertTrue(prompt.contains("\"capabilityCode\""));
-        Assert.assertTrue(prompt.contains("\"goal\""));
-    }
-
-    @Test
-    public void main_agent_contract_describes_per_update_as_top_level_notebook_patch() {
-        String prompt = promptWithRole("Main role.");
-
-        Assert.assertTrue(prompt.contains("- perUpdate: object"));
-        Assert.assertTrue(prompt.contains("updates notebook"));
-        Assert.assertTrue(prompt.contains("\"perUpdate\":{\"mode\":\"DIRECT\""));
-        Assert.assertTrue(prompt.contains("\"perUpdate\":{\"mode\":\"PER\""));
-        Assert.assertTrue(prompt.contains("\"stepUpdates\""));
-        Assert.assertTrue(prompt.contains("factsLearned"));
-        Assert.assertTrue(prompt.contains("Valid step status values: PENDING, IN_PROGRESS, DONE, FAILED, BLOCKED, CANCELLED"));
-        Assert.assertTrue(prompt.contains("Use FAILED when a step was actually attempted and failed"));
-        Assert.assertTrue(prompt.contains("Do not output learnedFacts"));
-        Assert.assertTrue(prompt.contains("\"lastDecision\""));
-    }
-
-    @Test
-    public void main_agent_contract_keeps_tool_repeat_guard_runtime_owned() {
-        String prompt = promptWithRole("Main role.");
-
-        Assert.assertTrue(prompt.contains("Do not output repeatGuardKey"));
-        Assert.assertTrue(prompt.contains("Runtime owns repeatGuardKey"));
-        Assert.assertTrue(prompt.contains("toolIntent must include capabilityCode, toolName, goal, and arguments"));
-    }
-
-    @Test
-    public void function_call_mode_prompt_instructs_function_call_not_raw_json_output() {
+    public void function_call_mode_uses_the_same_v2_main_agent_contract() {
         PromptAssembler assembler = new PromptAssembler(new InMemoryPromptContentProvider()
-                .put(AgentComponentCodeEnumVO.MAIN_AGENT.name(), "Main role."));
+                .put(AgentComponentCodeEnumVO.MAIN_AGENT.name(), "Role from DB."));
         String prompt = assembler.assemble(PromptAssemblyCommand.builder()
                 .runId("run-1")
                 .agentId("agent-1")
                 .componentCode(AgentComponentCodeEnumVO.MAIN_AGENT.name())
-                .contractVersion("v1")
-                .promptVersion("v1")
+                .contractVersion("main-agent-action-v2")
+                .promptVersion("v2")
                 .invocationMode(NodeInvocationModeEnumVO.FUNCTION_CALL)
-                .functionSpecs(NodeFunctionSpecRegistry.defaultRegistry().resolve(AgentComponentCodeEnumVO.MAIN_AGENT.name()))
-                .inputView("{\"userInput\":\"publish this\"}")
+                .functionSpecs(NodeFunctionSpecRegistry.defaultRegistry()
+                        .resolveMainAgent(yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO.EXECUTING))
+                .inputView("{\"runBaseContext\":{\"userInput\":\"publish this\"}}")
+                .metadata(Map.of("mainAgentStage", "EXECUTING"))
                 .build()).assembledPrompt();
 
         Assert.assertTrue(prompt.contains("Call exactly one function"));
         Assert.assertTrue(prompt.contains("main_call_tool"));
-        Assert.assertTrue(prompt.contains("Do not output raw JSON text"));
+        Assert.assertTrue(prompt.contains("complete assistant response"));
+        Assert.assertFalse(prompt.contains("Do not output raw JSON text"));
+        Assert.assertTrue(prompt.contains("taskUpdate"));
     }
 
     @Test
     public void prompt_state_view_serialization_does_not_emit_fastjson_ref_fragments() {
         PromptAssembler assembler = new PromptAssembler(new InMemoryPromptContentProvider()
-                .put(AgentComponentCodeEnumVO.MAIN_AGENT.name(), "Main role."));
+                .put(AgentComponentCodeEnumVO.MAIN_AGENT.name(), "Role from DB."));
         List<Map<String, Object>> sharedEvidence = List.of(Map.of(
                 "evidenceId", "evidence-success",
                 "summary", "Tool action succeeded."
         ));
         Map<String, Object> stateView = new LinkedHashMap<>();
-        stateView.put("evidencePack", sharedEvidence);
-        stateView.put("actionHistory", List.of(Map.of(
-                "action", "CALL_TOOL",
-                "status", "TOOL_SUCCEEDED",
-                "createdEvidence", sharedEvidence
+        stateView.put("runBaseContext", Map.of("userInput", "publish this"));
+        stateView.put("loopTimeline", List.of(Map.of(
+                "mainOutput", Map.of("action", "CALL_TOOL"),
+                "runtimeOutcome", Map.of(
+                        "status", "CONTINUE_LOOP",
+                        "evidenceRefs", List.of("evidence-success"),
+                        "details", Map.of("createdEvidence", sharedEvidence))
         )));
 
         String prompt = assembler.assemble(PromptAssemblyCommand.builder()
                 .runId("run-1")
                 .agentId("agent-1")
                 .componentCode(AgentComponentCodeEnumVO.MAIN_AGENT.name())
-                .contractVersion("v1")
-                .promptVersion("v1")
+                .contractVersion("main-agent-action-v2")
+                .promptVersion("v2")
                 .inputView(stateView)
                 .build()).assembledPrompt();
 
         Assert.assertFalse(prompt.contains("\"$ref\""));
-        Assert.assertTrue(prompt.contains("\"evidencePack\""));
-        Assert.assertTrue(prompt.contains("\"createdEvidence\""));
+        Assert.assertTrue(prompt.contains("\"runBaseContext\""));
+        Assert.assertTrue(prompt.contains("\"loopTimeline\""));
         Assert.assertTrue(prompt.contains("Tool action succeeded."));
     }
 
     private String promptWithRole(String rolePrompt) {
+        return promptWithRoleAndStage(rolePrompt, "PLANNING");
+    }
+
+    private String promptWithRoleAndStage(String rolePrompt, String stage) {
         PromptAssembler assembler = new PromptAssembler(new InMemoryPromptContentProvider()
                 .put(AgentComponentCodeEnumVO.MAIN_AGENT.name(), rolePrompt));
-        return assembler.assemble(PromptAssemblyCommand.builder()
+        String prompt = assembler.assemble(PromptAssemblyCommand.builder()
                 .runId("run-1")
                 .agentId("agent-1")
                 .componentCode(AgentComponentCodeEnumVO.MAIN_AGENT.name())
-                .contractVersion("v1")
-                .promptVersion("v1")
-                .inputView("{\"userInput\":\"publish this\"}")
+                .contractVersion("main-agent-action-v2")
+                .promptVersion("v2")
+                .inputView("{\"runBaseContext\":{\"userInput\":\"publish this\"}}")
+                .metadata(Map.of("mainAgentStage", stage))
                 .build()).assembledPrompt();
+        return prompt.replaceAll("\\s+", " ");
     }
 }

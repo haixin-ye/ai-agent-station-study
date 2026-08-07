@@ -73,10 +73,9 @@ public class ToolCapabilityCandidateProjector {
                 continue;
             }
             if (tool.getAvailability() != McpToolAvailabilityEnumVO.AVAILABLE) {
-                log.warn("[AutoAgent][CAPABILITY_TOOL_UNAVAILABLE] serverId={}, toolName={}, capabilityCode={}, availability={}",
+                log.warn("[AutoAgent][CAPABILITY_TOOL_UNAVAILABLE] serverId={}, toolName={}, capabilityCode={}, availability={}, reason={}",
                         capability.getMcpServerCode(), capability.getToolName(), capability.getCapabilityCode(),
-                        tool.getAvailability());
-                continue;
+                        tool.getAvailability(), tool.getAvailabilityReason());
             }
             List<String> requiredPaths = requiredPaths(tool.getInputSchema() == null ? Map.of() : tool.getInputSchema());
             if (requiredPaths.size() > effective.getMaxRequiredArgumentsPerTool()) {
@@ -150,6 +149,7 @@ public class ToolCapabilityCandidateProjector {
                         ? "NEVER" : capability.getApprovalPolicy().code())
                 .riskLevel(capability.getRiskLevel())
                 .availability(tool.getAvailability().name())
+                .availabilityReason(tool.getAvailabilityReason())
                 .summary(summary)
                 .enabled(capability.getEnabled())
                 .build();
@@ -432,6 +432,7 @@ public class ToolCapabilityCandidateProjector {
         view.put("approvalPolicy", candidate.getApprovalPolicy());
         view.put("riskLevel", candidate.getRiskLevel());
         view.put("availability", candidate.getAvailability());
+        view.put("availabilityReason", candidate.getAvailabilityReason());
         view.put("summary", candidate.getSummary());
         view.put("enabled", candidate.getEnabled());
         return canonicalizer.canonicalJson(view).length();

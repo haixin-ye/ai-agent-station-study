@@ -1,7 +1,9 @@
 package yhx.com.test.domain.agent.finalresponse;
 
+import com.alibaba.fastjson.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
+import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.finalresponse.FinalRepairPromptContextVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
@@ -10,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
 import yhx.com.domain.agent.service.node.finalrepair.FinalRepairNodeService;
 import yhx.com.domain.agent.service.invocation.NodeInvocationPipeline;
+import yhx.com.domain.agent.service.invocation.NodeOutputMapper;
 
 import java.util.Map;
 
@@ -53,6 +56,22 @@ public class FinalRepairServiceTest {
         FinalAnswerCandidateVO repaired = service.repair(context());
 
         Assert.assertEquals("fixed answer", repaired.getContent());
+    }
+
+    @Test
+    public void final_repair_output_mapper_accepts_its_own_action_contract() {
+        JSONObject jsonObject = JSONObject.parseObject("{"
+                + "\"action\":\"REPAIR_FINAL\","
+                + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"fixed answer\"}}"
+                + "}");
+
+        Object mapped = new NodeOutputMapper().map(
+                AgentComponentCodeEnumVO.FINAL_REPAIR.name(),
+                "final-repair-action-v1",
+                jsonObject);
+
+        Assert.assertTrue(mapped instanceof MainAgentActionVO);
+        Assert.assertEquals("REPAIR_FINAL", ((MainAgentActionVO) mapped).getAction());
     }
 
     private FinalRepairPromptContextVO context() {

@@ -1,6 +1,8 @@
 package yhx.com.domain.agent.service.runtime;
 
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 
 public class RuntimeLoopPolicy {
 
@@ -31,6 +33,15 @@ public class RuntimeLoopPolicy {
 
     public boolean maxLoopReached(RuntimeRecoveryCounters counters) {
         return counters != null && counters.loopCountValue() >= maxLoop;
+    }
+
+    public boolean maxLoopReached(RuntimeExecutionContext context) {
+        if (context != null
+                && context.getRunContextState() != null
+                && context.getRunContextState().getMainAgentStage() == MainAgentStageEnumVO.DELIVERING) {
+            return false;
+        }
+        return maxLoopReached(context == null ? null : context.countersOrInitial());
     }
 
     public boolean canRepairContract(RuntimeRecoveryCounters counters) {

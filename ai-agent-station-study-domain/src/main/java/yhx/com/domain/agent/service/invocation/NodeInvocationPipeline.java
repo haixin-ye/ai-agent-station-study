@@ -35,6 +35,9 @@ import java.util.Map;
 public class NodeInvocationPipeline {
 
     private static final int DIAGNOSTIC_PREVIEW_LIMIT = 2000;
+    private static final int MAX_EMPTY_OUTPUT_RETRIES = 1;
+    private static final int DEFAULT_MAX_MAIN_AGENT_PROMPT_CHARS = 250_000;
+    private static final String CONTRACT_REPAIR_PROMPT_VERSION = "v1";
 
     private final PromptAssembler promptAssembler;
     private final INodeClientPort nodeClientPort;
@@ -46,6 +49,7 @@ public class NodeInvocationPipeline {
     private final FunctionCallMapper functionCallMapper;
     private final NodeFunctionSpecRegistry functionSpecRegistry;
     private final DeveloperTraceRecorder developerTraceRecorder;
+    private final int maxMainAgentPromptChars;
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler, INodeClientPort nodeClientPort) {
         this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
@@ -63,9 +67,19 @@ public class NodeInvocationPipeline {
                                   INodeClientPort nodeClientPort,
                                   RunDiagnosticRecorder diagnosticRecorder,
                                   DeveloperTraceRecorder developerTraceRecorder) {
+        this(promptAssembler, nodeClientPort, diagnosticRecorder, developerTraceRecorder,
+                DEFAULT_MAX_MAIN_AGENT_PROMPT_CHARS);
+    }
+
+    public NodeInvocationPipeline(PromptAssembler promptAssembler,
+                                  INodeClientPort nodeClientPort,
+                                  RunDiagnosticRecorder diagnosticRecorder,
+                                  DeveloperTraceRecorder developerTraceRecorder,
+                                  int maxMainAgentPromptChars) {
         this(promptAssembler, nodeClientPort, RawOutputParser.defaultParser(), ContractRegistry.defaultRegistry(),
                 ContractValidator.defaultValidator(), new NodeOutputMapper(), diagnosticRecorder,
-                FunctionCallMapper.defaultMapper(), NodeFunctionSpecRegistry.defaultRegistry(), developerTraceRecorder);
+                FunctionCallMapper.defaultMapper(), NodeFunctionSpecRegistry.defaultRegistry(), developerTraceRecorder,
+                maxMainAgentPromptChars);
     }
 
     public NodeInvocationPipeline(PromptAssembler promptAssembler,
@@ -111,6 +125,22 @@ public class NodeInvocationPipeline {
                                   FunctionCallMapper functionCallMapper,
                                   NodeFunctionSpecRegistry functionSpecRegistry,
                                   DeveloperTraceRecorder developerTraceRecorder) {
+        this(promptAssembler, nodeClientPort, rawOutputParser, contractRegistry, contractValidator, nodeOutputMapper,
+                diagnosticRecorder, functionCallMapper, functionSpecRegistry, developerTraceRecorder,
+                DEFAULT_MAX_MAIN_AGENT_PROMPT_CHARS);
+    }
+
+    public NodeInvocationPipeline(PromptAssembler promptAssembler,
+                                  INodeClientPort nodeClientPort,
+                                  RawOutputParser rawOutputParser,
+                                  ContractRegistry contractRegistry,
+                                  ContractValidator contractValidator,
+                                  NodeOutputMapper nodeOutputMapper,
+                                  RunDiagnosticRecorder diagnosticRecorder,
+                                  FunctionCallMapper functionCallMapper,
+                                  NodeFunctionSpecRegistry functionSpecRegistry,
+                                  DeveloperTraceRecorder developerTraceRecorder,
+                                  int maxMainAgentPromptChars) {
         this.promptAssembler = promptAssembler;
         this.nodeClientPort = nodeClientPort;
         this.rawOutputParser = rawOutputParser;
@@ -121,9 +151,11 @@ public class NodeInvocationPipeline {
         this.functionCallMapper = functionCallMapper == null ? FunctionCallMapper.defaultMapper() : functionCallMapper;
         this.functionSpecRegistry = functionSpecRegistry == null ? NodeFunctionSpecRegistry.defaultRegistry() : functionSpecRegistry;
         this.developerTraceRecorder = developerTraceRecorder;
+        this.maxMainAgentPromptChars = Math.max(0, maxMainAgentPromptChars);
     }
 
     public NodeInvocationResult invoke(NodeInvocationCommand command) {
+        validateCommandContract(command);
         log.info("[AutoAgent][node-invoke] runId={}, component={}, contractVersion={}, promptVersion={}, modelCode={}, maxRepairAttempts={}",
                 command == null ? null : command.getRunId(),
                 command == null ? null : command.getComponentCode(),
@@ -143,21 +175,41 @@ public class NodeInvocationPipeline {
                 "maxRepairAttempts", command == null ? null : command.getMaxRepairAttempts()
         ));
         List<NodeInvocationAttempt> attempts = new ArrayList<>();
-        InvocationEvaluation first = callAndEvaluate(command, command.getInputView(), false, 1);
-        attempts.add(first.attempt());
-        if (first.success()) {
-            return result(NodeInvocationStatusEnumVO.SUCCESS, command, first, attempts, null, null);
+        InvocationEvaluation last = callAndEvaluate(command, command.getInputView(), false, 1);
+        attempts.add(last.attempt());
+        int nextAttemptNo = 2;
+        for (int retry = 0;
+             retry < MAX_EMPTY_OUTPUT_RETRIES && NodeInvocationFailureTypeEnumVO.EMPTY_OUTPUT.equals(last.failureType());
+             retry++) {
+            log.warn("[AutoAgent][node-retry] runId={}, component={}, attemptNo={}, reason=EMPTY_OUTPUT, retryOriginal=true",
+                    command.getRunId(), command.getComponentCode(), nextAttemptNo);
+            AutoAgentHumanLog.stage("节点调用", command.getRunId(), command.getComponentCode()
+                    + " 返回空响应，正在重新调用原节点：attempt=" + nextAttemptNo);
+            diagnostic(command.getRunId(), "NODE_RETRY", diagnosticMap(
+                    "componentCode", command.getComponentCode(),
+                    "attemptNo", nextAttemptNo,
+                    "reason", NodeInvocationFailureTypeEnumVO.EMPTY_OUTPUT.code(),
+                    "retryOriginal", true
+            ));
+            last = callAndEvaluate(command, command.getInputView(), false, nextAttemptNo++);
+            attempts.add(last.attempt());
         }
-        if (NodeInvocationFailureTypeEnumVO.CLIENT_ERROR.equals(first.failureType())) {
-            return result(NodeInvocationStatusEnumVO.CLIENT_FAILED, command, first, attempts,
-                    first.failureType().code(), first.failureMessage());
+        if (last.success()) {
+            return result(NodeInvocationStatusEnumVO.SUCCESS, command, last, attempts, null, null);
+        }
+        if (NodeInvocationFailureTypeEnumVO.CLIENT_ERROR.equals(last.failureType())) {
+            return result(NodeInvocationStatusEnumVO.CLIENT_FAILED, command, last, attempts,
+                    last.failureType().code(), last.failureMessage());
+        }
+        if (NodeInvocationFailureTypeEnumVO.EMPTY_OUTPUT.equals(last.failureType())) {
+            return result(NodeInvocationStatusEnumVO.PARSE_FAILED, command, last, attempts,
+                    last.failureType().code(), last.failureMessage());
         }
 
         int maxRepairAttempts = command.getMaxRepairAttempts() == null ? 0 : command.getMaxRepairAttempts();
-        InvocationEvaluation last = first;
         for (int repairAttempt = 1; repairAttempt <= maxRepairAttempts; repairAttempt++) {
             ContractRepairRequest repairRequest = buildRepairRequest(command, last, repairAttempt);
-            InvocationEvaluation repaired = callAndEvaluate(command, repairRequest, true, repairAttempt + 1);
+            InvocationEvaluation repaired = callAndEvaluate(command, repairRequest, true, nextAttemptNo++);
             attempts.add(repaired.attempt());
             last = repaired;
             if (repaired.success()) {
@@ -165,7 +217,7 @@ public class NodeInvocationPipeline {
             }
         }
 
-        NodeInvocationStatusEnumVO status = first.parseResult() == null || !first.parseResult().isSuccess()
+        NodeInvocationStatusEnumVO status = last.parseResult() == null || !last.parseResult().isSuccess()
                 ? NodeInvocationStatusEnumVO.PARSE_FAILED
                 : NodeInvocationStatusEnumVO.CONTRACT_FAILED;
         if (maxRepairAttempts > 0) {
@@ -182,7 +234,7 @@ public class NodeInvocationPipeline {
                 .agentId(command.getAgentId())
                 .componentCode(repairAttempt ? AgentComponentCodeEnumVO.CONTRACT_REPAIR.name() : command.getComponentCode())
                 .contractVersion(command.getContractVersion())
-                .promptVersion(command.getPromptVersion())
+                .promptVersion(repairAttempt ? CONTRACT_REPAIR_PROMPT_VERSION : command.getPromptVersion())
                 .inputView(inputView)
                 .metadata(command.getInvocationMetadata())
                 .invocationMode(invocationMode(command, repairAttempt))
@@ -202,6 +254,25 @@ public class NodeInvocationPipeline {
                 "promptChars", prompt == null ? 0 : prompt.length(),
                 "promptPreview", boundedPreview(prompt, DIAGNOSTIC_PREVIEW_LIMIT)
         ));
+        if (isOversizedMainAgentPrompt(command, prompt)) {
+            String failureMessage = "NODE_PROMPT_TOO_LARGE: MainAgent prompt has " + prompt.length()
+                    + " characters; configured limit is " + maxMainAgentPromptChars
+                    + ". Narrow or chunk the active payload working set.";
+            log.error("[AutoAgent][node-prompt-too-large] runId={}, component={}, attemptNo={}, promptChars={}, limit={}",
+                    command.getRunId(), command.getComponentCode(), attemptNo, prompt.length(), maxMainAgentPromptChars);
+            NodeInvocationAttempt attempt = NodeInvocationAttempt.builder()
+                    .attemptNo(attemptNo)
+                    .componentCode(command.getComponentCode())
+                    .prompt(boundedPreview(prompt, DIAGNOSTIC_PREVIEW_LIMIT))
+                    .failureType(NodeInvocationFailureTypeEnumVO.CLIENT_ERROR)
+                    .failureMessage(failureMessage)
+                    .repairAttempt(repairAttempt)
+                    .build();
+            observeOutput(command, attemptNo, repairAttempt, null, null, null, null,
+                    NodeInvocationFailureTypeEnumVO.CLIENT_ERROR, failureMessage, false);
+            return new InvocationEvaluation(attempt, null, null, null, false,
+                    NodeInvocationFailureTypeEnumVO.CLIENT_ERROR, failureMessage);
+        }
         observeInput(command, promptResult, prompt, repairAttempt, attemptNo);
         String rawOutput;
         NodeClientResponse response;
@@ -211,6 +282,8 @@ public class NodeInvocationPipeline {
                     .componentCode(command.getComponentCode())
                     .modelCode(command.getModelCode())
                     .prompt(prompt)
+                    .systemPrompt(promptResult.systemPrompt())
+                    .userPrompt(promptResult.userPrompt())
                     .temperature(command.getTemperature())
                     .maxOutputTokens(command.getMaxOutputTokens())
                     .metadata(command.getInvocationMetadata())
@@ -371,21 +444,33 @@ public class NodeInvocationPipeline {
         }
     }
 
+    private boolean isOversizedMainAgentPrompt(NodeInvocationCommand command, String prompt) {
+        return command != null
+                && AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(command.getComponentCode())
+                && maxMainAgentPromptChars > 0
+                && prompt != null
+                && prompt.length() > maxMainAgentPromptChars;
+    }
+
     private ContractValidationResult validate(String componentCode, String normalizedJson) {
-        if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)) {
-            return contractValidator.validateMainAgentAction(normalizedJson);
+        return contractValidator.validateComponentOutput(componentCode, normalizedJson);
+    }
+
+    private void validateCommandContract(NodeInvocationCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("Node invocation command is required.");
         }
-        if (AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)) {
-            return contractValidator.validateFinalRepairAction(normalizedJson);
+        AgentComponentCodeEnumVO component;
+        try {
+            component = AgentComponentCodeEnumVO.valueOf(command.getComponentCode());
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException("Unsupported node component: " + command.getComponentCode(), exception);
         }
-        if (AgentComponentCodeEnumVO.CONTEXT_PLANNER.name().equals(componentCode)) {
-            return contractValidator.validateContextPlannerOutput(normalizedJson);
+        String expectedVersion = contractRegistry.getRequired(component).getVersion();
+        if (!expectedVersion.equals(command.getContractVersion())) {
+            throw new IllegalArgumentException("Unsupported " + component + " contract version: "
+                    + command.getContractVersion() + "; expected " + expectedVersion);
         }
-        if (AgentComponentCodeEnumVO.RAG_VERIFIER.name().equals(componentCode)
-                || AgentComponentCodeEnumVO.TOOL_VERIFIER.name().equals(componentCode)) {
-            return contractValidator.validateVerificationResult(normalizedJson);
-        }
-        return ContractValidationResult.passed();
     }
 
     private String rawOutput(NodeInvocationCommand command, NodeClientResponse response, boolean repairAttempt) {

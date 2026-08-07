@@ -11,8 +11,25 @@ import yhx.com.domain.agent.model.valobj.agent.SubAgentActionVO;
 import yhx.com.domain.agent.service.contract.ContractRegistry;
 import yhx.com.domain.agent.service.contract.ContractValidator;
 import yhx.com.domain.agent.service.invocation.NodeOutputMapper;
+import yhx.com.domain.agent.service.prompt.GenericSubAgentPromptBuilder;
+import yhx.com.domain.agent.service.prompt.OutputContractPromptRenderer;
 
 public class SubAgentActionContractTest {
+
+    @Test
+    public void generic_sub_agent_prompt_requires_complete_user_readable_work_product_in_commit_result() {
+        String prompt = new GenericSubAgentPromptBuilder().build().stream()
+                .map(layer -> layer.getContent() == null ? "" : layer.getContent())
+                .reduce("", (left, right) -> left + "\n" + right);
+
+        Assert.assertTrue(prompt.contains("complete required work product in commit.result"));
+        Assert.assertTrue(prompt.contains("detail is a concise work note"));
+        Assert.assertFalse(prompt.contains("Put the short conclusion in result"));
+
+        String contract = new OutputContractPromptRenderer().renderSubAgentActionContract();
+        Assert.assertTrue(contract.contains("complete required work product"));
+        Assert.assertFalse(contract.contains("Put the short conclusion in result"));
+    }
 
     @Test
     public void registry_has_generic_sub_agent_contract() {

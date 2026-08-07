@@ -11,11 +11,16 @@ import java.util.Set;
 public class AgentCapabilityResolver {
 
     public AgentCapabilityResolutionResultVO resolve(AgentCapabilityResolutionCommandVO command) {
-        Set<String> requested = command == null || command.getRequestedCapabilityCodes() == null
-                ? Set.of()
-                : command.getRequestedCapabilityCodes();
         AgentProfileVO profile = command == null ? null : command.getProfile();
         boolean workspaceScopePresent = command != null && Boolean.TRUE.equals(command.getWorkspaceScopePresent());
+
+        Set<String> requested = new LinkedHashSet<>();
+        if (profile != null && profile.getDefaultCapabilityCodes() != null) {
+            requested.addAll(profile.getDefaultCapabilityCodes());
+        }
+        if (command != null && command.getRequestedCapabilityCodes() != null) {
+            requested.addAll(command.getRequestedCapabilityCodes());
+        }
 
         Set<String> effective = new LinkedHashSet<>();
         Set<String> denied = new LinkedHashSet<>();

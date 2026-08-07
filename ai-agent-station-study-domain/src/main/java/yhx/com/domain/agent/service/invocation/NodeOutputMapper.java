@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import yhx.com.domain.agent.model.valobj.enums.contract.AgentComponentCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.context.ContextPlannerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.SubAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.FinalRepairActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
 import yhx.com.domain.agent.model.valobj.invocation.FinalResponseGuardResultVO;
@@ -23,9 +24,11 @@ public class NodeOutputMapper {
         if (AgentComponentCodeEnumVO.CONTEXT_PLANNER.name().equals(componentCode)) {
             return mapContextPlannerOutput(jsonObject);
         }
-        if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)
-                || AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)) {
+        if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)) {
             return mapMainAgentAction(jsonObject);
+        }
+        if (AgentComponentCodeEnumVO.FINAL_REPAIR.name().equals(componentCode)) {
+            return mapFinalRepairAction(jsonObject);
         }
         if (AgentComponentCodeEnumVO.GENERIC_SUB_AGENT.name().equals(componentCode)) {
             return mapSubAgentAction(jsonObject);
@@ -36,9 +39,6 @@ public class NodeOutputMapper {
         }
         if (AgentComponentCodeEnumVO.FINAL_RESPONSE_GUARD.name().equals(componentCode)) {
             return mapFinalResponseGuardResult(jsonObject);
-        }
-        if (AgentComponentCodeEnumVO.CONTRACT_REPAIR.name().equals(componentCode)) {
-            return jsonObject;
         }
         if (AgentComponentCodeEnumVO.TURN_SUMMARY.name().equals(componentCode)) {
             return jsonObject.toJavaObject(TurnSummaryOutputVO.class);
@@ -73,6 +73,14 @@ public class NodeOutputMapper {
         String action = jsonObject.getString("action");
         if (MainAgentActionTypeEnumVO.ofCode(action).isEmpty()) {
             throw new IllegalArgumentException("Unknown MainAgent action: " + action);
+        }
+        return jsonObject.toJavaObject(MainAgentActionVO.class);
+    }
+
+    public MainAgentActionVO mapFinalRepairAction(JSONObject jsonObject) {
+        String action = jsonObject.getString("action");
+        if (!FinalRepairActionTypeEnumVO.REPAIR_FINAL.code().equals(action)) {
+            throw new IllegalArgumentException("Unknown FinalRepair action: " + action);
         }
         return jsonObject.toJavaObject(MainAgentActionVO.class);
     }

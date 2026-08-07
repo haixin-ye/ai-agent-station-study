@@ -96,6 +96,13 @@ public class EventTraceRepository implements IEventTraceRepository {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<AgentRunTraceEntity> listDebugTraceAfter(String runId, long lastSeq, int limit) {
+        return agentRunTraceDao.listByRunIdAfter(runId, lastSeq, limit).stream()
+                .map(this::toTraceEntity)
+                .collect(Collectors.toList());
+    }
+
     private AgentRunEventPO toEventPO(AgentRunEventEntity entity) {
         return AgentRunEventPO.builder()
                 .eventId(entity.getEventId())

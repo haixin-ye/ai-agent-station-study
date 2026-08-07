@@ -58,15 +58,21 @@ public class AgentPendingInputController {
                     .pendingId(request.getPendingId())
                     .status(result.getNextRunStatus() == null ? null : result.getNextRunStatus().code())
                     .build());
-        } catch (Exception e) {
-            log.error("[AutoAgent][user-input-error] runId={}, pendingId={}", runId, request.getPendingId(), e);
+        } catch (Throwable failure) {
             try {
-                agentRuntimeFacade.reportUnexpectedFailure(runId, null, e);
-            } catch (Exception reportError) {
+                agentRuntimeFacade.reportUnexpectedFailure(runId, null, failure);
+            } catch (Throwable reportError) {
                 log.error("[AutoAgent][user-input-error-report-failed] runId={}, pendingId={}",
                         runId, request.getPendingId(), reportError);
             }
-            return AgentResponseSupport.failed(e.getMessage());
+            if (failure instanceof OutOfMemoryError) {
+                log.error("[AutoAgent][user-input-fatal] runId={}, pendingId={}, failure=OutOfMemoryError",
+                        runId, request == null ? null : request.getPendingId());
+                return AgentResponseSupport.failed("Backend ran out of memory; this run has been terminated.");
+            }
+            log.error("[AutoAgent][user-input-error] runId={}, pendingId={}",
+                    runId, request == null ? null : request.getPendingId(), failure);
+            return AgentResponseSupport.failed(failure.getMessage());
         }
     }
 

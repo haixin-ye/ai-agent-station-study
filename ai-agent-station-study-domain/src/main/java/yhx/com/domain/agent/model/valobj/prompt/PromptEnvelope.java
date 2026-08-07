@@ -16,5 +16,7 @@ public class PromptEnvelope {
     private String componentCode;
     private String contractVersion;
     private List<PromptLayer> layers;
+    private String systemPrompt;
+    private String userPrompt;
     private String assembledPrompt;
 }

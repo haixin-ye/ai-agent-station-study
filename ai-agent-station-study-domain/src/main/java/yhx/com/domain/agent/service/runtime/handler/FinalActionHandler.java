@@ -3,6 +3,7 @@ package yhx.com.domain.agent.service.runtime.handler;
 import yhx.com.domain.agent.model.valobj.enums.runtime.FinalDeliveryStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimeFailureCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
@@ -35,6 +36,10 @@ public class FinalActionHandler extends MainActionHandlerSupport implements Main
     @Override
     public MainActionHandlerResult handle(RuntimeExecutionContext context, MainAgentActionVO action) {
         try {
+            if (context == null || context.getRunContextState() == null
+                    || context.getRunContextState().getMainAgentStage() != MainAgentStageEnumVO.DELIVERING) {
+                throw new IllegalArgumentException("FINAL is only valid during the DELIVERING stage.");
+            }
             FinalAnswerCandidateVO candidate = requireFinalAnswerCandidate(action);
             return routeDelivery(context, MainAgentActionTypeEnumVO.FINAL, candidate);
         } catch (IllegalArgumentException e) {

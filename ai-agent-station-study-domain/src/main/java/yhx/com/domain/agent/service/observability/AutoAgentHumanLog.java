@@ -165,7 +165,6 @@ public final class AutoAgentHumanLog {
                 + "，记忆=" + size(stateView.getMemoryPack())
                 + "，RAG=" + size(stateView.getRagPack())
                 + "，证据=" + size(stateView.getEvidencePack())
-                + "，用户澄清=" + size(stateView.getUserClarifications())
                 + (stateView.getConversation() == null || stateView.getConversation().getSessionTaskSummary() == null
                 ? "" : "\n  任务摘要：\n    " + preview(stateView.getConversation().getSessionTaskSummary().getSummary(), 160))
                 + (previewMessages(recentMessages).isBlank() ? "" : "\n  最近对话明细：\n" + previewMessages(recentMessages))
@@ -180,7 +179,7 @@ public final class AutoAgentHumanLog {
                 + "，原因=" + preview(failureMessage, 240)
                 + "，rawChars=" + (rawOutput == null ? 0 : rawOutput.length())
                 + (rawOutput == null || rawOutput.isBlank() ? "" : "，rawPreview=" + preview(rawOutput, 240))
-                + "，将按配置尝试修复或失败。";
+                + "，将按调用策略尝试重试、修复或失败。";
     }
 
     private static String previewMemories(List<MemoryCandidateVO> memories) {

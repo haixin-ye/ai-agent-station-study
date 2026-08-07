@@ -2,7 +2,10 @@ package yhx.com.test.domain.agent.runtime;
 
 import org.junit.Assert;
 import org.junit.Test;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunContextStateVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
 
 public class RuntimeLoopPolicyTest {
@@ -38,5 +41,20 @@ public class RuntimeLoopPolicyTest {
         RuntimeRecoveryCounters counters = RuntimeRecoveryCounters.initial();
 
         Assert.assertFalse(policy.maxLoopReached(counters));
+    }
+
+    @Test
+    public void delivery_turn_is_allowed_after_work_budget_is_exhausted() {
+        RuntimeLoopPolicy policy = new RuntimeLoopPolicy(1, 1, 2, 1, 2, 2);
+        RuntimeRecoveryCounters counters = RuntimeRecoveryCounters.initial();
+        counters.incrementLoop();
+        RuntimeExecutionContext context = RuntimeExecutionContext.builder()
+                .recoveryCounters(counters)
+                .runContextState(RunContextStateVO.builder()
+                        .mainAgentStage(MainAgentStageEnumVO.DELIVERING)
+                        .build())
+                .build();
+
+        Assert.assertFalse(policy.maxLoopReached(context));
     }
 }

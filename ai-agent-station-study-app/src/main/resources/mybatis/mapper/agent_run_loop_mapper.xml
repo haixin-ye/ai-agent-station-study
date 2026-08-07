@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRunLoopDao">
+    <resultMap id="AgentRunLoopMap" type="yhx.com.infrastructure.dao.po.AgentRunLoopPO">
+        <id column="id" property="id"/>
+        <result column="run_id" property="runId"/>
+        <result column="loop_index" property="loopIndex"/>
+        <result column="main_agent_stage" property="mainAgentStage"/>
+        <result column="status" property="status"/>
+        <result column="record_ref" property="recordRef"/>
+        <result column="record_version" property="recordVersion"/>
+        <result column="started_at" property="startedAt"/>
+        <result column="completed_at" property="completedAt"/>
+    </resultMap>
+    <insert id="upsert" parameterType="yhx.com.infrastructure.dao.po.AgentRunLoopPO">
+        INSERT INTO agent_run_loop
+        (run_id, loop_index, main_agent_stage, status, record_ref, record_version, started_at, completed_at)
+        VALUES
+        (#{runId}, #{loopIndex}, #{mainAgentStage}, #{status}, #{recordRef}, #{recordVersion}, #{startedAt}, #{completedAt})
+        ON DUPLICATE KEY UPDATE
+            main_agent_stage = VALUES(main_agent_stage), status = VALUES(status),
+            record_ref = VALUES(record_ref), record_version = VALUES(record_version),
+            started_at = VALUES(started_at), completed_at = VALUES(completed_at)
+    </insert>
+    <select id="query" resultMap="AgentRunLoopMap">
+        SELECT id, run_id, loop_index, main_agent_stage, status, record_ref, record_version, started_at, completed_at
+        FROM agent_run_loop WHERE run_id = #{runId} AND loop_index = #{loopIndex}
+    </select>
+    <select id="listByRunId" resultMap="AgentRunLoopMap">
+        SELECT id, run_id, loop_index, main_agent_stage, status, record_ref, record_version, started_at, completed_at
+        FROM agent_run_loop WHERE run_id = #{runId} ORDER BY loop_index ASC
+    </select>
+</mapper>

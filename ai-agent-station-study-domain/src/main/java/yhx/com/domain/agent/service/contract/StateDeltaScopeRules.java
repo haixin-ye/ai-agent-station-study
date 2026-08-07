@@ -19,10 +19,8 @@ public class StateDeltaScopeRules {
         allow(MainAgentActionTypeEnumVO.RETRIEVE_RAG, StateDeltaFieldEnumVO.RAG_REQUEST);
         allow(MainAgentActionTypeEnumVO.CALL_TOOL, StateDeltaFieldEnumVO.TOOL_INTENT);
         allow(MainAgentActionTypeEnumVO.ASK_USER, StateDeltaFieldEnumVO.ASK_USER_REQUEST);
-        allow(MainAgentActionTypeEnumVO.PLAN, StateDeltaFieldEnumVO.PLAN_DRAFT);
-        allow(MainAgentActionTypeEnumVO.CONTINUE, StateDeltaFieldEnumVO.NEXT_ACTION_HINT);
+        allow(MainAgentActionTypeEnumVO.READY_TO_DELIVER, StateDeltaFieldEnumVO.DELIVERY_REQUEST);
         allow(MainAgentActionTypeEnumVO.DELEGATE_AGENTS, StateDeltaFieldEnumVO.DELEGATE_AGENTS_REQUEST);
-        allow(MainAgentActionTypeEnumVO.REPAIR_FINAL, StateDeltaFieldEnumVO.FINAL_ANSWER_CANDIDATE);
         allow(MainAgentActionTypeEnumVO.FAIL, StateDeltaFieldEnumVO.FAILURE);
 
         Collections.addAll(RUNTIME_OWNED_FIELDS,

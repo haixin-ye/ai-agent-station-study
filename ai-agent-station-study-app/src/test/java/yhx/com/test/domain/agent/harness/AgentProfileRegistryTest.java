@@ -4,7 +4,10 @@ import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.model.valobj.agent.AgentProfileVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.AgentProfileTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.agent.AgentCapabilityCodeEnumVO;
 import yhx.com.domain.agent.service.agent.AgentProfileRegistry;
+
+import java.util.Set;
 
 public class AgentProfileRegistryTest {
 
@@ -39,5 +42,13 @@ public class AgentProfileRegistryTest {
         Assert.assertEquals(Integer.valueOf(25), profile.getMaxLoopCount());
         Assert.assertEquals(Integer.valueOf(200000), profile.getMaxContextChars());
         Assert.assertEquals(Integer.valueOf(200000), profile.getMaxSingleToolResultChars());
+    }
+
+    @Test
+    public void generic_sub_agent_defaults_to_all_registered_mcp_tools() {
+        AgentProfileVO profile = AgentProfileRegistry.defaultRegistry()
+                .requireProfile(AgentProfileTypeEnumVO.GENERIC_SUB_AGENT);
+
+        Assert.assertEquals(Set.of(AgentCapabilityCodeEnumVO.MCP_TOOL.code()), profile.getDefaultCapabilityCodes());
     }
 }

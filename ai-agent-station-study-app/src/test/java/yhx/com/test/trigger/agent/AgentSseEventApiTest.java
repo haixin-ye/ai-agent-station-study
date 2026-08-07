@@ -13,6 +13,7 @@ import yhx.com.trigger.http.sse.SseEmitterRegistry;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,23 @@ public class AgentSseEventApiTest {
 
         Assert.assertNotNull(controller.streamDebugEvents("run-2", null));
         Assert.assertFalse(registry.hasEmitters("debug:run-2"));
+    }
+
+    @Test
+    public void repeated_debug_subscribers_share_one_stream_worker_per_run() {
+        SseEmitterRegistry registry = new SseEmitterRegistry();
+        AtomicInteger submittedWorkers = new AtomicInteger();
+        AgentDebugController controller = new AgentDebugController();
+        ReflectionTestUtils.setField(controller, "debugAccessPolicy", mock(DebugAccessPolicy.class));
+        ReflectionTestUtils.setField(controller, "sseEmitterRegistry", registry);
+        ReflectionTestUtils.setField(controller, "sseExecutor",
+                (Executor) command -> submittedWorkers.incrementAndGet());
+
+        Assert.assertNotNull(controller.streamDebugEvents("run-shared", 0L));
+        Assert.assertNotNull(controller.streamDebugEvents("run-shared", 0L));
+
+        Assert.assertEquals("Reconnects must not consume another long-lived SSE thread",
+                1, submittedWorkers.get());
     }
 
     @Test

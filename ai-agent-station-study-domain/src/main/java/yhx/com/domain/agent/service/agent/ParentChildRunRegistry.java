@@ -17,7 +17,7 @@ public class ParentChildRunRegistry {
     private final Map<String, ParentChildRunRelationVO> byChildRunId = new LinkedHashMap<>();
     private final Map<String, List<String>> childrenByParentRunId = new LinkedHashMap<>();
     private final Map<String, GenericSubAgentContinuationVO> continuationsByChildRunId = new LinkedHashMap<>();
-    private final List<String> resumeRequestedParentRunIds = new ArrayList<>();
+    private final Map<String, String> resumeRequestedBatchIdByParentRunId = new LinkedHashMap<>();
     private final ParentChildRunRegistryStore store;
 
     public ParentChildRunRegistry() {
@@ -94,22 +94,47 @@ public class ParentChildRunRegistry {
     }
 
     public synchronized boolean isWaitSatisfied(String parentRunId) {
-        List<ParentChildRunRelationVO> children = listChildren(parentRunId);
+        String dispatchBatchId = latestDispatchBatchId(parentRunId);
+        return isWaitSatisfied(parentRunId, dispatchBatchId);
+    }
+
+    public synchronized boolean isWaitSatisfied(String parentRunId, String dispatchBatchId) {
+        if (dispatchBatchId == null || dispatchBatchId.isBlank()) {
+            return false;
+        }
+        List<ParentChildRunRelationVO> children = listChildren(parentRunId).stream()
+                .filter(child -> dispatchBatchId.equals(child.getDispatchBatchId()))
+                .toList();
         return !children.isEmpty() && children.stream()
                 .allMatch(child -> child.getStatus() != null && child.getStatus().terminal());
     }
 
     public synchronized boolean markParentResumeRequested(String parentRunId) {
-        if (parentRunId == null || parentRunId.isBlank() || resumeRequestedParentRunIds.contains(parentRunId)) {
+        return markParentResumeRequested(parentRunId, latestDispatchBatchId(parentRunId));
+    }
+
+    public synchronized boolean markParentResumeRequested(String parentRunId, String dispatchBatchId) {
+        if (parentRunId == null || parentRunId.isBlank()
+                || dispatchBatchId == null || dispatchBatchId.isBlank()
+                || !dispatchBatchId.equals(latestDispatchBatchId(parentRunId))
+                || dispatchBatchId.equals(resumeRequestedBatchIdByParentRunId.get(parentRunId))) {
             return false;
         }
-        resumeRequestedParentRunIds.add(parentRunId);
+        resumeRequestedBatchIdByParentRunId.put(parentRunId, dispatchBatchId);
         return true;
     }
 
     public synchronized void clearParentResumeRequested(String parentRunId) {
         if (parentRunId != null && !parentRunId.isBlank()) {
-            resumeRequestedParentRunIds.remove(parentRunId);
+            resumeRequestedBatchIdByParentRunId.remove(parentRunId);
+        }
+    }
+
+    public synchronized void clearParentResumeRequested(String parentRunId, String dispatchBatchId) {
+        if (parentRunId != null && !parentRunId.isBlank()
+                && dispatchBatchId != null
+                && dispatchBatchId.equals(resumeRequestedBatchIdByParentRunId.get(parentRunId))) {
+            resumeRequestedBatchIdByParentRunId.remove(parentRunId);
         }
     }
 
@@ -194,5 +219,13 @@ public class ParentChildRunRegistry {
         } catch (NumberFormatException ignored) {
             return 0;
         }
+    }
+
+    private String latestDispatchBatchId(String parentRunId) {
+        return listChildren(parentRunId).stream()
+                .filter(relation -> relation != null && relation.getDispatchBatchId() != null)
+                .max((left, right) -> Integer.compare(batchNumber(left), batchNumber(right)))
+                .map(ParentChildRunRelationVO::getDispatchBatchId)
+                .orElse(null);
     }
 }

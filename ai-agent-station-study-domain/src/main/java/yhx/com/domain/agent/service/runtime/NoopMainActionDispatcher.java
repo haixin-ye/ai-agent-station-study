@@ -3,6 +3,7 @@ package yhx.com.domain.agent.service.runtime;
 import yhx.com.domain.agent.model.valobj.context.AskUserRequestVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.FinalAnswerCandidateVO;
@@ -15,16 +16,19 @@ public class NoopMainActionDispatcher implements MainActionDispatcher {
 
     private final boolean testMode;
     private final RuntimeFailureFactory failureFactory;
+    private final MainAgentActionAcceptanceService actionAcceptanceService;
 
     public NoopMainActionDispatcher(boolean testMode, RuntimeFailureFactory failureFactory) {
         this.testMode = testMode;
         this.failureFactory = failureFactory;
+        this.actionAcceptanceService = new MainAgentActionAcceptanceService();
     }
 
     @Override
     public MainActionHandlerResult dispatch(RuntimeExecutionContext context, MainAgentActionVO action) {
         MainAgentActionTypeEnumVO actionType = action == null ? null : MainAgentActionTypeEnumVO.ofCode(action.getAction()).orElse(null);
         if (actionType == MainAgentActionTypeEnumVO.FINAL && testMode) {
+            actionAcceptanceService.accept(context, action);
             return MainActionHandlerResult.builder()
                     .status(MainActionHandlerStatusEnumVO.COMPLETED)
                     .nextPhase(RuntimePhaseEnumVO.VERIFYING_FINAL)
@@ -33,6 +37,7 @@ public class NoopMainActionDispatcher implements MainActionDispatcher {
                     .build();
         }
         if (actionType == MainAgentActionTypeEnumVO.ASK_USER) {
+            actionAcceptanceService.accept(context, action);
             return MainActionHandlerResult.builder()
                     .status(MainActionHandlerStatusEnumVO.WAITING_USER)
                     .nextPhase(RuntimePhaseEnumVO.WAITING_USER)
@@ -40,11 +45,14 @@ public class NoopMainActionDispatcher implements MainActionDispatcher {
                     .message("Noop dispatcher routed ASK_USER to Runtime pending input.")
                     .build();
         }
-        if (actionType == MainAgentActionTypeEnumVO.CONTINUE) {
+        if (actionType == MainAgentActionTypeEnumVO.READY_TO_DELIVER && testMode
+                && context != null && context.getRunContextState() != null) {
+            actionAcceptanceService.accept(context, action);
+            context.getRunContextState().setMainAgentStage(MainAgentStageEnumVO.DELIVERING);
             return MainActionHandlerResult.builder()
                     .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
-                    .nextPhase(RuntimePhaseEnumVO.PREPARING_CONTEXT)
-                    .message("Noop dispatcher continued loop.")
+                    .nextPhase(RuntimePhaseEnumVO.CALLING_MAIN_NODE)
+                    .message("Noop dispatcher entered DELIVERING in test mode.")
                     .build();
         }
         return MainActionHandlerResult.builder()

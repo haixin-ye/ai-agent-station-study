@@ -36,13 +36,15 @@ public class ToolApprovalPauseParticipant implements PendingInputPauseParticipan
         String toolCallId = value(payload, "toolCallId");
         String argumentsHash = value(payload, "argumentsHash");
         String permissionMode = value(payload, "permissionMode");
+        String approvalRunId = firstNonBlank(value(payload, "approvalRunId"),
+                command == null ? null : command.getRunId());
         if (isBlank(approvalId) || isBlank(approvalKey) || isBlank(toolCallId)
                 || isBlank(argumentsHash) || isBlank(permissionMode)) {
             throw new IllegalArgumentException("Tool approval pause payload is incomplete.");
         }
         ToolCallEntity toolCall = toolRepository.findToolCall(toolCallId)
                 .orElseThrow(() -> new IllegalArgumentException("Tool approval ToolCall is missing."));
-        if (!Objects.equals(command.getRunId(), toolCall.getRunId())) {
+        if (!Objects.equals(approvalRunId, toolCall.getRunId())) {
             throw new IllegalArgumentException("Tool approval ToolCall belongs to another Run.");
         }
         ToolApprovalEntity existing = toolRepository.findApprovalByApprovalKey(approvalKey).orElse(null);
@@ -50,14 +52,14 @@ public class ToolApprovalPauseParticipant implements PendingInputPauseParticipan
             toolRepository.saveApproval(ToolApprovalEntity.builder()
                     .approvalId(approvalId)
                     .approvalKey(approvalKey)
-                    .runId(command.getRunId())
+                    .runId(approvalRunId)
                     .toolCallId(toolCallId)
                     .status(ToolApprovalStatusEnumVO.PENDING)
                     .permissionMode(permissionMode)
                     .argumentsHash(argumentsHash)
                     .createdAt(LocalDateTime.now())
                     .build());
-        } else if (!Objects.equals(command.getRunId(), existing.getRunId())
+        } else if (!Objects.equals(approvalRunId, existing.getRunId())
                 || !Objects.equals(toolCallId, existing.getToolCallId())
                 || !Objects.equals(argumentsHash, existing.getArgumentsHash())
                 || existing.getStatus() != ToolApprovalStatusEnumVO.PENDING) {
@@ -73,5 +75,9 @@ public class ToolApprovalPauseParticipant implements PendingInputPauseParticipan
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return isBlank(value) ? fallback : value;
     }
 }

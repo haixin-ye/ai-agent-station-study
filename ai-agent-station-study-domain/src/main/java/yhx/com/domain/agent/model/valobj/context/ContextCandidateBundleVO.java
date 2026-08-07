@@ -5,7 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -24,8 +26,9 @@ public class ContextCandidateBundleVO {
     private List<EvidenceCandidateVO> evidenceCandidates;
     private List<RagCandidateVO> ragCandidates;
     private List<UserClarificationVO> userClarifications;
-    private PreviousLoopOutcomeVO previousLoopOutcome;
     private List<CapabilityCandidateVO> availableCapabilities;
     private PendingActionViewVO pendingAction;
     private TokenBudgetVO tokenBudget;
+    @Builder.Default
+    private Map<String, Object> recallDiagnostics = new LinkedHashMap<>();
 }

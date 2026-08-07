@@ -78,17 +78,16 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
                         .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
                         .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
                         .createdEvidenceIds(result.getEvidenceIds())
-                        .createdEvidence(result.getEvidence())
                         .actionEffect(ActionEffectVO.builder()
                                 .action(MainAgentActionTypeEnumVO.CALL_TOOL.code())
                                 .status(result.getActionEffectStatus() == null ? null : result.getActionEffectStatus().name())
-                                .message(result.getMessage())
+                                .message(resultMessage(result))
                                 .loopIndex(context.getLoopIndex())
-                                .toolIntent(intent)
+                                .resultRef(firstContentRef(result))
                                 .createdEvidenceIds(result.getEvidenceIds())
-                                .createdEvidence(result.getEvidence())
+                                .metadata(resultMetadata(result))
                                 .build())
-                        .message(result.getMessage())
+                        .message(resultMessage(result))
                         .build();
             }
             return MainActionHandlerResult.builder()
@@ -100,5 +99,51 @@ public class CallToolActionHandler extends MainActionHandlerSupport implements M
         } catch (IllegalArgumentException e) {
             return validationFailure(context, e.getMessage());
         }
+    }
+
+    private String firstContentRef(ToolActionResultVO result) {
+        if (result == null || result.getEvidence() == null) {
+            return null;
+        }
+        return result.getEvidence().stream()
+                .filter(java.util.Objects::nonNull)
+                .map(yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO::getContentRef)
+                .filter(ref -> ref != null && !ref.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String resultMessage(ToolActionResultVO result) {
+        if (result != null && result.getEvidence() != null) {
+            String summary = result.getEvidence().stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO::getSummary)
+                    .filter(value -> value != null && !value.isBlank())
+                    .findFirst()
+                    .orElse(null);
+            if (summary != null) {
+                return summary;
+            }
+        }
+        return result == null ? null : result.getMessage();
+    }
+
+    private Map<String, Object> resultMetadata(ToolActionResultVO result) {
+        if (result == null || result.getEvidence() == null) {
+            return Map.of();
+        }
+        return result.getEvidence().stream()
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .map(evidence -> {
+                    Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+                    if (evidence.getMetadata() != null) metadata.putAll(evidence.getMetadata());
+                    metadata.put("contentFormat", evidence.getContentFormat());
+                    metadata.put("totalChars", evidence.getTotalChars());
+                    metadata.put("totalBytes", evidence.getTotalBytes());
+                    metadata.values().removeIf(java.util.Objects::isNull);
+                    return metadata;
+                })
+                .orElse(Map.of());
     }
 }

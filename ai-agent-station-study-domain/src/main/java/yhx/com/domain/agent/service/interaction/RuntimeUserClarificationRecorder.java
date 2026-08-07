@@ -1,6 +1,7 @@
 package yhx.com.domain.agent.service.interaction;
 
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunContextStateVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 
 import java.util.ArrayList;
@@ -18,13 +19,14 @@ public class RuntimeUserClarificationRecorder {
             appendIfMissing(facts, clarification);
             context.getRuntimeFacts().put("userClarifications", facts);
         }
-        if (context.getWorkingState() != null) {
-            List<UserClarificationVO> working = context.getWorkingState().getUserClarifications();
-            if (working == null) {
-                working = new ArrayList<>();
-                context.getWorkingState().setUserClarifications(working);
-            }
-            appendIfMissing(working, clarification);
+        RunContextStateVO state = context.getRunContextState();
+        if (state != null && state.getBaseContext() != null) {
+            List<UserClarificationVO> canonical = new ArrayList<>(
+                    state.getBaseContext().getUserClarifications() == null
+                            ? List.of()
+                            : state.getBaseContext().getUserClarifications());
+            appendIfMissing(canonical, clarification);
+            state.getBaseContext().setUserClarifications(canonical);
         }
     }
 

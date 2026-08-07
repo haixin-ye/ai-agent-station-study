@@ -36,6 +36,7 @@ public class MainAgentDelegateAgentsContractTest {
     public void validator_rejects_delegate_request_without_tasks() {
         String raw = "{"
                 + "\"action\":\"DELEGATE_AGENTS\","
+                + "\"taskUpdate\":{\"lastDecision\":\"Delegate bounded work.\"},"
                 + "\"stateDelta\":{\"delegateAgentsRequest\":{\"waitMode\":\"WAIT_ALL\",\"tasks\":[]}}"
                 + "}";
 
@@ -49,6 +50,7 @@ public class MainAgentDelegateAgentsContractTest {
     public void validator_rejects_delegate_task_without_objective() {
         String raw = "{"
                 + "\"action\":\"DELEGATE_AGENTS\","
+                + "\"taskUpdate\":{\"lastDecision\":\"Delegate bounded work.\"},"
                 + "\"stateDelta\":{\"delegateAgentsRequest\":{\"waitMode\":\"WAIT_ALL\",\"tasks\":[{\"taskId\":\"t1\",\"name\":\"reader\"}]}}"
                 + "}";
 
@@ -58,13 +60,28 @@ public class MainAgentDelegateAgentsContractTest {
         Assert.assertEquals("MISSING_DELEGATE_TASK_OBJECTIVE", result.getViolations().get(0).getCode());
     }
 
+    @Test
+    public void validator_rejects_semantic_labels_that_are_not_runtime_capabilities() {
+        String raw = validRequest().replace("\"FILE_READ\"", "\"content-writing\"");
+
+        ContractValidationResult result = ContractValidator.defaultValidator().validateMainAgentAction(raw);
+
+        Assert.assertFalse(result.isPassed());
+        Assert.assertEquals("UNSUPPORTED_DELEGATE_TASK_REQUESTED_CAPABILITY",
+                result.getViolations().get(0).getCode());
+        Assert.assertTrue(result.getViolations().get(0).getMessage().contains("COMMIT"));
+    }
+
     private String validRequest() {
         return "{"
                 + "\"action\":\"DELEGATE_AGENTS\","
+                + "\"taskUpdate\":{\"lastDecision\":\"Delegate bounded work.\"},"
                 + "\"stateDelta\":{\"delegateAgentsRequest\":{\"waitMode\":\"WAIT_ALL\",\"tasks\":[{"
                 + "\"taskId\":\"t1\","
                 + "\"name\":\"reader\","
-                + "\"objective\":\"Read the assigned material and commit findings.\""
+                + "\"objective\":\"Read the assigned material and commit findings.\","
+                + "\"requiredOutput\":\"A concise evidence-backed finding.\","
+                + "\"requestedCapabilities\":[\"FILE_READ\",\"COMMIT\"]"
                 + "}]}}"
                 + "}";
     }

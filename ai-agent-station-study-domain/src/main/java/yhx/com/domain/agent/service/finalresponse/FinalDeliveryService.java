@@ -150,7 +150,7 @@ public class FinalDeliveryService implements FinalDeliveryPort {
                     .build());
             if (repaired != null) {
                 FinalDeliveryCommandVO repairedCommand = copyWithCandidate(command, repaired);
-                repairedCommand.setSourceAction(MainAgentActionTypeEnumVO.REPAIR_FINAL);
+        repairedCommand.setSourceAction(MainAgentActionTypeEnumVO.FINAL);
                 repairedCommand.setFinalRepairCount((command.getFinalRepairCount() == null ? 0 : command.getFinalRepairCount()) + 1);
                 FinalDeliveryResultVO result = deliver(repairedCommand);
                 result.setRepairRequested(true);

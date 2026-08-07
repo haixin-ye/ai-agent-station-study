@@ -228,6 +228,7 @@ public class AgentApiMapper {
                 .currentPhase(snapshot.getCurrentPhase())
                 .context(snapshot.getContext())
                 .loops(snapshot.getLoops().stream().map(AgentApiMapper::toObservabilityLoop).toList())
+                .graphNodes(snapshot.getGraphNodes())
                 .traces(snapshot.getTraces().stream().map(trace -> toDebugTrace(trace, snapshot.getPayloads().get(trace.getPayloadRef()))).toList())
                 .payloads(payloads)
                 .evidence(snapshot.getEvidence().stream().map(AgentApiMapper::toEvidenceMap).toList())
@@ -262,7 +263,12 @@ public class AgentApiMapper {
                 .startedAt(loop.getStartedAt())
                 .completedAt(loop.getCompletedAt())
                 .stateView(loop.getStateView())
+                .selectedContext(loop.getSelectedContext())
                 .stateViewSources(loop.getStateViewSources())
+                .taskLedger(loop.getTaskLedger())
+                .taskUpdate(loop.getTaskUpdate())
+                .roundDelta(loop.getRoundDelta())
+                .roundHistory(loop.getRoundHistory())
                 .promptRefs(loop.getPromptRefs())
                 .attempts(loop.getAttempts())
                 .action(loop.getAction())
@@ -273,6 +279,10 @@ public class AgentApiMapper {
                 .childAgentResults(loop.getChildAgentResults())
                 .checkpoint(loop.getCheckpoint())
                 .error(loop.getError())
+                .contextCandidates(loop.getContextCandidates())
+                .contextPlanner(loop.getContextPlanner())
+                .finalDelivery(loop.getFinalDelivery())
+                .timeline(loop.getTimeline())
                 .build();
     }
 

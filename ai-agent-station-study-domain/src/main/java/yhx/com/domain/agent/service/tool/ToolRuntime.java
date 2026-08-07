@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.adapter.repository.IToolRepository;
 import yhx.com.domain.agent.model.valobj.enums.persistence.ToolCallStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolInvocationStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.ToolResultContentModeEnumVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolInvokeCommandVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolInvokeResultVO;
 import yhx.com.domain.agent.model.valobj.tool.ToolInvocationRequestVO;
@@ -19,7 +20,6 @@ import java.util.Map;
 public class ToolRuntime {
 
     private static final int TOOL_SUMMARY_LIMIT = 500;
-    private static final int TOOL_RESULT_TEXT_LIMIT = 300;
     private static final int TOOL_ARGUMENT_VALUE_LIMIT = 500;
 
     private final McpToolInvokerPort mcpToolInvokerPort;
@@ -87,7 +87,10 @@ public class ToolRuntime {
                 .receiptRef(receiptRef)
                 .resultSummary(resultSummary(request, invokeResult))
                 .resultContent(resultContent)
-                .resultContentRef(receiptRef)
+                .resultContentMode(request.getCapabilitySpec() == null
+                        || request.getCapabilitySpec().getResultContentMode() == null
+                        ? ToolResultContentModeEnumVO.SUMMARY_ONLY
+                        : request.getCapabilitySpec().getResultContentMode())
                 .resultContentFormat(resultContent == null ? null : "TEXT")
                 .resultTotalChars(resultContent == null ? null : resultContent.length())
                 .resultTotalBytes(resultContent == null ? null : (long) resultContent.getBytes(StandardCharsets.UTF_8).length)
@@ -104,16 +107,22 @@ public class ToolRuntime {
             return null;
         }
         if (request == null || request.getMcpTool() == null || isBlank(request.getMcpTool().getToolName())) {
-            return truncate(resultText, TOOL_RESULT_TEXT_LIMIT);
+            return "Tool returned " + resultText.length() + " chars.";
         }
         String summary = "tool=" + request.getMcpTool().getToolName()
                 + ", arguments=" + compactArguments(request.getArguments())
-                + ", result=" + truncate(resultText, TOOL_RESULT_TEXT_LIMIT);
+                + ", resultChars=" + resultText.length();
         return truncate(summary, TOOL_SUMMARY_LIMIT);
     }
 
     private String resultContent(McpToolInvokeResultVO invokeResult) {
-        if (invokeResult == null || invokeResult.getReceipt() == null) {
+        if (invokeResult == null) {
+            return null;
+        }
+        if (!isBlank(invokeResult.getResultContent())) {
+            return invokeResult.getResultContent();
+        }
+        if (invokeResult.getReceipt() == null) {
             return null;
         }
         Object contentText = invokeResult.getReceipt().get("contentText");

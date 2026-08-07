@@ -7,11 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
 
 @Component
 public class SseEmitterRegistry {
 
     private final Map<String, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
+    private final Set<String> activeStreamWorkers = ConcurrentHashMap.newKeySet();
 
     public SseEmitter open(String streamKey, Long timeoutMs) {
         SseEmitter emitter = new SseEmitter(timeoutMs == null ? 300_000L : timeoutMs);
@@ -71,6 +73,19 @@ public class SseEmitterRegistry {
     public boolean hasEmitters(String streamKey) {
         List<SseEmitter> streamEmitters = emitters.get(streamKey);
         return streamEmitters != null && !streamEmitters.isEmpty();
+    }
+
+    /**
+     * A stream key owns one database polling worker, even when the browser
+     * reconnects or several studio windows observe the same run. The worker
+     * broadcasts each event to every emitter registered under that key.
+     */
+    public boolean tryAcquireStreamWorker(String streamKey) {
+        return activeStreamWorkers.add(streamKey);
+    }
+
+    public void releaseStreamWorker(String streamKey) {
+        activeStreamWorkers.remove(streamKey);
     }
 
     private void remove(String streamKey, SseEmitter emitter) {

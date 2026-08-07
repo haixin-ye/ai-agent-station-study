@@ -177,10 +177,14 @@ public class AgentDebugController {
         debugAccessPolicy.requireDebugSseEnabled();
         String streamKey = "debug:" + runId;
         SseEmitter emitter = sseEmitterRegistry.open(streamKey, STREAM_TIMEOUT_MS);
+        if (!sseEmitterRegistry.tryAcquireStreamWorker(streamKey)) {
+            return emitter;
+        }
         try {
             sseExecutor.execute(() -> streamIncrementalDebugEvents(streamKey, runId, lastSeq));
         } catch (RejectedExecutionException error) {
             log.warn("[AutoAgent][debug-sse-executor-rejected] runId={}", runId, error);
+            sseEmitterRegistry.releaseStreamWorker(streamKey);
             sseEmitterRegistry.completeWithError(streamKey, error);
         }
         return emitter;
@@ -218,6 +222,8 @@ public class AgentDebugController {
         } catch (Exception e) {
             log.error("[AutoAgent][debug-sse-stream-error] runId={}", runId, e);
             sseEmitterRegistry.completeWithError(streamKey, e);
+        } finally {
+            sseEmitterRegistry.releaseStreamWorker(streamKey);
         }
     }
 

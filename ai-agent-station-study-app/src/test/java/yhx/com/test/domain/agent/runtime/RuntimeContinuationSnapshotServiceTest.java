@@ -1,202 +1,107 @@
 package yhx.com.test.domain.agent.runtime;
 
-import com.alibaba.fastjson.JSON;
 import org.junit.Assert;
 import org.junit.Test;
-import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
-import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
-import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
-import yhx.com.domain.agent.model.valobj.runtime.MainAgentNotebookVO;
-import yhx.com.domain.agent.model.valobj.runtime.NotebookStepVO;
-import yhx.com.domain.agent.model.valobj.runtime.RunWorkingStateVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunBaseContextVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunContextStateVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunLoopRecordVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeContinuationRestoreResultVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
-import yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters;
-import yhx.com.domain.agent.model.valobj.runtime.RuntimeWorklogItemVO;
+import yhx.com.domain.agent.model.valobj.runtime.TaskLedgerVO;
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.RuntimeContinuationSnapshotService;
-import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
 
-import java.util.HashMap;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 
 public class RuntimeContinuationSnapshotServiceTest {
 
-    private final RuntimeContinuationSnapshotService service = new RuntimeContinuationSnapshotService();
-
     @Test
-    public void versioned_snapshot_survives_json_round_trip_and_restores_complete_runtime_state() {
-        RuntimeExecutionContext original = contextWithAccumulatedState();
+    public void checkpoint_contains_only_canonical_context_locator_and_source_payload() {
+        RuntimeExecutionContext context = context();
+        RuntimeContinuationSnapshotService service = new RuntimeContinuationSnapshotService();
 
-        ContinuationCheckpointVO checkpoint = service.createCheckpoint(
-                original,
-                MainAgentPendingInputHandler.HANDLER_CODE,
-                RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
-                MainAgentPendingInputHandler.HANDLER_CODE,
-                "STRING_OR_OPTION",
-                Map.of("questionKind", "clarification"));
-        ContinuationCheckpointVO durableCopy = JSON.parseObject(JSON.toJSONString(checkpoint), ContinuationCheckpointVO.class);
-        RuntimeExecutionContext restored = RuntimeExecutionContext.builder()
-                .runId("run-snapshot")
-                .sessionId("sess-snapshot")
-                .runtimeFacts(new HashMap<>())
-                .build();
+        ContinuationCheckpointVO checkpoint = service.createCheckpoint(context,
+                MainAgentPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
+                "MAIN_AGENT", "TEXT", Map.of("question", "Destination?"));
 
-        RuntimeContinuationRestoreResultVO result = service.restore(durableCopy, restored);
-
-        Assert.assertTrue(result.isRestored());
-        Assert.assertFalse(result.isLegacyFallback());
-        Assert.assertEquals(Integer.valueOf(1), durableCopy.getSnapshotVersion());
-        Assert.assertEquals(Integer.valueOf(6), restored.getLoopIndex());
-        Assert.assertEquals(Integer.valueOf(14), restored.getMaxLoop());
-        Assert.assertEquals(Integer.valueOf(5), restored.getRecoveryCounters().getLoopCount());
-        Assert.assertEquals(Integer.valueOf(2), restored.getRecoveryCounters().getToolRetryCount());
-        Assert.assertEquals(Integer.valueOf(3), restored.getRecoveryCounters().getRagRetryCount());
-        Assert.assertEquals(Integer.valueOf(1), restored.getRecoveryCounters().getContractRepairCount());
-        Assert.assertEquals(Integer.valueOf(1), restored.getRecoveryCounters().getFinalRepairCount());
-        Assert.assertEquals(Integer.valueOf(4), restored.getRecoveryCounters().getContextCompressionCount());
-        Assert.assertEquals("write story", restored.getWorkingState().getNotebook().getGoal());
-        Assert.assertEquals("work-2", restored.getWorkingState().getWorklog().get(0).getWorkId());
-        Assert.assertEquals(Long.valueOf(9L), restored.getWorkingState().getNextSequence());
-        Assert.assertNotNull(restored.getLastStateView());
-        Assert.assertEquals("memory-1", restored.getLastContextSelections().get(0).getSourceId());
-        Assert.assertEquals("ASK_USER", restored.getLastAction().getAction());
-        Assert.assertEquals("kept", restored.getRuntimeFacts().get("toolDenied"));
-        Assert.assertFalse(restored.getRuntimeFacts().containsKey("unsafeClient"));
+        Assert.assertEquals(Integer.valueOf(2), checkpoint.getSnapshotVersion());
+        Assert.assertEquals("run-checkpoint-v2", checkpoint.getRelatedRunId());
+        Assert.assertEquals(Integer.valueOf(1), checkpoint.getRelatedLoopIndex());
+        Assert.assertEquals(Long.valueOf(4L), checkpoint.getRunContextVersion());
+        Assert.assertEquals(Long.valueOf(2L), checkpoint.getLoopRecordVersion());
+        Assert.assertEquals("Destination?", checkpoint.getPayload().get("question"));
     }
 
     @Test
-    public void unsupported_snapshot_version_is_rejected_without_partial_restore() {
-        ContinuationCheckpointVO checkpoint = service.createCheckpoint(
-                contextWithAccumulatedState(),
-                MainAgentPendingInputHandler.HANDLER_CODE,
-                RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
-                MainAgentPendingInputHandler.HANDLER_CODE,
-                null,
-                Map.of());
-        checkpoint.setSnapshotVersion(99);
-        RuntimeExecutionContext restored = RuntimeExecutionContext.builder()
-                .runId("run-snapshot")
-                .runtimeFacts(new HashMap<>())
-                .build();
+    public void restore_accepts_exact_context_and_loop_versions() {
+        RuntimeExecutionContext context = context();
+        RuntimeContinuationSnapshotService service = new RuntimeContinuationSnapshotService();
+        ContinuationCheckpointVO checkpoint = service.createCheckpoint(context,
+                MainAgentPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
+                "MAIN_AGENT", "TEXT", Map.of());
 
-        RuntimeContinuationRestoreResultVO result = service.restore(checkpoint, restored);
+        RuntimeContinuationRestoreResultVO result = service.restore(checkpoint, context);
 
-        Assert.assertFalse(result.isRestored());
-        Assert.assertTrue(result.getMessage().contains("Unsupported"));
-        Assert.assertNull(restored.getWorkingState());
+        Assert.assertTrue(result.getRestored());
+        Assert.assertFalse(result.getLegacyFallback());
+        Assert.assertEquals(Integer.valueOf(1), context.getLoopIndex());
     }
 
     @Test
-    public void handler_cannot_resume_at_an_unapproved_runtime_phase() {
-        ContinuationCheckpointVO checkpoint = service.createCheckpoint(
-                contextWithAccumulatedState(),
-                ToolApprovalPendingInputHandler.HANDLER_CODE,
-                RuntimePhaseEnumVO.PREPARING_TOOL,
-                "ToolApprovalService",
-                "OPTION",
-                Map.of("approvalKey", "approval-key"));
-        checkpoint.setResumePhase(RuntimePhaseEnumVO.REPAIRING_FINAL);
+    public void restore_rejects_legacy_or_stale_checkpoint_without_dual_read() {
+        RuntimeExecutionContext context = context();
+        RuntimeContinuationSnapshotService service = new RuntimeContinuationSnapshotService();
+        ContinuationCheckpointVO checkpoint = service.createCheckpoint(context,
+                MainAgentPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
+                "MAIN_AGENT", "TEXT", Map.of());
+        checkpoint.setSnapshotVersion(1);
+        Assert.assertFalse(service.restore(checkpoint, context).getRestored());
 
-        RuntimeContinuationRestoreResultVO result = service.restore(checkpoint,
-                RuntimeExecutionContext.builder().runId("run-snapshot").runtimeFacts(new HashMap<>()).build());
-
-        Assert.assertFalse(result.isRestored());
-        Assert.assertTrue(result.getMessage().contains("not allowed"));
+        checkpoint.setSnapshotVersion(2);
+        checkpoint.setRunContextVersion(3L);
+        Assert.assertFalse(service.restore(checkpoint, context).getRestored());
     }
 
     @Test
-    public void versioned_snapshot_missing_runtime_budget_is_rejected_without_partial_restore() {
-        ContinuationCheckpointVO checkpoint = service.createCheckpoint(
-                contextWithAccumulatedState(),
-                MainAgentPendingInputHandler.HANDLER_CODE,
-                RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
-                MainAgentPendingInputHandler.HANDLER_CODE,
-                null,
-                Map.of());
-        checkpoint.getRuntimeSnapshot().setRecoveryCounters(null);
-        RuntimeExecutionContext restored = RuntimeExecutionContext.builder()
-                .runId("run-snapshot")
-                .loopIndex(99)
-                .runtimeFacts(new HashMap<>())
-                .build();
+    public void restore_rejects_checkpoint_without_context_version_as_invalid_data() {
+        RuntimeExecutionContext context = context();
+        RuntimeContinuationSnapshotService service = new RuntimeContinuationSnapshotService();
+        ContinuationCheckpointVO checkpoint = service.createCheckpoint(context,
+                MainAgentPendingInputHandler.HANDLER_CODE, RuntimePhaseEnumVO.BUILDING_STATE_VIEW,
+                "MAIN_AGENT", "TEXT", Map.of());
+        checkpoint.setRunContextVersion(null);
 
-        RuntimeContinuationRestoreResultVO result = service.restore(checkpoint, restored);
+        RuntimeContinuationRestoreResultVO result = service.restore(checkpoint, context);
 
-        Assert.assertFalse(result.isRestored());
-        Assert.assertTrue(result.getMessage().contains("recoveryCounters"));
-        Assert.assertEquals(Integer.valueOf(99), restored.getLoopIndex());
+        Assert.assertFalse(result.getRestored());
+        Assert.assertTrue(result.getMessage().contains("does not contain a Run context version"));
     }
 
-    @Test
-    public void legacy_checkpoint_restores_only_with_conservative_retry_budget() {
-        ContinuationCheckpointVO checkpoint = ContinuationCheckpointVO.builder()
-                .handler(MainAgentPendingInputHandler.HANDLER_CODE)
-                .resumePhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
-                .relatedRunId("run-snapshot")
-                .relatedLoopIndex(6)
-                .payload(Map.of())
+    private RuntimeExecutionContext context() {
+        RunLoopRecordVO loop = RunLoopRecordVO.builder()
+                .runId("run-checkpoint-v2")
+                .loopIndex(1)
+                .mainAgentStage(MainAgentStageEnumVO.EXECUTING)
+                .status("WAITING_USER")
+                .recordVersion(2L)
                 .build();
-        RuntimeExecutionContext restored = RuntimeExecutionContext.builder()
-                .runId("run-snapshot")
-                .recoveryCounters(RuntimeRecoveryCounters.initial())
-                .runtimeFacts(new HashMap<>())
+        RunContextStateVO state = RunContextStateVO.builder()
+                .schemaVersion(2)
+                .contextVersion(4L)
+                .mainAgentStage(MainAgentStageEnumVO.EXECUTING)
+                .baseContext(RunBaseContextVO.builder().runId("run-checkpoint-v2").build())
+                .taskLedger(TaskLedgerVO.builder().version(2L).build())
+                .loopTimeline(new ArrayList<>(java.util.List.of(loop)))
                 .build();
-
-        RuntimeContinuationRestoreResultVO result = service.restore(checkpoint, restored);
-
-        Assert.assertTrue(result.isRestored());
-        Assert.assertTrue(result.isLegacyFallback());
-        Assert.assertEquals(Integer.valueOf(6), restored.getRecoveryCounters().getLoopCount());
-        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getToolRetryCount());
-        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getRagRetryCount());
-        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getContractRepairCount());
-        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getFinalRepairCount());
-        Assert.assertEquals(Integer.valueOf(Integer.MAX_VALUE), restored.getRecoveryCounters().getContextCompressionCount());
-    }
-
-    private RuntimeExecutionContext contextWithAccumulatedState() {
-        RunWorkingStateVO workingState = RunWorkingStateVO.builder()
-                .notebook(MainAgentNotebookVO.builder()
-                        .mode("PER")
-                        .goal("write story")
-                        .steps(List.of(NotebookStepVO.builder().stepId("step-1").status("COMPLETED").build()))
-                        .build())
-                .worklog(List.of(RuntimeWorklogItemVO.builder()
-                        .workId("work-2")
-                        .sequence(8L)
-                        .actionType("CALL_TOOL")
-                        .status("TOOL_SUCCEEDED")
-                        .build()))
-                .nextSequence(9L)
-                .build();
-        Map<String, Object> facts = new HashMap<>();
-        facts.put("toolDenied", "kept");
-        facts.put("unsafeClient", new Object());
         return RuntimeExecutionContext.builder()
-                .runId("run-snapshot")
-                .sessionId("sess-snapshot")
-                .loopIndex(6)
-                .maxLoop(14)
-                .recoveryCounters(RuntimeRecoveryCounters.builder()
-                        .loopCount(5)
-                        .contractRepairCount(1)
-                        .finalRepairCount(1)
-                        .toolRetryCount(2)
-                        .ragRetryCount(3)
-                        .contextCompressionCount(4)
-                        .build())
-                .lastStateView(MainAgentStateViewVO.builder().build())
-                .workingState(workingState)
-                .lastContextSelections(List.of(ContextSelectionVO.builder()
-                        .sourceType("MEMORY")
-                        .sourceId("memory-1")
-                        .build()))
-                .lastAction(MainAgentActionVO.builder().action("ASK_USER").build())
-                .runtimeFacts(facts)
+                .runId("run-checkpoint-v2")
+                .loopIndex(1)
+                .runContextState(state)
+                .currentLoopRecord(loop)
                 .build();
     }
 }

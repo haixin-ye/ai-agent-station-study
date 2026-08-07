@@ -40,9 +40,7 @@ public class AgentProfileRegistry {
                         "RETRIEVE_RAG",
                         "CALL_TOOL",
                         "ASK_USER",
-                        "PLAN",
-                        "CONTINUE",
-                        "REPAIR_FINAL",
+                        "READY_TO_DELIVER",
                         "FAIL",
                         "DELEGATE_AGENTS"))
                 .maximumCapabilityCodes(Set.of(
@@ -73,6 +71,7 @@ public class AgentProfileRegistry {
                         AgentCapabilityCodeEnumVO.FILE_WRITE.code(),
                         AgentCapabilityCodeEnumVO.ASK_USER.code(),
                         AgentCapabilityCodeEnumVO.COMMIT.code()))
+                .defaultCapabilityCodes(Set.of(AgentCapabilityCodeEnumVO.MCP_TOOL.code()))
                 .maxLoopCount(25)
                 .maxContextChars(200000)
                 .maxSingleToolResultChars(200000)

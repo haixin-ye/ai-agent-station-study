@@ -5,6 +5,7 @@ import yhx.com.domain.agent.model.valobj.enums.invocation.NodeInvocationStatusEn
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.finalresponse.FinalRepairPromptContextVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.FinalRepairActionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationCommand;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO;
 import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationResult;
@@ -35,7 +36,7 @@ public class FinalRepairNodeService {
                 .runId(context.getRunId())
                 .agentId(context.getAgentId())
                 .componentCode(AgentComponentCodeEnumVO.FINAL_REPAIR.name())
-                .contractVersion(firstNonBlank(invocationProfile == null ? null : invocationProfile.getContractVersion(), "main-agent-action-v1"))
+                .contractVersion("final-repair-action-v1")
                 .promptVersion(firstNonBlank(invocationProfile == null ? null : invocationProfile.getPromptVersion(), "v1"))
                 .modelCode(invocationProfile == null ? null : invocationProfile.getModelCode())
                 .temperature(invocationProfile == null ? null : invocationProfile.getTemperature())
@@ -46,7 +47,7 @@ public class FinalRepairNodeService {
         if (result == null || !isSuccess(result.getStatus()) || !(result.getTypedOutput() instanceof MainAgentActionVO action)) {
             return null;
         }
-        if (!MainAgentActionTypeEnumVO.REPAIR_FINAL.code().equals(action.getAction())) {
+        if (!FinalRepairActionTypeEnumVO.REPAIR_FINAL.code().equals(action.getAction())) {
             return null;
         }
         Object candidate = action.getStateDelta() == null ? null : action.getStateDelta().get("finalAnswerCandidate");

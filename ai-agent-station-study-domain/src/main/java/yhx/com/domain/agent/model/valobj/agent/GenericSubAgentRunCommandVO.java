@@ -10,6 +10,8 @@ import lombok.ToString;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
+import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 
 @Data
@@ -22,6 +24,7 @@ public class GenericSubAgentRunCommandVO {
     private DelegateAgentTaskVO task;
     private AgentProfileVO profile;
     private Set<String> effectiveCapabilityCodes;
+    private List<CapabilityCandidateVO> availableMcpTools;
     private Map<String, Object> initialContext;
     private String sessionId;
     private String userId;

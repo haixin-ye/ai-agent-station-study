@@ -14,4 +14,8 @@ public interface IAgentRunTraceDao {
     Long queryMaxSeqByRunId(@Param("runId") String runId);
 
     List<AgentRunTracePO> listByRunId(@Param("runId") String runId, @Param("limit") int limit);
+
+    List<AgentRunTracePO> listByRunIdAfter(@Param("runId") String runId,
+                                           @Param("lastSeq") long lastSeq,
+                                           @Param("limit") int limit);
 }

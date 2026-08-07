@@ -63,6 +63,9 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
         }
         ToolApprovalDecisionResultVO persistedDecision = recordDecision(toolApprovalService, answer, approvalKey);
         if (answer == null || answer.getStatus() == UserAnswerStatusEnumVO.CANCELLED) {
+            if (childApproval(checkpointPayload)) {
+                return resumeChild(context, answer, checkpointPayload, "User cancelled delegated tool approval.");
+            }
             return RuntimeStepResult.builder()
                     .runId(context.getRunId())
                     .sessionId(context.getSessionId())
@@ -77,6 +80,9 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
         }
         if ("APPROVED".equals(String.valueOf(decision.get("decision")))
                 && (persistedDecision == null || persistedDecision.getStatus() == ToolApprovalDecisionStatusEnumVO.APPROVED)) {
+            if (childApproval(checkpointPayload)) {
+                return resumeChild(context, answer, checkpointPayload, "Delegated tool approval accepted.");
+            }
             if (context.getRuntimeFacts() != null) {
                 context.getRuntimeFacts().put("toolApproval", answer);
                 Object toolIntent = checkpointPayload.get("toolIntent");
@@ -96,6 +102,9 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
         if (context.getRuntimeFacts() != null) {
             context.getRuntimeFacts().put("toolDenied", answer);
             appendToolDeniedClarification(context, answer, checkpointPayload);
+        }
+        if (childApproval(checkpointPayload)) {
+            return resumeChild(context, answer, checkpointPayload, "Delegated tool approval rejected by user.");
         }
         return RuntimeStepResult.builder()
                 .runId(context.getRunId())
@@ -174,7 +183,9 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
         if (approval.getStatus() != ToolApprovalStatusEnumVO.PENDING) {
             return "Tool approval record is already resolved.";
         }
-        if (!context.getRunId().equals(approval.getRunId())
+        String approvalRunId = firstNonBlank(ContinuationCheckpointSupport.stringValue(payload, "approvalRunId"),
+                context.getRunId());
+        if (!approvalRunId.equals(approval.getRunId())
                 || !ContinuationCheckpointSupport.stringValue(payload, "toolCallId").equals(approval.getToolCallId())
                 || !ContinuationCheckpointSupport.stringValue(payload, "argumentsHash").equals(approval.getArgumentsHash())) {
             return "Tool approval record does not match checkpoint identity.";
@@ -185,13 +196,53 @@ public class ToolApprovalPendingInputHandler implements PendingInputContinuation
         if (toolCall.getStatus() != ToolCallStatusEnumVO.APPROVAL_PENDING) {
             return "Tool approval persisted tool call is not approval-pending.";
         }
-        if (!context.getRunId().equals(toolCall.getRunId())
+        if (!approvalRunId.equals(toolCall.getRunId())
                 || !ContinuationCheckpointSupport.stringValue(payload, "toolCallId").equals(toolCall.getToolCallId())
                 || !ContinuationCheckpointSupport.stringValue(payload, "mcpServerCode").equals(toolCall.getMcpServerName())
                 || !ContinuationCheckpointSupport.stringValue(payload, "toolName").equals(toolCall.getToolName())) {
             return "Tool approval checkpoint does not match the persisted tool call identity.";
         }
         return null;
+    }
+
+    private boolean childApproval(Map<String, Object> payload) {
+        return !isBlank(ContinuationCheckpointSupport.stringValue(payload, "parentRunId"))
+                && !isBlank(ContinuationCheckpointSupport.stringValue(payload, "childRunId"))
+                && !isBlank(ContinuationCheckpointSupport.stringValue(payload, "taskId"));
+    }
+
+    private RuntimeStepResult resumeChild(RuntimeExecutionContext context,
+                                          UserAnswerVO answer,
+                                          Map<String, Object> payload,
+                                          String message) {
+        String parentRunId = ContinuationCheckpointSupport.stringValue(payload, "parentRunId");
+        if (context == null || isBlank(parentRunId) || !parentRunId.equals(context.getRunId())) {
+            return failed(context, "Delegated tool approval parent Run identity is invalid.");
+        }
+        if (context.getRuntimeFacts() != null) {
+            context.getRuntimeFacts().put("childAgentUserAnswer", answer);
+            context.getRuntimeFacts().put("resumeChildRunId",
+                    ContinuationCheckpointSupport.stringValue(payload, "childRunId"));
+            context.getRuntimeFacts().put("resumeChildTaskId",
+                    ContinuationCheckpointSupport.stringValue(payload, "taskId"));
+            context.getRuntimeFacts().put("resumeParentRunId", parentRunId);
+        }
+        return RuntimeStepResult.builder()
+                .runId(parentRunId)
+                .sessionId(context.getSessionId())
+                .status(RuntimeStepStatusEnumVO.WAITING_CHILDREN)
+                .nextRunStatus(RunStatusEnumVO.WAITING_CHILDREN)
+                .nextPhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                .message(message)
+                .build();
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return isBlank(value) ? fallback : value;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private boolean same(String left, String right) {

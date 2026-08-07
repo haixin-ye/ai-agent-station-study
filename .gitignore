@@ -47,6 +47,7 @@ build/
 /ai-agent-station-study-app/data/
 /.codex/
 /.codex-tmp-claw-code/
+/.understand-anything/
 /AGENTS.md
 /findings.md
 /progress.md

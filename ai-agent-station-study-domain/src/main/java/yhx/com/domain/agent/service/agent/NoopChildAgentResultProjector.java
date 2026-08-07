@@ -6,7 +6,7 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 public class NoopChildAgentResultProjector extends ChildAgentResultProjector {
 
     public NoopChildAgentResultProjector() {
-        super(null);
+        super();
     }
 
     @Override

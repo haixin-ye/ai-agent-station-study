@@ -39,7 +39,7 @@ public class ToolRuntimeTest {
     }
 
     @Test
-    public void result_summary_includes_tool_name_arguments_and_content_text() {
+    public void result_summary_describes_invocation_without_copying_result_prefix() {
         ToolTestSupport.Repository repository = repository();
         ToolRuntime runtime = runtime(repository, command -> McpToolInvokeResultVO.builder()
                 .called(true)
@@ -60,7 +60,8 @@ public class ToolRuntimeTest {
 
         Assert.assertTrue(result.getResultSummary().contains("tool=search_files"));
         Assert.assertTrue(result.getResultSummary().contains("04_blue_train_ticket.txt"));
-        Assert.assertTrue(result.getResultSummary().contains("No matches found"));
+        Assert.assertTrue(result.getResultSummary().contains("resultChars="));
+        Assert.assertFalse(result.getResultSummary().contains("No matches found"));
     }
 
     @Test

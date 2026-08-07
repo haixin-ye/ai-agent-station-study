@@ -17,6 +17,8 @@ import yhx.com.domain.agent.service.contract.ContractValidator;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.MainActionHandler;
+import yhx.com.domain.agent.service.runtime.MainAgentActionAcceptanceService;
+import yhx.com.domain.agent.service.runtime.MainAgentStageActionPolicy;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
 
 public class DefaultMainActionDispatcher implements MainActionDispatcher {
@@ -27,6 +29,8 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
     private final DeveloperTraceRecorder traceRecorder;
     private final AgentActionPermissionPolicy permissionPolicy;
     private final AgentProfileVO mainAgentProfile;
+    private final MainAgentActionAcceptanceService actionAcceptanceService;
+    private final MainAgentStageActionPolicy stageActionPolicy = new MainAgentStageActionPolicy();
 
     public DefaultMainActionDispatcher(MainActionHandlerRegistry handlerRegistry,
                                        ContractValidator contractValidator,
@@ -38,6 +42,7 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
         this.traceRecorder = traceRecorder;
         this.permissionPolicy = new AgentActionPermissionPolicy();
         this.mainAgentProfile = AgentProfileRegistry.defaultRegistry().requireProfile(AgentProfileTypeEnumVO.MAIN_AGENT);
+        this.actionAcceptanceService = new MainAgentActionAcceptanceService();
     }
 
     public DefaultMainActionDispatcher(MainActionHandlerRegistry handlerRegistry,
@@ -54,6 +59,7 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
         this.mainAgentProfile = mainAgentProfile == null
                 ? AgentProfileRegistry.defaultRegistry().requireProfile(AgentProfileTypeEnumVO.MAIN_AGENT)
                 : mainAgentProfile;
+        this.actionAcceptanceService = new MainAgentActionAcceptanceService();
     }
 
     @Override
@@ -64,6 +70,10 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
         MainAgentActionTypeEnumVO actionType = MainAgentActionTypeEnumVO.ofCode(action.getAction()).orElse(null);
         if (actionType == null) {
             return failure(context, "Unknown MainAgentAction: " + action.getAction());
+        }
+        String stageFailure = stageActionPolicy.validate(context, actionType);
+        if (stageFailure != null) {
+            return failure(context, stageFailure);
         }
 
         ContractValidationResult validationResult = contractValidator.validateMainAgentAction(JSON.toJSONString(action));
@@ -95,6 +105,7 @@ public class DefaultMainActionDispatcher implements MainActionDispatcher {
         if (traceRecorder != null) {
             traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), actionType, null);
         }
+        actionAcceptanceService.accept(context, action);
         return handler.handle(context, action);
     }
 

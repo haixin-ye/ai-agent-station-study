@@ -2,45 +2,19 @@ package yhx.com.domain.agent.service.interaction;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
-import com.alibaba.fastjson.serializer.SerializerFeature;
 import lombok.extern.slf4j.Slf4j;
-import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
-import yhx.com.domain.agent.model.valobj.context.PreviousLoopOutcomeVO;
-import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
-import yhx.com.domain.agent.model.valobj.runtime.RunWorkingStateVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunLoopRecordVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeContinuationRestoreResultVO;
-import yhx.com.domain.agent.model.valobj.runtime.RuntimeContinuationSnapshotVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
-import yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 public class RuntimeContinuationSnapshotService {
 
-    public static final int SNAPSHOT_VERSION = 1;
-
-    private static final Set<String> RESUMABLE_RUNTIME_FACT_KEYS = Set.of(
-            "userClarifications",
-            "previousLoopOutcome",
-            "resumeToolIntent",
-            "toolApproval",
-            "toolDenied",
-            "resumeChildRunId",
-            "resumeChildTaskId",
-            "resumeParentRunId",
-            "childAgentUserAnswer",
-            "contextPlannerUserAnswer",
-            "mainAgentUserAnswer",
-            "ragClarification",
-            "finalRepairClarification",
-            "forceContextReplan",
-            "nextActionHint");
+    public static final int SNAPSHOT_VERSION = 2;
 
     private final ContinuationResumePhasePolicy phasePolicy;
 
@@ -61,24 +35,14 @@ public class RuntimeContinuationSnapshotService {
         if (context == null || context.getRunId() == null || context.getRunId().isBlank()) {
             throw new IllegalArgumentException("Runtime context and runId are required for a continuation checkpoint.");
         }
+        if (context.getRunContextState() == null) {
+            throw new IllegalArgumentException("Canonical run context is required before pausing.");
+        }
+        if (context.getCurrentLoopRecord() == null && !preMainAgentCheckpoint(context, handler)) {
+            throw new IllegalArgumentException("A current loop record is required after MainAgent execution begins.");
+        }
         if (!phasePolicy.isAllowed(handler, resumePhase)) {
             throw new IllegalArgumentException("Resume phase " + resumePhase + " is not allowed for handler " + handler + ".");
-        }
-        RuntimeContinuationSnapshotVO snapshot = RuntimeContinuationSnapshotVO.builder()
-                .runId(context.getRunId())
-                .sessionId(context.getSessionId())
-                .loopIndex(context.getLoopIndex())
-                .maxLoop(context.getMaxLoop())
-                .recoveryCounters(copy(context.getRecoveryCounters(), yhx.com.domain.agent.model.valobj.runtime.RuntimeRecoveryCounters.class))
-                .lastStateView(copy(context.getLastStateView(), yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO.class))
-                .workingState(copy(context.getWorkingState(), RunWorkingStateVO.class))
-                .lastContextSelections(copySelections(context.getLastContextSelections()))
-                .lastAction(copy(context.getLastAction(), yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO.class))
-                .resumableRuntimeFacts(copyRuntimeFacts(context.getRuntimeFacts()))
-                .build();
-        String snapshotFailure = validateExactSnapshot(snapshot);
-        if (snapshotFailure != null) {
-            throw new IllegalArgumentException(snapshotFailure);
         }
         ContinuationCheckpointVO checkpoint = ContinuationCheckpointVO.builder()
                 .snapshotVersion(SNAPSHOT_VERSION)
@@ -87,8 +51,10 @@ public class RuntimeContinuationSnapshotService {
                 .sourceComponent(sourceComponent)
                 .relatedRunId(context.getRunId())
                 .relatedLoopIndex(context.getLoopIndex())
+                .runContextVersion(context.getRunContextState().getContextVersion())
+                .loopRecordVersion(context.getCurrentLoopRecord() == null
+                        ? null : context.getCurrentLoopRecord().getRecordVersion())
                 .expectedAnswerValueType(expectedAnswerValueType)
-                .runtimeSnapshot(snapshot)
                 .payload(copyMap(sourcePayload))
                 .build();
         log.info("[AutoAgent][checkpoint-created] runId={}, version={}, handler={}, resumePhase={}, loopIndex={}",
@@ -98,211 +64,67 @@ public class RuntimeContinuationSnapshotService {
 
     public RuntimeContinuationRestoreResultVO restore(ContinuationCheckpointVO checkpoint,
                                                       RuntimeExecutionContext context) {
-        if (checkpoint == null || context == null) {
-            return failed(false, "Continuation checkpoint or Runtime context is missing.");
+        String failure = validate(checkpoint, context);
+        if (failure != null) {
+            return failed(failure);
         }
-        if (checkpoint.getSnapshotVersion() == null) {
-            return restoreLegacy(checkpoint, context);
-        }
-        if (!Integer.valueOf(SNAPSHOT_VERSION).equals(checkpoint.getSnapshotVersion())) {
-            return failed(false, "Unsupported continuation snapshot version: " + checkpoint.getSnapshotVersion() + ".");
-        }
-        if (!phasePolicy.isAllowed(checkpoint.getHandler(), checkpoint.getResumePhase())) {
-            return failed(false, "Resume phase " + checkpoint.getResumePhase()
-                    + " is not allowed for handler " + checkpoint.getHandler() + ".");
-        }
-        RuntimeContinuationSnapshotVO snapshot = checkpoint.getRuntimeSnapshot();
-        if (snapshot == null) {
-            return failed(false, "Versioned continuation checkpoint is missing runtimeSnapshot.");
-        }
-        String runMismatch = runMismatch(checkpoint, snapshot, context);
-        if (runMismatch != null) {
-            return failed(false, runMismatch);
-        }
-        String snapshotFailure = validateExactSnapshot(snapshot);
-        if (snapshotFailure != null) {
-            return failed(false, snapshotFailure);
-        }
-        context.setLoopIndex(snapshot.getLoopIndex());
-        context.setMaxLoop(snapshot.getMaxLoop());
-        context.setRecoveryCounters(snapshot.getRecoveryCounters());
-        context.setLastStateView(snapshot.getLastStateView());
-        context.setWorkingState(snapshot.getWorkingState());
-        context.setLastContextSelections(snapshot.getLastContextSelections());
-        context.setLastAction(snapshot.getLastAction());
-        context.setRuntimeFacts(normalizeRestoredFacts(snapshot.getResumableRuntimeFacts()));
-        log.info("[AutoAgent][checkpoint-restored] runId={}, version={}, handler={}, resumePhase={}, loopIndex={}",
-                context.getRunId(), SNAPSHOT_VERSION, checkpoint.getHandler(), checkpoint.getResumePhase(), context.getLoopIndex());
+        context.setLoopIndex(checkpoint.getRelatedLoopIndex());
+        RunLoopRecordVO current = context.getCurrentLoopRecord();
+        log.info("[AutoAgent][checkpoint-restored] runId={}, version={}, handler={}, resumePhase={}, loopIndex={}, loopRecordVersion={}",
+                context.getRunId(), SNAPSHOT_VERSION, checkpoint.getHandler(), checkpoint.getResumePhase(),
+                context.getLoopIndex(), current == null ? null : current.getRecordVersion());
         return RuntimeContinuationRestoreResultVO.builder()
                 .restored(true)
                 .legacyFallback(false)
-                .message("Runtime continuation snapshot restored.")
+                .message("Canonical run context checkpoint restored.")
                 .build();
     }
 
-    private RuntimeContinuationRestoreResultVO restoreLegacy(ContinuationCheckpointVO checkpoint,
-                                                             RuntimeExecutionContext context) {
+    private String validate(ContinuationCheckpointVO checkpoint, RuntimeExecutionContext context) {
+        if (checkpoint == null || context == null) return "Continuation checkpoint or Runtime context is missing.";
+        if (!Integer.valueOf(SNAPSHOT_VERSION).equals(checkpoint.getSnapshotVersion())) {
+            return "Unsupported continuation snapshot version: " + checkpoint.getSnapshotVersion() + ". Start a new run.";
+        }
         if (!phasePolicy.isAllowed(checkpoint.getHandler(), checkpoint.getResumePhase())) {
-            return failed(true, "Legacy resume phase " + checkpoint.getResumePhase()
-                    + " is not allowed for handler " + checkpoint.getHandler() + ".");
+            return "Resume phase " + checkpoint.getResumePhase() + " is not allowed for handler " + checkpoint.getHandler() + ".";
         }
-        if (checkpoint.getRelatedRunId() != null && context.getRunId() != null
-                && !checkpoint.getRelatedRunId().equals(context.getRunId())) {
-            return failed(true, "Legacy checkpoint belongs to another Run.");
+        if (!context.getRunId().equals(checkpoint.getRelatedRunId())) return "Continuation checkpoint belongs to another Run.";
+        if (context.getRunContextState() == null) {
+            return "Canonical run context was not restored before continuation handling.";
         }
-        Map<String, Object> payload = checkpoint.getPayload();
-        if (payload != null) {
-            Object workingState = firstNonNull(payload.get("workingState"), payload.get("runWorkingState"));
-            if (workingState != null) {
-                context.setWorkingState(JSON.parseObject(serialize(workingState), RunWorkingStateVO.class));
-            }
-            Object selections = payload.get("contextSelections");
-            if (selections != null) {
-                context.setLastContextSelections(JSON.parseArray(serialize(selections), ContextSelectionVO.class));
-            }
+        if (checkpoint.getRunContextVersion() == null) {
+            return "Continuation checkpoint does not contain a Run context version. Start a new run.";
         }
-        if (checkpoint.getRelatedLoopIndex() != null) {
-            context.setLoopIndex(checkpoint.getRelatedLoopIndex());
+        if (!checkpoint.getRunContextVersion().equals(context.getRunContextState().getContextVersion())) {
+            return "Run context version changed after the pending input was created.";
         }
-        context.setRecoveryCounters(conservativeLegacyCounters(
-                context.getRecoveryCounters(), checkpoint.getRelatedLoopIndex()));
-        if (context.getRuntimeFacts() == null) {
-            context.setRuntimeFacts(new HashMap<>());
+        if (checkpoint.getLoopRecordVersion() == null && context.getCurrentLoopRecord() != null) {
+            return "Continuation checkpoint was created before MainAgent, but a loop record is already active.";
         }
-        log.warn("[AutoAgent][checkpoint-legacy-fallback] runId={}, handler={}, resumePhase={}, loopIndex={}",
-                context.getRunId(), checkpoint.getHandler(), checkpoint.getResumePhase(), context.getLoopIndex());
-        return RuntimeContinuationRestoreResultVO.builder()
-                .restored(true)
-                .legacyFallback(true)
-                .message("Legacy continuation checkpoint restored with bounded fallback.")
-                .build();
-    }
-
-    private RuntimeRecoveryCounters conservativeLegacyCounters(RuntimeRecoveryCounters current,
-                                                                 Integer relatedLoopIndex) {
-        int restoredLoopCount = Math.max(
-                current == null ? 0 : current.loopCountValue(),
-                relatedLoopIndex == null ? 0 : relatedLoopIndex);
-        return RuntimeRecoveryCounters.builder()
-                .loopCount(restoredLoopCount)
-                .contractRepairCount(Integer.MAX_VALUE)
-                .finalRepairCount(Integer.MAX_VALUE)
-                .toolRetryCount(Integer.MAX_VALUE)
-                .ragRetryCount(Integer.MAX_VALUE)
-                .contextCompressionCount(Integer.MAX_VALUE)
-                .build();
-    }
-
-    private String runMismatch(ContinuationCheckpointVO checkpoint,
-                               RuntimeContinuationSnapshotVO snapshot,
-                               RuntimeExecutionContext context) {
-        String runId = context.getRunId();
-        if (runId != null && checkpoint.getRelatedRunId() != null && !runId.equals(checkpoint.getRelatedRunId())) {
-            return "Continuation checkpoint belongs to another Run.";
-        }
-        if (runId != null && snapshot.getRunId() != null && !runId.equals(snapshot.getRunId())) {
-            return "Runtime snapshot belongs to another Run.";
+        if (checkpoint.getLoopRecordVersion() != null
+                && (context.getCurrentLoopRecord() == null
+                || !checkpoint.getLoopRecordVersion().equals(context.getCurrentLoopRecord().getRecordVersion()))) {
+            return "Run loop record version changed after the pending input was created.";
         }
         return null;
     }
 
-    private String validateExactSnapshot(RuntimeContinuationSnapshotVO snapshot) {
-        if (snapshot == null) {
-            return "Versioned continuation checkpoint is missing runtimeSnapshot.";
-        }
-        if (snapshot.getRunId() == null || snapshot.getRunId().isBlank()) {
-            return "Versioned runtimeSnapshot is missing runId.";
-        }
-        if (snapshot.getLoopIndex() == null || snapshot.getLoopIndex() < 0) {
-            return "Versioned runtimeSnapshot is missing a valid loopIndex.";
-        }
-        if (snapshot.getMaxLoop() == null || snapshot.getMaxLoop() <= 0) {
-            return "Versioned runtimeSnapshot is missing a valid maxLoop.";
-        }
-        if (snapshot.getRecoveryCounters() == null) {
-            return "Versioned runtimeSnapshot is missing recoveryCounters.";
-        }
-        if (snapshot.getRecoveryCounters().getLoopCount() == null
-                || snapshot.getRecoveryCounters().getContractRepairCount() == null
-                || snapshot.getRecoveryCounters().getFinalRepairCount() == null
-                || snapshot.getRecoveryCounters().getToolRetryCount() == null
-                || snapshot.getRecoveryCounters().getRagRetryCount() == null
-                || snapshot.getRecoveryCounters().getContextCompressionCount() == null) {
-            return "Versioned runtimeSnapshot has incomplete recoveryCounters.";
-        }
-        return null;
-    }
-
-    private Map<String, Object> copyRuntimeFacts(Map<String, Object> runtimeFacts) {
-        Map<String, Object> copied = new LinkedHashMap<>();
-        if (runtimeFacts == null) {
-            return copied;
-        }
-        for (String key : RESUMABLE_RUNTIME_FACT_KEYS) {
-            Object value = runtimeFacts.get(key);
-            if (value != null) {
-                copied.put(key, JSON.parse(serialize(value)));
-            }
-        }
-        return copied;
-    }
-
-    private Map<String, Object> normalizeRestoredFacts(Map<String, Object> facts) {
-        Map<String, Object> restored = new HashMap<>();
-        if (facts == null) {
-            return restored;
-        }
-        facts.forEach((key, value) -> restored.put(key, normalizeFact(key, value)));
-        return restored;
-    }
-
-    private Object normalizeFact(String key, Object value) {
-        if (value == null) {
-            return null;
-        }
-        if ("userClarifications".equals(key)) {
-            return JSON.parseArray(serialize(value), UserClarificationVO.class);
-        }
-        if ("previousLoopOutcome".equals(key)) {
-            return JSON.parseObject(serialize(value), PreviousLoopOutcomeVO.class);
-        }
-        return value;
-    }
-
-    private List<ContextSelectionVO> copySelections(List<ContextSelectionVO> selections) {
-        if (selections == null) {
-            return null;
-        }
-        return JSON.parseArray(serialize(selections), ContextSelectionVO.class);
+    private boolean preMainAgentCheckpoint(RuntimeExecutionContext context, String handler) {
+        return ContextPlannerPendingInputHandler.HANDLER_CODE.equals(handler)
+                && context.getRunContextState().getLoopTimeline() != null
+                && context.getRunContextState().getLoopTimeline().isEmpty();
     }
 
     private Map<String, Object> copyMap(Map<String, Object> value) {
-        if (value == null || value.isEmpty()) {
-            return new LinkedHashMap<>();
-        }
-        return JSON.parseObject(serialize(value), new TypeReference<LinkedHashMap<String, Object>>() { });
+        if (value == null || value.isEmpty()) return new LinkedHashMap<>();
+        return JSON.parseObject(JSON.toJSONString(value), new TypeReference<LinkedHashMap<String, Object>>() { });
     }
 
-    private <T> T copy(T value, Class<T> type) {
-        if (value == null) {
-            return null;
-        }
-        return JSON.parseObject(serialize(value), type);
-    }
-
-    private String serialize(Object value) {
-        return JSON.toJSONString(value, SerializerFeature.DisableCircularReferenceDetect);
-    }
-
-    private Object firstNonNull(Object first, Object second) {
-        return first == null ? second : first;
-    }
-
-    private RuntimeContinuationRestoreResultVO failed(boolean legacy, String message) {
-        log.warn("[AutoAgent][checkpoint-validation-failed] legacyFallback={}, reason={}", legacy, message);
+    private RuntimeContinuationRestoreResultVO failed(String message) {
+        log.warn("[AutoAgent][checkpoint-validation-failed] reason={}", message);
         return RuntimeContinuationRestoreResultVO.builder()
                 .restored(false)
-                .legacyFallback(legacy)
+                .legacyFallback(false)
                 .message(message)
                 .build();
     }

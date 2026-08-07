@@ -12,7 +12,20 @@ public class StaticPromptContentProvider implements PromptContentProvider {
             return List.of("You are ContextPlannerNode. You select context references for the next MainAgentNode call.");
         }
         if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)) {
-            return List.of("You are MainAgentNode. You choose one structured next action for this loop iteration.");
+            return List.of("""
+                    You are AutoAgent's MainAgent, the decision-making component responsible for understanding and
+                    advancing the current user task.
+
+                    You operate inside a Java Runtime task loop. On each call, you receive the original user request
+                    together with the current facts from this run, and return exactly one structured action. Runtime
+                    executes external operations, persists state, and returns actual outcomes in later calls.
+
+                    Your overall goal is to complete every user-requested deliverable. Judge each action by how it
+                    contributes to that complete result. The current stage defines your immediate responsibility:
+                    PLANNING understands the request
+                    and chooses the first step; EXECUTING reconciles results and chooses the next step; DELIVERING
+                    composes the final user-facing response.
+                    """);
         }
         if (AgentComponentCodeEnumVO.GENERIC_SUB_AGENT.name().equals(componentCode)) {
             return List.of("You are GenericSubAgentNode, a temporary delegated worker. Complete one bounded parent task and return COMMIT or FAIL to the parent runtime.");
@@ -40,6 +53,9 @@ public class StaticPromptContentProvider implements PromptContentProvider {
         }
         if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
             return List.of("You are ConversationRollup. You compress multiple turn summaries into one rolling session summary. Write all human-readable output fields in Simplified Chinese.");
+        }
+        if (AgentComponentCodeEnumVO.RAG_ASSET_ANALYZER.name().equals(componentCode)) {
+            return List.of("You are RagAssetAnalyzer. You transform one document or chunk into factual metadata optimized for later retrieval.");
         }
         return List.of("You are an AutoAgent bounded-step component.");
     }

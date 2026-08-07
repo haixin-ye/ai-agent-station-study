@@ -25,6 +25,7 @@ import yhx.com.domain.agent.model.valobj.enums.tool.McpToolAvailabilityEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.PermissionModeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.RequiredPermissionEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolArgumentContentModeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.ToolResultContentModeEnumVO;
 import yhx.com.domain.agent.model.valobj.tool.CapabilitySpecVO;
 import yhx.com.domain.agent.model.valobj.tool.McpRuntimeCatalogVO;
 import yhx.com.domain.agent.model.valobj.tool.McpToolSpecVO;
@@ -154,7 +155,6 @@ public class AutoAgentToolConfig {
                                 tool.getMcpServerCode(), tool.getToolName(), schemaCanonicalizer.schemaHash(tool.getInputSchema()));
                     }
                 } catch (RuntimeException e) {
-                    serverAvailability = McpToolAvailabilityEnumVO.DEGRADED;
                     availabilityReason = "MCP tool discovery failed: " + e.getClass().getSimpleName();
                     log.warn("[AutoAgent][MCP_TOOL_DISCOVERY_FAILED] serverId={}, reasonType={}",
                             server.getServerId(), e.getClass().getSimpleName());
@@ -162,7 +162,6 @@ public class AutoAgentToolConfig {
             } else if (server.isAutoDiscoverTools()
                     && serverAvailability == McpToolAvailabilityEnumVO.AVAILABLE
                     && discoveryPort == null) {
-                serverAvailability = McpToolAvailabilityEnumVO.DEGRADED;
                 availabilityReason = "MCP discovery adapter is unavailable.";
             }
             for (AutoAgentMcpProperties.McpToolProperties configuredTool : server.getTools()) {
@@ -317,6 +316,7 @@ public class AutoAgentToolConfig {
                 .riskLevel(properties.getRiskLevel())
                 .destructive(properties.isDestructive())
                 .defaultContentMode(enumValue(properties.getDefaultContentMode(), ToolArgumentContentModeEnumVO.SUMMARY_ONLY))
+                .resultContentMode(enumValue(properties.getResultContentMode(), ToolResultContentModeEnumVO.SUMMARY_ONLY))
                 .workspaceScope(properties.getWorkspaceScope())
                 .timeoutMs(properties.getTimeoutMs())
                 .enabled(properties.isEnabled())
@@ -387,6 +387,7 @@ public class AutoAgentToolConfig {
                     .riskLevel(firstNonBlank(tool.getRiskLevel(), server.getDefaultRiskLevel(), "MEDIUM"))
                     .destructive(Boolean.TRUE.equals(tool.getDestructive()))
                     .defaultContentMode(enumValue(server.getDefaultContentMode(), ToolArgumentContentModeEnumVO.SUMMARY_ONLY))
+                    .resultContentMode(enumValue(server.getDefaultResultContentMode(), ToolResultContentModeEnumVO.SUMMARY_ONLY))
                     .workspaceScope(server.getWorkspaceScope())
                     .timeoutMs(resolveToolTimeoutMs(server))
                     .enabled(true)
@@ -503,6 +504,10 @@ public class AutoAgentToolConfig {
         return ToolArgumentContentModeEnumVO.ofCode(normalize(code)).orElse(defaultValue);
     }
 
+    private ToolResultContentModeEnumVO enumValue(String code, ToolResultContentModeEnumVO defaultValue) {
+        return ToolResultContentModeEnumVO.ofCode(normalize(code)).orElse(defaultValue);
+    }
+
     private McpTransportTypeEnumVO enumValue(String code, McpTransportTypeEnumVO defaultValue) {
         return McpTransportTypeEnumVO.ofCode(normalize(code)).orElse(defaultValue);
     }
@@ -615,6 +620,7 @@ public class AutoAgentToolConfig {
                 .riskLevel(capability.getRiskLevel())
                 .destructive(capability.getDestructive())
                 .defaultContentMode(capability.getDefaultContentMode())
+                .resultContentMode(capability.getResultContentMode())
                 .enabled(capability.getEnabled())
                 .workspaceScope(capability.getWorkspaceScope())
                 .timeoutMs(timeoutMs)

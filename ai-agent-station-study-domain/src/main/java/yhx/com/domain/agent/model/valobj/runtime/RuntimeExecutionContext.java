@@ -4,13 +4,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import yhx.com.domain.agent.model.valobj.context.ContextSelectionVO;
-import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 
-import java.util.List;
 import java.util.Map;
 
 @Data
@@ -30,9 +27,8 @@ public class RuntimeExecutionContext {
     private Integer loopIndex;
     private Integer maxLoop;
     private RuntimeRecoveryCounters recoveryCounters;
-    private MainAgentStateViewVO lastStateView;
-    private RunWorkingStateVO workingState;
-    private List<ContextSelectionVO> lastContextSelections;
+    private RunContextStateVO runContextState;
+    private RunLoopRecordVO currentLoopRecord;
     private MainAgentActionVO lastAction;
     private Map<String, Object> runtimeFacts;
 

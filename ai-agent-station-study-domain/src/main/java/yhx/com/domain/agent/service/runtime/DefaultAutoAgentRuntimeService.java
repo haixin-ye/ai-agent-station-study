@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import yhx.com.domain.agent.adapter.repository.IConversationRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
+import yhx.com.domain.agent.adapter.repository.IRunContextRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunEntity;
@@ -13,7 +14,6 @@ import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
 import yhx.com.domain.agent.model.valobj.context.UserClarificationVO;
 import yhx.com.domain.agent.model.valobj.agent.GenericSubAgentDispatchOrchestrationResultVO;
-import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionEffectStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.MessageRoleEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.persistence.PayloadTypeEnumVO;
@@ -39,6 +39,13 @@ import yhx.com.domain.agent.model.valobj.runtime.RuntimeResumeCommand;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeSafeFailureVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStartCommand;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeStepResult;
+import yhx.com.domain.agent.model.valobj.runtime.RunBaseContextVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunContextStateVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunLoopRecordVO;
+import yhx.com.domain.agent.model.valobj.runtime.TaskLedgerVO;
+import yhx.com.domain.agent.model.valobj.runtime.LoopRuntimeOutcomeVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunRuntimeControlVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO;
 import yhx.com.domain.agent.service.interaction.ContextPlannerPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.MainAgentPendingInputHandler;
 import yhx.com.domain.agent.service.interaction.UserInteractionManager;
@@ -55,6 +62,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
+
+    private final UnexpectedRuntimeFailureClassifier unexpectedFailureClassifier = new UnexpectedRuntimeFailureClassifier();
 
     private final IConversationRepository conversationRepository;
     private final IRunRepository runRepository;
@@ -73,7 +82,9 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private final RunDiagnosticRecorder diagnosticRecorder;
     private final ParentChildRunRegistry parentChildRunRegistry;
     private final GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator;
-    private final RunWorkingStateManager workingStateManager = new RunWorkingStateManager();
+    private final RunTimelineManager timelineManager = new RunTimelineManager();
+    private final RunTimelineQueryService timelineQueryService = new RunTimelineQueryService();
+    private final RunContextStore runContextStore;
 
     public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
                                           IRunRepository runRepository,
@@ -259,6 +270,30 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                                           RunDiagnosticRecorder diagnosticRecorder,
                                           ParentChildRunRegistry parentChildRunRegistry,
                                           GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator) {
+        this(conversationRepository, runRepository, payloadRepository, componentPorts, actionDispatcher,
+                userInteractionManager, loopPolicy, routePolicy, stateMachine, failureFactory, phaseGuard,
+                eventPublisher, transcriptRecorder, traceRecorder, diagnosticRecorder, parentChildRunRegistry,
+                genericSubAgentDispatchOrchestrator, null);
+    }
+
+    public DefaultAutoAgentRuntimeService(IConversationRepository conversationRepository,
+                                          IRunRepository runRepository,
+                                          IPayloadRepository payloadRepository,
+                                          RuntimeComponentPorts componentPorts,
+                                          MainActionDispatcher actionDispatcher,
+                                          UserInteractionManager userInteractionManager,
+                                          RuntimeLoopPolicy loopPolicy,
+                                          RuntimeRoutePolicy routePolicy,
+                                          RuntimeStateMachine stateMachine,
+                                          RuntimeFailureFactory failureFactory,
+                                          RuntimePhaseGuard phaseGuard,
+                                          RunEventPublisher eventPublisher,
+                                          RunTranscriptRecorder transcriptRecorder,
+                                          DeveloperTraceRecorder traceRecorder,
+                                          RunDiagnosticRecorder diagnosticRecorder,
+                                          ParentChildRunRegistry parentChildRunRegistry,
+                                          GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator,
+                                          IRunContextRepository runContextRepository) {
         this.conversationRepository = conversationRepository;
         this.runRepository = runRepository;
         this.payloadRepository = payloadRepository;
@@ -276,6 +311,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         this.diagnosticRecorder = diagnosticRecorder;
         this.parentChildRunRegistry = parentChildRunRegistry == null ? new ParentChildRunRegistry() : parentChildRunRegistry;
         this.genericSubAgentDispatchOrchestrator = genericSubAgentDispatchOrchestrator;
+        this.runContextStore = runContextRepository == null ? null : new RunContextStore(runContextRepository, payloadRepository);
     }
 
     @Override
@@ -349,6 +385,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .recoveryCounters(RuntimeRecoveryCounters.initial())
                 .runtimeFacts(new HashMap<>())
                 .build();
+        initializeRunContext(context, null);
         RuntimeSafeFailureVO transitionFailure = enterPhase(context, stateMachine.nextAfterStart());
         if (transitionFailure != null) {
             return failRun(context, transitionFailure);
@@ -402,6 +439,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .recoveryCounters(RuntimeRecoveryCounters.initial())
                 .runtimeFacts(new HashMap<>())
                 .build();
+        restoreRunContext(context);
         RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.RESOLVING_USER_ANSWER);
         if (transitionFailure != null) {
             return failRun(context, transitionFailure);
@@ -413,8 +451,18 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return alreadyResolvedResumeResult(latestRun);
         }
         RuntimeStepResult continuation = resolveResult.getContinuationResult();
+        recordUserResponse(context, resolveResult, continuation);
         if (continuation == null) {
             return failRun(context, failureFactory.missingPendingInput(resolveCommand.getRunId()));
+        }
+        if (continuation.getStatus() == RuntimeStepStatusEnumVO.WAITING_CHILDREN
+                && stringRuntimeFact(context, "resumeChildRunId") != null
+                && genericSubAgentDispatchOrchestrator == null) {
+            return failRun(context, failureFactory.create(
+                    RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,
+                    RuntimePhaseEnumVO.WAITING_CHILDREN,
+                    "Generic subagent dispatch orchestrator is unavailable during child-agent recovery.",
+                    true));
         }
         RuntimeStepResult childResumeResult = resumeGenericSubAgentIfNeeded(context, resolveResult, continuation);
         if (childResumeResult != null) {
@@ -462,6 +510,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 "parentReady", childResult == null ? null : childResult.getParentReady()
         ));
         if (childResult == null || !childResult.isParentReady()) {
+            persistProjectedChildResults(context, false);
             RuntimeStepResult waiting = RuntimeStepResult.builder()
                     .runId(context.getRunId())
                     .sessionId(context.getSessionId())
@@ -473,6 +522,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             applyRunResult(context, waiting);
             return waiting;
         }
+        persistProjectedChildResults(context, true);
         context.setRunStatus(RunStatusEnumVO.RUNNING);
         runRepository.updateRunStatus(context.getRunId(), RunStatusEnumVO.RUNNING, null);
         RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
@@ -534,6 +584,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .recoveryCounters(RuntimeRecoveryCounters.initial())
                 .runtimeFacts(new HashMap<>())
                 .build();
+        restoreRunContext(context);
         if (!parentChildRunRegistry.isWaitSatisfied(runId)) {
             RuntimeStepResult waiting = RuntimeStepResult.builder()
                     .runId(context.getRunId())
@@ -546,9 +597,15 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             applyRunResult(context, waiting);
             return waiting;
         }
-        if (genericSubAgentDispatchOrchestrator != null) {
-            genericSubAgentDispatchOrchestrator.runDispatchedChildrenAndProject(context);
+        if (genericSubAgentDispatchOrchestrator == null) {
+            return failRun(context, failureFactory.create(
+                    RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,
+                    RuntimePhaseEnumVO.WAITING_CHILDREN,
+                    "Generic subagent dispatch orchestrator is unavailable during child-agent recovery.",
+                    true));
         }
+        genericSubAgentDispatchOrchestrator.runDispatchedChildrenAndProject(context);
+        persistProjectedChildResults(context, true);
         context.setRunStatus(RunStatusEnumVO.RUNNING);
         runRepository.updateRunStatus(context.getRunId(), RunStatusEnumVO.RUNNING, null);
         RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
@@ -590,35 +647,48 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
 
     @Override
     public RuntimeStepResult reportUnexpectedFailure(String runId, String sessionId, Throwable error) {
-        String developerMessage = preview(error == null || error.getMessage() == null
-                ? "Unexpected runtime error."
-                : error.getMessage());
-        diagnosticError(runId, "UNEXPECTED_FAILURE", error, diagnosticMap(
-                "sessionId", sessionId,
-                "developerMessage", developerMessage
-        ));
-        RuntimeSafeFailureVO failure = failureFactory.create(RuntimeFailureCodeEnumVO.UNEXPECTED_RUNTIME_ERROR,
-                RuntimePhaseEnumVO.FAILED, developerMessage, true);
+        RuntimeFailureCodeEnumVO failureCode = unexpectedFailureClassifier.classify(error);
+        boolean memoryExhausted = failureCode == RuntimeFailureCodeEnumVO.BACKEND_OUT_OF_MEMORY;
+
+        // Persist the terminal marker before diagnostics or payload creation. In
+        // an OOM path this may be the only allocation-light operation that succeeds.
         if (runId != null && !runId.isBlank()) {
             try {
+                runRepository.updateRunStatus(runId, RunStatusEnumVO.FAILED, failureCode.code());
+                runRepository.updateRunPhase(runId, RuntimePhaseEnumVO.FAILED);
+            } catch (Throwable ignored) {
+                // A restarted process will reconcile any still-active orphaned run.
+            }
+        }
+
+        String developerMessage = memoryExhausted
+                ? failureCode.info()
+                : preview(error == null || error.getMessage() == null
+                ? failureCode.info()
+                : error.getMessage());
+        RuntimeSafeFailureVO failure = failureFactory.create(failureCode,
+                RuntimePhaseEnumVO.FAILED, developerMessage, true);
+
+        if (!memoryExhausted) {
+            diagnosticError(runId, "UNEXPECTED_FAILURE", error, diagnosticMap(
+                    "sessionId", sessionId,
+                    "developerMessage", developerMessage
+            ));
+        }
+        if (runId != null && !runId.isBlank() && !memoryExhausted) {
+            try {
                 traceRecorder.error(runId, null, failure.getFailureCode(), failure.getDeveloperMessage(), null);
-            } catch (Exception ignored) {
-                // Failure reporting must not hide the user-visible failed event.
+            } catch (Throwable ignored) {
+                // Failure reporting must not hide the terminal run status.
             }
             try {
                 transcriptRecorder.appendError(runId, null, failure.getFailureCode(), failure.getDeveloperMessage(), null);
-            } catch (Exception ignored) {
-                // Failure reporting must not hide the user-visible failed event.
-            }
-            try {
-                runRepository.updateRunPhase(runId, RuntimePhaseEnumVO.FAILED);
-                runRepository.updateRunStatus(runId, RunStatusEnumVO.FAILED, failure.getFailureCode().code());
-            } catch (Exception ignored) {
-                // Keep publishing the failed event even if status persistence is already broken.
+            } catch (Throwable ignored) {
+                // Failure reporting must not hide the terminal run status.
             }
             try {
                 eventPublisher.failed(runId, failure.getUserMessage());
-            } catch (Exception ignored) {
+            } catch (Throwable ignored) {
                 // Nothing else can be done in this top-level emergency path.
             }
         }
@@ -641,15 +711,14 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                     "loopIndex", context.getLoopIndex(),
                     "phase", context.getCurrentPhase() == null ? null : context.getCurrentPhase().code()
             ));
-            if (loopPolicy.maxLoopReached(context.countersOrInitial())) {
+            if (loopPolicy.maxLoopReached(context)) {
                 return failRun(context, failureFactory.maxLoopReached(context.getCurrentPhase()));
             }
 
             if (context.getCurrentPhase() == RuntimePhaseEnumVO.PREPARING_TOOL) {
                 RuntimeStepResult toolResult = resumeToolAction(context);
                 if (toolResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
-                    context.countersOrInitial().incrementLoop();
-                    context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
+                    advanceCompletedLoop(context);
                     RuntimeSafeFailureVO loopTransition = enterPhase(context, nextLoopPhase(context, toolResult));
                     if (loopTransition != null) {
                         return failRun(context, loopTransition);
@@ -662,10 +731,14 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
 
             RuntimeStepResult contextResult = prepareOrRefreshStateView(context);
             if (contextResult != null) {
+                // Context preparation can pause before a loop record exists. Persist its
+                // run status here so a user answer can resume the same checkpoint.
+                applyRunResult(context, contextResult);
                 return contextResult;
             }
 
             MainAgentActionVO action = componentPorts.invokeMainAgent(context);
+            recordMainDecision(context, action);
 
         RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.VALIDATING_ACTION);
         if (transitionFailure != null) {
@@ -681,7 +754,6 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         }
 
         AutoAgentHumanLog.stage("动作校验", context.getRunId(), "检查通过：action=" + actionType.code());
-            MainAgentActionVO previousAction = context.getLastAction();
             context.setLastAction(action);
             String actionPayloadRef = saveActionPayload(action);
             traceRecorder.actionParsed(context.getRunId(), context.getLoopIndex(), actionType, actionPayloadRef);
@@ -692,17 +764,12 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, transitionFailure);
         }
         AutoAgentHumanLog.stage("动作路由", context.getRunId(), "准备处理 action=" + actionType.code());
-        RuntimeSafeFailureVO deniedActionFailure = deniedToolExecutionActionFailure(context, actionType, action);
-        if (deniedActionFailure != null) {
-            return failRun(context, deniedActionFailure);
-        }
-        MainActionHandlerResult skippedCompletedToolAction = skippedCompletedToolActionResult(context, actionType, action);
-        if (skippedCompletedToolAction != null) {
-            workingStateManager.apply(context, action, skippedCompletedToolAction);
-            RuntimeStepResult stepResult = routeActionResult(context, action, skippedCompletedToolAction);
+        MainActionHandlerResult guardedToolAction = guardedToolActionResult(context, actionType, action);
+        if (guardedToolAction != null) {
+            recordActionOutcome(context, action, guardedToolAction);
+            RuntimeStepResult stepResult = routeActionResult(context, action, guardedToolAction);
             if (stepResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
-                context.countersOrInitial().incrementLoop();
-                context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
+                advanceCompletedLoop(context);
                 RuntimeSafeFailureVO loopTransition = enterPhase(context, nextLoopPhase(context, stepResult));
                 if (loopTransition != null) {
                     return failRun(context, loopTransition);
@@ -713,7 +780,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return stepResult;
         }
         MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
-            workingStateManager.apply(context, action, actionResult);
+            recordActionOutcome(context, action, actionResult);
             RuntimeStepResult stepResult = routeActionResult(context, action, actionResult);
             boolean runResultApplied = false;
             if (actionResult != null && actionResult.getDeferredAgentDispatch() != null) {
@@ -727,12 +794,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 }
             }
             if (stepResult.getStatus() == RuntimeStepStatusEnumVO.CONTINUE) {
-                RuntimeSafeFailureVO repeatedActionFailure = repeatedExecutionActionFailure(context, previousAction, actionType, action);
-                if (repeatedActionFailure != null) {
-                    return failRun(context, repeatedActionFailure);
-                }
-                context.countersOrInitial().incrementLoop();
-                context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
+                advanceCompletedLoop(context);
                 RuntimeSafeFailureVO loopTransition = enterPhase(context, nextLoopPhase(context, stepResult));
                 if (loopTransition != null) {
                     return failRun(context, loopTransition);
@@ -755,7 +817,12 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                     RuntimePhaseEnumVO.PREPARING_TOOL, "Tool approval checkpoint is missing toolIntent.", true);
             return failure(context.getRunId(), context.getSessionId(), failure);
         }
+        MainAgentActionVO originalAction = context.getCurrentLoopRecord() == null
+                ? null : context.getCurrentLoopRecord().getMainOutput();
         MainAgentActionVO action = MainAgentActionVO.builder()
+                .taskUpdate(originalAction == null || originalAction.getTaskUpdate() == null
+                        ? Map.of("lastDecision", "Execute the user-approved tool request.")
+                        : originalAction.getTaskUpdate())
                 .action(MainAgentActionTypeEnumVO.CALL_TOOL.code())
                 .stateDelta(Map.of("toolIntent", toolIntent))
                 .build();
@@ -769,30 +836,13 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failure(context.getRunId(), context.getSessionId(), transitionFailure);
         }
         MainActionHandlerResult actionResult = actionDispatcher.dispatch(context, action);
-        workingStateManager.apply(context, action, actionResult);
+        recordActionOutcome(context, action, actionResult);
         return routeActionResult(context, action, actionResult);
     }
 
-    private RuntimeSafeFailureVO repeatedExecutionActionFailure(RuntimeExecutionContext context,
-                                                               MainAgentActionVO previousAction,
-                                                               MainAgentActionTypeEnumVO actionType,
-                                                               MainAgentActionVO currentAction) {
-        if (actionType != MainAgentActionTypeEnumVO.CALL_TOOL || !sameAction(previousAction, currentAction)) {
-            return null;
-        }
-        if (loopPolicy.canRetryTool(context.countersOrInitial())) {
-            context.countersOrInitial().incrementToolRetry();
-            return null;
-        }
-        return failureFactory.create(RuntimeFailureCodeEnumVO.TOOL_RETRY_EXHAUSTED,
-                context.getCurrentPhase(),
-                "MainAgent repeated the same CALL_TOOL action after tool retry limit was reached.",
-                false);
-    }
-
-    private RuntimeSafeFailureVO deniedToolExecutionActionFailure(RuntimeExecutionContext context,
-                                                                 MainAgentActionTypeEnumVO actionType,
-                                                                 MainAgentActionVO currentAction) {
+    private MainActionHandlerResult guardedToolActionResult(RuntimeExecutionContext context,
+                                                            MainAgentActionTypeEnumVO actionType,
+                                                            MainAgentActionVO currentAction) {
         if (actionType != MainAgentActionTypeEnumVO.CALL_TOOL || currentAction == null) {
             return null;
         }
@@ -800,115 +850,51 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         if (currentIntent == null) {
             return null;
         }
-        List<UserClarificationVO> clarifications = context == null || context.getLastStateView() == null
-                ? List.of()
-                : context.getLastStateView().getUserClarifications();
-        if (clarifications == null || clarifications.isEmpty()) {
-            return null;
+        RunLoopRecordVO succeeded = timelineQueryService.findSuccessfulToolCall(context.getRunContextState(), currentIntent);
+        if (succeeded != null) {
+            return skippedToolAction(context, currentIntent, succeeded,
+                    "SKIPPED_ALREADY_SUCCEEDED",
+                    "The same tool execution was skipped because it already succeeded. Use the recorded result and decide the next action.");
         }
-        boolean denied = clarifications.stream()
-                .filter(clarification -> clarification != null && "TOOL_APPROVAL_REJECTED".equals(clarification.getAnswerType()))
-                .map(UserClarificationVO::getMetadata)
-                .filter(Objects::nonNull)
-                .map(metadata -> metadata.get("toolIntent"))
-                .filter(Map.class::isInstance)
-                .map(value -> (Map<String, Object>) value)
-                .anyMatch(deniedIntent -> sameToolExecutionIntent(deniedIntent, currentIntent));
-        if (!denied) {
-            return null;
-        }
-        return failureFactory.create(RuntimeFailureCodeEnumVO.TOOL_ACTION_DENIED_BY_USER,
-                context.getCurrentPhase(),
-                "MainAgent attempted a tool action that the user already rejected.",
-                false);
+        return timelineQueryService.wasToolCallRejected(context.getRunContextState(), currentIntent)
+                ? skippedToolAction(context, currentIntent, null,
+                "SKIPPED_USER_REJECTED",
+                "The same tool execution was skipped because the user previously rejected it. Decide another action or explain the limitation.")
+                : null;
     }
 
-    private MainActionHandlerResult skippedCompletedToolActionResult(RuntimeExecutionContext context,
-                                                                     MainAgentActionTypeEnumVO actionType,
-                                                                     MainAgentActionVO currentAction) {
-        if (actionType != MainAgentActionTypeEnumVO.CALL_TOOL || currentAction == null) {
-            return null;
-        }
-        Map<String, Object> currentIntent = toolIntentFromAction(currentAction);
-        if (currentIntent == null) {
-            return null;
-        }
-        ActionEffectVO succeeded = successfulToolActionEffect(context, currentIntent);
-        if (succeeded == null) {
-            return null;
-        }
+    private MainActionHandlerResult skippedToolAction(RuntimeExecutionContext context,
+                                                      Map<String, Object> currentIntent,
+                                                      RunLoopRecordVO source,
+                                                      String status,
+                                                      String message) {
+        LoopRuntimeOutcomeVO previousOutcome = source == null ? null : source.getRuntimeOutcome();
         return MainActionHandlerResult.builder()
                 .status(MainActionHandlerStatusEnumVO.CONTINUE_LOOP)
                 .nextPhase(RuntimePhaseEnumVO.BUILDING_STATE_VIEW)
-                .createdEvidenceIds(defaultList(succeeded.getCreatedEvidenceIds()))
-                .createdEvidence(defaultList(succeeded.getCreatedEvidence()))
+                .createdEvidenceIds(previousOutcome == null ? List.of() : defaultList(previousOutcome.getEvidenceRefs()))
+                .createdArtifactIds(previousOutcome == null ? List.of() : defaultList(previousOutcome.getArtifactRefs()))
                 .actionEffect(ActionEffectVO.builder()
                         .action(MainAgentActionTypeEnumVO.CALL_TOOL.code())
-                        .status("SKIPPED_ALREADY_SUCCEEDED")
-                        .message("Skipped duplicate CALL_TOOL because the same tool action already succeeded. MainAgent must decide the next semantic action from actionHistory and evidencePack.")
+                        .status(status)
+                        .message(message)
                         .loopIndex(context.getLoopIndex())
-                        .toolIntent(currentIntent)
-                        .createdEvidenceIds(defaultList(succeeded.getCreatedEvidenceIds()))
-                        .createdEvidence(defaultList(succeeded.getCreatedEvidence()))
-                        .createdArtifactIds(defaultList(succeeded.getCreatedArtifactIds()))
+                        .resultRef(previousOutcome == null ? null : previousOutcome.getResultPayloadRef())
+                        .metadata(previousResultMetadata(previousOutcome))
+                        .createdEvidenceIds(previousOutcome == null ? List.of() : defaultList(previousOutcome.getEvidenceRefs()))
+                        .createdArtifactIds(previousOutcome == null ? List.of() : defaultList(previousOutcome.getArtifactRefs()))
                         .build())
-                .message("Skipped duplicate CALL_TOOL because the same tool action already succeeded.")
+                .message(message)
                 .build();
     }
 
-    private ActionEffectVO successfulToolActionEffect(RuntimeExecutionContext context, Map<String, Object> currentIntent) {
-        if (context == null || context.getWorkingState() == null || context.getWorkingState().getActionHistory() == null) {
-            return null;
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> previousResultMetadata(LoopRuntimeOutcomeVO outcome) {
+        if (outcome == null || outcome.getDetails() == null) {
+            return Map.of();
         }
-        List<ActionEffectVO> history = context.getWorkingState().getActionHistory();
-        if (history.isEmpty()) {
-            return null;
-        }
-        for (int index = history.size() - 1; index >= 0; index--) {
-            ActionEffectVO effect = history.get(index);
-            if (toolActionSucceeded(effect) && sameToolExecutionIntent(effect.getToolIntent(), currentIntent)) {
-                return effect;
-            }
-        }
-        return null;
-    }
-
-    private boolean toolActionSucceeded(ActionEffectVO effect) {
-        if (effect == null || !MainAgentActionTypeEnumVO.CALL_TOOL.code().equals(effect.getAction())) {
-            return false;
-        }
-        return ToolActionEffectStatusEnumVO.TOOL_SUCCEEDED.name().equals(effect.getStatus());
-    }
-
-    private boolean sameAction(MainAgentActionVO left, MainAgentActionVO right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        if (!Objects.equals(left.getAction(), right.getAction())) {
-            return false;
-        }
-        if (MainAgentActionTypeEnumVO.CALL_TOOL.code().equals(left.getAction())) {
-            return sameToolExecutionIntent(left, right);
-        }
-        return Objects.equals(left.getStateDelta(), right.getStateDelta());
-    }
-
-    private boolean sameToolExecutionIntent(MainAgentActionVO left, MainAgentActionVO right) {
-        Map<String, Object> leftIntent = toolIntentFromAction(left);
-        Map<String, Object> rightIntent = toolIntentFromAction(right);
-        if (leftIntent == null || rightIntent == null) {
-            return false;
-        }
-        return sameToolExecutionIntent(leftIntent, rightIntent);
-    }
-
-    private boolean sameToolExecutionIntent(Map<String, Object> leftIntent, Map<String, Object> rightIntent) {
-        if (leftIntent == null || rightIntent == null) {
-            return false;
-        }
-        return Objects.equals(leftIntent.get("capabilityCode"), rightIntent.get("capabilityCode"))
-                && Objects.equals(leftIntent.get("toolName"), rightIntent.get("toolName"))
-                && Objects.equals(leftIntent.get("arguments"), rightIntent.get("arguments"));
+        Object value = outcome.getDetails().get("resultMetadata");
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
     }
 
     @SuppressWarnings("unchecked")
@@ -942,12 +928,13 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private RuntimeStepResult prepareOrRefreshStateView(RuntimeExecutionContext context) {
         RuntimePhaseEnumVO phase = context.getCurrentPhase();
         if (phase == RuntimePhaseEnumVO.BUILDING_STATE_VIEW) {
-            if (context.getWorkingState() != null) {
-                return projectWorkingStateView(context);
+            if (context.getRunContextState() != null) {
+                RuntimeSafeFailureVO transitionFailure = enterPhase(context, RuntimePhaseEnumVO.CALLING_MAIN_NODE);
+                return transitionFailure == null ? null : failRun(context, transitionFailure);
             }
             return refreshStateView(context);
         }
-        if (phase == RuntimePhaseEnumVO.PREPARING_CONTEXT || context.getLastStateView() == null) {
+        if (phase == RuntimePhaseEnumVO.PREPARING_CONTEXT || context.getRunContextState() == null) {
             return prepareInitialStateView(context);
         }
         if (phase != RuntimePhaseEnumVO.CALLING_MAIN_NODE) {
@@ -971,8 +958,6 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         }
         if (prepared.getAskUserRequest() != null) {
             if (alreadyAnswered(context, prepared.getAskUserRequest())) {
-                context.countersOrInitial().incrementLoop();
-                context.setLoopIndex(context.getLoopIndex() == null ? 1 : context.getLoopIndex() + 1);
                 RuntimeSafeFailureVO loopTransition = enterPhase(context, RuntimePhaseEnumVO.BUILDING_STATE_VIEW);
                 if (loopTransition != null) {
                     return failRun(context, loopTransition);
@@ -1003,12 +988,6 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     }
 
     private RuntimeStepResult acceptStateViewAndCallMain(RuntimeExecutionContext context, ContextPlannerHandlingResult result) {
-        return acceptStateViewAndCallMain(context, result, true);
-    }
-
-    private RuntimeStepResult acceptStateViewAndCallMain(RuntimeExecutionContext context,
-                                                         ContextPlannerHandlingResult result,
-                                                         boolean updateWorkingBaseStateView) {
         if (result == null || result.getStateView() == null) {
             return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
                     context.getCurrentPhase(), "State view is missing.", true));
@@ -1020,13 +999,14 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 return failRun(context, buildFailure);
             }
         }
-        context.setLastStateView(result.getStateView());
-        if (context.getWorkingState() == null) {
-            context.setWorkingState(workingStateManager.initialize(result.getStateView()));
-        } else if (updateWorkingBaseStateView && result.getStateView() != null) {
-            context.getWorkingState().setBaseStateView(result.getStateView());
+        if (context.getRunContextState() == null) {
+            initializeRunContext(context, result.getStateView());
+        } else {
+            context.getRunContextState().getBaseContext().setSelectedSessionContext(result.getStateView());
+            if (runContextStore != null) {
+                runContextStore.saveContext(context.getRunContextState());
+            }
         }
-        context.setLastContextSelections(result.getEffectiveSelections());
         transcriptRecorder.appendStateViewSummary(context.getRunId(), context.getLoopIndex(), result.getStateView(), null);
         RuntimeSafeFailureVO transitionFailure = context.getCurrentPhase() == RuntimePhaseEnumVO.CALLING_MAIN_NODE
                 ? null
@@ -1035,18 +1015,6 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
             return failRun(context, transitionFailure);
         }
         return null;
-    }
-
-    private RuntimeStepResult projectWorkingStateView(RuntimeExecutionContext context) {
-        MainAgentStateViewVO stateView = workingStateManager.project(context.getWorkingState());
-        if (stateView == null) {
-            return failRun(context, failureFactory.create(RuntimeFailureCodeEnumVO.CONTEXT_PREPARATION_FAILED,
-                    context.getCurrentPhase(), "Working state projection returned null.", true));
-        }
-        return acceptStateViewAndCallMain(context, ContextPlannerHandlingResult.builder()
-                .stateView(stateView)
-                .effectiveSelections(context.getLastContextSelections())
-                .build(), false);
     }
 
     private RuntimePhaseEnumVO nextLoopPhase(RuntimeExecutionContext context, RuntimeStepResult stepResult) {
@@ -1162,6 +1130,213 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
                 .build();
     }
 
+    private void initializeRunContext(RuntimeExecutionContext context, MainAgentStateViewVO initialStateView) {
+        RunContextStateVO state = RunContextStateVO.builder()
+                .schemaVersion(RunContextStore.SCHEMA_VERSION)
+                .contextVersion(1L)
+                .mainAgentStage(MainAgentStageEnumVO.PLANNING)
+                .baseContext(RunBaseContextVO.builder()
+                        .runId(context.getRunId())
+                        .sessionId(context.getSessionId())
+                        .userId(context.getUserId())
+                        .agentId(context.getAgentId())
+                        .userMessageId(context.getUserMessageId())
+                        .userInput(context.getUserInput())
+                        .selectedSessionContext(initialStateView)
+                        .userClarifications(new java.util.ArrayList<>())
+                        .build())
+                .taskLedger(TaskLedgerVO.builder()
+                        .version(0L)
+                        .deliverables(new java.util.ArrayList<>())
+                        .steps(new java.util.ArrayList<>())
+                        .planRevisions(new java.util.ArrayList<>())
+                        .facts(new LinkedHashMap<>())
+                        .blockers(new java.util.ArrayList<>())
+                        .build())
+                .runtimeControl(RunRuntimeControlVO.builder()
+                        .currentLoopIndex(context.getLoopIndex())
+                        .maxLoop(context.getMaxLoop())
+                        .recoveryCounters(context.getRecoveryCounters())
+                        .build())
+                .loopTimeline(new java.util.ArrayList<>())
+                .build();
+        context.setRunContextState(state);
+        if (runContextStore != null) {
+            runContextStore.initialize(state);
+        }
+    }
+
+    private void restoreRunContext(RuntimeExecutionContext context) {
+        if (runContextStore == null || context == null || context.getRunId() == null) {
+            return;
+        }
+        RunContextStateVO state = runContextStore.load(context.getRunId());
+        context.setRunContextState(state);
+        context.setLoopIndex(state.getRuntimeControl().getCurrentLoopIndex());
+        context.setMaxLoop(state.getRuntimeControl().getMaxLoop());
+        context.setRecoveryCounters(state.getRuntimeControl().getRecoveryCounters());
+        timelineManager.reconcileRestoredCursor(context);
+        syncRuntimeFactsFromCanonicalContext(context);
+    }
+
+    private void recordMainDecision(RuntimeExecutionContext context, MainAgentActionVO action) {
+        if (context == null || context.getRunContextState() == null) {
+            return;
+        }
+        RunLoopRecordVO record = context.getCurrentLoopRecord();
+        if (record == null || !Objects.equals(record.getLoopIndex(), context.getLoopIndex()) || record.getCompletedAt() != null) {
+            record = timelineManager.beginLoop(context.getRunContextState(), context.getRunId(), context.getLoopIndex());
+            context.setCurrentLoopRecord(record);
+        }
+        timelineManager.recordDecision(record, action);
+        persistRunContext(context, record);
+    }
+
+    private void recordActionOutcome(RuntimeExecutionContext context,
+                                     MainAgentActionVO action,
+                                     MainActionHandlerResult result) {
+        if (context == null || context.getRunContextState() == null || result == null) {
+            return;
+        }
+        RunLoopRecordVO record = context.getCurrentLoopRecord();
+        if (record == null) {
+            record = timelineManager.beginLoop(context.getRunContextState(), context.getRunId(), context.getLoopIndex());
+            timelineManager.recordDecision(record, action);
+            context.setCurrentLoopRecord(record);
+        }
+        ActionEffectVO effect = result.getActionEffect();
+        LoopRuntimeOutcomeVO outcome = LoopRuntimeOutcomeVO.builder()
+                .status(result.getStatus() == null ? "UNKNOWN" : result.getStatus().name())
+                .code(effect == null ? null : effect.getFailureCode())
+                .summary(firstNonBlank(result.getMessage(), effect == null ? null : effect.getMessage()))
+                .resultPayloadRef(effect == null ? null : effect.getResultRef())
+                .evidenceRefs(defaultList(result.getCreatedEvidenceIds()))
+                .artifactRefs(defaultList(result.getCreatedArtifactIds()))
+                .details(outcomeDetails(result, effect))
+                .build();
+        if (result.getStatus() == MainActionHandlerStatusEnumVO.WAITING_USER) {
+            record.setRuntimeOutcome(outcome);
+            timelineManager.markWaitingUser(record, Map.of("status", "WAITING_USER"));
+        } else {
+            timelineManager.completeLoop(context.getRunContextState(), record, outcome,
+                    affectedIds(action, "stepUpdates", "stepId"),
+                    affectedIds(action, "deliverableUpdates", "deliverableId"),
+                    effect == null ? null : effect.getRepeatGuardKey());
+        }
+        persistRunContext(context, record);
+    }
+
+    private Map<String, Object> outcomeDetails(MainActionHandlerResult result, ActionEffectVO effect) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("createdEvidenceCount", defaultList(result.getCreatedEvidenceIds()).size());
+        if (effect != null) {
+            details.put("action", effect.getAction());
+            details.put("effectStatus", effect.getStatus());
+            details.put("sourceComponent", effect.getSourceComponent());
+            details.put("requestSnapshot", effect.getRequestSnapshot());
+            details.put("resultSnapshot", effect.getResultSnapshot());
+            details.put("resultMetadata", effect.getMetadata());
+            details.put("failureMessage", effect.getFailureMessage());
+        }
+        details.values().removeIf(java.util.Objects::isNull);
+        return details;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> affectedIds(MainAgentActionVO action, String listField, String idField) {
+        if (action == null || action.getTaskUpdate() == null) return List.of();
+        Object value = action.getTaskUpdate().get(listField);
+        if (!(value instanceof Iterable<?> iterable)) return List.of();
+        java.util.ArrayList<String> ids = new java.util.ArrayList<>();
+        for (Object item : iterable) {
+            if (item instanceof Map<?, ?> map && map.get(idField) != null) ids.add(String.valueOf(map.get(idField)));
+        }
+        return ids;
+    }
+
+    private void persistRunContext(RuntimeExecutionContext context, RunLoopRecordVO record) {
+        if (runContextStore == null) return;
+        timelineManager.syncRuntimeControl(context);
+        runContextStore.saveLoop(record);
+        runContextStore.saveContext(context.getRunContextState());
+    }
+
+    private void advanceCompletedLoop(RuntimeExecutionContext context) {
+        timelineManager.advanceAfterCompletedLoop(context);
+        if (runContextStore != null) {
+            runContextStore.saveContext(context.getRunContextState());
+        }
+    }
+
+    private void persistProjectedChildResults(RuntimeExecutionContext context, boolean advanceLoop) {
+        if (context == null || context.getRunContextState() == null) {
+            return;
+        }
+        RunLoopRecordVO record = advanceLoop
+                ? timelineManager.advanceAfterCompletedLoop(context)
+                : context.getCurrentLoopRecord();
+        if (record != null) {
+            persistRunContext(context, record);
+        }
+    }
+
+    private void recordUserResponse(RuntimeExecutionContext context,
+                                    UserInputResolveResult resolveResult,
+                                    RuntimeStepResult continuation) {
+        if (context == null || context.getRunContextState() == null
+                || resolveResult == null || resolveResult.getUserAnswer() == null) {
+            return;
+        }
+        RunLoopRecordVO record = context.getCurrentLoopRecord();
+        if (record == null) {
+            if (runContextStore != null) {
+                runContextStore.saveContext(context.getRunContextState());
+            }
+            return;
+        }
+        Map<String, Object> interaction = new LinkedHashMap<>();
+        interaction.put("answer", JSON.parseObject(JSON.toJSONString(resolveResult.getUserAnswer()), Map.class));
+        Object checkpoint = context.getRuntimeFacts() == null ? null : context.getRuntimeFacts().get("continuationCheckpoint");
+        if (checkpoint instanceof ContinuationCheckpointVO continuationCheckpoint) {
+            interaction.put("sourceComponent", continuationCheckpoint.getSourceComponent());
+            interaction.put("handler", continuationCheckpoint.getHandler());
+            interaction.put("checkpointPayload", continuationCheckpoint.getPayload());
+        }
+        if (continuation != null) {
+            interaction.put("continuation", Map.of(
+                    "status", continuation.getStatus() == null ? "UNKNOWN" : continuation.getStatus().name(),
+                    "nextPhase", continuation.getNextPhase() == null ? "UNKNOWN" : continuation.getNextPhase().name(),
+                    "message", continuation.getMessage() == null ? "" : continuation.getMessage()));
+        }
+        record.setUserInteraction(interaction);
+        if (continuation != null && continuation.getStatus() == RuntimeStepStatusEnumVO.CONTINUE
+                && continuation.getNextPhase() != RuntimePhaseEnumVO.PREPARING_TOOL) {
+            timelineManager.completeLoop(context.getRunContextState(), record,
+                    LoopRuntimeOutcomeVO.builder()
+                            .status("USER_RESPONDED")
+                            .summary("The user supplied the requested input.")
+                            .details(record.getUserInteraction())
+                            .build(), List.of(), List.of(), null);
+            timelineManager.advanceAfterCompletedLoop(context);
+        }
+        if (runContextStore != null) {
+            runContextStore.saveLoop(record);
+            runContextStore.saveContext(context.getRunContextState());
+        }
+    }
+
+    private void syncRuntimeFactsFromCanonicalContext(RuntimeExecutionContext context) {
+        if (context == null || context.getRuntimeFacts() == null
+                || context.getRunContextState() == null
+                || context.getRunContextState().getBaseContext() == null) {
+            return;
+        }
+        List<UserClarificationVO> clarifications =
+                context.getRunContextState().getBaseContext().getUserClarifications();
+        context.getRuntimeFacts().put("userClarifications",
+                clarifications == null ? List.of() : new java.util.ArrayList<>(clarifications));
+    }
+
     private RuntimeStepResult pauseForUser(RuntimeExecutionContext context,
                                            AskUserRequestVO request,
                                            String handlerCode,
@@ -1185,7 +1360,7 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
         }
         if (genericSubAgentDispatchOrchestrator == null || actionResult.getDeferredAgentRequest() == null) {
             return failureFactory.create(RuntimeFailureCodeEnumVO.ACTION_HANDLER_UNAVAILABLE,
-                    context.getCurrentPhase(), "Deferred child dispatch is unavailable after WorkingState update.", false);
+                    context.getCurrentPhase(), "Deferred child dispatch is unavailable after canonical state update.", false);
         }
         try {
             genericSubAgentDispatchOrchestrator.startPreparedDispatch(
@@ -1265,22 +1440,8 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     }
 
     private boolean alreadyAnswered(RuntimeExecutionContext context, AskUserRequestVO request) {
-        if (context == null || context.getRuntimeFacts() == null || request == null || isBlank(request.getQuestion())) {
-            return false;
-        }
-        Object value = context.getRuntimeFacts().get("userClarifications");
-        if (!(value instanceof Iterable<?> iterable)) {
-            return false;
-        }
-        String question = normalize(request.getQuestion());
-        for (Object item : iterable) {
-            if (item instanceof UserClarificationVO clarification
-                    && question.equals(normalize(clarification.getQuestion()))
-                    && (clarification.getValue() != null || !isBlank(clarification.getFreeText()))) {
-                return true;
-            }
-        }
-        return false;
+        return context != null && request != null
+                && timelineQueryService.hasAnsweredQuestion(context.getRunContextState(), request.getQuestion());
     }
 
     private boolean isBlank(String value) {
@@ -1290,10 +1451,6 @@ public class DefaultAutoAgentRuntimeService implements AutoAgentRuntimeService {
     private String stringRuntimeFact(RuntimeExecutionContext context, String key) {
         Object value = context == null || context.getRuntimeFacts() == null ? null : context.getRuntimeFacts().get(key);
         return value == null ? null : String.valueOf(value);
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.replaceAll("\\s+", "").trim();
     }
 
     private void applyRunResult(RuntimeExecutionContext context, RuntimeStepResult result) {

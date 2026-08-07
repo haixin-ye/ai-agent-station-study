@@ -25,6 +25,7 @@ public class AutoAgentExecutorPropertiesTest {
         Assert.assertEquals(AutoAgentExecutorProperties.RejectionPolicy.CALLER_RUNS,
                 properties.getAgentExecution().getRejectionPolicy());
         Assert.assertNotNull(properties.getSse());
+        Assert.assertEquals(0, properties.getSse().getQueueCapacity());
         Assert.assertNotNull(properties.getContextRecall());
         Assert.assertNotNull(properties.getMemory());
         Assert.assertNotNull(properties.getMcp());

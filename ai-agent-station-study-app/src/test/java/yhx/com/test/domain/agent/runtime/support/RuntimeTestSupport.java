@@ -6,6 +6,7 @@ import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IPendingInputRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
 import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
+import yhx.com.domain.agent.adapter.repository.IRunContextRepository;
 import yhx.com.domain.agent.model.entity.persistence.AgentMessageEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPayloadEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentPendingInputEntity;
@@ -14,6 +15,8 @@ import yhx.com.domain.agent.model.entity.persistence.AgentRunEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunEventEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunTraceEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunTranscriptEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentRunContextEntity;
+import yhx.com.domain.agent.model.entity.persistence.AgentRunLoopEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentSessionEntity;
 import yhx.com.domain.agent.model.valobj.context.ContextPlannerHandlingResult;
 import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
@@ -108,7 +111,7 @@ public class RuntimeTestSupport {
                     repository, repository, repository, componentPorts, actionDispatcher, interactionManager,
                     loopPolicy, new RuntimeRoutePolicy(), stateMachine, failureFactory,
                     new RuntimePhaseGuard(stateMachine, failureFactory, traceRecorder), eventPublisher,
-                    transcriptRecorder, traceRecorder, null, null, subAgentOrchestrator);
+                    transcriptRecorder, traceRecorder, null, null, subAgentOrchestrator, repository);
         }
         return new DefaultAutoAgentRuntimeService(
                 repository,
@@ -118,12 +121,17 @@ public class RuntimeTestSupport {
                 actionDispatcher,
                 interactionManager,
                 loopPolicy,
+                new RuntimeRoutePolicy(),
                 stateMachine,
                 failureFactory,
                 new RuntimePhaseGuard(stateMachine, failureFactory, traceRecorder),
                 eventPublisher,
                 transcriptRecorder,
-                traceRecorder);
+                traceRecorder,
+                null,
+                null,
+                null,
+                repository);
     }
 
     public static PendingInputContinuationDispatcher defaultContinuationDispatcher() {
@@ -169,7 +177,8 @@ public class RuntimeTestSupport {
             IRunRepository,
             IPendingInputRepository,
             IEventTraceRepository,
-            IRunTranscriptRepository {
+            IRunTranscriptRepository,
+            IRunContextRepository {
 
         public final Map<String, AgentPayloadEntity> payloads = new LinkedHashMap<>();
         public final Map<String, AgentSessionEntity> sessions = new LinkedHashMap<>();
@@ -180,6 +189,44 @@ public class RuntimeTestSupport {
         public final List<AgentRunTraceEntity> traces = new ArrayList<>();
         public final List<AgentRunAuditEntity> audits = new ArrayList<>();
         public final List<AgentRunTranscriptEntity> transcriptBlocks = new ArrayList<>();
+        public final Map<String, AgentRunContextEntity> runContexts = new LinkedHashMap<>();
+        public final Map<String, Map<Integer, AgentRunLoopEntity>> runLoops = new LinkedHashMap<>();
+
+        @Override
+        public void createContext(AgentRunContextEntity context) {
+            runContexts.put(context.getRunId(), context);
+        }
+
+        @Override
+        public boolean updateContext(AgentRunContextEntity context, long expectedVersion) {
+            AgentRunContextEntity existing = runContexts.get(context.getRunId());
+            if (existing == null || existing.getContextVersion() == null || existing.getContextVersion() != expectedVersion) {
+                return false;
+            }
+            runContexts.put(context.getRunId(), context);
+            return true;
+        }
+
+        @Override
+        public Optional<AgentRunContextEntity> findContext(String runId) {
+            return Optional.ofNullable(runContexts.get(runId));
+        }
+
+        @Override
+        public void saveLoop(AgentRunLoopEntity loop) {
+            runLoops.computeIfAbsent(loop.getRunId(), ignored -> new LinkedHashMap<>())
+                    .put(loop.getLoopIndex(), loop);
+        }
+
+        @Override
+        public Optional<AgentRunLoopEntity> findLoop(String runId, Integer loopIndex) {
+            return Optional.ofNullable(runLoops.getOrDefault(runId, Map.of()).get(loopIndex));
+        }
+
+        @Override
+        public List<AgentRunLoopEntity> listLoops(String runId) {
+            return new ArrayList<>(runLoops.getOrDefault(runId, Map.of()).values());
+        }
 
         @Override
         public synchronized String savePayload(AgentPayloadEntity payload) {

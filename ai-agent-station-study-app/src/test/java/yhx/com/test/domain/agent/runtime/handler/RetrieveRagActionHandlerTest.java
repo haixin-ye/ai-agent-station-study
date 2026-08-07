@@ -3,17 +3,19 @@ package yhx.com.test.domain.agent.runtime.handler;
 import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.model.entity.persistence.AgentRunEntity;
-import yhx.com.domain.agent.model.valobj.context.PreviousLoopOutcomeVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainActionHandlerStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RagRuntimeStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO;
 import yhx.com.domain.agent.model.valobj.runtime.MainActionHandlerResult;
+import yhx.com.domain.agent.model.valobj.runtime.LoopRuntimeOutcomeVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunLoopRecordVO;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.test.domain.agent.runtime.handler.support.ActionHandlerTestSupport;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 public class RetrieveRagActionHandlerTest {
@@ -53,33 +55,20 @@ public class RetrieveRagActionHandlerTest {
     }
 
     @Test
-    public void retrieve_rag_no_hit_records_previous_loop_outcome_for_next_main_node_call() {
-        ActionHandlerTestSupport.FullRepository repository = repositoryWithRun();
-        ActionHandlerTestSupport.FakeRagRuntimePort ragPort = new ActionHandlerTestSupport.FakeRagRuntimePort();
-        ragPort.status = RagRuntimeStatusEnumVO.NO_HIT;
-        MainActionDispatcher dispatcher = dispatcher(repository, ragPort);
-        yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext context = ActionHandlerTestSupport.context();
-
-        dispatcher.dispatch(context, ragAction());
-
-        PreviousLoopOutcomeVO outcome = (PreviousLoopOutcomeVO) context.getRuntimeFacts().get("previousLoopOutcome");
-        Assert.assertNotNull(outcome);
-        Assert.assertEquals("RETRIEVE_RAG", outcome.getAction());
-        Assert.assertEquals("NO_HIT", outcome.getStatus());
-        Assert.assertEquals("RAG 是什么", outcome.getQuery());
-    }
-
-    @Test
     public void repeated_same_rag_no_hit_query_asks_user_without_calling_rag_again() {
         ActionHandlerTestSupport.FullRepository repository = repositoryWithRun();
         ActionHandlerTestSupport.FakeRagRuntimePort ragPort = new ActionHandlerTestSupport.FakeRagRuntimePort();
         MainActionDispatcher dispatcher = dispatcher(repository, ragPort);
         yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext context = ActionHandlerTestSupport.context();
-        context.getRuntimeFacts().put("previousLoopOutcome", PreviousLoopOutcomeVO.builder()
-                .action("RETRIEVE_RAG")
-                .status("NO_HIT")
-                .query("RAG 是什么")
-                .build());
+        context.getRunContextState().setLoopTimeline(List.of(RunLoopRecordVO.builder()
+                .mainOutput(yhx.com.domain.agent.model.valobj.invocation.MainAgentActionVO.builder()
+                        .action("RETRIEVE_RAG")
+                        .stateDelta(Map.of("ragRequest", Map.of("query", "RAG 是什么")))
+                        .build())
+                .runtimeOutcome(LoopRuntimeOutcomeVO.builder()
+                        .details(Map.of("effectStatus", "NO_HIT"))
+                        .build())
+                .build()));
 
         MainActionHandlerResult result = dispatcher.dispatch(context, ragAction());
 
@@ -92,8 +81,7 @@ public class RetrieveRagActionHandlerTest {
         return ActionHandlerTestSupport.dispatcher(repository,
                 new ActionHandlerTestSupport.FakeFinalDeliveryPort(),
                 ragPort,
-                new ActionHandlerTestSupport.FakeToolActionOrchestratorPort(),
-                new ActionHandlerTestSupport.FakePlanStatePort());
+                new ActionHandlerTestSupport.FakeToolActionOrchestratorPort());
     }
 
     private ActionHandlerTestSupport.FullRepository repositoryWithRun() {
@@ -113,6 +101,7 @@ public class RetrieveRagActionHandlerTest {
 
     private MainAgentActionVO ragAction() {
         return MainAgentActionVO.builder()
+                .taskUpdate(Map.of("lastDecision", "Retrieve private knowledge before answering."))
                 .action("RETRIEVE_RAG")
                 .stateDelta(Map.of("ragRequest", Map.of("query", "RAG 是什么")))
                 .build();

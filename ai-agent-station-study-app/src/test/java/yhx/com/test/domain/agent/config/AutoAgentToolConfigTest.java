@@ -230,17 +230,22 @@ public class AutoAgentToolConfigTest {
     }
 
     @Test
-    public void discovery_failure_marks_yaml_fallback_degraded() {
+    public void discovery_failure_keeps_yaml_fallback_invocable_when_client_exists() {
         AutoAgentMcpProperties properties = yamlOnlyInvoiceProperties();
         properties.getServers().get(0).setAutoDiscoverTools(true);
         McpClientRegistry clients = new McpClientRegistry(Map.of("invoice-server", new Object()));
+        AutoAgentToolConfig config = new AutoAgentToolConfig();
 
-        McpRuntimeCatalogVO catalog = new AutoAgentToolConfig().autoAgentMcpRuntimeCatalog(properties,
+        McpRuntimeCatalogVO catalog = config.autoAgentMcpRuntimeCatalog(properties,
                 serverId -> {
                     throw new IllegalStateException("endpoint unavailable");
                 }, clients);
+        CapabilityRegistry capabilityRegistry = config.capabilityRegistry(
+                new AutoAgentCapabilityProperties(), properties, catalog);
 
-        Assert.assertEquals(McpToolAvailabilityEnumVO.DEGRADED, catalog.getTools().get(0).getAvailability());
+        Assert.assertEquals(McpToolAvailabilityEnumVO.AVAILABLE, catalog.getTools().get(0).getAvailability());
+        Assert.assertTrue(catalog.getTools().get(0).getAvailabilityReason().contains("discovery failed"));
+        Assert.assertTrue(capabilityRegistry.findCapability("invoice_generate_invoice").isPresent());
     }
 
     @Test

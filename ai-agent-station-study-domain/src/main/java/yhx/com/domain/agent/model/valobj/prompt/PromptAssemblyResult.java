@@ -16,4 +16,12 @@ public class PromptAssemblyResult {
     public String assembledPrompt() {
         return envelope == null ? null : envelope.getAssembledPrompt();
     }
+
+    public String systemPrompt() {
+        return envelope == null ? null : envelope.getSystemPrompt();
+    }
+
+    public String userPrompt() {
+        return envelope == null ? null : envelope.getUserPrompt();
+    }
 }

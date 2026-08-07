@@ -27,7 +27,17 @@ public class AgentObservabilityLoopDTO implements Serializable {
     @Builder.Default
     private Map<String, Object> stateView = new LinkedHashMap<>();
     @Builder.Default
+    private Map<String, Object> selectedContext = new LinkedHashMap<>();
+    @Builder.Default
     private List<Map<String, Object>> stateViewSources = List.of();
+    @Builder.Default
+    private Map<String, Object> taskLedger = new LinkedHashMap<>();
+    @Builder.Default
+    private Map<String, Object> taskUpdate = new LinkedHashMap<>();
+    @Builder.Default
+    private Map<String, Object> roundDelta = new LinkedHashMap<>();
+    @Builder.Default
+    private List<Map<String, Object>> roundHistory = List.of();
     @Builder.Default
     private List<String> promptRefs = List.of();
     @Builder.Default
@@ -47,4 +57,12 @@ public class AgentObservabilityLoopDTO implements Serializable {
     private Map<String, Object> checkpoint = new LinkedHashMap<>();
     @Builder.Default
     private Map<String, Object> error = new LinkedHashMap<>();
+    @Builder.Default
+    private Map<String, Object> contextCandidates = new LinkedHashMap<>();
+    @Builder.Default
+    private Map<String, Object> contextPlanner = new LinkedHashMap<>();
+    @Builder.Default
+    private Map<String, Object> finalDelivery = new LinkedHashMap<>();
+    @Builder.Default
+    private List<Map<String, Object>> timeline = List.of();
 }

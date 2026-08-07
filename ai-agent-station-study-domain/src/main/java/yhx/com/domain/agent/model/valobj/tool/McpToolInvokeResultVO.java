@@ -16,6 +16,7 @@ public class McpToolInvokeResultVO {
     private boolean called;
     private boolean success;
     private Map<String, Object> receipt;
+    private String resultContent;
     private String errorCode;
     private String errorMessage;
     private Long latencyMs;

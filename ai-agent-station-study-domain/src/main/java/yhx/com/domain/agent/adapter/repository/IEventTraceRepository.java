@@ -17,4 +17,11 @@ public interface IEventTraceRepository {
     List<AgentRunEventEntity> listUserVisibleEvents(String runId, int limit);
 
     List<AgentRunTraceEntity> listDebugTrace(String runId, int limit);
+
+    /** Returns only events after the supplied cursor, ordered by sequence. */
+    default List<AgentRunTraceEntity> listDebugTraceAfter(String runId, long lastSeq, int limit) {
+        return listDebugTrace(runId, limit).stream()
+                .filter(trace -> trace.getSeq() == null || trace.getSeq() > lastSeq)
+                .toList();
+    }
 }

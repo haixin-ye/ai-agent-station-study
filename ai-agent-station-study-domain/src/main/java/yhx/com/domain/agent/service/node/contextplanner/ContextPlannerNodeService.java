@@ -20,6 +20,11 @@ public class ContextPlannerNodeService {
     }
 
     public ContextPlannerOutputVO plan(Object input, String runId, String agentId, NodeInvocationProfileVO profile) {
+        return plan(input, runId, agentId, profile, null);
+    }
+
+    public ContextPlannerOutputVO plan(Object input, String runId, String agentId,
+                                       NodeInvocationProfileVO profile, Integer loopIndex) {
         NodeInvocationResult result = nodeInvocationPipeline.invoke(NodeInvocationCommand.builder()
                 .runId(runId)
                 .agentId(agentId)
@@ -31,6 +36,8 @@ public class ContextPlannerNodeService {
                 .maxOutputTokens(profile == null ? null : profile.getMaxOutputTokens())
                 .inputView(input)
                 .maxRepairAttempts(profile == null || profile.getMaxRepairAttempts() == null ? 1 : profile.getMaxRepairAttempts())
+                .invocationMetadata(loopIndex == null ? null : java.util.Map.of("loopIndex", loopIndex,
+                        "nodeStage", "CONTEXT_PLANNER"))
                 .build());
         if (result.getTypedOutput() instanceof ContextPlannerOutputVO output) {
             return output;

@@ -35,8 +35,8 @@ public class ContextPlannerContractTest {
     public void test_contractValidator_acceptsReadyContextPlan() {
         String raw = "{"
                 + "\"status\":\"READY\","
-                + "\"selectedMessages\":[{\"messageId\":\"msg_001\",\"useLevel\":\"SUMMARY_ONLY\"}],"
-                + "\"selectedArtifacts\":[{\"artifactId\":\"art_001\",\"useLevel\":\"METADATA_ONLY\"}]"
+                + "\"selectedContext\":[{\"sourceType\":\"ARTIFACT\",\"sourceId\":\"art_001\","
+                + "\"useLevel\":\"METADATA_ONLY\",\"reason\":\"Requested artifact.\"}]"
                 + "}";
 
         ContractValidationResult result = ContractValidator.defaultValidator()
@@ -50,7 +50,8 @@ public class ContextPlannerContractTest {
     public void test_contractValidator_rejectsInvalidContextLevel() {
         String raw = "{"
                 + "\"status\":\"READY\","
-                + "\"selectedArtifacts\":[{\"artifactId\":\"art_001\",\"useLevel\":\"ALL_TEXT\"}]"
+                + "\"selectedContext\":[{\"sourceType\":\"ARTIFACT\",\"sourceId\":\"art_001\","
+                + "\"useLevel\":\"ALL_TEXT\",\"reason\":\"Requested artifact.\"}]"
                 + "}";
 
         ContractValidationResult result = ContractValidator.defaultValidator()

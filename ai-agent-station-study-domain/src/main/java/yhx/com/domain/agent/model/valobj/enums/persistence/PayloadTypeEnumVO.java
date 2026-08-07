@@ -13,7 +13,11 @@ public enum PayloadTypeEnumVO {
     RAG_EVIDENCE("RAG_EVIDENCE", "RAG evidence payload."),
     TOOL_RECEIPT("TOOL_RECEIPT", "Raw or normalized tool receipt payload."),
     DEBUG_TRACE("DEBUG_TRACE", "Developer-only debug trace payload."),
-    PROMPT_CONTENT("PROMPT_CONTENT", "Editable node prompt content payload.");
+    PROMPT_CONTENT("PROMPT_CONTENT", "Editable node prompt content payload."),
+    RUN_BASE_CONTEXT("RUN_BASE_CONTEXT", "Immutable initial context for one run."),
+    TASK_LEDGER("TASK_LEDGER", "Current semantic task ledger for one run."),
+    RUN_RUNTIME_CONTROL("RUN_RUNTIME_CONTROL", "Deterministic loop and recovery controls for one run."),
+    RUN_LOOP_RECORD("RUN_LOOP_RECORD", "Full causal record for one MainAgent loop.");
 
     private final String code;
     private final String info;

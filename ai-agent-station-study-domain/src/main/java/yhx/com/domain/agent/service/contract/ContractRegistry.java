@@ -18,21 +18,20 @@ public class ContractRegistry {
     public static ContractRegistry defaultRegistry() {
         Map<AgentComponentCodeEnumVO, AgentNodeContract> map = new EnumMap<>(AgentComponentCodeEnumVO.class);
         register(map, AgentComponentCodeEnumVO.CONTEXT_PLANNER, "ContextPlannerOutputContract", "context-planner-output-v1");
-        register(map, AgentComponentCodeEnumVO.MAIN_AGENT, "MainAgentActionContract", "main-agent-action-v1");
+        register(map, AgentComponentCodeEnumVO.MAIN_AGENT, "MainAgentActionContract", "main-agent-action-v2");
         register(map, AgentComponentCodeEnumVO.GENERIC_SUB_AGENT, "SubAgentActionContract", "generic-sub-agent-action-v1");
         register(map, AgentComponentCodeEnumVO.TOOL_RUNTIME, "ToolInvocationResultContract", "tool-invocation-result-v1");
         register(map, AgentComponentCodeEnumVO.USER_INTERACTION, "UserInteractionContract", "user-interaction-v1");
         register(map, AgentComponentCodeEnumVO.RAG_VERIFIER, "VerificationResultContract", "verification-result-v1");
         register(map, AgentComponentCodeEnumVO.TOOL_VERIFIER, "VerificationResultContract", "verification-result-v1");
         register(map, AgentComponentCodeEnumVO.FINAL_RESPONSE_GUARD, "FinalResponseGuardResultContract", "final-response-guard-result-v1");
-        register(map, AgentComponentCodeEnumVO.FINAL_REPAIR, "MainAgentActionContract", "main-agent-action-v1");
+        register(map, AgentComponentCodeEnumVO.FINAL_REPAIR, "FinalRepairActionContract", "final-repair-action-v1");
         register(map, AgentComponentCodeEnumVO.TURN_SUMMARY, "TurnSummaryOutputContract", "turn-summary-output-v1");
         register(map, AgentComponentCodeEnumVO.MEMORY_EXTRACTOR, "MemoryExtractionOutputContract", "memory-extraction-output-v1");
         register(map, AgentComponentCodeEnumVO.SESSION_TASK_SUMMARY, "SessionTaskSummaryOutputContract", "session-task-summary-output-v1");
         register(map, AgentComponentCodeEnumVO.MEMORY_GOVERNANCE, "MemoryGovernanceOutputContract", "memory-governance-output-v1");
         register(map, AgentComponentCodeEnumVO.CONVERSATION_ROLLUP, "ConversationRollupOutputContract", "conversation-rollup-output-v1");
         register(map, AgentComponentCodeEnumVO.RAG_ASSET_ANALYZER, "RagAssetAnalysisOutputContract", "rag-asset-analysis-output-v1");
-        register(map, AgentComponentCodeEnumVO.CONTRACT_REPAIR, "OriginalNodeContract", "original-node-contract");
         return new ContractRegistry(map);
     }
 

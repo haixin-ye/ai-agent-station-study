@@ -13,9 +13,7 @@ public class DebugSseEventBridge {
     }
 
     public List<AgentRunTraceEntity> replayDebugEvents(String runId, Long lastSeq, int limit) {
-        return agentDebugFacade.listTraces(runId, limit).stream()
-                .filter(trace -> lastSeq == null || trace.getSeq() == null || trace.getSeq() > lastSeq)
-                .toList();
+        return agentDebugFacade.listTracesAfter(runId, lastSeq == null ? 0L : lastSeq, limit);
     }
 }
 

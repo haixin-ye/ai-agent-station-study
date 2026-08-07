@@ -52,10 +52,11 @@ public class SpringAiNodeClientAdapter implements INodeClientPort {
         }
         String rawOutput = callWithTransientIoRetry(() -> {
             ChatClient chatClient = buildCleanChatClient(api, modelProfile, request);
-            return chatClient.prompt()
-                    .user(request.getPrompt())
-                    .call()
-                    .content();
+            ChatClient.ChatClientRequestSpec prompt = chatClient.prompt();
+            if (StringUtils.hasText(request.getSystemPrompt())) {
+                prompt.system(request.getSystemPrompt());
+            }
+            return prompt.user(userPrompt(request)).call().content();
         });
         return NodeClientResponse.builder()
                 .rawOutput(rawOutput)
@@ -83,10 +84,12 @@ public class SpringAiNodeClientAdapter implements INodeClientPort {
     private Map<String, Object> functionModePayload(AgentModelProfileEntity modelProfile, NodeClientRequest request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", modelProfile.getModelName());
-        payload.put("messages", List.of(Map.of(
-                "role", "user",
-                "content", request.getPrompt()
-        )));
+        List<Map<String, Object>> messages = new java.util.ArrayList<>();
+        if (StringUtils.hasText(request.getSystemPrompt())) {
+            messages.add(Map.of("role", "system", "content", request.getSystemPrompt()));
+        }
+        messages.add(Map.of("role", "user", "content", userPrompt(request)));
+        payload.put("messages", messages);
         Double temperature = request.getTemperature() == null
                 ? modelProfile.getDefaultTemperature()
                 : request.getTemperature();
@@ -158,9 +161,13 @@ public class SpringAiNodeClientAdapter implements INodeClientPort {
         if (request == null) {
             throw new IllegalArgumentException("NodeClientRequest is required.");
         }
-        if (!StringUtils.hasText(request.getPrompt())) {
-            throw new IllegalArgumentException("NodeClientRequest.prompt is required.");
+        if (!StringUtils.hasText(request.getPrompt()) && !StringUtils.hasText(request.getUserPrompt())) {
+            throw new IllegalArgumentException("NodeClientRequest user prompt is required.");
         }
+    }
+
+    private String userPrompt(NodeClientRequest request) {
+        return StringUtils.hasText(request.getUserPrompt()) ? request.getUserPrompt() : request.getPrompt();
     }
 
     private NodeInvocationModeEnumVO invocationMode(NodeClientRequest request) {

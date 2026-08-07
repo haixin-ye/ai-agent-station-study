@@ -27,6 +27,8 @@ public class AgentObservabilityStudioDTO implements Serializable {
     @Builder.Default
     private List<AgentObservabilityLoopDTO> loops = List.of();
     @Builder.Default
+    private List<Map<String, Object>> graphNodes = List.of();
+    @Builder.Default
     private List<AgentDebugTraceDTO> traces = List.of();
     @Builder.Default
     private Map<String, AgentDebugPayloadDTO> payloads = new LinkedHashMap<>();

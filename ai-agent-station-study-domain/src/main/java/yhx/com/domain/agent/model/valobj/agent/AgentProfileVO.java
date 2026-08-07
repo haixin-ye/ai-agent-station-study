@@ -16,6 +16,8 @@ public class AgentProfileVO {
 
     private AgentProfileTypeEnumVO profileType;
     private Set<String> allowedActionCodes;
+    /** Capabilities granted when a run is created, before task-specific requests are added. */
+    private Set<String> defaultCapabilityCodes;
     private Set<String> maximumCapabilityCodes;
     private Integer maxLoopCount;
     private Integer maxContextChars;

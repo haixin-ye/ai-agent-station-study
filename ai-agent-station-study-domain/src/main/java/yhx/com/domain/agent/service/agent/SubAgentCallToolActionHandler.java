@@ -8,9 +8,18 @@ import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.AgentCapabilityCodeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.ChildAgentRunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.SubAgentActionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.interaction.PendingInputTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.runtime.RuntimePhaseEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.ToolActionStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.interaction.ContinuationCheckpointVO;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateCommand;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputCreateResult;
+import yhx.com.domain.agent.model.valobj.interaction.PendingInputPauseIntentVO;
+import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionCommandVO;
 import yhx.com.domain.agent.model.valobj.runtime.ToolActionResultVO;
+import yhx.com.domain.agent.service.interaction.ToolApprovalPendingInputHandler;
+import yhx.com.domain.agent.service.interaction.UserInteractionManager;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 
 import java.util.LinkedHashMap;
@@ -21,11 +30,19 @@ public class SubAgentCallToolActionHandler implements SubAgentActionHandler {
 
     private final ParentChildRunRegistry registry;
     private final ToolActionOrchestratorPort toolActionOrchestratorPort;
+    private final UserInteractionManager userInteractionManager;
 
     public SubAgentCallToolActionHandler(ParentChildRunRegistry registry,
                                          ToolActionOrchestratorPort toolActionOrchestratorPort) {
+        this(registry, toolActionOrchestratorPort, null);
+    }
+
+    public SubAgentCallToolActionHandler(ParentChildRunRegistry registry,
+                                         ToolActionOrchestratorPort toolActionOrchestratorPort,
+                                         UserInteractionManager userInteractionManager) {
         this.registry = registry == null ? new ParentChildRunRegistry() : registry;
         this.toolActionOrchestratorPort = toolActionOrchestratorPort;
+        this.userInteractionManager = userInteractionManager;
     }
 
     @Override
@@ -60,12 +77,13 @@ public class SubAgentCallToolActionHandler implements SubAgentActionHandler {
                 .goal(goal)
                 .arguments(arguments(intent))
                 .rawToolIntent(intent)
+                .runtimeContext(parentRuntimeContext(context))
                 .build());
         if (result == null || result.getStatus() == null) {
             return failed(relation, "Tool execution failed for generic subagent.");
         }
         if (result.getStatus() == ToolActionStatusEnumVO.WAITING_USER) {
-            return waitingUser(relation, result);
+            return pauseForToolApproval(context, relation, result);
         }
         if (result.getStatus() == ToolActionStatusEnumVO.CONTINUE_LOOP) {
             return SubAgentActionHandlerResultVO.builder()
@@ -89,7 +107,9 @@ public class SubAgentCallToolActionHandler implements SubAgentActionHandler {
             return "Generic subagent CALL_TOOL requires effective tool capabilities.";
         }
         java.util.Set<String> effectiveCapabilities = context.getCommand().getEffectiveCapabilityCodes();
-        if (!isBlank(capabilityCode) && !effectiveCapabilities.contains(capabilityCode)) {
+        if (!isBlank(capabilityCode)
+                && !effectiveCapabilities.contains(capabilityCode)
+                && !effectiveCapabilities.contains(AgentCapabilityCodeEnumVO.MCP_TOOL.code())) {
             return "Generic subagent CALL_TOOL capabilityCode is not granted: " + capabilityCode + ".";
         }
         if (isBlank(capabilityCode) && !effectiveCapabilities.contains(AgentCapabilityCodeEnumVO.MCP_TOOL.code())) {
@@ -111,6 +131,73 @@ public class SubAgentCallToolActionHandler implements SubAgentActionHandler {
                 .message(result.getMessage())
                 .resultSnapshot(resultSnapshot(result))
                 .build();
+    }
+
+    private SubAgentActionHandlerResultVO pauseForToolApproval(SubAgentActionExecutionContextVO context,
+                                                               ParentChildRunRelationVO relation,
+                                                               ToolActionResultVO result) {
+        PendingInputPauseIntentVO pauseIntent = result == null ? null : result.getPauseIntent();
+        if (relation == null || pauseIntent == null || pauseIntent.getAskUserRequest() == null) {
+            return failed(relation, "Generic subagent tool approval is missing pause metadata.");
+        }
+        if (userInteractionManager == null || parentRuntimeContext(context) == null) {
+            return failed(relation, "Generic subagent tool approval requires the parent Runtime interaction context.");
+        }
+        Map<String, Object> payload = approvalCheckpointPayload(context, relation, pauseIntent);
+        PendingInputCreateResult pending = userInteractionManager.createPendingInput(PendingInputCreateCommand.builder()
+                .runId(relation.getParentRunId())
+                .sessionId(context.getCommand().getSessionId())
+                .sourceComponent("GenericSubAgentToolApproval")
+                .pendingType(PendingInputTypeEnumVO.TOOL_APPROVAL.code())
+                .askUserRequest(pauseIntent.getAskUserRequest())
+                .runtimeContext(parentRuntimeContext(context))
+                .continuation(ContinuationCheckpointVO.builder()
+                        .handler(ToolApprovalPendingInputHandler.HANDLER_CODE)
+                        .resumePhase(RuntimePhaseEnumVO.WAITING_CHILDREN)
+                        .sourceComponent("GenericSubAgentToolApproval")
+                        .relatedRunId(relation.getParentRunId())
+                        .relatedLoopIndex(context.getLoopIndex())
+                        .expectedAnswerValueType(pauseIntent.getExpectedAnswerValueType())
+                        .payload(payload)
+                        .build())
+                .build());
+        if (pending == null || !Boolean.TRUE.equals(pending.getCreated())) {
+            return failed(relation, pending == null
+                    ? "Generic subagent tool approval pause failed."
+                    : pending.getFailureMessage());
+        }
+        ToolActionResultVO pausedResult = ToolActionResultVO.builder()
+                .status(ToolActionStatusEnumVO.WAITING_USER)
+                .pendingInputId(pending.getPendingInputId())
+                .askUserRequest(pauseIntent.getAskUserRequest())
+                .pauseIntent(pauseIntent)
+                .message(result.getMessage())
+                .build();
+        return waitingUser(relation, pausedResult);
+    }
+
+    private Map<String, Object> approvalCheckpointPayload(SubAgentActionExecutionContextVO context,
+                                                          ParentChildRunRelationVO relation,
+                                                          PendingInputPauseIntentVO pauseIntent) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (pauseIntent.getSourcePayload() != null) {
+            payload.putAll(pauseIntent.getSourcePayload());
+        }
+        payload.put("parentRunId", relation.getParentRunId());
+        payload.put("childRunId", relation.getChildRunId());
+        payload.put("taskId", relation.getTaskId());
+        payload.put("approvalRunId", relation.getChildRunId());
+        if (context != null && context.getCommand() != null) {
+            payload.put("effectiveCapabilities", context.getCommand().getEffectiveCapabilityCodes());
+            payload.put("initialContext", context.getCommand().getInitialContext());
+        }
+        return payload;
+    }
+
+    private RuntimeExecutionContext parentRuntimeContext(SubAgentActionExecutionContextVO context) {
+        return context == null || context.getCommand() == null
+                ? null
+                : context.getCommand().getParentRuntimeContext();
     }
 
     private SubAgentActionHandlerResultVO failed(ParentChildRunRelationVO relation, String failureMessage) {

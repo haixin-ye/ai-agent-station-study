@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import yhx.com.domain.agent.model.valobj.enums.tool.ToolInvocationStatusEnumVO;
+import yhx.com.domain.agent.model.valobj.enums.tool.ToolResultContentModeEnumVO;
 
 import java.util.List;
 
@@ -21,6 +22,7 @@ public class ToolInvocationResultVO {
     private String resultSummary;
     private String resultContent;
     private String resultContentRef;
+    private ToolResultContentModeEnumVO resultContentMode;
     private String resultContentFormat;
     private Integer resultTotalChars;
     private Long resultTotalBytes;

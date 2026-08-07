@@ -17,7 +17,7 @@ public class ContractRepairPipelineTest {
     public void invalid_json_then_repair_success_returns_repair_succeeded() {
         FakeNodeClientPort client = new FakeNodeClientPort()
                 .enqueue("{bad json")
-                .enqueue("{\"action\":\"FINAL\",\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"ok\"}}}");
+                .enqueue(finalActionJson("ok"));
 
         NodeInvocationResult result = pipeline(client).invoke(command(1));
 
@@ -28,8 +28,11 @@ public class ContractRepairPipelineTest {
     @Test
     public void contract_violation_then_repair_success_returns_repair_succeeded() {
         FakeNodeClientPort client = new FakeNodeClientPort()
-                .enqueue("{\"action\":\"CALL_TOOL\",\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"bad\"}}}")
-                .enqueue("{\"action\":\"CALL_TOOL\",\"stateDelta\":{\"toolIntent\":{\"toolName\":\"demo.tool\",\"intent\":\"demo\"}}}");
+                .enqueue("{\"taskUpdate\":{\"lastDecision\":\"invalid mixed action\"},\"action\":\"CALL_TOOL\","
+                        + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"bad\"}}}")
+                .enqueue("{\"taskUpdate\":{\"lastDecision\":\"Call the demo tool.\"},\"action\":\"CALL_TOOL\","
+                        + "\"stateDelta\":{\"toolIntent\":{\"capabilityCode\":\"demo\","
+                        + "\"toolName\":\"demo.tool\",\"goal\":\"Run the demo operation.\",\"arguments\":{}}}}");
 
         NodeInvocationResult result = pipeline(client).invoke(command(1));
 
@@ -51,7 +54,7 @@ public class ContractRepairPipelineTest {
     public void repair_prompt_contains_validation_error_and_original_output() {
         FakeNodeClientPort client = new FakeNodeClientPort()
                 .enqueue("{bad json")
-                .enqueue("{\"action\":\"FINAL\",\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"ok\"}}}");
+                .enqueue(finalActionJson("ok"));
 
         pipeline(client).invoke(command(1));
 
@@ -70,11 +73,16 @@ public class ContractRepairPipelineTest {
                 .runId("run-1")
                 .agentId("agent-1")
                 .componentCode(AgentComponentCodeEnumVO.MAIN_AGENT.name())
-                .contractVersion("v1")
-                .promptVersion("v1")
+                .contractVersion("main-agent-action-v2")
+                .promptVersion("v2")
                 .modelCode("fake")
                 .maxRepairAttempts(repairAttempts)
                 .inputView("{\"userInput\":\"hello\"}")
                 .build();
+    }
+
+    private String finalActionJson(String content) {
+        return "{\"taskUpdate\":{\"lastDecision\":\"Task is ready for delivery.\"},\"action\":\"FINAL\","
+                + "\"stateDelta\":{\"finalAnswerCandidate\":{\"content\":\"" + content + "\"}}}";
     }
 }

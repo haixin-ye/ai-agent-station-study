@@ -2,242 +2,135 @@ package yhx.com.domain.agent.service.agent;
 
 import yhx.com.domain.agent.model.valobj.agent.ParentChildRunRelationVO;
 import yhx.com.domain.agent.model.valobj.agent.SubAgentCommitVO;
-import yhx.com.domain.agent.model.valobj.context.MainAgentStateViewVO;
-import yhx.com.domain.agent.model.valobj.context.MaterializedEvidenceVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.ChildAgentRunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentActionTypeEnumVO;
-import yhx.com.domain.agent.model.valobj.runtime.ActionEffectVO;
+import yhx.com.domain.agent.model.valobj.runtime.LoopRuntimeOutcomeVO;
+import yhx.com.domain.agent.model.valobj.runtime.RunLoopRecordVO;
 import yhx.com.domain.agent.model.valobj.runtime.RuntimeExecutionContext;
-import yhx.com.domain.agent.service.runtime.RunWorkingStateManager;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ChildAgentResultProjector {
 
-    public static final String SOURCE_COMPONENT = "GENERIC_SUB_AGENT";
-    private static final String FAILURE_CODE = "CHILD_AGENT_FAILED";
-
-    private final RunWorkingStateManager stateManager;
-
-    public ChildAgentResultProjector(RunWorkingStateManager stateManager) {
-        this.stateManager = stateManager == null ? new RunWorkingStateManager() : stateManager;
-    }
+    private static final String CHILD_RESULTS = "childAgentResults";
 
     public void project(RuntimeExecutionContext context, ParentChildRunRelationVO relation) {
-        if (context == null) {
-            throw new IllegalArgumentException("Runtime context is required.");
+        validate(context, relation);
+        RunLoopRecordVO dispatchRecord = findDispatchRecord(context, relation);
+        LoopRuntimeOutcomeVO outcome = dispatchRecord.getRuntimeOutcome();
+        if (outcome == null) {
+            outcome = LoopRuntimeOutcomeVO.builder()
+                    .status("WAITING_CHILDREN")
+                    .summary("Waiting for delegated child agents.")
+                    .details(new LinkedHashMap<>())
+                    .evidenceRefs(new ArrayList<>())
+                    .build();
+            dispatchRecord.setRuntimeOutcome(outcome);
         }
-        validateRelation(relation);
-        ensureWorkingState(context);
-
-        Long sequence = context.getWorkingState().getNextSequence() == null ? 1L : context.getWorkingState().getNextSequence();
-        String workId = workId(relation);
-        MaterializedEvidenceVO evidence = buildEvidence(context, relation, sequence, workId);
-        Map<String, Object> requestSnapshot = requestSnapshot(relation);
-        Map<String, Object> resultSnapshot = resultSnapshot(relation);
-        Map<String, Object> metadata = metadata(relation);
-
-        ActionEffectVO effect = ActionEffectVO.builder()
-                .action(MainAgentActionTypeEnumVO.DELEGATE_AGENTS.code())
-                .status(status(relation))
-                .message(message(relation))
-                .sourceComponent(SOURCE_COMPONENT)
-                .loopIndex(context.getLoopIndex())
-                .workId(workId)
-                .resultRef(evidence.getEvidenceId())
-                .requestSnapshot(requestSnapshot)
-                .resultSnapshot(resultSnapshot)
-                .createdEvidenceIds(List.of(evidence.getEvidenceId()))
-                .createdEvidence(List.of(evidence))
-                .failureCode(isFailed(relation) ? FAILURE_CODE : null)
-                .failureMessage(isFailed(relation) ? failureMessage(relation) : null)
-                .metadata(metadata)
-                .build();
-
-        stateManager.applyRuntimeEffect(context, effect);
+        Map<String, Object> details = new LinkedHashMap<>(outcome.getDetails() == null ? Map.of() : outcome.getDetails());
+        Map<String, Object> childResults = mutableMap(details.get(CHILD_RESULTS));
+        childResults.put(relation.getChildRunId(), childResult(relation));
+        details.put(CHILD_RESULTS, childResults);
+        outcome.setDetails(details);
+        outcome.setEvidenceRefs(mergeEvidenceRefs(outcome.getEvidenceRefs(), relation));
+        outcome.setSummary("Delegated child results recorded: " + childResults.size() + ".");
+        dispatchRecord.setRecordVersion(dispatchRecord.getRecordVersion() == null ? 1L : dispatchRecord.getRecordVersion() + 1L);
+        context.setCurrentLoopRecord(dispatchRecord);
     }
 
-    private void validateRelation(ParentChildRunRelationVO relation) {
-        if (relation == null) {
-            throw new IllegalArgumentException("Parent-child relation is required.");
+    private RunLoopRecordVO findDispatchRecord(RuntimeExecutionContext context, ParentChildRunRelationVO relation) {
+        List<RunLoopRecordVO> timeline = context.getRunContextState().getLoopTimeline();
+        for (int index = timeline.size() - 1; index >= 0; index--) {
+            RunLoopRecordVO record = timeline.get(index);
+            if (record != null && record.getMainOutput() != null
+                    && MainAgentActionTypeEnumVO.DELEGATE_AGENTS.code().equals(record.getMainOutput().getAction())
+                    && dispatchedTask(record, relation.getTaskId())) {
+                return record;
+            }
         }
-        if (isBlank(relation.getParentRunId()) || isBlank(relation.getChildRunId()) || isBlank(relation.getTaskId())) {
-            throw new IllegalArgumentException("Parent-child relation requires parentRunId, childRunId, and taskId.");
-        }
-        if (relation.getStatus() == null || !relation.getStatus().terminal()) {
-            throw new IllegalArgumentException("Only terminal child results can be projected.");
-        }
+        throw new IllegalStateException("Delegated child result has no matching RunLoopRecord: " + relation.getChildRunId());
     }
 
-    private void ensureWorkingState(RuntimeExecutionContext context) {
-        if (context.getWorkingState() != null) {
-            return;
+    private boolean dispatchedTask(RunLoopRecordVO record, String taskId) {
+        if (record.getMainOutput() == null || record.getMainOutput().getStateDelta() == null) {
+            return false;
         }
-        MainAgentStateViewVO base = context.getLastStateView() == null
-                ? MainAgentStateViewVO.builder().build()
-                : context.getLastStateView();
-        context.setWorkingState(stateManager.initialize(base));
-    }
-
-    private MaterializedEvidenceVO buildEvidence(RuntimeExecutionContext context,
-                                                 ParentChildRunRelationVO relation,
-                                                 Long sequence,
-                                                 String workId) {
-        String content = evidenceContent(relation);
-        return MaterializedEvidenceVO.builder()
-                .evidenceId(evidenceId(relation))
-                .evidenceType(isFailed(relation) ? "SUB_AGENT_FAILURE" : "SUB_AGENT")
-                .sourceRef(relation.getChildRunId())
-                .summary(summary(relation))
-                .boundedSnippet(content)
-                .content(content)
-                .contentFormat("text/plain")
-                .truncated(false)
-                .totalChars(content.length())
-                .sequence(sequence)
-                .sourceLoopIndex(context.getLoopIndex())
-                .sourceWorkId(workId)
-                .createdAt(LocalDateTime.now())
-                .metadata(metadata(relation))
-                .build();
-    }
-
-    private Map<String, Object> requestSnapshot(ParentChildRunRelationVO relation) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        put(map, "parentRunId", relation.getParentRunId());
-        put(map, "childRunId", relation.getChildRunId());
-        put(map, "taskId", relation.getTaskId());
-        put(map, "childName", relation.getChildName());
-        put(map, "dispatchBatchId", relation.getDispatchBatchId());
-        put(map, "waitMode", relation.getWaitMode());
-        return map;
-    }
-
-    private Map<String, Object> resultSnapshot(ParentChildRunRelationVO relation) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        put(map, "childRunStatus", relation.getStatus() == null ? null : relation.getStatus().code());
-        put(map, "status", status(relation));
-        if (relation.getCommit() != null) {
-            put(map, "result", relation.getCommit().getResult());
-            put(map, "detail", relation.getCommit().getDetail());
-            put(map, "safeForUserVisibleUse", relation.getCommit().getSafeForUserVisibleUse());
+        Object requestValue = record.getMainOutput().getStateDelta().get("delegateAgentsRequest");
+        if (!(requestValue instanceof Map<?, ?> request)) {
+            return false;
         }
-        if (isFailed(relation)) {
-            put(map, "failureMessage", failureMessage(relation));
+        Object tasksValue = request.get("tasks");
+        if (!(tasksValue instanceof Iterable<?> tasks)) {
+            return false;
         }
-        return map;
+        for (Object taskValue : tasks) {
+            if (taskValue instanceof Map<?, ?> task && taskId.equals(String.valueOf(task.get("taskId")))) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private Map<String, Object> metadata(ParentChildRunRelationVO relation) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        put(map, "parentRunId", relation.getParentRunId());
-        put(map, "childRunId", relation.getChildRunId());
-        put(map, "taskId", relation.getTaskId());
-        put(map, "childName", relation.getChildName());
-        put(map, "dispatchBatchId", relation.getDispatchBatchId());
-        put(map, "waitMode", relation.getWaitMode());
-        put(map, "childRunStatus", relation.getStatus() == null ? null : relation.getStatus().code());
-        put(map, "fullContextSnapshotRef", relation.getFullContextSnapshotRef());
+    private Map<String, Object> childResult(ParentChildRunRelationVO relation) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("taskId", relation.getTaskId());
+        result.put("childRunId", relation.getChildRunId());
+        result.put("childName", relation.getChildName());
+        result.put("status", relation.getStatus().code());
+        result.put("fullContextSnapshotRef", relation.getFullContextSnapshotRef());
         if (relation.getCommit() != null) {
             SubAgentCommitVO commit = relation.getCommit();
-            put(map, "childCommitStatus", commit.getStatus());
-            put(map, "evidenceRefs", commit.getEvidenceRefs());
-            put(map, "inspectedResources", commit.getInspectedResources());
-            put(map, "assumptions", commit.getAssumptions());
-            put(map, "blockers", commit.getBlockers());
-            put(map, "suggestedParentNextStep", commit.getSuggestedParentNextStep());
-            put(map, "safeForUserVisibleUse", commit.getSafeForUserVisibleUse());
+            result.put("commitStatus", commit.getStatus());
+            result.put("result", commit.getResult());
+            result.put("detail", commit.getDetail());
+            result.put("evidenceRefs", defaultList(commit.getEvidenceRefs()));
+            result.put("inspectedResources", defaultList(commit.getInspectedResources()));
+            result.put("assumptions", defaultList(commit.getAssumptions()));
+            result.put("blockers", defaultList(commit.getBlockers()));
+            result.put("suggestedParentNextStep", commit.getSuggestedParentNextStep());
+            result.put("safeForUserVisibleUse", commit.getSafeForUserVisibleUse());
         }
-        return map;
-    }
-
-    private String evidenceContent(ParentChildRunRelationVO relation) {
-        if (isFailed(relation)) {
-            return failureMessage(relation);
+        if (relation.getStatus() == ChildAgentRunStatusEnumVO.FAILED) {
+            result.put("failureMessage", relation.getFailureMessage());
         }
-        SubAgentCommitVO commit = relation.getCommit();
-        if (commit == null) {
-            return "";
+        return result;
+    }
+
+    private List<String> mergeEvidenceRefs(List<String> existing, ParentChildRunRelationVO relation) {
+        Set<String> refs = new LinkedHashSet<>(defaultList(existing));
+        if (relation.getCommit() != null) {
+            refs.addAll(defaultList(relation.getCommit().getEvidenceRefs()));
         }
-        StringBuilder builder = new StringBuilder();
-        appendSection(builder, "Result", commit.getResult());
-        appendSection(builder, "Detail", commit.getDetail());
-        appendListSection(builder, "Evidence refs", commit.getEvidenceRefs());
-        appendListSection(builder, "Inspected resources", commit.getInspectedResources());
-        appendListSection(builder, "Assumptions", commit.getAssumptions());
-        appendListSection(builder, "Blockers", commit.getBlockers());
-        appendSection(builder, "Suggested parent next step", commit.getSuggestedParentNextStep());
-        appendSection(builder, "Full context snapshot ref", relation.getFullContextSnapshotRef());
-        return builder.toString().trim();
+        return new ArrayList<>(refs);
     }
 
-    private void appendSection(StringBuilder builder, String title, String value) {
-        if (isBlank(value)) {
-            return;
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mutableMap(Object value) {
+        return value instanceof Map<?, ?> map
+                ? new LinkedHashMap<>((Map<String, Object>) map)
+                : new LinkedHashMap<>();
+    }
+
+    private void validate(RuntimeExecutionContext context, ParentChildRunRelationVO relation) {
+        if (context == null || context.getRunContextState() == null
+                || context.getRunContextState().getLoopTimeline() == null) {
+            throw new IllegalArgumentException("Canonical RunContextState is required.");
         }
-        if (!builder.isEmpty()) {
-            builder.append("\n\n");
+        if (relation == null || relation.getStatus() == null || !relation.getStatus().terminal()) {
+            throw new IllegalArgumentException("A terminal child relation is required.");
         }
-        builder.append(title).append(":\n").append(value);
-    }
-
-    private void appendListSection(StringBuilder builder, String title, List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        appendSection(builder, title, String.join("\n", values));
-    }
-
-    private String status(ParentChildRunRelationVO relation) {
-        if (isFailed(relation)) {
-            return "FAILED";
-        }
-        if (relation.getCommit() != null && !isBlank(relation.getCommit().getStatus())) {
-            return relation.getCommit().getStatus();
-        }
-        return relation.getStatus() == null ? "COMMITTED" : relation.getStatus().code();
-    }
-
-    private String message(ParentChildRunRelationVO relation) {
-        if (isFailed(relation)) {
-            return "Child agent failed: " + failureMessage(relation);
-        }
-        return "Child agent committed: " + relation.getChildName();
-    }
-
-    private String summary(ParentChildRunRelationVO relation) {
-        if (isFailed(relation)) {
-            return "Child agent failed: " + relation.getChildName();
-        }
-        return "Child agent committed result: " + relation.getChildName();
-    }
-
-    private String failureMessage(ParentChildRunRelationVO relation) {
-        return isBlank(relation.getFailureMessage()) ? "Child agent failed without a message." : relation.getFailureMessage();
-    }
-
-    private boolean isFailed(ParentChildRunRelationVO relation) {
-        return relation != null && ChildAgentRunStatusEnumVO.FAILED == relation.getStatus();
-    }
-
-    private String evidenceId(ParentChildRunRelationVO relation) {
-        return "evidence-" + relation.getChildRunId() + (isFailed(relation) ? "-failure" : "-commit");
-    }
-
-    private String workId(ParentChildRunRelationVO relation) {
-        return "work-" + relation.getChildRunId() + (isFailed(relation) ? "-failure" : "-commit");
-    }
-
-    private void put(Map<String, Object> map, String key, Object value) {
-        if (value != null) {
-            map.put(key, value);
+        if (relation.getParentRunId() == null || !relation.getParentRunId().equals(context.getRunId())
+                || relation.getChildRunId() == null || relation.getTaskId() == null) {
+            throw new IllegalArgumentException("Parent-child relation identity is invalid.");
         }
     }
 
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
+    private <T> List<T> defaultList(List<T> values) {
+        return values == null ? List.of() : values;
     }
 }

@@ -24,6 +24,7 @@ import yhx.com.domain.agent.adapter.repository.IRagAssetRepository;
 import yhx.com.domain.agent.adapter.repository.IRagExecutionRepository;
 import yhx.com.domain.agent.adapter.repository.IRunDiagnosticRepository;
 import yhx.com.domain.agent.adapter.repository.IRunRepository;
+import yhx.com.domain.agent.adapter.repository.IRunContextRepository;
 import yhx.com.domain.agent.adapter.repository.IRunTranscriptRepository;
 import yhx.com.domain.agent.adapter.repository.ISessionTaskSummaryRepository;
 import yhx.com.domain.agent.adapter.repository.ITurnRepository;
@@ -121,8 +122,9 @@ import yhx.com.domain.agent.service.runtime.DefaultRuntimeComponentPorts;
 import yhx.com.domain.agent.service.runtime.DeveloperTraceRecorder;
 import yhx.com.domain.agent.service.runtime.MainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.MainActionHandler;
-import yhx.com.domain.agent.service.runtime.PayloadBackedPlanStatePort;
 import yhx.com.domain.agent.service.runtime.RunEventPublisher;
+import yhx.com.domain.agent.service.runtime.RunContextEnvelopeBuilder;
+import yhx.com.domain.agent.service.runtime.RunPayloadProjectionPolicy;
 import yhx.com.domain.agent.service.runtime.RunTranscriptRecorder;
 import yhx.com.domain.agent.service.runtime.RuntimeComponentPorts;
 import yhx.com.domain.agent.service.runtime.RuntimeFailureFactory;
@@ -130,20 +132,16 @@ import yhx.com.domain.agent.service.runtime.RuntimeLoopPolicy;
 import yhx.com.domain.agent.service.runtime.RuntimePhaseGuard;
 import yhx.com.domain.agent.service.runtime.RuntimeStateMachine;
 import yhx.com.domain.agent.service.runtime.RunDiagnosticRecorder;
-import yhx.com.domain.agent.service.runtime.RunWorkingStateManager;
 import yhx.com.domain.agent.service.runtime.handler.AskUserActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.CallToolActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.ContinueActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.DefaultMainActionDispatcher;
 import yhx.com.domain.agent.service.runtime.handler.DelegateAgentsActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FailActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.FinalActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.MainActionHandlerRegistry;
-import yhx.com.domain.agent.service.runtime.handler.PlanActionHandler;
-import yhx.com.domain.agent.service.runtime.handler.RepairFinalActionHandler;
+import yhx.com.domain.agent.service.runtime.handler.ReadyToDeliverActionHandler;
 import yhx.com.domain.agent.service.runtime.handler.RetrieveRagActionHandler;
 import yhx.com.domain.agent.service.runtime.port.FinalDeliveryPort;
-import yhx.com.domain.agent.service.runtime.port.PlanStatePort;
 import yhx.com.domain.agent.service.runtime.port.RagRuntimePort;
 import yhx.com.domain.agent.service.runtime.port.ToolActionOrchestratorPort;
 import yhx.com.domain.agent.service.tool.CapabilityRegistry;
@@ -237,8 +235,10 @@ public class AutoAgentRuntimeConfig {
     public NodeInvocationPipeline nodeInvocationPipeline(PromptAssembler promptAssembler,
                                                          INodeClientPort nodeClientPort,
                                                          RunDiagnosticRecorder runDiagnosticRecorder,
-                                                         DeveloperTraceRecorder developerTraceRecorder) {
-        return new NodeInvocationPipeline(promptAssembler, nodeClientPort, runDiagnosticRecorder, developerTraceRecorder);
+                                                         DeveloperTraceRecorder developerTraceRecorder,
+                                                         AutoAgentRuntimeProperties runtimeProperties) {
+        return new NodeInvocationPipeline(promptAssembler, nodeClientPort, runDiagnosticRecorder,
+                developerTraceRecorder, runtimeProperties.getMaxMainAgentPromptChars());
     }
 
     @Bean
@@ -406,10 +406,13 @@ public class AutoAgentRuntimeConfig {
     @Bean
     public MainAgentNodeService mainAgentNodeService(NodeInvocationPipeline nodeInvocationPipeline,
                                                      NodeRuntimeProfileResolver nodeRuntimeProfileResolver,
-                                                     AutoAgentRuntimeProperties properties) {
+                                                     AutoAgentRuntimeProperties properties,
+                                                     IPayloadRepository payloadRepository) {
         var profile = nodeRuntimeProfileResolver.resolveRequired(AgentComponentCodeEnumVO.MAIN_AGENT.name());
         profile.setInvocationMode(properties.getMainAgentInvocationMode());
-        return new MainAgentNodeService(nodeInvocationPipeline, profile);
+        RunPayloadProjectionPolicy payloadPolicy = new RunPayloadProjectionPolicy();
+        return new MainAgentNodeService(nodeInvocationPipeline, profile,
+                new RunContextEnvelopeBuilder(payloadRepository, payloadPolicy));
     }
 
     @Bean
@@ -432,7 +435,8 @@ public class AutoAgentRuntimeConfig {
                                                        ObjectProvider<CapabilityRegistry> capabilityRegistryProvider,
                                                        ObjectProvider<McpToolRegistry> mcpToolRegistryProvider,
                                                        ToolCapabilityCandidateProjector capabilityProjector,
-                                                       AutoAgentCapabilityProperties capabilityProperties) {
+                                                       AutoAgentCapabilityProperties capabilityProperties,
+                                                       DeveloperTraceRecorder developerTraceRecorder) {
         return new DefaultRuntimeComponentPorts(contextPreparationService,
                 contextPlannerNodeService,
                 contextPlannerStatusHandler,
@@ -440,7 +444,8 @@ public class AutoAgentRuntimeConfig {
                 nodeRuntimeProfileResolver.resolveAllActive(),
                 capabilityCandidates(capabilityRegistryProvider.getIfAvailable(),
                         mcpToolRegistryProvider.getIfAvailable(), capabilityProjector, capabilityProperties),
-                defaultTokenBudget());
+                defaultTokenBudget(),
+                developerTraceRecorder);
     }
 
     @Bean
@@ -501,11 +506,6 @@ public class AutoAgentRuntimeConfig {
                 snapshotService,
                 pauseCoordinator,
                 consumptionRepository);
-    }
-
-    @Bean
-    public PlanStatePort planStatePort(IPayloadRepository payloadRepository, IEventTraceRepository eventTraceRepository) {
-        return new PayloadBackedPlanStatePort(payloadRepository, eventTraceRepository);
     }
 
     @Bean
@@ -749,24 +749,10 @@ public class AutoAgentRuntimeConfig {
     }
 
     @Bean
-    public PlanActionHandler planActionHandler(PlanStatePort planStatePort,
-                                               RuntimeFailureFactory failureFactory,
-                                               DeveloperTraceRecorder traceRecorder) {
-        return new PlanActionHandler(planStatePort, failureFactory, traceRecorder);
-    }
-
-    @Bean
-    public ContinueActionHandler continueActionHandler(RuntimeLoopPolicy loopPolicy,
-                                                       RuntimeFailureFactory failureFactory,
-                                                       DeveloperTraceRecorder traceRecorder) {
-        return new ContinueActionHandler(loopPolicy, failureFactory, traceRecorder);
-    }
-
-    @Bean
-    public RepairFinalActionHandler repairFinalActionHandler(FinalDeliveryPort finalDeliveryPort,
-                                                             RuntimeFailureFactory failureFactory,
-                                                             DeveloperTraceRecorder traceRecorder) {
-        return new RepairFinalActionHandler(finalDeliveryPort, failureFactory, traceRecorder);
+    public ReadyToDeliverActionHandler readyToDeliverActionHandler(RuntimeFailureFactory failureFactory,
+                                                                   DeveloperTraceRecorder traceRecorder) {
+        return new ReadyToDeliverActionHandler(new yhx.com.domain.agent.service.runtime.TaskDeliveryReadinessPolicy(),
+                failureFactory, traceRecorder);
     }
 
     @Bean
@@ -795,7 +781,7 @@ public class AutoAgentRuntimeConfig {
 
     @Bean
     public ChildAgentResultProjector childAgentResultProjector() {
-        return new ChildAgentResultProjector(new RunWorkingStateManager());
+        return new ChildAgentResultProjector();
     }
 
     @Bean
@@ -864,7 +850,8 @@ public class AutoAgentRuntimeConfig {
                                                            DeveloperTraceRecorder traceRecorder,
                                                            RunDiagnosticRecorder runDiagnosticRecorder,
                                                            ParentChildRunRegistry parentChildRunRegistry,
-                                                           GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator) {
+                                                           GenericSubAgentDispatchOrchestrator genericSubAgentDispatchOrchestrator,
+                                                           IRunContextRepository runContextRepository) {
         return new DefaultAutoAgentRuntimeService(conversationRepository,
                 runRepository,
                 payloadRepository,
@@ -881,7 +868,8 @@ public class AutoAgentRuntimeConfig {
                 traceRecorder,
                 runDiagnosticRecorder,
                 parentChildRunRegistry,
-                genericSubAgentDispatchOrchestrator);
+                genericSubAgentDispatchOrchestrator,
+                runContextRepository);
     }
 
     private List<CapabilityCandidateVO> capabilityCandidates(CapabilityRegistry capabilityRegistry,

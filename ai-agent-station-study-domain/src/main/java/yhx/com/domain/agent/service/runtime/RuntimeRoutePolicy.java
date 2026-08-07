@@ -27,7 +27,7 @@ public class RuntimeRoutePolicy {
         }
         if (requested == RuntimePhaseEnumVO.PREPARING_CONTEXT
                 && context != null
-                && context.getLastStateView() != null
+                && context.getRunContextState() != null
                 && !forceContextReplan(context)) {
             return RuntimePhaseEnumVO.BUILDING_STATE_VIEW;
         }

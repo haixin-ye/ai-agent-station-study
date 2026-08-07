@@ -32,4 +32,13 @@
         LIMIT #{limit}
     </select>
 
+    <select id="listByRunIdAfter" resultMap="AgentRunTraceMap">
+        SELECT id, trace_id, run_id, seq, trace_type, payload_ref, summary, created_at
+        FROM agent_run_trace
+        WHERE run_id = #{runId}
+          AND seq &gt; #{lastSeq}
+        ORDER BY seq ASC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

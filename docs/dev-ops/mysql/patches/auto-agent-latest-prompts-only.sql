@@ -31,7 +31,7 @@ If effectiveCapabilities contains only COMMIT, do not use CALL_TOOL, RETRIEVE_RA
 You may use CALL_TOOL, RETRIEVE_RAG, ASK_USER, CONTINUE, COMMIT, or FAIL according to the Java-owned contract. Never output FINAL, DELEGATE_AGENTS, or DELEGATE_CODE_AGENT.
 COMMIT is the normal successful terminal action. Preserve the delegated taskId and include enough result detail for the parent to reason without repeating your work.
 For file, code, tool, RAG, or research tasks, include inspected resources, evidence references, assumptions, blockers, and suggested parent next step when useful.
-Keep COMMIT JSON parseable. Do not place long Markdown reports, raw file dumps, raw line breaks, or invalid escape sequences inside one large JSON string. Put the short conclusion in result, compact plain-text detail in detail, and structured lists in evidenceRefs, inspectedResources, assumptions, and blockers. Escape newlines as \\n when needed; never output invalid escapes such as "\ n", "\1", "\*" or raw line breaks inside strings.
+When requiredOutput asks for user-readable content such as a report, itinerary, comparison, draft, or document, put the complete required work product in commit.result. A completion acknowledgement or short summary is not a substitute for the requested body. commit.detail is a concise work note for method and caveats, not a replacement for the result. Keep COMMIT JSON parseable. Multiline Markdown is allowed in commit.result when required, but encode newlines as \\n and never output invalid escapes such as "\ n", "\1", "\*" or raw line breaks inside strings. Keep evidenceRefs, inspectedResources, assumptions, and blockers as structured supporting fields.
 Use ASK_USER only when genuinely blocked by missing user information and ask the smallest clear question.
 Use FAIL honestly when the task is impossible, unsafe, outside boundary, or missing required capability.
 Do not speak directly to the user. Do not solve the parent user request broadly. Do not expose hidden reasoning.
@@ -61,6 +61,83 @@ INSERT INTO `agent_node_model_binding`
 (`binding_id`, `node_code`, `model_profile_id`, `prompt_version`, `contract_version`, `temperature`, `max_output_tokens`, `max_repair_attempts`, `enabled`)
 VALUES
 ('amr-bind-generic-sub-agent-001', 'GENERIC_SUB_AGENT', 'amr-model-main-001', 'v1', 'generic-sub-agent-action-v1', 0.200, 4096, 1, 1)
+ON DUPLICATE KEY UPDATE
+  `model_profile_id` = VALUES(`model_profile_id`),
+  `prompt_version` = VALUES(`prompt_version`),
+  `contract_version` = VALUES(`contract_version`),
+  `temperature` = VALUES(`temperature`),
+  `max_output_tokens` = VALUES(`max_output_tokens`),
+  `max_repair_attempts` = VALUES(`max_repair_attempts`),
+  `enabled` = VALUES(`enabled`);
+
+INSERT INTO `agent_payload`
+(`payload_id`, `payload_type`, `storage_type`, `content`, `preview`, `compressed`, `encrypted`)
+VALUES
+('amr-prompt-main-agent-v2', 'PROMPT_CONTENT', 'DB',
+'You are AutoAgent''s MainAgent, the decision-making component responsible for understanding and advancing the current user task.
+
+You operate inside a Java Runtime task loop. On each call, you receive the original user request together with the current facts from this run, and return exactly one structured action. Runtime executes external operations, persists state, and returns actual outcomes in later calls.
+
+Your overall goal is to complete every user-requested deliverable. Judge each action by how it contributes to that complete result. The current stage defines your immediate responsibility: PLANNING understands the request and chooses the first step; EXECUTING reconciles results and chooses the next step; DELIVERING composes the final user-facing response.',
+'MainAgent role prompt v2', 0, 0)
+ON DUPLICATE KEY UPDATE
+  `content` = VALUES(`content`),
+  `preview` = VALUES(`preview`);
+
+INSERT INTO `agent_node_prompt`
+(`prompt_id`, `agent_id`, `node_code`, `prompt_version`, `content_ref`, `enabled`)
+VALUES
+('amr-node-prompt-main-agent-v2', 'GLOBAL', 'MAIN_AGENT', 'v2', 'amr-prompt-main-agent-v2', 1)
+ON DUPLICATE KEY UPDATE
+  `content_ref` = VALUES(`content_ref`),
+  `enabled` = VALUES(`enabled`);
+
+UPDATE `agent_node_prompt`
+SET `enabled` = 0
+WHERE `node_code` = 'MAIN_AGENT' AND `prompt_version` <> 'v2';
+
+INSERT INTO `agent_node_model_binding`
+(`binding_id`, `node_code`, `model_profile_id`, `prompt_version`, `contract_version`, `temperature`, `max_output_tokens`, `max_repair_attempts`, `enabled`)
+VALUES
+('amr-bind-main-agent-001', 'MAIN_AGENT', 'amr-model-main-001', 'v2', 'main-agent-action-v2', 0.200, 8192, 1, 1),
+('amr-bind-final-repair-001', 'FINAL_REPAIR', 'amr-model-repair-001', 'v1', 'final-repair-action-v1', 0.100, 1200, 1, 1)
+ON DUPLICATE KEY UPDATE
+  `model_profile_id` = VALUES(`model_profile_id`),
+  `prompt_version` = VALUES(`prompt_version`),
+  `contract_version` = VALUES(`contract_version`),
+  `temperature` = VALUES(`temperature`),
+  `max_output_tokens` = VALUES(`max_output_tokens`),
+  `max_repair_attempts` = VALUES(`max_repair_attempts`),
+  `enabled` = VALUES(`enabled`);
+
+INSERT INTO `agent_payload`
+(`payload_id`, `payload_type`, `storage_type`, `content`, `preview`, `compressed`, `encrypted`)
+VALUES
+('amr-prompt-rag-verifier-v1', 'PROMPT_CONTENT', 'DB',
+'You are RagVerifier, a bounded verification component.
+You receive the user request, final answer candidate, RAG queries, and retrieved evidence snippets.
+Your job is to determine whether the answer misuses retrieved evidence.
+Fail only when the answer claims unsupported facts from RAG, contradicts retrieved evidence, fabricates citations or document facts, or ignores required retrieved evidence for a RAG-dependent answer.
+Pass when RAG was retrieved but the final answer legitimately does not need to cite or use it, or when the answer is grounded enough for the user request.
+Return only the verification-result JSON contract with status, failureCode, and detail. Do not rewrite the answer unless the contract asks for a repair hint.',
+'RagVerifier prompt v1', 0, 0)
+ON DUPLICATE KEY UPDATE
+  `content` = VALUES(`content`),
+  `preview` = VALUES(`preview`);
+
+INSERT INTO `agent_node_prompt`
+(`prompt_id`, `agent_id`, `node_code`, `prompt_version`, `content_ref`, `enabled`)
+VALUES
+('amr-node-prompt-rag-verifier-v1', 'GLOBAL', 'RAG_VERIFIER', 'v1', 'amr-prompt-rag-verifier-v1', 1)
+ON DUPLICATE KEY UPDATE
+  `agent_id` = VALUES(`agent_id`),
+  `content_ref` = VALUES(`content_ref`),
+  `enabled` = VALUES(`enabled`);
+
+INSERT INTO `agent_node_model_binding`
+(`binding_id`, `node_code`, `model_profile_id`, `prompt_version`, `contract_version`, `temperature`, `max_output_tokens`, `max_repair_attempts`, `enabled`)
+VALUES
+('amr-bind-rag-verifier-001', 'RAG_VERIFIER', 'amr-model-verify-001', 'v1', 'verification-result-v1', 0.000, 1200, 1, 1)
 ON DUPLICATE KEY UPDATE
   `model_profile_id` = VALUES(`model_profile_id`),
   `prompt_version` = VALUES(`prompt_version`),

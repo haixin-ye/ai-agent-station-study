@@ -67,6 +67,9 @@ public class ContextPreparationService {
             if (candidates != null && candidates.getRagCandidates() == null) {
                 candidates.setRagCandidates(List.of());
             }
+            if (candidates != null) {
+                candidates.setRecallDiagnostics(diagnostics(candidates, emptyBundle(), List.of(), "mysql-only"));
+            }
             return candidates;
         }
         CompletableFuture<ContextCandidateBundleVO> mysqlFuture = CompletableFuture.supplyAsync(
@@ -131,15 +134,47 @@ public class ContextPreparationService {
         if (vectorBundle == null) {
             vectorBundle = emptyBundle();
         }
+        Map<String, Object> recallDiagnostics = diagnostics(mysqlBundle, vectorBundle, ragCandidates, "merged");
         mysqlBundle.setSessionSummaries(mergeSummaries(mysqlBundle.getSessionSummaries(), vectorBundle.getSessionSummaries()));
         mysqlBundle.setArtifactCandidates(List.of());
         mysqlBundle.setMemoryCandidates(mergeMemories(mysqlBundle.getMemoryCandidates(), vectorBundle.getMemoryCandidates()));
         mysqlBundle.setEvidenceCandidates(mergeEvidence(mysqlBundle.getEvidenceCandidates(), vectorBundle.getEvidenceCandidates()));
         mysqlBundle.setRagCandidates(ragCandidates == null ? List.of() : ragCandidates);
+        mysqlBundle.setRecallDiagnostics(recallDiagnostics);
         if (mysqlBundle.getTokenBudget() != null) {
             mysqlBundle.getTokenBudget().setCurrentCandidateTokens(new ContextTokenEstimator().estimateObjectTokens(mysqlBundle));
         }
         return mysqlBundle;
+    }
+
+    private Map<String, Object> diagnostics(ContextCandidateBundleVO mysqlBundle,
+                                            ContextCandidateBundleVO vectorBundle,
+                                            List<RagCandidateVO> ragCandidates,
+                                            String mode) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("mode", mode);
+        diagnostics.put("mysql", bundleCounts(mysqlBundle));
+        diagnostics.put("vector", bundleCounts(vectorBundle));
+        diagnostics.put("rag", Map.of("candidates", ragCandidates == null ? 0 : ragCandidates.size()));
+        diagnostics.put("mergedCandidateCount", bundleCounts(mysqlBundle).values().stream()
+                .filter(Number.class::isInstance).mapToInt(value -> ((Number) value).intValue()).sum()
+                + (ragCandidates == null ? 0 : ragCandidates.size()));
+        return diagnostics;
+    }
+
+    private Map<String, Object> bundleCounts(ContextCandidateBundleVO bundle) {
+        Map<String, Object> counts = new LinkedHashMap<>();
+        counts.put("fullText", size(bundle == null ? null : bundle.getFixedRecentMessages())
+                + size(bundle == null ? null : bundle.getRecentMessages()));
+        counts.put("summaries", size(bundle == null ? null : bundle.getSessionSummaries()));
+        counts.put("memory", size(bundle == null ? null : bundle.getMemoryCandidates()));
+        counts.put("evidence", size(bundle == null ? null : bundle.getEvidenceCandidates()));
+        counts.put("artifacts", size(bundle == null ? null : bundle.getArtifactCandidates()));
+        return counts;
+    }
+
+    private int size(List<?> value) {
+        return value == null ? 0 : value.size();
     }
 
     private List<SummaryCandidateVO> mergeSummaries(List<SummaryCandidateVO> mysql, List<SummaryCandidateVO> vector) {

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="yhx.com.infrastructure.dao.IAgentRunContextDao">
+    <resultMap id="AgentRunContextMap" type="yhx.com.infrastructure.dao.po.AgentRunContextPO">
+        <id column="id" property="id"/>
+        <result column="run_id" property="runId"/>
+        <result column="schema_version" property="schemaVersion"/>
+        <result column="main_agent_stage" property="mainAgentStage"/>
+        <result column="base_context_ref" property="baseContextRef"/>
+        <result column="task_ledger_ref" property="taskLedgerRef"/>
+        <result column="runtime_control_ref" property="runtimeControlRef"/>
+        <result column="context_version" property="contextVersion"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+    <insert id="insert" parameterType="yhx.com.infrastructure.dao.po.AgentRunContextPO">
+        INSERT INTO agent_run_context
+        (run_id, schema_version, main_agent_stage, base_context_ref, task_ledger_ref, runtime_control_ref, context_version, created_at, updated_at)
+        VALUES
+        (#{runId}, #{schemaVersion}, #{mainAgentStage}, #{baseContextRef}, #{taskLedgerRef}, #{runtimeControlRef}, #{contextVersion}, #{createdAt}, #{updatedAt})
+    </insert>
+    <update id="updateWithVersion">
+        UPDATE agent_run_context
+        SET main_agent_stage = #{context.mainAgentStage},
+            base_context_ref = #{context.baseContextRef},
+            task_ledger_ref = #{context.taskLedgerRef},
+            runtime_control_ref = #{context.runtimeControlRef},
+            context_version = #{context.contextVersion},
+            updated_at = #{context.updatedAt}
+        WHERE run_id = #{context.runId} AND context_version = #{expectedVersion}
+    </update>
+    <select id="queryByRunId" resultMap="AgentRunContextMap">
+        SELECT id, run_id, schema_version, main_agent_stage, base_context_ref, task_ledger_ref, runtime_control_ref,
+               context_version, created_at, updated_at
+        FROM agent_run_context WHERE run_id = #{runId}
+    </select>
+</mapper>

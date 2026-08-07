@@ -40,6 +40,7 @@ public class AutoAgentCapabilityProperties {
         private String riskLevel = "LOW";
         private boolean destructive;
         private String defaultContentMode = "SUMMARY_ONLY";
+        private String resultContentMode = "SUMMARY_ONLY";
         private String workspaceScope;
         private Long timeoutMs;
         private boolean enabled = true;

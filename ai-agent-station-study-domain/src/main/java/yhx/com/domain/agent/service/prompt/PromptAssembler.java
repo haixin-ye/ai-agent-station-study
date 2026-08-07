@@ -58,10 +58,12 @@ public class PromptAssembler {
     public PromptAssemblyResult assemble(PromptAssemblyCommand command) {
         List<PromptLayer> layers = new ArrayList<>();
         addRolePrompts(layers, command);
-        layers.add(layer(PromptLayerTypeEnumVO.STABLE_BEHAVIOR_RULES, "Stable Behavior Rules", sharedPromptFragments.stableBehaviorRules()));
-        layers.add(new RuntimeBoundaryPromptBuilder(sharedPromptFragments).build());
-        layers.add(new UntrustedContentPromptBuilder(sharedPromptFragments).build());
-        layers.addAll(componentLayers(command.getComponentCode()));
+        if (!AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(command.getComponentCode())) {
+            layers.add(layer(PromptLayerTypeEnumVO.STABLE_BEHAVIOR_RULES, "Stable Behavior Rules", sharedPromptFragments.stableBehaviorRules()));
+            layers.add(new RuntimeBoundaryPromptBuilder(sharedPromptFragments).build());
+            layers.add(new UntrustedContentPromptBuilder(sharedPromptFragments).build());
+        }
+        layers.addAll(componentLayers(command));
         layers.add(layer(PromptLayerTypeEnumVO.OUTPUT_CONTRACT, "Output Contract",
                 outputContract(command)));
         layers.add(layer(PromptLayerTypeEnumVO.CURRENT_STATE_VIEW, "Current State View", renderInputView(command.getInputView())));
@@ -75,10 +77,20 @@ public class PromptAssembler {
         }
 
         String assembledPrompt = assembleText(ordered);
+        String systemPrompt = assembleText(ordered.stream()
+                .filter(item -> item.getLayerType() != PromptLayerTypeEnumVO.CURRENT_STATE_VIEW)
+                .toList());
+        PromptLayer stateLayer = ordered.stream()
+                .filter(item -> item.getLayerType() == PromptLayerTypeEnumVO.CURRENT_STATE_VIEW)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Current state view layer is required."));
+        String userPrompt = "## Current Run Context\n" + stateLayer.getContent().trim();
         PromptEnvelope envelope = PromptEnvelope.builder()
                 .componentCode(command.getComponentCode())
                 .contractVersion(command.getContractVersion())
                 .layers(ordered)
+                .systemPrompt(systemPrompt)
+                .userPrompt(userPrompt)
                 .assembledPrompt(assembledPrompt)
                 .build();
         return PromptAssemblyResult.builder().envelope(envelope).build();
@@ -98,12 +110,13 @@ public class PromptAssembler {
                 .build());
     }
 
-    private List<PromptLayer> componentLayers(String componentCode) {
+    private List<PromptLayer> componentLayers(PromptAssemblyCommand command) {
+        String componentCode = command.getComponentCode();
         if (AgentComponentCodeEnumVO.CONTEXT_PLANNER.name().equals(componentCode)) {
             return new ContextPlannerPromptBuilder().build();
         }
         if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(componentCode)) {
-            return new MainAgentPromptBuilder().build();
+            return new MainAgentPromptBuilder().build(mainAgentStage(command));
         }
         if (AgentComponentCodeEnumVO.GENERIC_SUB_AGENT.name().equals(componentCode)) {
             return new GenericSubAgentPromptBuilder().build();
@@ -132,7 +145,18 @@ public class PromptAssembler {
         if (AgentComponentCodeEnumVO.CONVERSATION_ROLLUP.name().equals(componentCode)) {
             return new ConversationRollupPromptBuilder().build();
         }
+        if (AgentComponentCodeEnumVO.RAG_ASSET_ANALYZER.name().equals(componentCode)) {
+            return new RagAssetAnalyzerPromptBuilder().build();
+        }
         return List.of();
+    }
+
+    private yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO mainAgentStage(PromptAssemblyCommand command) {
+        Object value = command.getMetadata() == null ? null : command.getMetadata().get("mainAgentStage");
+        if (value == null) {
+            return yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO.PLANNING;
+        }
+        return yhx.com.domain.agent.model.valobj.enums.runtime.MainAgentStageEnumVO.valueOf(String.valueOf(value));
     }
 
     private PromptLayer layer(PromptLayerTypeEnumVO type, String heading, String content) {
@@ -143,13 +167,24 @@ public class PromptAssembler {
         if (NodeInvocationModeEnumVO.FUNCTION_CALL.equals(command.getInvocationMode())) {
             return """
                     Use function-call output mode.
-                    Call exactly one function from the available function list.
-                    Do not output the legacy raw JSON action object as assistant text.
-                    Runtime will convert the selected function name and arguments into the Java-owned output contract.
+                    Call exactly one function from the available function list as the complete assistant response.
+                    Keep reasoning internal. Runtime converts the selected function name and arguments into the
+                    Java-owned output contract.
 
                     Available functions:
                     %s
                     """.formatted(JSON.toJSONString(command.getFunctionSpecs() == null ? List.of() : command.getFunctionSpecs()));
+        }
+        if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(command.getComponentCode())
+                && "main-agent-action-v2".equals(command.getContractVersion())) {
+            return outputContractPromptRenderer.renderMainAgentActionContractV2(mainAgentStage(command));
+        }
+        if (AgentComponentCodeEnumVO.CONTRACT_REPAIR.name().equals(command.getComponentCode())
+                && "main-agent-action-v2".equals(command.getContractVersion())) {
+            return outputContractPromptRenderer.renderRepairContract(
+                    AgentComponentCodeEnumVO.MAIN_AGENT.name(),
+                    command.getContractVersion(),
+                    mainAgentStage(command));
         }
         return outputContractPromptRenderer.renderFor(command.getComponentCode(), command.getContractVersion());
     }
@@ -157,11 +192,13 @@ public class PromptAssembler {
     private PromptLayer outputOnlyLayer(PromptAssemblyCommand command) {
         if (NodeInvocationModeEnumVO.FUNCTION_CALL.equals(command.getInvocationMode())) {
             return layer(PromptLayerTypeEnumVO.OUTPUT_ONLY_INSTRUCTION, "Output Only Instruction", """
-                    Call exactly one function.
-                    Do not output raw JSON text.
-                    Do not use markdown.
-                    Do not include prose before or after the function call.
-                    Do not include hidden reasoning or chain-of-thought.
+                    Return exactly one function call as the complete response. Keep reasoning internal.
+                    """);
+        }
+        if (AgentComponentCodeEnumVO.MAIN_AGENT.name().equals(command.getComponentCode())) {
+            return layer(PromptLayerTypeEnumVO.OUTPUT_ONLY_INSTRUCTION, "Output Only Instruction", """
+                    Return exactly one valid JSON object as the complete response, using plain JSON with no wrapper
+                    or surrounding prose. Keep reasoning internal.
                     """);
         }
         return new OutputOnlyPromptBuilder(sharedPromptFragments).build();

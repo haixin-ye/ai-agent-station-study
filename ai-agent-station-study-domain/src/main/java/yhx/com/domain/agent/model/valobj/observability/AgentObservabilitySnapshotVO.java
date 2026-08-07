@@ -26,6 +26,9 @@ public class AgentObservabilitySnapshotVO {
     private Map<String, Object> context = new LinkedHashMap<>();
     @Builder.Default
     private List<AgentObservabilityLoopVO> loops = List.of();
+    /** Stage-owned graph nodes consumed by the developer Trace Studio. */
+    @Builder.Default
+    private List<Map<String, Object>> graphNodes = List.of();
     @Builder.Default
     private List<AgentRunTraceEntity> traces = List.of();
     @Builder.Default

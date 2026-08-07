@@ -8,10 +8,8 @@ public enum MainAgentActionTypeEnumVO {
     RETRIEVE_RAG("RETRIEVE_RAG", "Request RAG retrieval."),
     CALL_TOOL("CALL_TOOL", "Request runtime-owned tool execution."),
     ASK_USER("ASK_USER", "Ask the user for clarification or approval."),
-    PLAN("PLAN", "Persist internal plan state."),
-    CONTINUE("CONTINUE", "Continue the loop."),
+    READY_TO_DELIVER("READY_TO_DELIVER", "Request deterministic completion validation and delivery stage."),
     DELEGATE_AGENTS("DELEGATE_AGENTS", "Delegate atomic tasks to generic subagents."),
-    REPAIR_FINAL("REPAIR_FINAL", "Return a repaired final answer candidate."),
     FAIL("FAIL", "Return a user-safe failure candidate.");
 
     private final String code;

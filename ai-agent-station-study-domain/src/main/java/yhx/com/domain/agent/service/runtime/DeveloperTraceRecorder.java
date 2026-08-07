@@ -1,6 +1,7 @@
 package yhx.com.domain.agent.service.runtime;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import lombok.extern.slf4j.Slf4j;
 import yhx.com.domain.agent.adapter.repository.IEventTraceRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
@@ -71,6 +72,24 @@ public class DeveloperTraceRecorder {
         append(runId, TraceTypeEnumVO.RUNTIME_DECISION, payload(loopIndex, "error", failureCode == null ? null : failureCode.code(), payloadRef, summary));
     }
 
+    /**
+     * Stores a stage-owned observation.  Unlike the compact runtime decision
+     * traces this payload is intentionally complete: the observability studio
+     * uses it to render the evidence panel belonging to one graph node.
+     */
+    public void observation(String runId, Integer loopIndex, String nodeType,
+                            String observationType, Map<String, Object> details) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("loopIndex", loopIndex);
+        payload.put("event", "node_observation");
+        payload.put("code", nodeType);
+        payload.put("observationType", observationType);
+        if (details != null) {
+            details.forEach(payload::put);
+        }
+        appendDetailed(runId, TraceTypeEnumVO.RUNTIME_DECISION, payload);
+    }
+
     private void append(String runId, TraceTypeEnumVO traceType, Map<String, Object> payload) {
         if (eventTraceRepository == null || payloadRepository == null) {
             return;
@@ -85,7 +104,13 @@ public class DeveloperTraceRecorder {
         }
         String payloadRef = payloadRepository.savePayload(AgentPayloadEntity.builder()
                 .payloadType(PayloadTypeEnumVO.DEBUG_TRACE)
-                .content(JSON.toJSONString(payload))
+                // The observed input often reuses the same list/object in more than
+                // one field (for example a capability schema points back to the
+                // candidate bundle).  Fastjson's default circular-reference mode
+                // writes $ref markers into debug JSON; those payloads are not useful
+                // to the studio and, with nested bean/list combinations, can even
+                // become unparsable.  Debug evidence must be self-contained.
+                .content(JSON.toJSONString(payload, SerializerFeature.DisableCircularReferenceDetect))
                 .preview(String.valueOf(payload.get("event")))
                 .createdAt(LocalDateTime.now())
                 .build());

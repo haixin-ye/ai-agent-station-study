@@ -12,10 +12,12 @@ import yhx.com.domain.agent.model.valobj.agent.SubAgentActionHandlerResultVO;
 import yhx.com.domain.agent.model.valobj.agent.SubAgentActionVO;
 import yhx.com.domain.agent.model.valobj.agent.SubAgentCommitVO;
 import yhx.com.domain.agent.model.valobj.agent.SubAgentFullContextVO;
+import yhx.com.domain.agent.model.valobj.context.CapabilityCandidateVO;
 import yhx.com.domain.agent.model.valobj.enums.agent.ChildAgentRunStatusEnumVO;
 import yhx.com.domain.agent.model.valobj.interaction.UserAnswerVO;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -76,7 +78,8 @@ public class GenericSubAgentRuntime {
                 relation.getChildRunId(),
                 relation.getParentRunId(),
                 relation.getTaskId(),
-                parentTaskContent(task, command.getEffectiveCapabilityCodes(), command.getInitialContext()));
+                parentTaskContent(task, command.getEffectiveCapabilityCodes(), command.getInitialContext(),
+                        command.getAvailableMcpTools()));
         return execute(command, fullContext, 0, null);
     }
 
@@ -219,7 +222,10 @@ public class GenericSubAgentRuntime {
         return fullContext == null ? null : fullContext.getSnapshotRef();
     }
 
-    private String parentTaskContent(DelegateAgentTaskVO task, Set<String> capabilities, Map<String, Object> initialContext) {
+    private String parentTaskContent(DelegateAgentTaskVO task,
+                                     Set<String> capabilities,
+                                     Map<String, Object> initialContext,
+                                     List<CapabilityCandidateVO> availableMcpTools) {
         Map<String, Object> content = new LinkedHashMap<>();
         content.put("taskId", task.getTaskId());
         content.put("name", task.getName());
@@ -228,6 +234,7 @@ public class GenericSubAgentRuntime {
         content.put("requiredOutput", task.getRequiredOutput());
         content.put("requestedCapabilities", task.getRequestedCapabilities());
         content.put("effectiveCapabilities", capabilities);
+        content.put("availableMcpTools", availableMcpTools == null ? List.of() : availableMcpTools);
         content.put("parentContext", task.getParentContext());
         content.put("initialContext", initialContext);
         return JSON.toJSONString(content);

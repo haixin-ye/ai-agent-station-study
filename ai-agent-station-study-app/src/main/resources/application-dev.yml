@@ -1,4 +1,5 @@
 server:
+#  address: 0.0.0.0
   port: 8091
   tomcat:
     threads:
@@ -99,7 +100,9 @@ auto-agent:
     sse:
       core-pool-size: 4
       max-pool-size: 8
-      queue-capacity: 16
+      # SSE workers hold a thread for the stream lifetime. Do not queue a live
+      # browser connection behind already-running streams; grow to max first.
+      queue-capacity: 0
       keep-alive: 60s
       thread-name-prefix: auto-agent-sse-
       rejection-policy: ABORT
@@ -144,6 +147,7 @@ auto-agent:
     final-response-guard-enabled: false
     max-consecutive-continue-actions: 2
     max-recovery-attempts-per-failure-code: 2
+    max-main-agent-prompt-chars: 0 # 0 disables the emergency prompt-size rejection; canonical context remains complete.
     main-agent-invocation-mode: ${AUTO_AGENT_MAIN_AGENT_INVOCATION_MODE:TEXT_JSON} # FUNCTION_CALL|TEXT_JSON
   debug:
     debug-api-enabled: true
@@ -246,9 +250,9 @@ auto-agent:
       - server-id: baidu-ai-search
         name: Baidu AI Search MCP
         transport: SSE
-        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:true}
+        enabled: ${AUTO_AGENT_MCP_BAIDU_SEARCH_ENABLED:false}
         url: http://appbuilder.baidu.com/v2/ai_search/mcp/
-        sse-endpoint: ${AUTO_AGENT_MCP_BAIDU_SEARCH_SSE_ENDPOINT:sse?api_key=Bearer+bce-v3/ALTAK-oACkdcBrv9k3AzEB88B1M/f2b0a6ad1e63ff70b49cdb3770684f68b69971f0}
+        sse-endpoint: ${AUTO_AGENT_MCP_BAIDU_SEARCH_SSE_ENDPOINT:}
         auto-initialize: false
         auto-discover-tools: true
         auto-register-capabilities: true
@@ -307,7 +311,7 @@ auto-agent:
         request-timeout-seconds: 180
         tools:
           - tool-name: publishArticle
-            description: Publish an approved Markdown article to CSDN. Requires title, markdowncontent, tags, and description under request.
+            description: Publish an approved Markdown article to CSDN   . Requires title, markdowncontent, tags, and description under request.
             required-permission: EXTERNAL_WRITE
             risk-level: HIGH
             destructive: false
@@ -339,6 +343,16 @@ auto-agent:
               required:
                 - request
   capabilities:
+    prompt-exposure:
+      max-tools: 32
+      max-description-chars: 300
+      max-schema-depth: 5
+      max-schema-properties-per-tool: 40
+      max-schema-chars-per-tool: 2400
+      max-total-schema-chars: 12000
+      max-required-arguments-per-tool: 64
+      max-capability-chars-per-tool: 3200
+      max-total-capability-chars: 10000
     tools:
       - capability-id: baidu_ai_search_aisearch
         capability-type: TOOL
@@ -373,6 +387,7 @@ auto-agent:
         approval-policy: NEVER
         risk-level: LOW
         default-content-mode: FULL_TEXT_REQUIRED
+        result-content-mode: FULL_TEXT_REQUIRED
         enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
       - capability-id: file_system_read_multiple_files
         capability-type: TOOL
@@ -384,6 +399,7 @@ auto-agent:
         approval-policy: NEVER
         risk-level: LOW
         default-content-mode: FULL_TEXT_REQUIRED
+        result-content-mode: FULL_TEXT_REQUIRED
         enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
       - capability-id: file_system_list_directory
         capability-type: TOOL
@@ -395,6 +411,7 @@ auto-agent:
         approval-policy: NEVER
         risk-level: LOW
         default-content-mode: SUMMARY_ONLY
+        result-content-mode: FULL_TEXT_REQUIRED
         enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
       - capability-id: file_system_directory_tree
         capability-type: TOOL
@@ -406,6 +423,7 @@ auto-agent:
         approval-policy: NEVER
         risk-level: LOW
         default-content-mode: SUMMARY_ONLY
+        result-content-mode: SUMMARY_ONLY
         enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
       - capability-id: file_system_search_files
         capability-type: TOOL
@@ -417,6 +435,7 @@ auto-agent:
         approval-policy: NEVER
         risk-level: LOW
         default-content-mode: SUMMARY_ONLY
+        result-content-mode: FULL_TEXT_REQUIRED
         enabled: ${AUTO_AGENT_MCP_FILESYSTEM_ENABLED:true}
       - capability-id: file_system_get_file_info
         capability-type: TOOL

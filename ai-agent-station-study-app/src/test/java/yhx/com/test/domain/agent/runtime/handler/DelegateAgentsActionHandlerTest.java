@@ -28,7 +28,7 @@ public class DelegateAgentsActionHandlerTest {
 
         Assert.assertEquals(MainActionHandlerStatusEnumVO.WAITING_CHILDREN, result.getStatus());
         Assert.assertEquals(RuntimePhaseEnumVO.WAITING_CHILDREN, result.getNextPhase());
-        Assert.assertEquals(List.of("run-001-child-t1", "run-001-child-t2"),
+        Assert.assertEquals(List.of("run-001-child-b1-t1", "run-001-child-b1-t2"),
                 result.getActionEffect().getResultSnapshot().get("childRunIds"));
         Assert.assertEquals(2, registry.listChildren("run-001").size());
     }
@@ -39,8 +39,12 @@ public class DelegateAgentsActionHandlerTest {
                 .stateDelta(Map.of("delegateAgentsRequest", Map.of(
                         "waitMode", "WAIT_ALL",
                         "tasks", List.of(
-                                Map.of("taskId", "t1", "name", "reader", "objective", "Read A."),
-                                Map.of("taskId", "t2", "name", "reviewer", "objective", "Review B.")
+                                Map.of("taskId", "t1", "name", "reader", "objective", "Read A.",
+                                        "requiredOutput", "A concise finding.",
+                                        "requestedCapabilities", List.of("FILE_READ", "COMMIT")),
+                                Map.of("taskId", "t2", "name", "reviewer", "objective", "Review B.",
+                                        "requiredOutput", "A concise review.",
+                                        "requestedCapabilities", List.of("FILE_READ", "COMMIT"))
                         ))))
                 .build();
     }
