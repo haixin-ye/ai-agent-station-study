@@ -208,6 +208,6 @@ public class RecallEvaluationRepository implements IRecallEvaluationRepository {
     }
 
     private int bounded(int limit) {
-        return Math.max(1, Math.min(limit <= 0 ? 100 : limit, 1000));
+        return Math.max(1, Math.min(limit <= 0 ? 100 : limit, 10000));
     }
 }

@@ -3,6 +3,13 @@ package yhx.com.test.domain.agent.evaluation;
 import org.junit.Assert;
 import org.junit.Test;
 import yhx.com.domain.agent.adapter.repository.IVectorMemoryRepository;
+import yhx.com.domain.agent.adapter.repository.IRecallEvaluationRepository;
+import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCaseEntity;
+import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCaseResultEntity;
+import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCorpusItemEntity;
+import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationDatasetEntity;
+import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationHitEntity;
+import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationRunEntity;
 import yhx.com.domain.agent.adapter.repository.IMemoryRepository;
 import yhx.com.domain.agent.adapter.repository.IPayloadRepository;
 import yhx.com.domain.agent.adapter.repository.IVectorIndexRepository;
@@ -22,12 +29,17 @@ import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
+import yhx.com.domain.agent.service.evaluation.RecallEvaluationRunner;
+import yhx.com.domain.agent.service.evaluation.RecallMetricsCalculator;
+import com.alibaba.fastjson.JSON;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RecallEvaluationFlowTest {
 
@@ -86,6 +98,50 @@ public class RecallEvaluationFlowTest {
         Assert.assertNotNull(vectors.indexed);
         Assert.assertEquals("dataset-1", vectors.indexed.getMetadata().get("evalDatasetId"));
         Assert.assertEquals("memory-travel-pace", vectors.indexed.getMetadata().get("evalExternalId"));
+    }
+
+    @Test
+    public void batch_runner_skips_planner_when_disabled_and_isolates_case_failure() {
+        InMemoryEvaluationRepository evaluations = new InMemoryEvaluationRepository();
+        evaluations.dataset = RecallEvaluationDatasetEntity.builder()
+                .datasetId("dataset-1").evalUserId("eval-user:dataset-1")
+                .evalSessionId("eval-session:dataset-1").build();
+        evaluations.corpus = RecallEvaluationCorpusItemEntity.builder()
+                .corpusItemId("corpus-1").datasetId("dataset-1").externalId("memory-expected")
+                .itemType("LONG_TERM_MEMORY").sourceId("memory-1").build();
+        evaluations.cases.add(RecallEvaluationCaseEntity.builder().caseId("case-ok").datasetId("dataset-1")
+                .queryText("slow travel").sourceScope("MEMORY").status("ACTIVE")
+                .expectedJson("[{\"externalId\":\"memory-expected\",\"grade\":3}]").build());
+        evaluations.cases.add(RecallEvaluationCaseEntity.builder().caseId("case-fail").datasetId("dataset-1")
+                .queryText("explode retrieval").sourceScope("MEMORY").status("ACTIVE")
+                .expectedJson("[{\"externalId\":\"memory-expected\",\"grade\":3}]").build());
+        evaluations.run = RecallEvaluationRunEntity.builder().evaluationRunId("run-1").datasetId("dataset-1")
+                .status("PENDING").configJson("{\"datasetId\":\"dataset-1\",\"sourceScope\":\"MEMORY\",\"topK\":3,\"minScore\":0.2,\"plannerEnabled\":false}")
+                .completedCaseCount(0).failedCaseCount(0).build();
+
+        FakeMemoryRepository memories = new FakeMemoryRepository();
+        memories.saved = AgentMemoryEntity.builder().memoryId("memory-1").memoryType("LONG_TERM_MEMORY")
+                .summary("slow travel preference").contentRef("payload-1").build();
+        FakePayloadRepository payloads = new FakePayloadRepository();
+        payloads.saved = AgentPayloadEntity.builder().payloadId("payload-1").content("slow travel preference").build();
+        FailingByQueryVectorRepository vectors = new FailingByQueryVectorRepository();
+        AtomicInteger plannerCalls = new AtomicInteger();
+        RecallEvaluationRunner runner = new RecallEvaluationRunner(evaluations,
+                new VectorContextRecallPreselector(vectors, null, null, memories, payloads), null,
+                candidates -> {
+                    plannerCalls.incrementAndGet();
+                    return null;
+                }, new RecallMetricsCalculator());
+
+        runner.execute("run-1");
+
+        Assert.assertEquals(0, plannerCalls.get());
+        Assert.assertEquals("COMPLETED", evaluations.run.getStatus());
+        Assert.assertEquals(Integer.valueOf(2), evaluations.run.getCompletedCaseCount());
+        Assert.assertEquals(Integer.valueOf(1), evaluations.run.getFailedCaseCount());
+        Assert.assertEquals(2, evaluations.results.size());
+        Assert.assertEquals(1, evaluations.hits.size());
+        Assert.assertNotNull(evaluations.run.getMetricsJson());
     }
 
     private static class CapturingVectorRepository implements IVectorMemoryRepository {
@@ -174,5 +230,58 @@ public class RecallEvaluationFlowTest {
         @Override
         public void markDisabled(String collectionType, String sourceType, String sourceId) {
         }
+    }
+
+    private static class FailingByQueryVectorRepository implements IVectorMemoryRepository {
+        @Override
+        public String upsert(VectorIndexRecordVO record) {
+            return "vector-1";
+        }
+
+        @Override
+        public List<VectorRecallHitVO> search(VectorRecallQueryVO query) {
+            if (query.getQueryText().contains("explode")) {
+                throw new IllegalStateException("synthetic retrieval failure");
+            }
+            return List.of(VectorRecallHitVO.builder().collectionType(VectorCollectionTypeEnumVO.LONG_TERM_MEMORY)
+                    .sourceType(VectorSourceTypeEnumVO.LONG_TERM_MEMORY).sourceId("memory-1").score(0.9D).build());
+        }
+
+        @Override
+        public void disable(VectorCollectionTypeEnumVO collectionType, String sourceId) {
+        }
+    }
+
+    private static class InMemoryEvaluationRepository implements IRecallEvaluationRepository {
+        private RecallEvaluationDatasetEntity dataset;
+        private RecallEvaluationCorpusItemEntity corpus;
+        private RecallEvaluationRunEntity run;
+        private final List<RecallEvaluationCaseEntity> cases = new ArrayList<>();
+        private final List<RecallEvaluationCaseResultEntity> results = new ArrayList<>();
+        private final List<RecallEvaluationHitEntity> hits = new ArrayList<>();
+
+        @Override public void saveDataset(RecallEvaluationDatasetEntity value) { dataset = value; }
+        @Override public Optional<RecallEvaluationDatasetEntity> findDataset(String datasetId) { return Optional.ofNullable(dataset); }
+        @Override public List<RecallEvaluationDatasetEntity> listDatasets() { return List.of(dataset); }
+        @Override public void updateDataset(RecallEvaluationDatasetEntity value) { dataset = value; }
+        @Override public void saveCorpusItem(RecallEvaluationCorpusItemEntity item) { corpus = item; }
+        @Override public Optional<RecallEvaluationCorpusItemEntity> findCorpusItem(String corpusItemId) { return Optional.ofNullable(corpus); }
+        @Override public Optional<RecallEvaluationCorpusItemEntity> findCorpusItemByExternalId(String datasetId, String externalId) {
+            return corpus != null && externalId.equals(corpus.getExternalId()) ? Optional.of(corpus) : Optional.empty();
+        }
+        @Override public List<RecallEvaluationCorpusItemEntity> listCorpusItems(String datasetId, String status, int limit, int offset) { return corpus == null ? List.of() : List.of(corpus); }
+        @Override public void updateCorpusItem(RecallEvaluationCorpusItemEntity item) { corpus = item; }
+        @Override public void saveCase(RecallEvaluationCaseEntity testCase) { cases.add(testCase); }
+        @Override public Optional<RecallEvaluationCaseEntity> findCase(String caseId) { return cases.stream().filter(value -> caseId.equals(value.getCaseId())).findFirst(); }
+        @Override public List<RecallEvaluationCaseEntity> listCases(String datasetId, String status, int limit, int offset) { return new ArrayList<>(cases); }
+        @Override public void updateCase(RecallEvaluationCaseEntity testCase) { }
+        @Override public void saveRun(RecallEvaluationRunEntity value) { run = value; }
+        @Override public Optional<RecallEvaluationRunEntity> findRun(String evaluationRunId) { return Optional.ofNullable(run); }
+        @Override public List<RecallEvaluationRunEntity> listRuns(String datasetId, int limit) { return List.of(run); }
+        @Override public void updateRun(RecallEvaluationRunEntity value) { run = value; }
+        @Override public void saveCaseResult(RecallEvaluationCaseResultEntity result) { results.add(result); }
+        @Override public List<RecallEvaluationCaseResultEntity> listCaseResults(String evaluationRunId) { return new ArrayList<>(results); }
+        @Override public void saveHits(List<RecallEvaluationHitEntity> values) { hits.addAll(values); }
+        @Override public List<RecallEvaluationHitEntity> listHits(String evaluationRunId, String caseId) { return new ArrayList<>(hits); }
     }
 }

@@ -69,12 +69,14 @@ public class VectorContextRecallPreselector {
         }
         long startedAt = System.currentTimeMillis();
         List<VectorRecallHitVO> hits = new ArrayList<>();
+        List<VectorRecallHitVO> vectorHits = new ArrayList<>();
         List<VectorRecallHitVO> lexicalHits = new ArrayList<>();
         List<VectorRecallHitVO> sessionHits = new ArrayList<>();
         List<VectorRecallHitVO> memoryHits = new ArrayList<>();
         if (options != null && options.getCollectionTypes() != null && !options.getCollectionTypes().isEmpty()) {
             VectorRecallQueryVO query = query(command, options, options.getCollectionTypes(), command.getSessionId());
             List<VectorRecallHitVO> selectedHits = safe(vectorMemoryRepository.search(query));
+            vectorHits.addAll(selectedHits);
             hits.addAll(selectedHits);
             memoryHits.addAll(selectedHits);
             if (Boolean.TRUE.equals(options.getLexicalEnabled())) {
@@ -83,8 +85,10 @@ public class VectorContextRecallPreselector {
             }
         } else {
             sessionHits.addAll(safe(vectorMemoryRepository.search(query(command, null, sessionScopedCollections(), command.getSessionId()))));
+            vectorHits.addAll(sessionHits);
             hits.addAll(sessionHits);
             memoryHits.addAll(safe(vectorMemoryRepository.search(query(command, null, userScopedMemoryCollections(), null))));
+            vectorHits.addAll(memoryHits);
             hits.addAll(memoryHits);
         }
         ContextCandidateBundleVO bundle = resolveHits(hits);
@@ -105,7 +109,7 @@ public class VectorContextRecallPreselector {
                 + "，可用摘要=" + (bundle.getSessionSummaries() == null ? 0 : bundle.getSessionSummaries().size())
                 + "，可用长期记忆=" + (bundle.getMemoryCandidates() == null ? 0 : bundle.getMemoryCandidates().size())
                 + "，耗时=" + (System.currentTimeMillis() - startedAt) + "ms。");
-        return detailed(bundle, hits, lexicalHits, System.currentTimeMillis() - startedAt);
+        return detailed(bundle, vectorHits, lexicalHits, System.currentTimeMillis() - startedAt);
     }
 
     private VectorRecallQueryVO query(ContextPreparationCommand command,
