@@ -5,6 +5,12 @@ const {
   groupRunResults,
   preserveWorkbenchState
 } = require('./recall_evaluation_logic');
+const fs = require('fs');
+
+const workbenchSource = fs.readFileSync(require.resolve('./recall_evaluation.js'), 'utf8');
+if (!workbenchSource.includes('selectDataset(datasetCard.dataset.datasetId)')) {
+  throw new Error('dataset card must read datasetId from HTMLElement.dataset');
+}
 
 const jsonl = parseJsonl('{"externalId":"q1","query":"hello"}\nnot-json\n{"externalId":"q2","query":"world"}');
 if (jsonl.items.length !== 2 || jsonl.errors.length !== 1 || jsonl.errors[0].line !== 2) {

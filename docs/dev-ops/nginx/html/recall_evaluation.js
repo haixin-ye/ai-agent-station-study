@@ -366,7 +366,8 @@
   function showError(error) { showToast(error?.message || String(error), 'error'); }
 
   document.addEventListener('click', async event => {
-    const dataset = event.target.closest('[data-dataset-id]'); if (dataset) return selectDataset(dataset.datasetId).catch(showError);
+    const datasetCard = event.target.closest('[data-dataset-id]');
+    if (datasetCard) return selectDataset(datasetCard.dataset.datasetId).catch(showError);
     const tab = event.target.closest('[data-tab]'); if (tab) return setTab(tab.dataset.tab);
     const corpusType = event.target.closest('[data-corpus-type]'); if (corpusType && !corpusType.matches('[data-open-import]')) { state.corpusType = corpusType.dataset.corpusType; updateUrl(); return renderView(); }
     const goTab = event.target.closest('[data-go-tab]'); if (goTab) return setTab(goTab.dataset.goTab);
