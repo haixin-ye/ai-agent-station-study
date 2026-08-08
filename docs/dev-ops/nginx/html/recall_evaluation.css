@@ -109,6 +109,13 @@ textarea { resize: vertical; min-height: 112px; font: 13px/1.65 "SFMono-Regular"
 .form-grid .wide { grid-column: 1 / -1; }
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .hint { color: var(--muted); font-size: 13px; }
+.import-file-row { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px; border: 1px dashed #aebbd0; border-radius: 12px; background: #f8faff; }
+.file-select-btn { flex: 0 0 auto; border-color: #9bb8f7; color: #1746a2; background: #fff; }
+.import-file-name { min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-file-name.ready { color: #087f6f; font-weight: 650; }
+.import-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.import-divider::before, .import-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+.import-divider span { white-space: nowrap; }
 
 .table { width: 100%; border-collapse: collapse; }
 .table th { padding: 9px 10px; text-align: left; color: #667085; font-size: 12px; letter-spacing: .03em; font-weight: 700; background: #f8fafc; }

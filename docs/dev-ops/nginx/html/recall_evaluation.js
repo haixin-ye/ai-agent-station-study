@@ -18,7 +18,8 @@
     deleteDatasetBtn: document.getElementById('deleteDatasetBtn'), datasetModal: document.getElementById('datasetModal'),
     importModal: document.getElementById('importModal'), importModalTitle: document.getElementById('importModalTitle'),
     importText: document.getElementById('importText'), importFormat: document.getElementById('importFormat'),
-    importHint: document.getElementById('importHint'), filePicker: document.getElementById('filePicker'),
+    importHint: document.getElementById('importHint'), importFilePicker: document.getElementById('importFilePicker'),
+    importFileName: document.getElementById('importFileName'),
     toast: document.getElementById('toast')
   };
 
@@ -64,21 +65,30 @@
     if (state.datasetId && !state.datasets.some(item => item.datasetId === state.datasetId)) state.datasetId = null;
   }
 
-  async function loadDatasetData() {
-    if (!state.datasetId) return;
-    const id = encodeURIComponent(state.datasetId);
-    const [corpus, cases, runs, ragVectors, memoryVectors, preferenceVectors] = await Promise.all([
+  async function loadDatasetData(datasetId = state.datasetId) {
+    if (!datasetId) return;
+    const id = encodeURIComponent(datasetId);
+    const [corpus, cases, runs] = await Promise.all([
       request(`/datasets/${id}/corpus?limit=1000`),
       request(`/datasets/${id}/cases?limit=1000`),
-      request(`/runs?datasetId=${id}&limit=100`),
+      request(`/runs?datasetId=${id}&limit=100`)
+    ]);
+    const vectorResults = await Promise.allSettled([
       request(`/datasets/${id}/vectors?itemType=RAG_DOCUMENT&limit=1000`),
       request(`/datasets/${id}/vectors?itemType=LONG_TERM_MEMORY&limit=1000`),
       request(`/datasets/${id}/vectors?itemType=USER_PREFERENCE&limit=1000`)
     ]);
+    if (state.datasetId !== datasetId) return;
     state.corpus = corpus;
     state.cases = cases;
     state.runs = runs;
-    state.vectors = { RAG_DOCUMENT: ragVectors, LONG_TERM_MEMORY: memoryVectors, USER_PREFERENCE: preferenceVectors };
+    state.vectors = {
+      RAG_DOCUMENT: vectorResults[0].status === 'fulfilled' ? vectorResults[0].value : [],
+      LONG_TERM_MEMORY: vectorResults[1].status === 'fulfilled' ? vectorResults[1].value : [],
+      USER_PREFERENCE: vectorResults[2].status === 'fulfilled' ? vectorResults[2].value : []
+    };
+    const vectorFailures = vectorResults.filter(result => result.status === 'rejected');
+    if (vectorFailures.length) console.warn(`${vectorFailures.length} vector table request(s) failed`, vectorFailures);
     if (state.runId && !state.runs.some(run => run.evaluationRunId === state.runId)) state.runId = null;
     if (!state.runId && state.runs.length) state.runId = state.runs[0].evaluationRunId;
     if (state.runId && state.tab === 'results') await loadRunDetail(state.runId);
@@ -98,7 +108,7 @@
 
   function renderRail() {
     els.datasetList.innerHTML = state.datasets.length ? state.datasets.map(item => `
-      <button class="dataset-card ${item.datasetId === state.datasetId ? 'active' : ''}" data-dataset-id="${esc(item.datasetId)}">
+      <button type="button" class="dataset-card ${item.datasetId === state.datasetId ? 'active' : ''}" data-dataset-id="${esc(item.datasetId)}" aria-pressed="${item.datasetId === state.datasetId}">
         <div class="dataset-name">${esc(item.name)}</div>
         <div class="dataset-meta"><span>${number(item.readyCorpusCount)} 语料</span><span>${number(item.caseCount)} 问题</span><span class="dataset-status">${esc(item.status)}</span></div>
       </button>`).join('') : '<div class="empty">还没有数据集<br>点击右上角开始建立基线</div>';
@@ -154,7 +164,7 @@
     const label = types.find(item => item[0] === type)?.[1] || type;
     return `<section class="panel">
       <div class="subtabs">${types.map(([value, text]) => `<button class="subtab ${value === type ? 'active' : ''}" data-corpus-type="${value}">${text} <span class="tag">${state.corpus.filter(item => item.itemType === value).length}</span></button>`).join('')}</div>
-      <div class="panel-head"><div><h3>${label}表</h3><p>表格同时展示评测记录与 PGVector 中按 evalDatasetId 查询到的真实向量行。</p></div><div class="actions">${type === 'RAG_DOCUMENT' ? '<button class="btn" id="uploadFilesBtn">上传文本/Markdown</button>' : ''}<button class="btn primary" data-open-import="corpus" data-corpus-type="${type}">导入 ${label}</button></div></div>
+      <div class="panel-head"><div><h3>${label}表</h3><p>表格同时展示评测记录与 PGVector 中按 evalDatasetId 查询到的真实向量行。</p></div><div class="actions"><button class="btn primary" data-open-import="corpus" data-corpus-type="${type}">导入 ${label}</button></div></div>
       <div class="panel-body">${items.length ? `<table class="table"><thead><tr><th>自定义数字ID</th><th>内容</th><th>真实向量库记录</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
     </section>`;
   }
@@ -257,7 +267,10 @@
 
   async function selectDataset(datasetId) {
     state.datasetId = datasetId; state.tab = 'corpus'; state.runId = null; state.runDetail = null; state.comparison = null;
-    await loadDatasetData(); updateUrl(); renderAll();
+    state.corpus = []; state.cases = []; state.runs = [];
+    state.vectors = { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] };
+    updateUrl(); renderAll();
+    await loadDatasetData(datasetId); renderAll();
   }
 
   function setTab(tab) {
@@ -291,6 +304,9 @@
   function openImport(target, corpusType = null) {
     state.importTarget = target; els.importText.value = '';
     state.importCorpusType = corpusType;
+    els.importFilePicker.value = '';
+    els.importFileName.textContent = '尚未选择文件';
+    els.importFileName.classList.remove('ready');
     const labels = { RAG_DOCUMENT: 'RAG数据', LONG_TERM_MEMORY: '长期记忆', USER_PREFERENCE: '用户偏好' };
     els.importModalTitle.textContent = target === 'corpus' ? `批量导入${labels[corpusType] || '记忆数据'}` : '批量导入测试问题';
     els.importHint.textContent = target === 'corpus' ? `必填：externalId（5–12位数字字符串）、content。当前表格类型：${corpusType || '由type字段决定'}。` : '必填：externalId、query、expected；问题ID与expected.externalId都使用数字字符串。';
@@ -298,7 +314,17 @@
   }
 
   function normalizeImported(raw) {
-    const items = els.importFormat.value === 'jsonl' ? logic.parseJsonl(raw) : { items: logic.parseCsv(raw), errors: [] };
+    const normalizedRaw = String(raw || '').replace(/^\uFEFF/, '').trim();
+    if (!normalizedRaw) throw new Error('请先选择数据文件，或粘贴需要导入的内容。');
+    let items;
+    if (els.importFormat.value === 'json') {
+      const parsed = JSON.parse(normalizedRaw);
+      const values = Array.isArray(parsed) ? parsed : parsed?.items;
+      if (!Array.isArray(values)) throw new Error('JSON 文件必须是数组，或包含 items 数组。');
+      items = { items: values, errors: [] };
+    } else {
+      items = els.importFormat.value === 'jsonl' ? logic.parseJsonl(normalizedRaw) : { items: logic.parseCsv(normalizedRaw), errors: [] };
+    }
     if (items.errors.length) throw new Error(`第 ${items.errors[0].line} 行解析失败：${items.errors[0].message}`);
     return items.items.map(item => ({ ...item,
       tags: Array.isArray(item.tags) ? item.tags : String(item.tags || '').split('|').filter(Boolean),
@@ -349,7 +375,7 @@
     const reindex = event.target.closest('[data-reindex]'); if (reindex) { await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/${encodeURIComponent(reindex.dataset.reindex)}/reindex`, {method:'POST'}); showToast('索引已重建'); return refreshSelected(); }
     const disable = event.target.closest('[data-disable-corpus]'); if (disable && confirm('停用这条评测语料及其向量索引？')) { await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/${encodeURIComponent(disable.dataset.disableCorpus)}`, {method:'DELETE'}); return refreshSelected(); }
     const cancel = event.target.closest('[data-cancel-run]'); if (cancel) { await request(`/runs/${encodeURIComponent(cancel.dataset.cancelRun)}/cancel`, {method:'POST'}); showToast('已请求取消'); return refreshSelected(); }
-    if (event.target.closest('#uploadFilesBtn')) return els.filePicker.click();
+    if (event.target.closest('#chooseImportFileBtn')) return els.importFilePicker.click();
     if (event.target.closest('#compareBtn')) { const left = document.getElementById('compareLeft')?.value; if (left) { state.comparison = await request(`/compare?leftRunId=${encodeURIComponent(left)}&rightRunId=${encodeURIComponent(state.runId)}`); return renderView(); } }
     if (event.target.closest('[data-close-modal]') || (event.target.classList.contains('modal'))) return closeModals();
   });
@@ -360,10 +386,22 @@
     if (event.target.id === 'runForm') { event.preventDefault(); startRun(event.target).catch(showError); }
   });
 
-  els.filePicker.addEventListener('change', async () => {
-    if (!els.filePicker.files.length) return;
-    const form = new FormData(); [...els.filePicker.files].forEach(file => form.append('files', file));
-    try { const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/files`, {method:'POST', body:form, timeoutMs:300000}); showToast(`已导入 ${result.acceptedCount} 个文档`, result.failedCount ? 'error' : ''); await refreshSelected(); } catch (error) { showError(error); } finally { els.filePicker.value = ''; }
+  els.importFilePicker.addEventListener('change', async () => {
+    const file = els.importFilePicker.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 10 * 1024 * 1024) throw new Error('导入文件不能超过 10 MB。');
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      els.importFormat.value = extension === 'csv' ? 'csv' : extension === 'json' ? 'json' : 'jsonl';
+      els.importText.value = await file.text();
+      els.importFileName.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB · 已读取`;
+      els.importFileName.classList.add('ready');
+    } catch (error) {
+      els.importFilePicker.value = '';
+      els.importFileName.textContent = '文件读取失败';
+      els.importFileName.classList.remove('ready');
+      showError(error);
+    }
   });
 
   document.getElementById('newDatasetBtn').addEventListener('click', () => openModal(els.datasetModal));

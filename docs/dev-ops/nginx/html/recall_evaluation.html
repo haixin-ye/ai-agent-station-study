@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AutoAgent · 召回批量测试</title>
-  <link rel="stylesheet" href="recall_evaluation.css">
+  <link rel="stylesheet" href="recall_evaluation.css?v=20260808-2">
 </head>
 <body>
 <div class="shell">
@@ -70,18 +70,26 @@
   <div class="modal-card">
     <div class="modal-head"><h3 id="importModalTitle">批量导入</h3><button class="icon-btn" data-close-modal>×</button></div>
     <form class="modal-body grid" id="importForm">
-      <div class="field"><label>格式</label><select id="importFormat"><option value="jsonl">JSONL</option><option value="csv">CSV</option></select></div>
-      <div class="field"><label>内容</label><textarea id="importText" rows="14" placeholder="每行一个 JSON 对象"></textarea></div>
+      <div class="field">
+        <label>从文件导入</label>
+        <div class="import-file-row">
+          <button class="btn file-select-btn" id="chooseImportFileBtn" type="button">选择 JSON / JSONL / CSV 文件</button>
+          <span class="import-file-name" id="importFileName">尚未选择文件</span>
+        </div>
+        <input id="importFilePicker" type="file" accept=".json,.jsonl,.csv,application/json,application/x-ndjson,text/csv" hidden>
+      </div>
+      <div class="import-divider"><span>或者直接粘贴内容</span></div>
+      <div class="field"><label>格式</label><select id="importFormat"><option value="jsonl">JSONL</option><option value="json">JSON 数组</option><option value="csv">CSV</option></select></div>
+      <div class="field"><label>数据内容</label><textarea id="importText" rows="14" placeholder="选择文件后会自动读取到这里；也可以每行粘贴一个 JSON 对象"></textarea></div>
       <div class="hint" id="importHint"></div>
       <div class="actions"><button class="btn primary" type="submit">解析并导入</button><button class="btn" type="button" data-close-modal>取消</button></div>
     </form>
   </div>
 </div>
 
-<input id="filePicker" type="file" accept=".txt,.md,text/plain,text/markdown" multiple hidden>
 <div class="toast" id="toast"></div>
 
-<script src="recall_evaluation_logic.js"></script>
-<script src="recall_evaluation.js"></script>
+<script src="recall_evaluation_logic.js?v=20260808-2"></script>
+<script src="recall_evaluation.js?v=20260808-2"></script>
 </body>
 </html>
