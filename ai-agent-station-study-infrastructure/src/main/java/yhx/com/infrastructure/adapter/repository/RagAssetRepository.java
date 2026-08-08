@@ -58,6 +58,11 @@ public class RagAssetRepository implements IRagAssetRepository {
     }
 
     @Override
+    public void updateChunkStatus(String chunkId, String status) {
+        agentRagChunkDao.updateStatus(chunkId, status);
+    }
+
+    @Override
     public List<RagChunkEntity> findChunksByDocumentId(String documentId) {
         return agentRagChunkDao.queryByDocumentId(documentId).stream().map(this::toEntity).toList();
     }

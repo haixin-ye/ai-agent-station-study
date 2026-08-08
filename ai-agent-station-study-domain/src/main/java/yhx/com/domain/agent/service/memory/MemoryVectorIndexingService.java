@@ -79,6 +79,10 @@ public class MemoryVectorIndexingService {
     }
 
     public void indexMemory(AgentMemoryEntity memory) {
+        indexMemory(memory, Map.of());
+    }
+
+    public void indexMemory(AgentMemoryEntity memory, Map<String, Object> extraMetadata) {
         if (memory == null || isBlank(memory.getMemoryId())) {
             return;
         }
@@ -89,6 +93,9 @@ public class MemoryVectorIndexingService {
         VectorCollectionTypeEnumVO collectionType = collectionType(memory.getMemoryType());
         VectorSourceTypeEnumVO sourceType = sourceType(memory.getMemoryType());
         Map<String, Object> metadata = new LinkedHashMap<>();
+        if (extraMetadata != null) {
+            metadata.putAll(extraMetadata);
+        }
         putIfPresent(metadata, "memoryType", memory.getMemoryType());
         putIfPresent(metadata, "score", memory.getScore());
         upsert(collectionType,

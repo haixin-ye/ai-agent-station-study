@@ -24,6 +24,8 @@ import yhx.com.domain.agent.model.valobj.enums.memory.VectorSourceTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallFilterVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
+import yhx.com.domain.agent.model.valobj.evaluation.DetailedRecallResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallExecutionOptionsVO;
 import yhx.com.domain.agent.service.observability.AutoAgentHumanLog;
 
 import java.util.ArrayList;
@@ -57,32 +59,38 @@ public class VectorContextRecallPreselector {
     }
 
     public ContextCandidateBundleVO recall(ContextPreparationCommand command) {
+        return recallDetailed(command, null).getCandidateBundle();
+    }
+
+    public DetailedRecallResultVO recallDetailed(ContextPreparationCommand command,
+                                                  RecallExecutionOptionsVO options) {
         if (command == null || isBlank(command.getUserInput()) || vectorMemoryRepository == null) {
-            return emptyBundle();
+            return detailed(emptyBundle(), List.of(), List.of(), 0L);
         }
         long startedAt = System.currentTimeMillis();
         List<VectorRecallHitVO> hits = new ArrayList<>();
-        List<VectorRecallHitVO> sessionHits = vectorMemoryRepository.search(VectorRecallQueryVO.builder()
-                .queryText(command.getUserInput())
-                .topK(DEFAULT_TOP_K)
-                .minScore(DEFAULT_MIN_SCORE)
-                .filter(VectorRecallFilterVO.builder()
-                        .userId(command.getUserId())
-                        .sessionId(command.getSessionId())
-                        .collectionTypes(sessionScopedCollections())
-                        .build())
-                .build());
-        hits.addAll(sessionHits);
-        List<VectorRecallHitVO> memoryHits = vectorMemoryRepository.search(VectorRecallQueryVO.builder()
-                .queryText(command.getUserInput())
-                .topK(DEFAULT_TOP_K)
-                .minScore(DEFAULT_MIN_SCORE)
-                .filter(VectorRecallFilterVO.builder()
-                        .userId(command.getUserId())
-                        .collectionTypes(userScopedMemoryCollections())
-                        .build())
-                .build());
-        hits.addAll(memoryHits);
+        List<VectorRecallHitVO> vectorHits = new ArrayList<>();
+        List<VectorRecallHitVO> lexicalHits = new ArrayList<>();
+        List<VectorRecallHitVO> sessionHits = new ArrayList<>();
+        List<VectorRecallHitVO> memoryHits = new ArrayList<>();
+        if (options != null && options.getCollectionTypes() != null && !options.getCollectionTypes().isEmpty()) {
+            VectorRecallQueryVO query = query(command, options, options.getCollectionTypes(), command.getSessionId());
+            List<VectorRecallHitVO> selectedHits = safe(vectorMemoryRepository.search(query));
+            vectorHits.addAll(selectedHits);
+            hits.addAll(selectedHits);
+            memoryHits.addAll(selectedHits);
+            if (Boolean.TRUE.equals(options.getLexicalEnabled())) {
+                lexicalHits.addAll(safe(vectorMemoryRepository.lexicalSearch(query)));
+                hits.addAll(lexicalHits);
+            }
+        } else {
+            sessionHits.addAll(safe(vectorMemoryRepository.search(query(command, null, sessionScopedCollections(), command.getSessionId()))));
+            vectorHits.addAll(sessionHits);
+            hits.addAll(sessionHits);
+            memoryHits.addAll(safe(vectorMemoryRepository.search(query(command, null, userScopedMemoryCollections(), null))));
+            vectorHits.addAll(memoryHits);
+            hits.addAll(memoryHits);
+        }
         ContextCandidateBundleVO bundle = resolveHits(hits);
         log.info("[AutoAgent][memory-vector-recall] runId={}, sessionId={}, userId={}, query={}, sessionHits={}, memoryHits={}, resolvedSummaries={}, resolvedMemories={}, resolvedEvidence={}, elapsedMs={}",
                 command.getRunId(),
@@ -101,7 +109,43 @@ public class VectorContextRecallPreselector {
                 + "，可用摘要=" + (bundle.getSessionSummaries() == null ? 0 : bundle.getSessionSummaries().size())
                 + "，可用长期记忆=" + (bundle.getMemoryCandidates() == null ? 0 : bundle.getMemoryCandidates().size())
                 + "，耗时=" + (System.currentTimeMillis() - startedAt) + "ms。");
-        return bundle;
+        return detailed(bundle, vectorHits, lexicalHits, System.currentTimeMillis() - startedAt);
+    }
+
+    private VectorRecallQueryVO query(ContextPreparationCommand command,
+                                      RecallExecutionOptionsVO options,
+                                      List<VectorCollectionTypeEnumVO> collectionTypes,
+                                      String sessionId) {
+        return VectorRecallQueryVO.builder()
+                .queryText(command.getUserInput())
+                .topK(options == null || options.getTopK() == null ? DEFAULT_TOP_K : options.getTopK())
+                .minScore(options == null || options.getMinScore() == null ? DEFAULT_MIN_SCORE : options.getMinScore())
+                .filter(VectorRecallFilterVO.builder()
+                        .userId(command.getUserId())
+                        .sessionId(sessionId)
+                        .collectionTypes(collectionTypes)
+                        .metadataFilters(options == null ? null : options.getMetadataFilters())
+                        .build())
+                .build();
+    }
+
+    private DetailedRecallResultVO detailed(ContextCandidateBundleVO bundle,
+                                             List<VectorRecallHitVO> vectorHits,
+                                             List<VectorRecallHitVO> lexicalHits,
+                                             long elapsedMs) {
+        return DetailedRecallResultVO.builder()
+                .candidateBundle(bundle)
+                .ragCandidates(List.of())
+                .vectorHits(vectorHits == null ? List.of() : vectorHits)
+                .lexicalHits(lexicalHits == null ? List.of() : lexicalHits)
+                .elapsedMs(elapsedMs)
+                .diagnostics(Map.of("resolvedMemoryCount", bundle == null || bundle.getMemoryCandidates() == null
+                        ? 0 : bundle.getMemoryCandidates().size()))
+                .build();
+    }
+
+    private List<VectorRecallHitVO> safe(List<VectorRecallHitVO> values) {
+        return values == null ? List.of() : values;
     }
 
     private ContextCandidateBundleVO resolveHits(List<VectorRecallHitVO> hits) {

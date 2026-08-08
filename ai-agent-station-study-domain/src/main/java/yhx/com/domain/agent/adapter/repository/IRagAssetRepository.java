@@ -20,6 +20,10 @@ public interface IRagAssetRepository {
 
     void saveChunk(RagChunkEntity chunk);
 
+    default void updateChunkStatus(String chunkId, String status) {
+        // Optional lifecycle hook for adapters that support soft deletion/reindexing.
+    }
+
     List<RagChunkEntity> findChunksByDocumentId(String documentId);
 
     Optional<RagChunkEntity> findChunk(String chunkId);

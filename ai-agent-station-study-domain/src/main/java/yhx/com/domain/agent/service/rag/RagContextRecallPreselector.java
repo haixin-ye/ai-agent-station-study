@@ -12,6 +12,8 @@ import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallFilterVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
+import yhx.com.domain.agent.model.valobj.evaluation.DetailedRecallResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallExecutionOptionsVO;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -45,20 +47,30 @@ public class RagContextRecallPreselector {
     }
 
     public List<RagCandidateVO> recall(ContextPreparationCommand command) {
-        if (vectorMemoryRepository == null || ragAssetRepository == null || command == null || isBlank(command.getUserInput())) {
-            return List.of();
-        }
-        VectorRecallQueryVO query = VectorRecallQueryVO.builder()
-                .queryText(command.getUserInput())
+        return recallDetailed(command, RecallExecutionOptionsVO.builder()
                 .topK(topK)
                 .minScore(minScore)
+                .lexicalEnabled(true)
+                .build()).getRagCandidates();
+    }
+
+    public DetailedRecallResultVO recallDetailed(ContextPreparationCommand command,
+                                                  RecallExecutionOptionsVO options) {
+        long startedAt = System.currentTimeMillis();
+        if (vectorMemoryRepository == null || ragAssetRepository == null || command == null || isBlank(command.getUserInput())) {
+            return detailed(List.of(), List.of(), List.of(), 0L);
+        }
+        List<VectorCollectionTypeEnumVO> collections = options == null || options.getCollectionTypes() == null
+                || options.getCollectionTypes().isEmpty() ? defaultCollections() : options.getCollectionTypes();
+        VectorRecallQueryVO query = VectorRecallQueryVO.builder()
+                .queryText(command.getUserInput())
+                .topK(options == null || options.getTopK() == null ? topK : options.getTopK())
+                .minScore(options == null || options.getMinScore() == null ? minScore : options.getMinScore())
                 .filter(VectorRecallFilterVO.builder()
                         .userId(command.getUserId())
                         .sessionId(command.getSessionId())
-                        .collectionTypes(List.of(
-                                VectorCollectionTypeEnumVO.RAG_FILE_CHUNK,
-                                VectorCollectionTypeEnumVO.RAG_CODE_FILE_SUMMARY,
-                                VectorCollectionTypeEnumVO.RAG_CODE_CHUNK))
+                        .collectionTypes(collections)
+                        .metadataFilters(options == null ? null : options.getMetadataFilters())
                         .build())
                 .build();
         List<VectorRecallHitVO> hits = new ArrayList<>();
@@ -66,12 +78,13 @@ public class RagContextRecallPreselector {
         if (vectorHits != null) {
             hits.addAll(vectorHits);
         }
-        List<VectorRecallHitVO> lexicalHits = vectorMemoryRepository.lexicalSearch(query);
+        List<VectorRecallHitVO> lexicalHits = options != null && !Boolean.TRUE.equals(options.getLexicalEnabled())
+                ? List.of() : vectorMemoryRepository.lexicalSearch(query);
         if (lexicalHits != null) {
             hits.addAll(lexicalHits);
         }
         if (hits == null || hits.isEmpty()) {
-            return List.of();
+            return detailed(List.of(), safe(vectorHits), safe(lexicalHits), System.currentTimeMillis() - startedAt);
         }
         Map<String, RagCandidateVO> merged = new LinkedHashMap<>();
         for (VectorRecallHitVO hit : hits) {
@@ -81,7 +94,31 @@ public class RagContextRecallPreselector {
             }
             merged.merge(candidate.getCandidateId(), candidate, this::higherScore);
         }
-        return new ArrayList<>(merged.values());
+        return detailed(new ArrayList<>(merged.values()), safe(vectorHits), safe(lexicalHits),
+                System.currentTimeMillis() - startedAt);
+    }
+
+    private List<VectorCollectionTypeEnumVO> defaultCollections() {
+        return List.of(VectorCollectionTypeEnumVO.RAG_FILE_CHUNK,
+                VectorCollectionTypeEnumVO.RAG_CODE_FILE_SUMMARY,
+                VectorCollectionTypeEnumVO.RAG_CODE_CHUNK);
+    }
+
+    private DetailedRecallResultVO detailed(List<RagCandidateVO> candidates,
+                                             List<VectorRecallHitVO> vectorHits,
+                                             List<VectorRecallHitVO> lexicalHits,
+                                             long elapsedMs) {
+        return DetailedRecallResultVO.builder()
+                .ragCandidates(candidates)
+                .vectorHits(vectorHits)
+                .lexicalHits(lexicalHits)
+                .elapsedMs(elapsedMs)
+                .diagnostics(Map.of("resolvedRagCount", candidates.size()))
+                .build();
+    }
+
+    private List<VectorRecallHitVO> safe(List<VectorRecallHitVO> values) {
+        return values == null ? List.of() : values;
     }
 
     private RagCandidateVO toCandidate(VectorRecallHitVO hit) {

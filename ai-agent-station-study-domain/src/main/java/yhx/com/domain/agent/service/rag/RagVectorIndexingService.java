@@ -25,6 +25,10 @@ public class RagVectorIndexingService {
     }
 
     public String indexDocument(RagDocumentEntity document, String indexText) {
+        return indexDocument(document, indexText, Map.of());
+    }
+
+    public String indexDocument(RagDocumentEntity document, String indexText, Map<String, Object> extraMetadata) {
         validateDocument(document, indexText);
         return upsert(documentCollection(document),
                 documentSourceType(document),
@@ -34,10 +38,14 @@ public class RagVectorIndexingService {
                 indexText,
                 document.getSummary(),
                 document.getContentSha256(),
-                documentMetadata(document));
+                mergeMetadata(extraMetadata, documentMetadata(document)));
     }
 
     public String indexChunk(RagChunkEntity chunk, String indexText) {
+        return indexChunk(chunk, indexText, Map.of());
+    }
+
+    public String indexChunk(RagChunkEntity chunk, String indexText, Map<String, Object> extraMetadata) {
         validateChunk(chunk, indexText);
         return upsert(chunkCollection(chunk),
                 chunkSourceType(chunk),
@@ -47,7 +55,7 @@ public class RagVectorIndexingService {
                 indexText,
                 chunk.getSummary(),
                 chunk.getContentSha256(),
-                chunkMetadata(chunk));
+                mergeMetadata(extraMetadata, chunkMetadata(chunk)));
     }
 
     private String upsert(VectorCollectionTypeEnumVO collectionType,
@@ -142,6 +150,17 @@ public class RagVectorIndexingService {
         putIfPresent(metadata, "chunkType", chunk.getChunkType());
         putIfPresent(metadata, "headingPath", chunk.getHeadingPath());
         return metadata;
+    }
+
+    private Map<String, Object> mergeMetadata(Map<String, Object> extra, Map<String, Object> owned) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (extra != null) {
+            merged.putAll(extra);
+        }
+        if (owned != null) {
+            merged.putAll(owned);
+        }
+        return merged;
     }
 
     private void validateDocument(RagDocumentEntity document, String indexText) {

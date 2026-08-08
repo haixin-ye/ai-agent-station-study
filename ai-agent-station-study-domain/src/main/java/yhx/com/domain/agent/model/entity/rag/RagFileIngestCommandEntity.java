@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * RAG file ingestion command.
@@ -25,6 +26,8 @@ public class RagFileIngestCommandEntity {
     private String knowledgeTag;
 
     private List<RagFilePayloadEntity> files;
+
+    private Map<String, Object> indexingMetadata;
 
 }
 

@@ -32,6 +32,10 @@
         )
     </insert>
 
+    <update id="updateStatus">
+        UPDATE agent_rag_chunk SET status = #{status}, updated_at = CURRENT_TIMESTAMP WHERE chunk_id = #{chunkId}
+    </update>
+
     <select id="queryByChunkId" parameterType="java.lang.String" resultMap="AgentRagChunkMap">
         SELECT id, chunk_id, document_id, user_id, session_id, chunk_no, chunk_type,
                heading_path, summary, content_ref, retrieval_text_ref,
