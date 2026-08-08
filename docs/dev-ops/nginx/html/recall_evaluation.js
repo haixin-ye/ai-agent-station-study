@@ -390,7 +390,9 @@
     els.importFileName.classList.remove('ready');
     const labels = { RAG_DOCUMENT: 'RAG数据', LONG_TERM_MEMORY: '长期记忆', USER_PREFERENCE: '用户偏好' };
     els.importModalTitle.textContent = target === 'corpus' ? `批量导入${labels[corpusType] || '记忆数据'}` : '批量导入测试问题';
-    els.importHint.textContent = target === 'corpus' ? `必填：externalId（5–12位数字字符串）、content。当前表格类型：${corpusType || '由type字段决定'}。` : '必填：externalId、query、expected；问题ID与expected.externalId都使用数字字符串。';
+    els.importHint.textContent = target === 'corpus'
+      ? `必填：externalId（5–12位数字字符串）、content。当前表格类型：${corpusType || '由type字段决定'}。${corpusType === 'RAG_DOCUMENT' ? 'RAG 内容将直接调用主界面的文件上传接口完成解析、分块和向量化。' : ''}`
+      : '必填：externalId、query、expected；问题ID与expected.externalId都使用数字字符串。';
     openModal(els.importModal);
   }
 
@@ -420,9 +422,61 @@
     if (state.importTarget === 'corpus' && state.importCorpusType) {
       items.forEach(item => { item.type = state.importCorpusType; });
     }
-    const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }), timeoutMs: 300000 });
+    const result = state.importTarget === 'corpus' && state.importCorpusType === 'RAG_DOCUMENT'
+      ? await uploadRagThroughProductionEndpoint(items)
+      : await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }), timeoutMs: 300000 });
     closeModals(); showToast(`已导入 ${result.acceptedCount} 项，失败 ${result.failedCount} 项`, result.failedCount ? 'error' : '');
     await refreshSelected();
+  }
+
+  async function uploadRagThroughProductionEndpoint(items) {
+    const existing = new Set(state.corpus.map(item => String(item.externalId)));
+    const incoming = new Set();
+    for (const item of items) {
+      const externalId = String(item.externalId || '');
+      if (!/^\d{5,12}$/.test(externalId)) throw new Error(`RAG 自定义ID必须是5–12位数字：${externalId || '空值'}`);
+      if (!String(item.content || '').trim()) throw new Error(`RAG ${externalId} 缺少 content`);
+      if (existing.has(externalId) || incoming.has(externalId)) throw new Error(`RAG 自定义ID重复：${externalId}`);
+      incoming.add(externalId);
+    }
+    const formData = new FormData();
+    formData.append('knowledgeTag', state.datasetId);
+    items.forEach(item => {
+      const fileName = `${String(item.externalId)}.md`;
+      formData.append('files', new File([String(item.content)], fileName, { type: 'text/markdown;charset=UTF-8' }));
+    });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 300000);
+    let upload;
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/rag/knowledge/files`, {
+        method: 'POST', body: formData, signal: controller.signal
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload || payload.code !== '0000') {
+        throw new Error(payload?.info || `RAG 上传失败：HTTP ${response.status}`);
+      }
+      upload = payload.data;
+    } catch (error) {
+      if (error.name === 'AbortError') throw new Error('RAG 文件上传超时，请检查后端、Embedding服务和向量数据库。');
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+    const documents = Array.isArray(upload?.documents) ? upload.documents : [];
+    if (documents.length !== items.length) {
+      throw new Error(`生产 RAG 接口返回 ${documents.length} 个文档，但本次上传了 ${items.length} 个文件，无法安全关联评测ID。`);
+    }
+    const attachments = items.map((item, index) => ({
+      externalId: String(item.externalId),
+      documentId: documents[index].documentId,
+      title: item.title || documents[index].title || `${item.externalId}.md`,
+      summary: item.summary || documents[index].summary || null,
+      tags: item.tags || []
+    }));
+    return request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/rag/attachments`, {
+      method: 'POST', body: JSON.stringify({ items: attachments }), timeoutMs: 300000
+    });
   }
 
   async function startRun(form) {

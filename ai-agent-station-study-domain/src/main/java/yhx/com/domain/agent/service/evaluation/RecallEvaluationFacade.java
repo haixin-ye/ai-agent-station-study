@@ -12,6 +12,7 @@ import yhx.com.domain.agent.model.valobj.evaluation.RecallCaseImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallRagAttachmentItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationComparisonVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationMetricsVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunConfigVO;
@@ -106,6 +107,13 @@ public class RecallEvaluationFacade {
 
     public RecallCorpusImportResultVO importCorpus(String datasetId, List<RecallCorpusImportItemVO> items) {
         return ingestionService.importBatch(datasetId, items);
+    }
+
+    public RecallCorpusImportResultVO attachUploadedRagDocuments(
+            String datasetId,
+            List<RecallRagAttachmentItemVO> items) {
+        getDataset(datasetId);
+        return ingestionService.attachUploadedRagDocuments(datasetId, items);
     }
 
     public List<RecallEvaluationCorpusItemEntity> listCorpus(String datasetId, String status, int limit, int offset) {

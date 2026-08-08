@@ -1,6 +1,7 @@
 package yhx.com.api;
 
 import yhx.com.api.dto.RagGitAnalyzeRequestDTO;
+import yhx.com.api.dto.RagFileUploadResultDTO;
 import yhx.com.api.response.Response;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -14,7 +15,7 @@ public interface IRagApi {
 
     Response<Set<String>> queryRagTagList();
 
-    Response<String> uploadFile(String knowledgeTag, List<MultipartFile> files);
+    Response<RagFileUploadResultDTO> uploadFile(String knowledgeTag, List<MultipartFile> files);
 
     Response<String> analyzeGitRepository(RagGitAnalyzeRequestDTO requestDTO) throws Exception;
 }

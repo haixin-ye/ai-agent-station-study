@@ -1,11 +1,13 @@
 package yhx.com.trigger.http;
 
 import yhx.com.api.IRagApi;
+import yhx.com.api.dto.RagFileUploadResultDTO;
 import yhx.com.api.dto.RagGitAnalyzeRequestDTO;
 import yhx.com.api.response.Response;
 import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
 import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
 import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagDocumentEntity;
 import yhx.com.domain.agent.service.rag.IRagDomainService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -42,8 +44,9 @@ public class RAGController implements IRagApi {
 
     @RequestMapping(value = "/knowledge/files", method = RequestMethod.POST, headers = "content-type=multipart/form-data")
     @Override
-    public Response<String> uploadFile(@RequestParam(value = "knowledgeTag", required = false) String knowledgeTag,
-                                       @RequestParam("files") List<MultipartFile> files) {
+    public Response<RagFileUploadResultDTO> uploadFile(
+            @RequestParam(value = "knowledgeTag", required = false) String knowledgeTag,
+            @RequestParam("files") List<MultipartFile> files) {
         try {
             List<RagFilePayloadEntity> payloads = new ArrayList<>(files.size());
             for (MultipartFile file : files) {
@@ -53,23 +56,36 @@ public class RAGController implements IRagApi {
                         .build());
             }
 
-            ragService.ingestFiles(RagFileIngestCommandEntity.builder()
+            List<RagDocumentEntity> documents = ragService.ingestFiles(RagFileIngestCommandEntity.builder()
                     .knowledgeTag(knowledgeTag)
                     .files(payloads)
                     .build());
 
-            return Response.<String>builder()
+            return Response.<RagFileUploadResultDTO>builder()
                     .code("0000")
                     .info("success")
+                    .data(RagFileUploadResultDTO.builder()
+                            .documents(documents.stream().map(this::uploadedDocument).toList())
+                            .build())
                     .build();
         } catch (Exception e) {
             log.error("upload rag file failed, knowledgeTag: {}", knowledgeTag, e);
-            return Response.<String>builder()
+            return Response.<RagFileUploadResultDTO>builder()
                     .code("0001")
-                    .info("failed")
-                    .data(e.getMessage())
+                    .info(e.getMessage() == null ? "failed" : e.getMessage())
                     .build();
         }
+    }
+
+    private RagFileUploadResultDTO.UploadedDocument uploadedDocument(RagDocumentEntity document) {
+        return RagFileUploadResultDTO.UploadedDocument.builder()
+                .documentId(document.getDocumentId())
+                .sourceName(document.getSourceName())
+                .title(document.getTitle())
+                .summary(document.getSummary())
+                .status(document.getStatus())
+                .chunkCount(document.getChunkCount())
+                .build();
     }
 
     @RequestMapping(value = "/knowledge/git", method = RequestMethod.POST)

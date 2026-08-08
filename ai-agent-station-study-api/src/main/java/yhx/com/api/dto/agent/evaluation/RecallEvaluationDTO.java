@@ -24,6 +24,15 @@ public final class RecallEvaluationDTO {
     public static class CorpusBatchActionRequest { private List<String> corpusItemIds; }
 
     @Data @NoArgsConstructor @AllArgsConstructor
+    public static class RagAttachmentBatchRequest { private List<RagAttachmentRequest> items; }
+
+    @Data @NoArgsConstructor @AllArgsConstructor
+    public static class RagAttachmentRequest {
+        private String externalId; private String documentId; private String title;
+        private String summary; private List<String> tags;
+    }
+
+    @Data @NoArgsConstructor @AllArgsConstructor
     public static class CorpusItemRequest {
         private String externalId; private String type; private String title; private String summary;
         private String content; private BigDecimal score; private List<String> tags;

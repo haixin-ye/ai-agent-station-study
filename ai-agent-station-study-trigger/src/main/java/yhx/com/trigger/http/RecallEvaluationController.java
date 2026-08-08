@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 import yhx.com.api.dto.agent.evaluation.RecallEvaluationDTO;
 import yhx.com.api.response.Response;
 import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCaseEntity;
@@ -22,14 +21,13 @@ import yhx.com.domain.agent.model.valobj.evaluation.RecallCaseImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallRagAttachmentItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunDetailVO;
 import yhx.com.domain.agent.service.evaluation.RecallEvaluationFacade;
 import yhx.com.trigger.http.support.AgentResponseSupport;
 import yhx.com.trigger.http.support.RecallEvaluationApiMapper;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -40,14 +38,11 @@ import java.util.List;
 public class RecallEvaluationController {
     private final RecallEvaluationFacade facade;
     private final int maxBatchItems;
-    private final long maxUploadBytes;
 
     public RecallEvaluationController(RecallEvaluationFacade facade,
-                                      @Value("${auto-agent.recall-evaluation.max-batch-items:500}") int maxBatchItems,
-                                      @Value("${auto-agent.recall-evaluation.max-upload-bytes:10485760}") long maxUploadBytes) {
+                                      @Value("${auto-agent.recall-evaluation.max-batch-items:500}") int maxBatchItems) {
         this.facade = facade;
         this.maxBatchItems = maxBatchItems;
-        this.maxUploadBytes = maxUploadBytes;
     }
 
     @GetMapping("/datasets")
@@ -98,21 +93,22 @@ public class RecallEvaluationController {
         });
     }
 
-    @PostMapping(value = "/datasets/{datasetId}/corpus/files", consumes = "multipart/form-data")
-    public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> importFiles(
+    @PostMapping("/datasets/{datasetId}/corpus/rag/attachments")
+    public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> attachUploadedRagDocuments(
             @PathVariable("datasetId") String datasetId,
-            @RequestParam("files") List<MultipartFile> files) {
+            @RequestBody RecallEvaluationDTO.RagAttachmentBatchRequest request) {
         return call(() -> {
-            requireBatch(files);
-            List<RecallCorpusImportItemVO> inputs = new ArrayList<>();
-            for (MultipartFile file : files) {
-                if (file == null || file.isEmpty()) throw new IllegalArgumentException("Empty files are not allowed.");
-                if (file.getSize() > maxUploadBytes) throw new IllegalArgumentException("A file exceeds the upload size limit.");
-                String name = file.getOriginalFilename() == null ? "document" : file.getOriginalFilename();
-                inputs.add(RecallCorpusImportItemVO.builder().externalId(name).type("RAG_DOCUMENT")
-                        .title(name).content(new String(file.getBytes(), StandardCharsets.UTF_8)).build());
-            }
-            return corpusImportView(facade.importCorpus(datasetId, inputs));
+            requireBatch(request == null ? null : request.getItems());
+            List<RecallRagAttachmentItemVO> items = request.getItems().stream()
+                    .map(value -> RecallRagAttachmentItemVO.builder()
+                            .externalId(value.getExternalId())
+                            .documentId(value.getDocumentId())
+                            .title(value.getTitle())
+                            .summary(value.getSummary())
+                            .tags(value.getTags())
+                            .build())
+                    .toList();
+            return corpusImportView(facade.attachUploadedRagDocuments(datasetId, items));
         });
     }
 

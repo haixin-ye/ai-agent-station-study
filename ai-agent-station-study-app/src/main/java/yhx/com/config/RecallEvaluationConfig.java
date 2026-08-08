@@ -21,7 +21,6 @@ import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
-import yhx.com.domain.agent.service.rag.IRagDomainService;
 import yhx.com.domain.agent.service.rag.RagContextRecallPreselector;
 import yhx.com.domain.agent.service.rag.RagVectorIndexingService;
 
@@ -55,7 +54,6 @@ public class RecallEvaluationConfig {
     @Bean
     public RecallEvaluationIngestionService recallEvaluationIngestionService(
             IRecallEvaluationRepository evaluationRepository,
-            IRagDomainService ragDomainService,
             IRagAssetRepository ragAssetRepository,
             LongTermMemoryService longTermMemoryService,
             IMemoryRepository memoryRepository,
@@ -63,8 +61,8 @@ public class RecallEvaluationConfig {
             IVectorMemoryRepository vectorMemoryRepository,
             MemoryVectorIndexingService memoryVectorIndexingService,
             RagVectorIndexingService ragVectorIndexingService) {
-        return new RecallEvaluationIngestionService(evaluationRepository, ragDomainService,
-                ragAssetRepository, longTermMemoryService, memoryRepository, payloadRepository,
+        return new RecallEvaluationIngestionService(evaluationRepository, ragAssetRepository,
+                longTermMemoryService, memoryRepository, payloadRepository,
                 vectorMemoryRepository, memoryVectorIndexingService, ragVectorIndexingService);
     }
 

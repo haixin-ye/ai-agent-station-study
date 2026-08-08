@@ -10,19 +10,16 @@ import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCorpusItemEn
 import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationDatasetEntity;
 import yhx.com.domain.agent.model.entity.persistence.AgentMemoryEntity;
 import yhx.com.domain.agent.model.entity.rag.RagDocumentEntity;
-import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
-import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallRagAttachmentItemVO;
 import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
-import yhx.com.domain.agent.service.rag.IRagDomainService;
 import yhx.com.domain.agent.service.rag.RagVectorIndexingService;
 import yhx.com.domain.agent.model.entity.rag.RagChunkEntity;
 import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
 
-import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,7 +30,6 @@ import java.util.Map;
 public class RecallEvaluationIngestionService {
 
     private final IRecallEvaluationRepository evaluationRepository;
-    private final IRagDomainService ragDomainService;
     private final IRagAssetRepository ragAssetRepository;
     private final LongTermMemoryService longTermMemoryService;
     private final IMemoryRepository memoryRepository;
@@ -43,7 +39,6 @@ public class RecallEvaluationIngestionService {
     private final RagVectorIndexingService ragVectorIndexingService;
 
     public RecallEvaluationIngestionService(IRecallEvaluationRepository evaluationRepository,
-                                             IRagDomainService ragDomainService,
                                              IRagAssetRepository ragAssetRepository,
                                              LongTermMemoryService longTermMemoryService,
                                              IMemoryRepository memoryRepository,
@@ -52,7 +47,6 @@ public class RecallEvaluationIngestionService {
                                              MemoryVectorIndexingService memoryVectorIndexingService,
                                              RagVectorIndexingService ragVectorIndexingService) {
         this.evaluationRepository = evaluationRepository;
-        this.ragDomainService = ragDomainService;
         this.ragAssetRepository = ragAssetRepository;
         this.longTermMemoryService = longTermMemoryService;
         this.memoryRepository = memoryRepository;
@@ -223,6 +217,63 @@ public class RecallEvaluationIngestionService {
         return RecallCorpusImportResultVO.builder().acceptedCount(accepted).failedCount(failed).items(results).build();
     }
 
+    public RecallCorpusImportResultVO attachUploadedRagDocuments(
+            String datasetId,
+            List<RecallRagAttachmentItemVO> attachments) {
+        RecallEvaluationDatasetEntity dataset = evaluationRepository.findDataset(datasetId)
+                .orElseThrow(() -> new IllegalArgumentException("Evaluation dataset does not exist: " + datasetId));
+        if (attachments == null || attachments.isEmpty()) {
+            return RecallCorpusImportResultVO.builder()
+                    .acceptedCount(0).failedCount(0).items(List.of()).build();
+        }
+        List<RecallEvaluationCorpusItemEntity> results = new ArrayList<>();
+        int accepted = 0;
+        int failed = 0;
+        int persisted = 0;
+        for (RecallRagAttachmentItemVO input : attachments) {
+            RecallEvaluationCorpusItemEntity item = createPendingAttachment(datasetId, input);
+            try {
+                RagDocumentEntity document = validateAttachment(datasetId, input);
+                List<RagChunkEntity> chunks = ragAssetRepository.findChunksByDocumentId(document.getDocumentId());
+                if (chunks == null || chunks.isEmpty()) {
+                    throw new IllegalStateException("Uploaded RAG document has no chunks: " + document.getDocumentId());
+                }
+                input.setExternalId(RecallEvaluationIdPolicy.requireNumericId(
+                        input.getExternalId(), "Corpus externalId"));
+                item.setExternalId(input.getExternalId());
+                evaluationRepository.saveCorpusItem(item);
+                persisted++;
+                item.setTitle(firstNonBlank(input.getTitle(), document.getTitle()));
+                item.setSummary(firstNonBlank(input.getSummary(), document.getSummary()));
+                item.setContentRef(document.getContentRef());
+                item.setSourceType("RAG_DOCUMENT");
+                item.setSourceId(document.getDocumentId());
+                item.setParentSourceId(document.getDocumentId());
+                item.setSourceRefsJson(JSON.toJSONString(chunks.stream().map(RagChunkEntity::getChunkId).toList()));
+                evaluationRepository.updateCorpusItem(item);
+                item = reindexItem(item.getCorpusItemId());
+                accepted++;
+            } catch (Exception error) {
+                item.setStatus("FAILED");
+                item.setFailureStage("ATTACHMENT");
+                item.setFailureCode(error instanceof IllegalArgumentException
+                        ? "INVALID_RAG_ATTACHMENT" : "RAG_ATTACHMENT_FAILED");
+                item.setFailureMessage(readable(error));
+                if (item.getCorpusItemId() != null) {
+                    evaluationRepository.updateCorpusItem(item);
+                }
+                failed++;
+            }
+            results.add(item);
+        }
+        dataset.setCorpusCount(number(dataset.getCorpusCount()) + persisted);
+        dataset.setReadyCorpusCount(number(dataset.getReadyCorpusCount()) + accepted);
+        dataset.setStatus(failed > 0 ? "ERROR" : "ACTIVE");
+        evaluationRepository.updateDataset(dataset);
+        return RecallCorpusImportResultVO.builder()
+                .acceptedCount(accepted).failedCount(failed).items(results).build();
+    }
+
     private RecallEvaluationCorpusItemEntity createPending(RecallEvaluationDatasetEntity dataset,
                                                             RecallCorpusImportItemVO input) {
         return RecallEvaluationCorpusItemEntity.builder()
@@ -241,8 +292,8 @@ public class RecallEvaluationIngestionService {
                         RecallEvaluationCorpusItemEntity item) {
         Map<String, Object> metadata = metadata(dataset, input, item);
         if ("RAG_DOCUMENT".equals(item.getItemType())) {
-            ingestRag(dataset, input, item, metadata);
-            return;
+            throw new IllegalArgumentException(
+                    "RAG documents must be uploaded through /api/v1/rag/knowledge/files before attachment.");
         }
         AgentMemoryEntity memory = longTermMemoryService.ingestExternalMemory(AgentMemoryEntity.builder()
                         .userId(dataset.getEvalUserId())
@@ -256,35 +307,6 @@ public class RecallEvaluationIngestionService {
         item.setSourceId(memory.getMemoryId());
         item.setSourceRefsJson(JSON.toJSONString(List.of(memory.getMemoryId())));
         item.setContentRef(memory.getContentRef());
-    }
-
-    private void ingestRag(RecallEvaluationDatasetEntity dataset,
-                           RecallCorpusImportItemVO input,
-                           RecallEvaluationCorpusItemEntity item,
-                           Map<String, Object> metadata) {
-        List<RagDocumentEntity> documents = ragDomainService.ingestFiles(RagFileIngestCommandEntity.builder()
-                .userId(dataset.getEvalUserId())
-                .sessionId(dataset.getEvalSessionId())
-                .knowledgeTag(dataset.getDatasetId())
-                .indexingMetadata(metadata)
-                .files(List.of(RagFilePayloadEntity.builder()
-                        .fileName(firstNonBlank(input.getTitle(), input.getExternalId()) + ".md")
-                        .content(input.getContent().getBytes(StandardCharsets.UTF_8))
-                        .build()))
-                .build());
-        if (documents.isEmpty()) {
-            throw new IllegalStateException("RAG ingestion did not create a document.");
-        }
-        RagDocumentEntity document = documents.get(0);
-        List<String> chunkIds = ragAssetRepository.findChunksByDocumentId(document.getDocumentId()).stream()
-                .map(chunk -> chunk.getChunkId()).toList();
-        item.setTitle(firstNonBlank(input.getTitle(), document.getTitle()));
-        item.setSummary(firstNonBlank(input.getSummary(), document.getSummary()));
-        item.setContentRef(document.getContentRef());
-        item.setSourceType("RAG_DOCUMENT");
-        item.setSourceId(document.getDocumentId());
-        item.setParentSourceId(document.getDocumentId());
-        item.setSourceRefsJson(JSON.toJSONString(chunkIds));
     }
 
     private void validate(String datasetId, RecallCorpusImportItemVO input) {
@@ -309,6 +331,33 @@ public class RecallEvaluationIngestionService {
         metadata.put("evalExternalId", input.getExternalId());
         metadata.put("evalCorpusItemId", item.getCorpusItemId());
         return metadata;
+    }
+
+    private RecallEvaluationCorpusItemEntity createPendingAttachment(
+            String datasetId,
+            RecallRagAttachmentItemVO input) {
+        return RecallEvaluationCorpusItemEntity.builder()
+                .datasetId(datasetId)
+                .externalId(input == null ? null : input.getExternalId())
+                .itemType("RAG_DOCUMENT")
+                .title(input == null ? null : input.getTitle())
+                .summary(input == null ? null : input.getSummary())
+                .tagsJson(JSON.toJSONString(input == null || input.getTags() == null ? List.of() : input.getTags()))
+                .status("PENDING")
+                .build();
+    }
+
+    private RagDocumentEntity validateAttachment(String datasetId, RecallRagAttachmentItemVO input) {
+        if (input == null || isBlank(input.getExternalId()) || isBlank(input.getDocumentId())) {
+            throw new IllegalArgumentException("externalId and documentId are required.");
+        }
+        String externalId = RecallEvaluationIdPolicy.requireNumericId(input.getExternalId(), "Corpus externalId");
+        if (evaluationRepository.findCorpusItemByExternalId(datasetId, externalId).isPresent()) {
+            throw new IllegalArgumentException("Duplicate corpus externalId: " + externalId);
+        }
+        return ragAssetRepository.findDocument(input.getDocumentId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Uploaded RAG document does not exist: " + input.getDocumentId()));
     }
 
     private String normalizedType(String type) {
