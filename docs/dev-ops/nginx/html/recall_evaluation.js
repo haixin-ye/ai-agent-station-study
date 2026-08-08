@@ -8,7 +8,7 @@
     datasets: [], datasetId: params.get('datasetId'), corpus: [], cases: [], runs: [],
     vectors: { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] },
     runId: params.get('runId'), runDetail: null, comparison: null, importTarget: null,
-    importCorpusType: null, polling: false
+    importCorpusType: null, polling: false, viewRefreshPending: false
   };
   const els = {
     view: document.getElementById('view'), datasetList: document.getElementById('datasetList'),
@@ -19,7 +19,7 @@
     importModal: document.getElementById('importModal'), importModalTitle: document.getElementById('importModalTitle'),
     importText: document.getElementById('importText'), importFormat: document.getElementById('importFormat'),
     importHint: document.getElementById('importHint'), importFilePicker: document.getElementById('importFilePicker'),
-    importFileName: document.getElementById('importFileName'),
+    importFileName: document.getElementById('importFileName'), idPreview: document.getElementById('idPreview'),
     toast: document.getElementById('toast')
   };
 
@@ -31,6 +31,55 @@
   const number = value => Number(value || 0).toLocaleString('zh-CN');
   const statePill = value => `<span class="state ${statusClass(value)}">${esc(value || 'UNKNOWN')}</span>`;
   const metric = (label, value, note = '') => `<div class="metric"><label>${esc(label)}</label><strong>${esc(value)}</strong>${note ? `<small>${esc(note)}</small>` : ''}</div>`;
+  const idPreviewTrigger = id => id ? `<span class="tag id-preview-trigger" tabindex="0" data-preview-id="${esc(id)}">${esc(id)}</span>` : '—';
+
+  function previewRecord(externalId) {
+    const id = String(externalId || '');
+    const corpus = state.corpus.find(item => String(item.externalId) === id);
+    const vectors = Object.values(state.vectors).flat().filter(item => String(item.externalId) === id);
+    const runHit = (state.runDetail?.hits || []).find(item => String(item.externalId) === id);
+    const candidate = runHit?.candidate || {};
+    const content = [...new Set([
+      ...vectors.map(item => item.content),
+      candidate.content, candidate.text, candidate.snippet, candidate.resolvedContent
+    ].filter(value => typeof value === 'string' && value.trim()).map(value => value.trim()))];
+    return {
+      id,
+      type: corpus?.itemType || vectors[0]?.collectionType || runHit?.collectionType || '未知类型',
+      title: corpus?.title || vectors[0]?.summary || candidate.title || `数据 ${id}`,
+      summary: corpus?.summary || vectors[0]?.summary || candidate.summary || '',
+      content: content.length ? content.join('\n\n—— 分段 ——\n\n') : '当前记录没有可展示的向量全文。'
+    };
+  }
+
+  function showIdPreview(trigger) {
+    const record = previewRecord(trigger.dataset.previewId);
+    els.idPreview.innerHTML = `<div class="id-preview-head"><span>${esc(record.type)}</span><strong>ID ${esc(record.id)}</strong></div><h4>${esc(record.title)}</h4>${record.summary ? `<p class="id-preview-summary">${esc(record.summary)}</p>` : ''}<div class="id-preview-content">${esc(record.content)}</div>`;
+    els.idPreview.hidden = false;
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(560, window.innerWidth - 24);
+    els.idPreview.style.width = `${width}px`;
+    let left = Math.min(Math.max(12, rect.left), window.innerWidth - width - 12);
+    let top = rect.bottom + 9;
+    const height = els.idPreview.offsetHeight;
+    if (top + height > window.innerHeight - 12) top = Math.max(12, rect.top - height - 9);
+    els.idPreview.style.left = `${left}px`;
+    els.idPreview.style.top = `${top}px`;
+  }
+
+  function hideIdPreview() {
+    els.idPreview.hidden = true;
+    els.idPreview.innerHTML = '';
+  }
+
+  function inspectionActive() {
+    const selection = window.getSelection?.()?.toString().trim();
+    return Boolean(selection
+      || document.querySelector('.modal.open')
+      || document.querySelector('.result-card[open]')
+      || !els.idPreview.hidden
+      || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName));
+  }
 
   async function request(path, options = {}) {
     const controller = new AbortController();
@@ -187,7 +236,7 @@
 
   function caseRow(item) {
     const expected = (item.expected || []).map(value => value.externalId || value.sourceId).filter(Boolean);
-    return `<tr><td><div class="primary-text">${esc(item.externalId)}</div></td><td><div class="primary-text">${esc(item.query)}</div></td><td><span class="tag">${esc(item.sourceScope || 'MIXED')}</span></td><td>${expected.map(value => `<span class="tag">${esc(value)}</span>`).join(' ') || '—'}</td><td>${(item.tags || []).map(value => `<span class="tag">${esc(value)}</span>`).join(' ')}</td><td>${statePill(item.status)}</td></tr>`;
+    return `<tr><td><div class="primary-text">${esc(item.externalId)}</div></td><td><div class="primary-text">${esc(item.query)}</div></td><td><span class="tag">${esc(item.sourceScope || 'MIXED')}</span></td><td><div class="id-preview-list">${expected.map(idPreviewTrigger).join('') || '—'}</div></td><td>${(item.tags || []).map(value => `<span class="tag">${esc(value)}</span>`).join(' ')}</td><td>${statePill(item.status)}</td></tr>`;
   }
 
   function renderExperiment() {
@@ -227,9 +276,28 @@
     const plannerEnabled = Boolean(run.config?.plannerEnabled);
     return `<div class="grid">
       <section class="panel"><div class="panel-head"><div><h3>${esc(run.name || run.evaluationRunId)}</h3><p>${esc(run.evaluationRunId)} · ${esc(run.config?.sourceScope)} / ${esc(run.config?.retrievalMode)} · Context Planner ${plannerEnabled ? '开启' : '关闭'}</p></div><div class="actions">${statePill(run.status)}${['RUNNING','PENDING'].includes(run.status) ? `<button class="btn small danger" data-cancel-run="${esc(run.evaluationRunId)}">取消</button>` : ''}</div></div><div class="panel-body">${plannerEnabled ? plannerMetricComparison(metrics) : `<div class="metric-grid">${rawMetrics(metrics)}</div>`}</div></section>
+      ${runConfigPanel(run.config)}
       ${plannerEnabled ? `<section class="panel"><div class="panel-head"><div><h3>Context Planner 筛选质量</h3><p>用于判断Planner是否保留正确候选、剔除无关候选，以及Prompt是否需要优化。</p></div></div><div class="panel-body"><div class="metric-grid">${metric('正确候选保留率', pct(metrics?.plannerRelevantRetentionRate))}${metric('无关候选剔除率', pct(metrics?.plannerIrrelevantRemovalRate))}${metric('正确候选误删', number(metrics?.plannerRelevantDroppedCount))}${metric('平均保留候选数', Number(metrics?.plannerAverageSelectedCount || 0).toFixed(1))}${metric('Planner失败率', pct(metrics?.plannerFailureRate))}${metric('Planner平均耗时', `${number(metrics?.plannerLatencyAverageMs)} ms`)}</div></div></section>` : ''}
       <section class="panel"><div class="panel-head"><div><h3>逐问题测试结果</h3><p>展开问题，直接对比期望数字ID、原始召回ID和Planner保留/剔除结果。</p></div><span class="tag">${grouped.length} 个问题</span></div><div class="panel-body grid">${grouped.length ? grouped.map(item => resultCard(item, plannerEnabled)).join('') : '<div class="empty">运行中，结果会自动更新。</div>'}</div></section>
     </div>`;
+  }
+
+  function runConfigPanel(config = {}) {
+    const collections = Array.isArray(config.collectionTypes) && config.collectionTypes.length
+      ? config.collectionTypes.join(', ') : '按召回范围使用默认集合';
+    const values = [
+      ['召回范围', config.sourceScope || 'MIXED'],
+      ['召回模式', config.retrievalMode || 'HYBRID'],
+      ['Top K', config.topK ?? '—'],
+      ['最低相似度', config.minScore ?? '—'],
+      ['问题上限', config.caseLimit ?? '全部'],
+      ['单题超时', config.caseTimeoutMs == null ? '—' : `${number(config.caseTimeoutMs)} ms`],
+      ['Context Planner', config.plannerEnabled ? '开启' : '关闭'],
+      ['Planner 模型', config.plannerEnabled ? (config.plannerModelCode || '组件默认模型') : '未启用'],
+      ['Temperature', config.plannerEnabled ? (config.plannerTemperature ?? '—') : '—'],
+      ['Planner 输出上限', config.plannerEnabled && config.plannerMaxOutputTokens != null ? `${number(config.plannerMaxOutputTokens)} tokens` : '—']
+    ];
+    return `<section class="panel run-config-panel"><div class="panel-head"><div><h3>本次运行参数</h3><p>这些参数是创建 Run 时保存的不可变快照。</p></div></div><div class="panel-body"><div class="run-config-grid">${values.map(([label, value]) => `<div class="run-config-item"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}<div class="run-config-item wide"><span>向量集合</span><strong>${esc(collections)}</strong></div></div></div></section>`;
   }
 
   function rawMetrics(metrics) {
@@ -252,12 +320,13 @@
     const expected = (testCase?.expected || []).map(value => value.externalId || value.sourceId).filter(Boolean);
     const selected = item.hits.filter(hit => hit.selectedByPlanner);
     const plannerHit = selected.some(hit => hit.expectedGrade);
-    return `<details class="result-card"><summary><span>${item.hit ? '✓' : '—'}</span><div><div class="primary-text">${esc(testCase?.query || item.caseId)}</div><div class="secondary-text">问题ID ${esc(testCase?.externalId || item.caseId)} · 期望 ${expected.map(esc).join(', ') || '—'}</div></div><div><span class="hint">原始结果</span><br>${item.hit ? '命中' : '未命中'}</div><div><span class="hint">Planner结果</span><br>${plannerEnabled ? (plannerHit ? '命中' : '未命中') : '未启用'}</div><div><span class="hint">耗时</span><br>${number(item.retrievalLatencyMs)} ms</div></summary><div class="result-body">${item.failureMessage ? `<p class="state failed">${esc(item.failureMessage)}</p>` : ''}<p><strong>期望命中ID：</strong>${expected.map(value => `<span class="tag">${esc(value)}</span>`).join(' ') || '—'}</p><h4>原始召回候选</h4>${item.hits.length ? item.hits.map(hit => hitRow(hit, plannerEnabled)).join('') : '<div class="hint">没有候选命中</div>'}${plannerEnabled ? `<h4>Context Planner 结果</h4><p>${statePill(item.plannerStatus || 'UNKNOWN')} · ${esc(item.plannerReason || '没有返回筛选理由')}</p><p><strong>保留：</strong>${selected.map(hit => `<span class="tag">${esc(hit.externalId || hit.sourceId)}</span>`).join(' ') || '无'}</p><details><summary>查看Planner完整结构化输出</summary><pre>${esc(JSON.stringify(item.plannerOutput || {}, null, 2))}</pre></details>` : ''}</div></details>`;
+    return `<details class="result-card" data-result-id="${esc(item.caseResultId || item.caseId)}"><summary><span>${item.hit ? '✓' : '—'}</span><div><div class="primary-text">${esc(testCase?.query || item.caseId)}</div><div class="secondary-text result-expected">问题ID ${esc(testCase?.externalId || item.caseId)} · 期望 ${expected.map(idPreviewTrigger).join('') || '—'}</div></div><div><span class="hint">原始结果</span><br>${item.hit ? '命中' : '未命中'}</div><div><span class="hint">Planner结果</span><br>${plannerEnabled ? (plannerHit ? '命中' : '未命中') : '未启用'}</div><div><span class="hint">耗时</span><br>${number(item.retrievalLatencyMs)} ms</div></summary><div class="result-body">${item.failureMessage ? `<p class="state failed">${esc(item.failureMessage)}</p>` : ''}<div class="expected-row"><strong>期望命中ID：</strong><div class="id-preview-list">${expected.map(idPreviewTrigger).join('') || '—'}</div></div><h4>原始召回候选</h4>${item.hits.length ? item.hits.map(hit => hitRow(hit, plannerEnabled)).join('') : '<div class="hint">没有候选命中</div>'}${plannerEnabled ? `<h4>Context Planner 结果</h4><p>${statePill(item.plannerStatus || 'UNKNOWN')} · ${esc(item.plannerReason || '没有返回筛选理由')}</p><div class="expected-row"><strong>保留：</strong><div class="id-preview-list">${selected.map(hit => idPreviewTrigger(hit.externalId || hit.sourceId)).join('') || '无'}</div></div><details><summary>查看Planner完整结构化输出</summary><pre>${esc(JSON.stringify(item.plannerOutput || {}, null, 2))}</pre></details>` : ''}</div></details>`;
   }
 
   function hitRow(hit, plannerEnabled) {
     const plannerState = plannerEnabled ? (hit.selectedByPlanner ? '<span class="candidate-state keep">Planner保留</span>' : '<span class="candidate-state drop">Planner剔除</span>') : '';
-    return `<div class="hit-row"><span class="rank">#${esc(hit.rankNo)}</span><span class="tag">${esc(hit.retrievalChannel)}</span><div><div class="primary-text">ID ${esc(hit.externalId || '未映射')} ${hit.expectedGrade ? '<span class="state ready">正确答案</span>' : ''}</div><div class="secondary-text">sourceId ${esc(hit.sourceId)} · ${esc(hit.collectionType)} · parent ${esc(hit.parentSourceId || '—')}</div></div><span>${Number(hit.score || 0).toFixed(4)}</span><span>${plannerState || (hit.expectedGrade ? `grade ${hit.expectedGrade}` : '—')}</span></div>`;
+    const externalId = hit.externalId;
+    return `<div class="hit-row"><span class="rank">#${esc(hit.rankNo)}</span><span class="tag">${esc(hit.retrievalChannel)}</span><div><div class="primary-text hit-id">ID ${externalId ? idPreviewTrigger(externalId) : '<span class="hint">未映射</span>'} ${hit.expectedGrade ? '<span class="state ready">正确答案</span>' : ''}</div><div class="secondary-text">sourceId ${esc(hit.sourceId)} · ${esc(hit.collectionType)} · parent ${esc(hit.parentSourceId || '—')}</div></div><span>${Number(hit.score || 0).toFixed(4)}</span><span>${plannerState || (hit.expectedGrade ? `grade ${hit.expectedGrade}` : '—')}</span></div>`;
   }
 
   function comparisonBody(value) {
@@ -280,18 +349,25 @@
   }
 
   async function pollActiveRun() {
+    if (state.viewRefreshPending && !inspectionActive()) {
+      const scrollTop = els.view.scrollTop;
+      renderAll();
+      els.view.scrollTop = scrollTop;
+      state.viewRefreshPending = false;
+    }
     const run = selectedRun();
     if (!run || !['PENDING','RUNNING'].includes(run.status) || state.polling) return;
     state.polling = true;
     try {
       await loadRunDetail(run.evaluationRunId);
       await loadDatasets();
-      const editing = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName) || document.querySelector('.modal.open');
-      if (!editing) {
+      if (!inspectionActive()) {
         const scrollTop = els.view.scrollTop;
         renderAll();
         els.view.scrollTop = scrollTop;
+        state.viewRefreshPending = false;
       } else {
+        state.viewRefreshPending = true;
         renderHeader(); renderRail();
       }
     } catch (error) {
@@ -364,6 +440,28 @@
   let toastTimer;
   function showToast(message, type = '') { clearTimeout(toastTimer); els.toast.textContent = message; els.toast.className = `toast show ${type}`; toastTimer = setTimeout(() => els.toast.className = 'toast', 3200); }
   function showError(error) { showToast(error?.message || String(error), 'error'); }
+
+  document.addEventListener('pointerover', event => {
+    const trigger = event.target.closest('[data-preview-id]');
+    if (!trigger || trigger.contains(event.relatedTarget)) return;
+    showIdPreview(trigger);
+  });
+  document.addEventListener('pointerout', event => {
+    const trigger = event.target.closest('[data-preview-id]');
+    const next = event.relatedTarget;
+    if (!trigger || trigger.contains(next) || els.idPreview.contains(next)) return;
+    hideIdPreview();
+  });
+  document.addEventListener('focusin', event => {
+    const trigger = event.target.closest('[data-preview-id]');
+    if (trigger) showIdPreview(trigger);
+  });
+  document.addEventListener('focusout', event => {
+    if (event.target.closest('[data-preview-id]') && !event.relatedTarget?.closest?.('[data-preview-id]')) hideIdPreview();
+  });
+  els.idPreview.addEventListener('pointerleave', hideIdPreview);
+  els.view.addEventListener('scroll', hideIdPreview, { passive: true });
+  window.addEventListener('resize', hideIdPreview);
 
   document.addEventListener('click', async event => {
     const datasetCard = event.target.closest('[data-dataset-id]');
