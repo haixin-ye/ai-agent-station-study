@@ -14,9 +14,10 @@ import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
 import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
 import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
-import yhx.com.domain.agent.service.rag.RagAssetIngestionService;
+import yhx.com.domain.agent.service.rag.IRagDomainService;
 import yhx.com.domain.agent.service.rag.RagVectorIndexingService;
 import yhx.com.domain.agent.model.entity.rag.RagChunkEntity;
 import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
@@ -25,13 +26,14 @@ import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
 public class RecallEvaluationIngestionService {
 
     private final IRecallEvaluationRepository evaluationRepository;
-    private final RagAssetIngestionService ragAssetIngestionService;
+    private final IRagDomainService ragDomainService;
     private final IRagAssetRepository ragAssetRepository;
     private final LongTermMemoryService longTermMemoryService;
     private final IMemoryRepository memoryRepository;
@@ -41,7 +43,7 @@ public class RecallEvaluationIngestionService {
     private final RagVectorIndexingService ragVectorIndexingService;
 
     public RecallEvaluationIngestionService(IRecallEvaluationRepository evaluationRepository,
-                                             RagAssetIngestionService ragAssetIngestionService,
+                                             IRagDomainService ragDomainService,
                                              IRagAssetRepository ragAssetRepository,
                                              LongTermMemoryService longTermMemoryService,
                                              IMemoryRepository memoryRepository,
@@ -50,7 +52,7 @@ public class RecallEvaluationIngestionService {
                                              MemoryVectorIndexingService memoryVectorIndexingService,
                                              RagVectorIndexingService ragVectorIndexingService) {
         this.evaluationRepository = evaluationRepository;
-        this.ragAssetIngestionService = ragAssetIngestionService;
+        this.ragDomainService = ragDomainService;
         this.ragAssetRepository = ragAssetRepository;
         this.longTermMemoryService = longTermMemoryService;
         this.memoryRepository = memoryRepository;
@@ -134,6 +136,52 @@ public class RecallEvaluationIngestionService {
         return item;
     }
 
+    public RecallCorpusBatchActionResultVO reindexBatch(String datasetId, List<String> corpusItemIds) {
+        return batchAction(datasetId, corpusItemIds, true);
+    }
+
+    public RecallCorpusBatchActionResultVO disableBatch(String datasetId, List<String> corpusItemIds) {
+        return batchAction(datasetId, corpusItemIds, false);
+    }
+
+    private RecallCorpusBatchActionResultVO batchAction(String datasetId,
+                                                         List<String> corpusItemIds,
+                                                         boolean reindex) {
+        if (isBlank(datasetId)) {
+            throw new IllegalArgumentException("Evaluation datasetId is required.");
+        }
+        List<String> ids = corpusItemIds == null ? List.of()
+                : new ArrayList<>(new LinkedHashSet<>(corpusItemIds.stream()
+                .filter(id -> !isBlank(id)).toList()));
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("At least one corpus item is required.");
+        }
+        if (ids.size() > 500) {
+            throw new IllegalArgumentException("Corpus batch action cannot exceed 500 items.");
+        }
+        List<RecallEvaluationCorpusItemEntity> succeeded = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        for (String corpusItemId : ids) {
+            try {
+                RecallEvaluationCorpusItemEntity current = evaluationRepository.findCorpusItem(corpusItemId)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Evaluation corpus item does not exist: " + corpusItemId));
+                if (!datasetId.equals(current.getDatasetId())) {
+                    throw new IllegalArgumentException("Corpus item does not belong to dataset: " + corpusItemId);
+                }
+                succeeded.add(reindex ? reindexItem(corpusItemId) : disableItem(corpusItemId));
+            } catch (Exception error) {
+                errors.add(corpusItemId + ": " + readable(error));
+            }
+        }
+        return RecallCorpusBatchActionResultVO.builder()
+                .succeededCount(succeeded.size())
+                .failedCount(errors.size())
+                .items(succeeded)
+                .errors(errors)
+                .build();
+    }
+
     public RecallCorpusImportResultVO importBatch(String datasetId, List<RecallCorpusImportItemVO> imports) {
         RecallEvaluationDatasetEntity dataset = evaluationRepository.findDataset(datasetId)
                 .orElseThrow(() -> new IllegalArgumentException("Evaluation dataset does not exist: " + datasetId));
@@ -214,7 +262,7 @@ public class RecallEvaluationIngestionService {
                            RecallCorpusImportItemVO input,
                            RecallEvaluationCorpusItemEntity item,
                            Map<String, Object> metadata) {
-        List<RagDocumentEntity> documents = ragAssetIngestionService.ingestFiles(RagFileIngestCommandEntity.builder()
+        List<RagDocumentEntity> documents = ragDomainService.ingestFiles(RagFileIngestCommandEntity.builder()
                 .userId(dataset.getEvalUserId())
                 .sessionId(dataset.getEvalSessionId())
                 .knowledgeTag(dataset.getDatasetId())

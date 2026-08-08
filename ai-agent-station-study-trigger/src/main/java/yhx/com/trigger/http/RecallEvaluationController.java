@@ -21,6 +21,7 @@ import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCaseEntity;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCaseImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunDetailVO;
 import yhx.com.domain.agent.service.evaluation.RecallEvaluationFacade;
 import yhx.com.trigger.http.support.AgentResponseSupport;
@@ -121,6 +122,22 @@ public class RecallEvaluationController {
         return call(() -> RecallEvaluationApiMapper.corpus(facade.reindexCorpus(datasetId, corpusItemId)));
     }
 
+    @PostMapping("/datasets/{datasetId}/corpus/batch/reindex")
+    public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> reindexCorpusBatch(
+            @PathVariable("datasetId") String datasetId,
+            @RequestBody RecallEvaluationDTO.CorpusBatchActionRequest request) {
+        return call(() -> corpusBatchActionView(facade.reindexCorpusBatch(datasetId,
+                request == null ? null : request.getCorpusItemIds())));
+    }
+
+    @PostMapping("/datasets/{datasetId}/corpus/batch/disable")
+    public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> disableCorpusBatch(
+            @PathVariable("datasetId") String datasetId,
+            @RequestBody RecallEvaluationDTO.CorpusBatchActionRequest request) {
+        return call(() -> corpusBatchActionView(facade.disableCorpusBatch(datasetId,
+                request == null ? null : request.getCorpusItemIds())));
+    }
+
     @GetMapping("/datasets/{datasetId}/vectors")
     public Response<List<RecallEvaluationDTO.VectorRecordView>> listVectorRecords(
             @PathVariable("datasetId") String datasetId,
@@ -217,6 +234,16 @@ public class RecallEvaluationController {
         return RecallEvaluationDTO.ImportView.<RecallEvaluationDTO.CorpusItemView>builder()
                 .acceptedCount(result.getAcceptedCount()).failedCount(result.getFailedCount())
                 .items(result.getItems().stream().map(RecallEvaluationApiMapper::corpus).toList()).errors(errors).build();
+    }
+
+    private RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView> corpusBatchActionView(
+            RecallCorpusBatchActionResultVO result) {
+        return RecallEvaluationDTO.ImportView.<RecallEvaluationDTO.CorpusItemView>builder()
+                .acceptedCount(result.getSucceededCount())
+                .failedCount(result.getFailedCount())
+                .items(result.getItems().stream().map(RecallEvaluationApiMapper::corpus).toList())
+                .errors(result.getErrors())
+                .build();
     }
 
     private RecallCorpusImportItemVO corpusInput(RecallEvaluationDTO.CorpusItemRequest value) {

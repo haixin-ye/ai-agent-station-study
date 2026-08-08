@@ -8,7 +8,7 @@
     datasets: [], datasetId: params.get('datasetId'), corpus: [], cases: [], runs: [],
     vectors: { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] },
     runId: params.get('runId'), runDetail: null, comparison: null, importTarget: null,
-    importCorpusType: null, polling: false, viewRefreshPending: false
+    importCorpusType: null, polling: false, viewRefreshPending: false, selectedCorpusIds: new Set()
   };
   const els = {
     view: document.getElementById('view'), datasetList: document.getElementById('datasetList'),
@@ -209,19 +209,23 @@
     const types = [['RAG_DOCUMENT', 'RAG 数据'], ['LONG_TERM_MEMORY', '长期记忆'], ['USER_PREFERENCE', '用户偏好']];
     const type = state.corpusType;
     const items = state.corpus.filter(item => item.itemType === type);
+    const selectable = items;
+    const selectedCount = selectable.filter(item => state.selectedCorpusIds.has(item.corpusItemId)).length;
+    const disableSelectedCount = selectable.filter(item => item.status !== 'DISABLED' && state.selectedCorpusIds.has(item.corpusItemId)).length;
     const vectors = state.vectors[type] || [];
     const label = types.find(item => item[0] === type)?.[1] || type;
     return `<section class="panel">
       <div class="subtabs">${types.map(([value, text]) => `<button class="subtab ${value === type ? 'active' : ''}" data-corpus-type="${value}">${text} <span class="tag">${state.corpus.filter(item => item.itemType === value).length}</span></button>`).join('')}</div>
-      <div class="panel-head"><div><h3>${label}表</h3><p>表格同时展示评测记录与 PGVector 中按 evalDatasetId 查询到的真实向量行。</p></div><div class="actions"><button class="btn primary" data-open-import="corpus" data-corpus-type="${type}">导入 ${label}</button></div></div>
-      <div class="panel-body">${items.length ? `<table class="table"><thead><tr><th>自定义数字ID</th><th>内容</th><th>真实向量库记录</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
+      <div class="panel-head"><div><h3>${label}表</h3><p>表格同时展示评测记录与 PGVector 中按 evalDatasetId 查询到的真实向量行。</p></div><div class="actions corpus-batch-actions"><span class="batch-selection" data-batch-selection>${selectedCount ? `已选 ${selectedCount} 项` : '选择记录后可批量操作'}</span><button class="btn small" data-corpus-batch="reindex" ${selectedCount ? '' : 'disabled'}>批量重建索引</button><button class="btn small danger" data-corpus-batch="disable" ${disableSelectedCount ? '' : 'disabled'}>批量停用</button><button class="btn primary" data-open-import="corpus" data-corpus-type="${type}">导入 ${label}</button></div></div>
+      <div class="panel-body">${items.length ? `<table class="table corpus-table"><thead><tr><th class="check-cell"><input type="checkbox" data-corpus-select-all aria-label="选择当前表全部记录" ${selectable.length && selectedCount === selectable.length ? 'checked' : ''} ${selectable.length ? '' : 'disabled'}></th><th>自定义数字ID</th><th>内容</th><th>真实向量库记录</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
     </section>`;
   }
 
   function corpusRow(item, vectors) {
     const stored = vectors.filter(record => record.externalId === item.externalId);
     const preview = stored[0]?.content || item.summary || '';
-    return `<tr><td><div class="primary-text">${esc(item.externalId)}</div><div class="secondary-text">${esc(item.title || item.itemType)}</div></td><td><div class="primary-text">${esc(item.summary || item.title || '—')}</div><div class="secondary-text" title="${esc(preview)}">${esc(preview || '—')}</div></td><td>${stored.length ? `<details><summary>${stored.length} 条真实向量记录</summary><div class="db-records">${stored.map(vectorRecord).join('')}</div></details>` : '<span class="state failed">向量库无记录</span>'}</td><td>${statePill(item.status)}${item.failureMessage ? `<div class="secondary-text">${esc(item.failureCode)} · ${esc(item.failureMessage)}</div>` : ''}</td><td><div class="actions"><button class="btn small" data-reindex="${esc(item.corpusItemId)}">重建索引</button><button class="btn small danger" data-disable-corpus="${esc(item.corpusItemId)}">停用</button></div></td></tr>`;
+    const disabled = item.status === 'DISABLED';
+    return `<tr class="${state.selectedCorpusIds.has(item.corpusItemId) ? 'selected-row' : ''}"><td class="check-cell"><input type="checkbox" data-corpus-select="${esc(item.corpusItemId)}" aria-label="选择 ${esc(item.externalId)}" ${state.selectedCorpusIds.has(item.corpusItemId) ? 'checked' : ''}></td><td><div class="primary-text">${esc(item.externalId)}</div><div class="secondary-text">${esc(item.title || item.itemType)}</div></td><td><div class="primary-text">${esc(item.summary || item.title || '—')}</div><div class="secondary-text" title="${esc(preview)}">${esc(preview || '—')}</div></td><td>${stored.length ? `<details><summary>${stored.length} 条真实向量记录</summary><div class="db-records">${stored.map(vectorRecord).join('')}</div></details>` : '<span class="state failed">向量库无记录</span>'}</td><td>${statePill(item.status)}${item.failureMessage ? `<div class="secondary-text">${esc(item.failureCode)} · ${esc(item.failureMessage)}</div>` : ''}</td><td><div class="actions"><button class="btn small" data-reindex="${esc(item.corpusItemId)}">重建索引</button><button class="btn small danger" data-disable-corpus="${esc(item.corpusItemId)}" ${disabled ? 'disabled' : ''}>停用</button></div></td></tr>`;
   }
 
   function vectorRecord(item) {
@@ -336,6 +340,7 @@
 
   async function selectDataset(datasetId) {
     state.datasetId = datasetId; state.tab = 'corpus'; state.runId = null; state.runDetail = null; state.comparison = null;
+    state.selectedCorpusIds.clear();
     state.corpus = []; state.cases = []; state.runs = [];
     state.vectors = { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] };
     updateUrl(); renderAll();
@@ -436,6 +441,47 @@
   }
 
   async function refreshSelected() { await loadDatasets(); await loadDatasetData(); renderAll(); }
+
+  function currentSelectableCorpus() {
+    return state.corpus.filter(item => item.itemType === state.corpusType);
+  }
+
+  function updateCorpusBatchControls() {
+    const selectable = currentSelectableCorpus();
+    const selected = selectable.filter(item => state.selectedCorpusIds.has(item.corpusItemId));
+    document.querySelectorAll('[data-corpus-batch]').forEach(button => {
+      const eligible = button.dataset.corpusBatch === 'disable'
+        ? selected.filter(item => item.status !== 'DISABLED') : selected;
+      button.disabled = eligible.length === 0;
+    });
+    const label = document.querySelector('[data-batch-selection]');
+    if (label) label.textContent = selected.length ? `已选 ${selected.length} 项` : '选择记录后可批量操作';
+    const selectAll = document.querySelector('[data-corpus-select-all]');
+    if (selectAll) {
+      selectAll.checked = selectable.length > 0 && selected.length === selectable.length;
+      selectAll.indeterminate = selected.length > 0 && selected.length < selectable.length;
+    }
+    document.querySelectorAll('[data-corpus-select]').forEach(checkbox => {
+      checkbox.checked = state.selectedCorpusIds.has(checkbox.dataset.corpusSelect);
+      checkbox.closest('tr')?.classList.toggle('selected-row', checkbox.checked);
+    });
+  }
+
+  async function runCorpusBatch(action) {
+    const ids = currentSelectableCorpus()
+      .filter(item => state.selectedCorpusIds.has(item.corpusItemId))
+      .filter(item => action !== 'disable' || item.status !== 'DISABLED')
+      .map(item => item.corpusItemId);
+    if (!ids.length) return showToast('请先选择需要处理的记录', 'error');
+    if (action === 'disable' && !confirm(`停用选中的 ${ids.length} 条评测语料及其向量索引？`)) return;
+    const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/batch/${action}`, {
+      method: 'POST', body: JSON.stringify({ corpusItemIds: ids }), timeoutMs: 300000
+    });
+    state.selectedCorpusIds.clear();
+    const message = `${action === 'reindex' ? '重建索引' : '停用'}完成：成功 ${result.acceptedCount}，失败 ${result.failedCount}`;
+    await refreshSelected();
+    showToast(result.errors?.length ? `${message}；${result.errors[0]}` : message, result.failedCount ? 'error' : '');
+  }
   function updateUrl() { const next = new URL(location.href); state.datasetId ? next.searchParams.set('datasetId', state.datasetId) : next.searchParams.delete('datasetId'); state.runId ? next.searchParams.set('runId', state.runId) : next.searchParams.delete('runId'); next.searchParams.set('tab', state.tab); next.searchParams.set('corpusType', state.corpusType); history.replaceState(null, '', next); }
   let toastTimer;
   function showToast(message, type = '') { clearTimeout(toastTimer); els.toast.textContent = message; els.toast.className = `toast show ${type}`; toastTimer = setTimeout(() => els.toast.className = 'toast', 3200); }
@@ -467,16 +513,32 @@
     const datasetCard = event.target.closest('[data-dataset-id]');
     if (datasetCard) return selectDataset(datasetCard.dataset.datasetId).catch(showError);
     const tab = event.target.closest('[data-tab]'); if (tab) return setTab(tab.dataset.tab);
-    const corpusType = event.target.closest('[data-corpus-type]'); if (corpusType && !corpusType.matches('[data-open-import]')) { state.corpusType = corpusType.dataset.corpusType; updateUrl(); return renderView(); }
+    const corpusType = event.target.closest('[data-corpus-type]'); if (corpusType && !corpusType.matches('[data-open-import]')) { state.corpusType = corpusType.dataset.corpusType; state.selectedCorpusIds.clear(); updateUrl(); return renderView(); }
     const goTab = event.target.closest('[data-go-tab]'); if (goTab) return setTab(goTab.dataset.goTab);
     const importButton = event.target.closest('[data-open-import]'); if (importButton) return openImport(importButton.dataset.openImport, importButton.dataset.corpusType || null);
     const run = event.target.closest('[data-run-id]'); if (run) { state.runId = run.dataset.runId; state.tab = 'results'; updateUrl(); await loadRunDetail(state.runId); return renderAll(); }
     const reindex = event.target.closest('[data-reindex]'); if (reindex) { await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/${encodeURIComponent(reindex.dataset.reindex)}/reindex`, {method:'POST'}); showToast('索引已重建'); return refreshSelected(); }
     const disable = event.target.closest('[data-disable-corpus]'); if (disable && confirm('停用这条评测语料及其向量索引？')) { await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/${encodeURIComponent(disable.dataset.disableCorpus)}`, {method:'DELETE'}); return refreshSelected(); }
+    const batch = event.target.closest('[data-corpus-batch]'); if (batch) return runCorpusBatch(batch.dataset.corpusBatch).catch(showError);
     const cancel = event.target.closest('[data-cancel-run]'); if (cancel) { await request(`/runs/${encodeURIComponent(cancel.dataset.cancelRun)}/cancel`, {method:'POST'}); showToast('已请求取消'); return refreshSelected(); }
     if (event.target.closest('#chooseImportFileBtn')) return els.importFilePicker.click();
     if (event.target.closest('#compareBtn')) { const left = document.getElementById('compareLeft')?.value; if (left) { state.comparison = await request(`/compare?leftRunId=${encodeURIComponent(left)}&rightRunId=${encodeURIComponent(state.runId)}`); return renderView(); } }
     if (event.target.closest('[data-close-modal]') || (event.target.classList.contains('modal'))) return closeModals();
+  });
+
+  document.addEventListener('change', event => {
+    const item = event.target.closest('[data-corpus-select]');
+    if (item) {
+      item.checked ? state.selectedCorpusIds.add(item.dataset.corpusSelect) : state.selectedCorpusIds.delete(item.dataset.corpusSelect);
+      return updateCorpusBatchControls();
+    }
+    const selectAll = event.target.closest('[data-corpus-select-all]');
+    if (selectAll) {
+      currentSelectableCorpus().forEach(corpus => selectAll.checked
+        ? state.selectedCorpusIds.add(corpus.corpusItemId)
+        : state.selectedCorpusIds.delete(corpus.corpusItemId));
+      updateCorpusBatchControls();
+    }
   });
 
   document.addEventListener('submit', event => {

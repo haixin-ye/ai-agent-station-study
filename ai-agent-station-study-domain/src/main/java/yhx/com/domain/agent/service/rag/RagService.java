@@ -1,11 +1,13 @@
 package yhx.com.domain.agent.service.rag;
 
 import yhx.com.domain.agent.adapter.repository.IRagRepository;
+import yhx.com.domain.agent.model.entity.rag.RagDocumentEntity;
 import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
 import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -42,7 +44,7 @@ public class RagService implements IRagDomainService {
     }
 
     @Override
-    public void ingestFiles(RagFileIngestCommandEntity commandEntity) {
+    public List<RagDocumentEntity> ingestFiles(RagFileIngestCommandEntity commandEntity) {
         if (commandEntity == null) {
             throw new IllegalArgumentException("RAG file ingest command is required.");
         }
@@ -51,10 +53,10 @@ public class RagService implements IRagDomainService {
         }
         commandEntity.setKnowledgeTag(defaultTag(commandEntity.getKnowledgeTag()));
         if (ragAssetIngestionService != null) {
-            ragAssetIngestionService.ingestFiles(commandEntity);
-        } else {
-            ragRepository.ingestFiles(commandEntity);
+            return ragAssetIngestionService.ingestFiles(commandEntity);
         }
+        ragRepository.ingestFiles(commandEntity);
+        return List.of();
     }
 
     @Override

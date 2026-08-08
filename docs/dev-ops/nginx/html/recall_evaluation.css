@@ -108,6 +108,12 @@ textarea { resize: vertical; min-height: 112px; font: 13px/1.65 "SFMono-Regular"
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
 .form-grid .wide { grid-column: 1 / -1; }
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.corpus-batch-actions { justify-content: flex-end; }
+.batch-selection { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.check-cell { width: 34px; text-align: center !important; }
+.check-cell input { width: 16px; height: 16px; accent-color: var(--amber); cursor: pointer; }
+.corpus-table tr.selected-row td { background: #f2f7ff; }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 .hint { color: var(--muted); font-size: 13px; }
 .import-file-row { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px; border: 1px dashed #aebbd0; border-radius: 12px; background: #f8faff; }
 .file-select-btn { flex: 0 0 auto; border-color: #9bb8f7; color: #1746a2; background: #fff; }

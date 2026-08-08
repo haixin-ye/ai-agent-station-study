@@ -22,6 +22,7 @@ import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.memory.VectorSourceTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.evaluation.DetailedRecallResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallExecutionOptionsVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorIndexRecordVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
@@ -31,6 +32,7 @@ import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.evaluation.RecallEvaluationRunner;
+import yhx.com.domain.agent.service.evaluation.RecallEvaluationIngestionService;
 import yhx.com.domain.agent.service.evaluation.RecallMetricsCalculator;
 import com.alibaba.fastjson.JSON;
 
@@ -99,6 +101,31 @@ public class RecallEvaluationFlowTest {
         Assert.assertNotNull(vectors.indexed);
         Assert.assertEquals("dataset-1", vectors.indexed.getMetadata().get("evalDatasetId"));
         Assert.assertEquals("memory-travel-pace", vectors.indexed.getMetadata().get("evalExternalId"));
+    }
+
+    @Test
+    public void batch_disable_deduplicates_selected_items_and_reports_missing_items() {
+        InMemoryEvaluationRepository evaluations = new InMemoryEvaluationRepository();
+        evaluations.corpus = RecallEvaluationCorpusItemEntity.builder()
+                .corpusItemId("corpus-1")
+                .datasetId("dataset-1")
+                .externalId("20001")
+                .itemType("LONG_TERM_MEMORY")
+                .sourceId("memory-1")
+                .status("READY")
+                .build();
+        CapturingVectorRepository vectors = new CapturingVectorRepository();
+        RecallEvaluationIngestionService ingestion = new RecallEvaluationIngestionService(
+                evaluations, null, null, null, new FakeMemoryRepository(), null, vectors, null, null);
+
+        RecallCorpusBatchActionResultVO result = ingestion.disableBatch(
+                "dataset-1", List.of("corpus-1", "corpus-1", "missing"));
+
+        Assert.assertEquals(Integer.valueOf(1), result.getSucceededCount());
+        Assert.assertEquals(Integer.valueOf(1), result.getFailedCount());
+        Assert.assertEquals(List.of("memory-1"), vectors.disabledSourceIds);
+        Assert.assertEquals("DISABLED", evaluations.corpus.getStatus());
+        Assert.assertTrue(result.getErrors().get(0).contains("missing"));
     }
 
     @Test
@@ -189,6 +216,7 @@ public class RecallEvaluationFlowTest {
 
     private static class CapturingVectorRepository implements IVectorMemoryRepository {
         private final List<VectorRecallQueryVO> queries = new ArrayList<>();
+        private final List<String> disabledSourceIds = new ArrayList<>();
         private VectorIndexRecordVO indexed;
 
         @Override
@@ -210,6 +238,7 @@ public class RecallEvaluationFlowTest {
 
         @Override
         public void disable(VectorCollectionTypeEnumVO collectionType, String sourceId) {
+            disabledSourceIds.add(sourceId);
         }
     }
 
@@ -308,7 +337,9 @@ public class RecallEvaluationFlowTest {
         @Override public List<RecallEvaluationDatasetEntity> listDatasets() { return List.of(dataset); }
         @Override public void updateDataset(RecallEvaluationDatasetEntity value) { dataset = value; }
         @Override public void saveCorpusItem(RecallEvaluationCorpusItemEntity item) { corpus = item; }
-        @Override public Optional<RecallEvaluationCorpusItemEntity> findCorpusItem(String corpusItemId) { return Optional.ofNullable(corpus); }
+        @Override public Optional<RecallEvaluationCorpusItemEntity> findCorpusItem(String corpusItemId) {
+            return corpus != null && corpusItemId.equals(corpus.getCorpusItemId()) ? Optional.of(corpus) : Optional.empty();
+        }
         @Override public Optional<RecallEvaluationCorpusItemEntity> findCorpusItemByExternalId(String datasetId, String externalId) {
             return corpus != null && externalId.equals(corpus.getExternalId()) ? Optional.of(corpus) : Optional.empty();
         }

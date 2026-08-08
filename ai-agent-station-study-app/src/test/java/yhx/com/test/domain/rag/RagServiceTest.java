@@ -1,10 +1,12 @@
 package yhx.com.test.domain.rag;
 
 import yhx.com.domain.agent.adapter.repository.IRagRepository;
+import yhx.com.domain.agent.model.entity.rag.RagDocumentEntity;
 import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
 import yhx.com.domain.agent.model.entity.rag.RagFilePayloadEntity;
 import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
 import yhx.com.domain.agent.service.rag.IRagDomainService;
+import yhx.com.domain.agent.service.rag.RagAssetIngestionService;
 import yhx.com.domain.agent.service.rag.RagService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -69,6 +71,29 @@ public class RagServiceTest {
                 .build());
 
         Assert.assertEquals(RagService.DEFAULT_KNOWLEDGE_TAG, fakeRagRepository.lastFileCommand.getKnowledgeTag());
+    }
+
+    @Test
+    public void test_ingestFiles_usesProductionAssetPipelineAndReturnsCreatedDocuments() {
+        RagDocumentEntity created = RagDocumentEntity.builder().documentId("document-1").build();
+        RagAssetIngestionService assetIngestionService = new RagAssetIngestionService(null, null, null, null) {
+            @Override
+            public List<RagDocumentEntity> ingestFiles(RagFileIngestCommandEntity commandEntity) {
+                Assert.assertEquals(RagService.DEFAULT_KNOWLEDGE_TAG, commandEntity.getKnowledgeTag());
+                return List.of(created);
+            }
+        };
+        IRagDomainService ragService = new RagService(new FakeRagRepository(), assetIngestionService);
+
+        List<RagDocumentEntity> documents = ragService.ingestFiles(RagFileIngestCommandEntity.builder()
+                .knowledgeTag(" ")
+                .files(List.of(RagFilePayloadEntity.builder()
+                        .fileName("readme.txt")
+                        .content("hello rag".getBytes(StandardCharsets.UTF_8))
+                        .build()))
+                .build());
+
+        Assert.assertEquals(List.of(created), documents);
     }
 
     @Test

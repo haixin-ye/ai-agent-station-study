@@ -11,6 +11,7 @@ import yhx.com.domain.agent.model.valobj.evaluation.RecallCaseImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCaseImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationComparisonVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationMetricsVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunConfigVO;
@@ -133,6 +134,16 @@ public class RecallEvaluationFacade {
     public RecallEvaluationCorpusItemEntity reindexCorpus(String datasetId, String corpusItemId) {
         requireCorpusDataset(datasetId, corpusItemId);
         return ingestionService.reindexItem(corpusItemId);
+    }
+
+    public RecallCorpusBatchActionResultVO reindexCorpusBatch(String datasetId, List<String> corpusItemIds) {
+        getDataset(datasetId);
+        return ingestionService.reindexBatch(datasetId, corpusItemIds);
+    }
+
+    public RecallCorpusBatchActionResultVO disableCorpusBatch(String datasetId, List<String> corpusItemIds) {
+        getDataset(datasetId);
+        return ingestionService.disableBatch(datasetId, corpusItemIds);
     }
 
     public RecallCaseImportResultVO importCases(String datasetId, List<RecallCaseImportItemVO> items) {
