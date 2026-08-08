@@ -1,0 +1,83 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-08-08",
+  "synthetic": true,
+  "methodology": [
+    "C-MTEB-style Chinese semantic retrieval and hard negatives",
+    "LongMemEval-style temporal updates, multi-session synthesis, and conditional preferences"
+  ],
+  "scenarios": [
+    {
+      "key": "travel",
+      "name": "复杂旅行与交通决策"
+    },
+    {
+      "key": "software",
+      "name": "Agent软件研发与调试"
+    },
+    {
+      "key": "learning",
+      "name": "学习研究与知识管理"
+    },
+    {
+      "key": "home",
+      "name": "居住消费与家庭设备"
+    },
+    {
+      "key": "content",
+      "name": "内容创作与发布治理"
+    },
+    {
+      "key": "routine",
+      "name": "健康作息与低风险运动"
+    },
+    {
+      "key": "work",
+      "name": "项目协作与会议执行"
+    },
+    {
+      "key": "finance",
+      "name": "个人预算与非投资财务管理"
+    },
+    {
+      "key": "creative",
+      "name": "摄影创作与数字资产"
+    },
+    {
+      "key": "support",
+      "name": "客户支持与服务运营"
+    }
+  ],
+  "counts": {
+    "rag": 100,
+    "longTermMemory": 100,
+    "userPreference": 100,
+    "corpus": 300,
+    "cases": 200
+  },
+  "idRanges": {
+    "rag": [
+      "11001",
+      "11100"
+    ],
+    "longTermMemory": [
+      "21001",
+      "21100"
+    ],
+    "userPreference": [
+      "31001",
+      "31100"
+    ],
+    "cases": [
+      "41001",
+      "41200"
+    ]
+  },
+  "productionChunking": {
+    "maxChars": 512,
+    "overlapChars": 100,
+    "minChunksPerDocument": 12,
+    "maxChunksPerDocument": 12,
+    "averageChunksPerDocument": 12
+  }
+}
