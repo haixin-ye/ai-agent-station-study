@@ -170,15 +170,19 @@ public class RecallEvaluationFlowTest {
                 .chunkNo(1)
                 .chunkType("FILE_CHUNK")
                 .summary("生产分块摘要")
-                .contentRef("payload-chunk")
-                .retrievalTextRef("payload-chunk")
+                .contentRef("payload-raw")
+                .retrievalTextRef("payload-legacy-retrieval")
                 .status("ACTIVE")
                 .build();
         FakePayloadRepository payloads = new FakePayloadRepository();
-        payloads.saved = AgentPayloadEntity.builder()
-                .payloadId("payload-chunk")
+        payloads.put(AgentPayloadEntity.builder()
+                .payloadId("payload-raw")
                 .content("生产接口生成的真实分块内容")
-                .build();
+                .build());
+        payloads.put(AgentPayloadEntity.builder()
+                .payloadId("payload-legacy-retrieval")
+                .content("sourceType: FILE\nsummary: 重复摘要\ncontent: 生产接口生成的真实分块内容")
+                .build());
         CapturingVectorRepository vectors = new CapturingVectorRepository();
         RagVectorIndexingService ragIndexing = new RagVectorIndexingService(
                 vectors, new FakeVectorIndexRepository());
@@ -198,6 +202,7 @@ public class RecallEvaluationFlowTest {
         Assert.assertEquals("READY", evaluations.corpus.getStatus());
         Assert.assertEquals("dataset-1", vectors.indexed.getMetadata().get("evalDatasetId"));
         Assert.assertEquals("10001", vectors.indexed.getMetadata().get("evalExternalId"));
+        Assert.assertEquals("生产接口生成的真实分块内容", vectors.indexed.getText());
         Assert.assertEquals(Integer.valueOf(1), evaluations.dataset.getReadyCorpusCount());
     }
 
@@ -317,17 +322,25 @@ public class RecallEvaluationFlowTest {
 
     private static class FakePayloadRepository implements IPayloadRepository {
         private AgentPayloadEntity saved;
+        private final Map<String, AgentPayloadEntity> values = new LinkedHashMap<>();
 
         @Override
         public String savePayload(AgentPayloadEntity payload) {
             saved = payload;
             payload.setPayloadId("payload-1");
+            values.put(payload.getPayloadId(), payload);
             return payload.getPayloadId();
         }
 
         @Override
         public Optional<AgentPayloadEntity> findPayload(String payloadId) {
-            return Optional.ofNullable(saved);
+            AgentPayloadEntity value = values.get(payloadId);
+            if (value != null) return Optional.of(value);
+            return saved != null && payloadId.equals(saved.getPayloadId()) ? Optional.of(saved) : Optional.empty();
+        }
+
+        private void put(AgentPayloadEntity payload) {
+            values.put(payload.getPayloadId(), payload);
         }
     }
 

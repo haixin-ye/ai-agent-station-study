@@ -110,7 +110,8 @@ public class RecallEvaluationIngestionService {
             for (String chunkId : sourceRefs(item)) {
                 RagChunkEntity chunk = ragAssetRepository.findChunk(chunkId).orElse(null);
                 if (chunk == null) continue;
-                String text = payloadRepository.findContent(firstNonBlank(chunk.getRetrievalTextRef(), chunk.getContentRef())).orElse(null);
+                String text = payloadRepository.findContent(
+                        firstNonBlank(chunk.getContentRef(), chunk.getRetrievalTextRef())).orElse(null);
                 if (isBlank(text)) continue;
                 ragVectorIndexingService.indexChunk(chunk, text, metadata);
                 ragAssetRepository.updateChunkStatus(chunkId, "ACTIVE");
