@@ -58,6 +58,15 @@ public class RagVectorIndexingService {
                 mergeMetadata(extraMetadata, chunkMetadata(chunk)));
     }
 
+    public int mergeChunkMetadata(RagChunkEntity chunk, Map<String, Object> extraMetadata) {
+        if (chunk == null || isBlank(chunk.getChunkId())) {
+            throw new IllegalArgumentException("RAG chunk with chunkId is required.");
+        }
+        ensureRepositories();
+        return vectorMemoryRepository.mergeMetadata(
+                chunkCollection(chunk), chunk.getChunkId(), mergeMetadata(extraMetadata, chunkMetadata(chunk)));
+    }
+
     private String upsert(VectorCollectionTypeEnumVO collectionType,
                           VectorSourceTypeEnumVO sourceType,
                           String sourceId,

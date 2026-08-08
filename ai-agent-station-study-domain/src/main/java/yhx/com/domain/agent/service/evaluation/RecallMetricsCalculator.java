@@ -8,7 +8,9 @@ import yhx.com.domain.agent.model.valobj.evaluation.RecallExpectedItemVO;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class RecallMetricsCalculator {
@@ -17,9 +19,15 @@ public class RecallMetricsCalculator {
                                               List<RecallEvaluationHitEntity> hits,
                                               int topK) {
         List<RecallExpectedItemVO> labels = expected == null ? List.of() : expected;
-        List<RecallEvaluationHitEntity> ranked = hits == null ? List.of() : hits.stream()
+        List<RecallEvaluationHitEntity> sorted = hits == null ? List.of() : hits.stream()
                 .sorted(Comparator.comparing(RecallEvaluationHitEntity::getRankNo,
                         Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+        Map<String, RecallEvaluationHitEntity> logicalResults = new LinkedHashMap<>();
+        for (RecallEvaluationHitEntity hit : sorted) {
+            logicalResults.putIfAbsent(logicalResultKey(hit), hit);
+        }
+        List<RecallEvaluationHitEntity> ranked = logicalResults.values().stream()
                 .limit(Math.max(1, topK))
                 .toList();
         Set<String> matched = new HashSet<>();
@@ -143,6 +151,17 @@ public class RecallMetricsCalculator {
 
     private String labelKey(RecallExpectedItemVO label) {
         return String.valueOf(label.getSourceId()) + "|" + String.valueOf(label.getMatchMode());
+    }
+
+    private String logicalResultKey(RecallEvaluationHitEntity hit) {
+        if (hit == null) {
+            return "null";
+        }
+        String parentSourceId = hit.getParentSourceId();
+        if (parentSourceId != null && !parentSourceId.isBlank()) {
+            return "PARENT|" + parentSourceId;
+        }
+        return "SOURCE|" + String.valueOf(hit.getSourceId());
     }
 
     private double gain(int grade) {

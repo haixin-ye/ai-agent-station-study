@@ -252,7 +252,10 @@ public class RecallEvaluationIngestionService {
                 item.setParentSourceId(document.getDocumentId());
                 item.setSourceRefsJson(JSON.toJSONString(chunks.stream().map(RagChunkEntity::getChunkId).toList()));
                 evaluationRepository.updateCorpusItem(item);
-                item = reindexItem(item.getCorpusItemId());
+                attachEvaluationMetadata(dataset, item, chunks);
+                item.setStatus("READY");
+                clearFailure(item);
+                evaluationRepository.updateCorpusItem(item);
                 accepted++;
             } catch (Exception error) {
                 item.setStatus("FAILED");
@@ -273,6 +276,23 @@ public class RecallEvaluationIngestionService {
         evaluationRepository.updateDataset(dataset);
         return RecallCorpusImportResultVO.builder()
                 .acceptedCount(accepted).failedCount(failed).items(results).build();
+    }
+
+    private void attachEvaluationMetadata(RecallEvaluationDatasetEntity dataset,
+                                          RecallEvaluationCorpusItemEntity item,
+                                          List<RagChunkEntity> chunks) {
+        Map<String, Object> metadata = Map.of(
+                "evalDatasetId", dataset.getDatasetId(),
+                "evalExternalId", item.getExternalId(),
+                "evalCorpusItemId", item.getCorpusItemId());
+        int attached = 0;
+        for (RagChunkEntity chunk : chunks) {
+            attached += ragVectorIndexingService.mergeChunkMetadata(chunk, metadata);
+        }
+        if (attached != chunks.size()) {
+            throw new IllegalStateException("Uploaded RAG document has " + chunks.size()
+                    + " chunks, but only " + attached + " vector rows accepted evaluation metadata.");
+        }
     }
 
     private RecallEvaluationCorpusItemEntity createPending(RecallEvaluationDatasetEntity dataset,

@@ -146,7 +146,7 @@ public class RecallEvaluationFlowTest {
     }
 
     @Test
-    public void uploaded_rag_document_is_attached_and_reindexed_with_evaluation_metadata() {
+    public void uploaded_rag_document_is_attached_without_reembedding_chunks() {
         InMemoryEvaluationRepository evaluations = new InMemoryEvaluationRepository();
         evaluations.dataset = RecallEvaluationDatasetEntity.builder()
                 .datasetId("dataset-1")
@@ -200,9 +200,11 @@ public class RecallEvaluationFlowTest {
         Assert.assertEquals(Integer.valueOf(1), result.getAcceptedCount());
         Assert.assertEquals("rag-doc-1", evaluations.corpus.getSourceId());
         Assert.assertEquals("READY", evaluations.corpus.getStatus());
-        Assert.assertEquals("dataset-1", vectors.indexed.getMetadata().get("evalDatasetId"));
-        Assert.assertEquals("10001", vectors.indexed.getMetadata().get("evalExternalId"));
-        Assert.assertEquals("生产接口生成的真实分块内容", vectors.indexed.getText());
+        Assert.assertNull(vectors.indexed);
+        Assert.assertEquals(VectorCollectionTypeEnumVO.RAG_FILE_CHUNK, vectors.metadataCollection);
+        Assert.assertEquals("rag-doc-1-chunk-1", vectors.metadataSourceId);
+        Assert.assertEquals("dataset-1", vectors.mergedMetadata.get("evalDatasetId"));
+        Assert.assertEquals("10001", vectors.mergedMetadata.get("evalExternalId"));
         Assert.assertEquals(Integer.valueOf(1), evaluations.dataset.getReadyCorpusCount());
     }
 
@@ -296,6 +298,9 @@ public class RecallEvaluationFlowTest {
         private final List<VectorRecallQueryVO> queries = new ArrayList<>();
         private final List<String> disabledSourceIds = new ArrayList<>();
         private VectorIndexRecordVO indexed;
+        private VectorCollectionTypeEnumVO metadataCollection;
+        private String metadataSourceId;
+        private Map<String, Object> mergedMetadata;
 
         @Override
         public String upsert(VectorIndexRecordVO record) {
@@ -312,6 +317,16 @@ public class RecallEvaluationFlowTest {
                     .sourceId("memory-1")
                     .score(0.91D)
                     .build());
+        }
+
+        @Override
+        public int mergeMetadata(VectorCollectionTypeEnumVO collectionType,
+                                 String sourceId,
+                                 Map<String, Object> metadata) {
+            metadataCollection = collectionType;
+            metadataSourceId = sourceId;
+            mergedMetadata = metadata;
+            return 1;
         }
 
         @Override

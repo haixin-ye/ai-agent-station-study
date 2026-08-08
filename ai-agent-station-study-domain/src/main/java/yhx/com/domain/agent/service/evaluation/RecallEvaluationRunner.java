@@ -183,9 +183,19 @@ public class RecallEvaluationRunner {
         Map<String, RankedRawHit> merged = new LinkedHashMap<>();
         addHits(merged, memory, "MEMORY");
         addHits(merged, rag, "RAG");
-        List<RankedRawHit> ranked = merged.values().stream()
+        List<RankedRawHit> scored = merged.values().stream()
                 .sorted(Comparator.comparing((RankedRawHit value) -> value.hit.getScore(),
                         Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+        Map<String, RankedRawHit> logicalResults = new LinkedHashMap<>();
+        for (RankedRawHit value : scored) {
+            String documentId = metadata(value.hit, "documentId");
+            String logicalKey = documentId == null || documentId.isBlank()
+                    ? String.valueOf(value.hit.getCollectionType()) + "|" + value.hit.getSourceId()
+                    : "RAG_DOCUMENT|" + documentId;
+            logicalResults.putIfAbsent(logicalKey, value);
+        }
+        List<RankedRawHit> ranked = logicalResults.values().stream()
                 .limit(topK)
                 .toList();
         List<RecallEvaluationHitEntity> result = new ArrayList<>();

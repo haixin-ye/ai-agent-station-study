@@ -25,5 +25,11 @@ public interface IVectorMemoryRepository {
         return List.of();
     }
 
+    default int mergeMetadata(VectorCollectionTypeEnumVO collectionType,
+                              String sourceId,
+                              Map<String, Object> metadata) {
+        return 0;
+    }
+
     void disable(VectorCollectionTypeEnumVO collectionType, String sourceId);
 }

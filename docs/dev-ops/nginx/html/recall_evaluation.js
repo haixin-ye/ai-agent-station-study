@@ -8,7 +8,8 @@
     datasets: [], datasetId: params.get('datasetId'), corpus: [], cases: [], runs: [],
     vectors: { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] },
     runId: params.get('runId'), runDetail: null, comparison: null, importTarget: null,
-    importCorpusType: null, polling: false, viewRefreshPending: false, selectedCorpusIds: new Set()
+    importCorpusType: null, polling: false, viewRefreshPending: false, selectedCorpusIds: new Set(),
+    importSubmitting: false, ragImport: null
   };
   const els = {
     view: document.getElementById('view'), datasetList: document.getElementById('datasetList'),
@@ -19,7 +20,8 @@
     importModal: document.getElementById('importModal'), importModalTitle: document.getElementById('importModalTitle'),
     importText: document.getElementById('importText'), importFormat: document.getElementById('importFormat'),
     importHint: document.getElementById('importHint'), importFilePicker: document.getElementById('importFilePicker'),
-    importFileName: document.getElementById('importFileName'), idPreview: document.getElementById('idPreview'),
+    importFileName: document.getElementById('importFileName'), importSubmitBtn: document.getElementById('importSubmitBtn'),
+    idPreview: document.getElementById('idPreview'),
     toast: document.getElementById('toast')
   };
 
@@ -123,7 +125,7 @@
       request(`/runs?datasetId=${id}&limit=100`)
     ]);
     const vectorResults = await Promise.allSettled([
-      request(`/datasets/${id}/vectors?itemType=RAG_DOCUMENT&limit=1000`),
+      request(`/datasets/${id}/vectors?itemType=RAG_DOCUMENT&limit=5000`),
       request(`/datasets/${id}/vectors?itemType=LONG_TERM_MEMORY&limit=1000`),
       request(`/datasets/${id}/vectors?itemType=USER_PREFERENCE&limit=1000`)
     ]);
@@ -214,22 +216,43 @@
     const disableSelectedCount = selectable.filter(item => item.status !== 'DISABLED' && state.selectedCorpusIds.has(item.corpusItemId)).length;
     const vectors = state.vectors[type] || [];
     const label = types.find(item => item[0] === type)?.[1] || type;
+    const columnLabel = type === 'RAG_DOCUMENT' ? '内部 Chunk' : '真实向量库记录';
     return `<section class="panel">
       <div class="subtabs">${types.map(([value, text]) => `<button class="subtab ${value === type ? 'active' : ''}" data-corpus-type="${value}">${text} <span class="tag">${state.corpus.filter(item => item.itemType === value).length}</span></button>`).join('')}</div>
-      <div class="panel-head"><div><h3>${label}表</h3><p>表格同时展示评测记录与 PGVector 中按 evalDatasetId 查询到的真实向量行。</p></div><div class="actions corpus-batch-actions"><span class="batch-selection" data-batch-selection>${selectedCount ? `已选 ${selectedCount} 项` : '选择记录后可批量操作'}</span><button class="btn small" data-corpus-batch="reindex" ${selectedCount ? '' : 'disabled'}>批量重建索引</button><button class="btn small danger" data-corpus-batch="disable" ${disableSelectedCount ? '' : 'disabled'}>批量停用</button><button class="btn primary" data-open-import="corpus" data-corpus-type="${type}">导入 ${label}</button></div></div>
-      <div class="panel-body">${items.length ? `<table class="table corpus-table"><thead><tr><th class="check-cell"><input type="checkbox" data-corpus-select-all aria-label="选择当前表全部记录" ${selectable.length && selectedCount === selectable.length ? 'checked' : ''} ${selectable.length ? '' : 'disabled'}></th><th>自定义数字ID</th><th>内容</th><th>真实向量库记录</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
+      <div class="panel-head"><div><h3>${type === 'RAG_DOCUMENT' ? 'RAG 原始文件表' : `${label}表`}</h3><p>${type === 'RAG_DOCUMENT' ? '每行代表一个原始大文件；文件内部的 chunk 仅作为可展开明细。' : '表格展示评测记录与 PGVector 中真实同步的向量行。'}</p></div><div class="actions corpus-batch-actions"><span class="batch-selection" data-batch-selection>${selectedCount ? `已选 ${selectedCount} 项` : '选择记录后可批量操作'}</span><button class="btn small" data-corpus-batch="reindex" ${selectedCount ? '' : 'disabled'}>批量重建索引</button><button class="btn small danger" data-corpus-batch="disable" ${disableSelectedCount ? '' : 'disabled'}>批量停用</button><button class="btn primary" data-open-import="corpus" data-corpus-type="${type}" ${state.importSubmitting ? 'disabled' : ''}>${state.importSubmitting && type === 'RAG_DOCUMENT' ? '正在上传…' : `导入 ${label}`}</button></div></div>
+      ${type === 'RAG_DOCUMENT' ? renderRagImportStatus() : ''}
+      <div class="panel-body">${items.length ? `<table class="table corpus-table"><thead><tr><th class="check-cell"><input type="checkbox" data-corpus-select-all aria-label="选择当前表全部记录" ${selectable.length && selectedCount === selectable.length ? 'checked' : ''} ${selectable.length ? '' : 'disabled'}></th><th>大文件ID</th><th>文件内容</th><th>${columnLabel}</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
     </section>`;
+  }
+
+  function renderRagImportStatus() {
+    const progress = state.ragImport;
+    if (!progress) return '';
+    const total = Math.max(1, Number(progress.total || 0));
+    const completed = Number(progress.completed || 0);
+    const percent = Math.min(100, completed / total * 100);
+    const status = progress.active ? `正在处理大文件 ${progress.currentExternalId || ''}`
+      : progress.failed ? '本次上传已暂停，可重新导入同一文件继续' : '本次上传完成';
+    return `<div class="rag-import-status ${progress.failed ? 'failed' : ''}" data-rag-import-status><div class="rag-import-status-head"><strong>${esc(status)}</strong><span>${completed}/${total} 完成 · ${Number(progress.skipped || 0)} 已跳过 · ${Number(progress.failed || 0)} 失败</span></div><div class="progress"><i style="width:${percent}%"></i></div><p>${esc(progress.message || '每个大文件完成后会立即写入看板。')}</p></div>`;
   }
 
   function corpusRow(item, vectors) {
     const stored = vectors.filter(record => record.externalId === item.externalId);
     const preview = stored[0]?.content || item.summary || '';
     const disabled = item.status === 'DISABLED';
-    return `<tr class="${state.selectedCorpusIds.has(item.corpusItemId) ? 'selected-row' : ''}"><td class="check-cell"><input type="checkbox" data-corpus-select="${esc(item.corpusItemId)}" aria-label="选择 ${esc(item.externalId)}" ${state.selectedCorpusIds.has(item.corpusItemId) ? 'checked' : ''}></td><td><div class="primary-text">${esc(item.externalId)}</div><div class="secondary-text">${esc(item.title || item.itemType)}</div></td><td><div class="primary-text">${esc(item.summary || item.title || '—')}</div><div class="secondary-text" title="${esc(preview)}">${esc(preview || '—')}</div></td><td>${stored.length ? `<details><summary>${stored.length} 条真实向量记录</summary><div class="db-records">${stored.map(vectorRecord).join('')}</div></details>` : '<span class="state failed">向量库无记录</span>'}</td><td>${statePill(item.status)}${item.failureMessage ? `<div class="secondary-text">${esc(item.failureCode)} · ${esc(item.failureMessage)}</div>` : ''}</td><td><div class="actions"><button class="btn small" data-reindex="${esc(item.corpusItemId)}">重建索引</button><button class="btn small danger" data-disable-corpus="${esc(item.corpusItemId)}" ${disabled ? 'disabled' : ''}>停用</button></div></td></tr>`;
+    const sourceRefs = Array.isArray(item.sourceRefs) ? item.sourceRefs : [];
+    const chunkCount = Math.max(stored.length, sourceRefs.length);
+    const vectorCell = item.itemType === 'RAG_DOCUMENT'
+      ? (stored.length
+        ? `<details><summary class="chunk-summary">${chunkCount} 个 chunk</summary><div class="db-records">${stored.slice().sort((a, b) => Number(a.metadata?.chunkNo || 0) - Number(b.metadata?.chunkNo || 0)).map(vectorRecord).join('')}</div></details>`
+        : item.status === 'READY' ? `<span class="state ready">${chunkCount || '—'} 个 chunk 已就绪</span>` : '<span class="state pending">等待生成 chunk</span>')
+      : (stored.length ? `<details><summary>${stored.length} 条真实向量记录</summary><div class="db-records">${stored.map(vectorRecord).join('')}</div></details>` : '<span class="state failed">向量库无记录</span>');
+    return `<tr data-corpus-row="${esc(item.corpusItemId)}" class="${state.selectedCorpusIds.has(item.corpusItemId) ? 'selected-row' : ''}"><td class="check-cell"><input type="checkbox" data-corpus-select="${esc(item.corpusItemId)}" aria-label="选择 ${esc(item.externalId)}" ${state.selectedCorpusIds.has(item.corpusItemId) ? 'checked' : ''}></td><td><div class="primary-text">${esc(item.externalId)}</div><div class="secondary-text">${esc(item.title || item.itemType)}</div></td><td><div class="primary-text">${esc(item.summary || item.title || '—')}</div><div class="secondary-text" title="${esc(preview)}">${esc(preview || '—')}</div></td><td>${vectorCell}</td><td>${statePill(item.status)}${item.failureMessage ? `<div class="secondary-text">${esc(item.failureCode)} · ${esc(item.failureMessage)}</div>` : ''}</td><td><div class="actions"><button class="btn small" data-reindex="${esc(item.corpusItemId)}">重建索引</button><button class="btn small danger" data-disable-corpus="${esc(item.corpusItemId)}" ${disabled ? 'disabled' : ''}>停用</button></div></td></tr>`;
   }
 
   function vectorRecord(item) {
-    return `<div class="db-record"><div><strong>${esc(item.collectionType)}</strong> · ${number(item.embeddingDimensions)}维</div><div>sourceId: <code>${esc(item.sourceId)}</code></div><div>vectorId: <code>${esc(item.vectorId)}</code></div></div>`;
+    const chunkNo = item.metadata?.chunkNo;
+    return `<div class="db-record"><div><strong>${chunkNo == null ? esc(item.collectionType) : `Chunk ${esc(chunkNo)}`}</strong> · ${number(item.embeddingDimensions)}维</div>${item.content ? `<div class="chunk-preview">${esc(item.content)}</div>` : ''}<div>sourceId: <code>${esc(item.sourceId)}</code></div><div>vectorId: <code>${esc(item.vectorId)}</code></div></div>`;
   }
 
   function renderCases() {
@@ -339,6 +362,10 @@
   }
 
   async function selectDataset(datasetId) {
+    if (state.importSubmitting) {
+      showToast('RAG 大文件正在上传，请等待本次导入完成或暂停后再切换数据集。', 'error');
+      return;
+    }
     state.datasetId = datasetId; state.tab = 'corpus'; state.runId = null; state.runDetail = null; state.comparison = null;
     state.selectedCorpusIds.clear();
     state.corpus = []; state.cases = []; state.runs = [];
@@ -417,36 +444,90 @@
 
   async function submitImport(event) {
     event.preventDefault();
+    if (state.importSubmitting) return;
     const items = normalizeImported(els.importText.value);
     const path = state.importTarget === 'corpus' ? 'corpus' : 'cases';
     if (state.importTarget === 'corpus' && state.importCorpusType) {
       items.forEach(item => { item.type = state.importCorpusType; });
     }
-    const result = state.importTarget === 'corpus' && state.importCorpusType === 'RAG_DOCUMENT'
-      ? await uploadRagThroughProductionEndpoint(items)
-      : await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }), timeoutMs: 300000 });
-    closeModals(); showToast(`已导入 ${result.acceptedCount} 项，失败 ${result.failedCount} 项`, result.failedCount ? 'error' : '');
-    await refreshSelected();
+    state.importSubmitting = true;
+    if (els.importSubmitBtn) { els.importSubmitBtn.disabled = true; els.importSubmitBtn.textContent = '正在导入…'; }
+    try {
+      const result = state.importTarget === 'corpus' && state.importCorpusType === 'RAG_DOCUMENT'
+        ? await uploadRagThroughProductionEndpoint(items)
+        : await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }), timeoutMs: 300000 });
+      closeModals();
+      const skipped = Number(result.skippedCount || 0);
+      showToast(`已导入 ${result.acceptedCount} 项，跳过 ${skipped} 项，失败 ${result.failedCount} 项`, result.failedCount ? 'error' : '');
+      await refreshSelected(true);
+    } finally {
+      state.importSubmitting = false;
+      if (els.importSubmitBtn) { els.importSubmitBtn.disabled = false; els.importSubmitBtn.textContent = '解析并导入'; }
+      if (!inspectionActive()) renderAll();
+      else document.querySelectorAll('[data-open-import="corpus"]').forEach(button => { button.disabled = false; });
+    }
   }
 
   async function uploadRagThroughProductionEndpoint(items) {
-    const existing = new Set(state.corpus.map(item => String(item.externalId)));
+    const existing = new Set(state.corpus.filter(item => item.itemType === 'RAG_DOCUMENT' && item.status === 'READY').map(item => String(item.externalId)));
     const incoming = new Set();
     for (const item of items) {
       const externalId = String(item.externalId || '');
       if (!/^\d{5,12}$/.test(externalId)) throw new Error(`RAG 自定义ID必须是5–12位数字：${externalId || '空值'}`);
       if (!String(item.content || '').trim()) throw new Error(`RAG ${externalId} 缺少 content`);
-      if (existing.has(externalId) || incoming.has(externalId)) throw new Error(`RAG 自定义ID重复：${externalId}`);
+      if (incoming.has(externalId)) throw new Error(`导入文件中存在重复的 RAG 大文件ID：${externalId}`);
       incoming.add(externalId);
     }
+    const pending = items.filter(item => !existing.has(String(item.externalId)));
+    const skippedCount = items.length - pending.length;
+    state.ragImport = { active: true, total: pending.length, completed: 0, failed: 0, skipped: skippedCount, currentExternalId: null, message: '准备逐个上传大文件…' };
+    closeModals(); renderAll();
+    let acceptedCount = 0;
+    let failedCount = 0;
+    for (let index = 0; index < pending.length; index++) {
+      const item = pending[index];
+      state.ragImport.currentExternalId = String(item.externalId);
+      state.ragImport.message = `正在通过正式 RAG 接口处理 ${item.externalId}.md；完成后会立即显示。`;
+      updateRagImportStatus();
+      try {
+        const document = await uploadSingleRagDocument(item);
+        const attachment = {
+          externalId: String(item.externalId), documentId: document.documentId,
+          title: item.title || document.title || `${item.externalId}.md`,
+          summary: item.summary || document.summary || null, tags: item.tags || []
+        };
+        const attached = await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/rag/attachments`, {
+          method: 'POST', body: JSON.stringify({ items: [attachment] }), timeoutMs: 120000
+        });
+        if (Number(attached.acceptedCount || 0) !== 1) {
+          throw new Error(attached.items?.[0]?.failureMessage || `大文件 ${item.externalId} 未能登记到评测数据集。`);
+        }
+        acceptedCount++;
+        state.ragImport.completed = acceptedCount;
+        state.ragImport.message = `大文件 ${item.externalId} 已完成，共 ${attached.items?.[0]?.sourceRefs?.length || 0} 个 chunk。`;
+        await mergeCompletedRagBatch(attached.items || []);
+      } catch (error) {
+        failedCount++;
+        state.ragImport.failed = failedCount;
+        state.ragImport.active = false;
+        state.ragImport.message = `${item.externalId} 上传失败：${error.message}。再次导入同一文件会自动跳过已完成的大文件。`;
+        updateRagImportStatus();
+        break;
+      }
+    }
+    state.ragImport.active = false;
+    state.ragImport.currentExternalId = null;
+    if (!failedCount) state.ragImport.message = pending.length ? '全部大文件均已上传并登记完成。' : '所选大文件此前均已完成，本次无需重复上传。';
+    updateRagImportStatus();
+    return { acceptedCount, failedCount, skippedCount, items: [] };
+  }
+
+  async function uploadSingleRagDocument(item) {
     const formData = new FormData();
     formData.append('knowledgeTag', state.datasetId);
-    items.forEach(item => {
-      const fileName = `${String(item.externalId)}.md`;
-      formData.append('files', new File([String(item.content)], fileName, { type: 'text/markdown;charset=UTF-8' }));
-    });
+    formData.append('files', new File([String(item.content)], `${String(item.externalId)}.md`, { type: 'text/markdown;charset=UTF-8' }));
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 300000);
+    const timeout = window.setTimeout(() => controller.abort(), 600000);
     let upload;
     try {
       const response = await fetch(`${API_BASE}/api/v1/rag/knowledge/files`, {
@@ -464,19 +545,42 @@
       window.clearTimeout(timeout);
     }
     const documents = Array.isArray(upload?.documents) ? upload.documents : [];
-    if (documents.length !== items.length) {
-      throw new Error(`生产 RAG 接口返回 ${documents.length} 个文档，但本次上传了 ${items.length} 个文件，无法安全关联评测ID。`);
+    if (documents.length !== 1) {
+      throw new Error(`生产 RAG 接口返回 ${documents.length} 个文档，预期为 1 个，无法安全关联评测ID。`);
     }
-    const attachments = items.map((item, index) => ({
-      externalId: String(item.externalId),
-      documentId: documents[index].documentId,
-      title: item.title || documents[index].title || `${item.externalId}.md`,
-      summary: item.summary || documents[index].summary || null,
-      tags: item.tags || []
-    }));
-    return request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/rag/attachments`, {
-      method: 'POST', body: JSON.stringify({ items: attachments }), timeoutMs: 300000
-    });
+    return documents[0];
+  }
+
+  async function mergeCompletedRagBatch(items) {
+    const byId = new Map(state.corpus.map(item => [item.corpusItemId, item]));
+    items.forEach(item => byId.set(item.corpusItemId, item));
+    state.corpus = [...byId.values()];
+    await loadDatasets();
+    renderHeader(); renderRail();
+    const tbody = state.corpusType === 'RAG_DOCUMENT' ? document.querySelector('.corpus-table tbody') : null;
+    if (!tbody) {
+      if (!inspectionActive()) renderView();
+      else state.viewRefreshPending = true;
+    } else {
+      for (const item of items) {
+        const current = tbody.querySelector(`[data-corpus-row="${CSS.escape(item.corpusItemId)}"]`);
+        const holder = document.createElement('tbody');
+        holder.innerHTML = corpusRow(item, state.vectors.RAG_DOCUMENT || []);
+        if (current) current.replaceWith(holder.firstElementChild);
+        else tbody.append(holder.firstElementChild);
+      }
+      const tabCount = document.querySelector('[data-corpus-type="RAG_DOCUMENT"] .tag');
+      if (tabCount) tabCount.textContent = state.corpus.filter(item => item.itemType === 'RAG_DOCUMENT').length;
+    }
+    updateRagImportStatus();
+  }
+
+  function updateRagImportStatus() {
+    const current = document.querySelector('[data-rag-import-status]');
+    if (!current) { if (!inspectionActive()) renderAll(); return; }
+    const holder = document.createElement('div');
+    holder.innerHTML = renderRagImportStatus();
+    current.replaceWith(holder.firstElementChild);
   }
 
   async function startRun(form) {
@@ -494,7 +598,15 @@
     await loadRunDetail(state.runId); updateUrl(); renderAll(); showToast('评测任务已进入执行队列');
   }
 
-  async function refreshSelected() { await loadDatasets(); await loadDatasetData(); renderAll(); }
+  async function refreshSelected(preserveInspection = false) {
+    await loadDatasets(); await loadDatasetData();
+    if (preserveInspection && inspectionActive()) {
+      state.viewRefreshPending = true;
+      renderHeader(); renderRail(); updateRagImportStatus();
+      return;
+    }
+    renderAll();
+  }
 
   function currentSelectableCorpus() {
     return state.corpus.filter(item => item.itemType === state.corpusType);

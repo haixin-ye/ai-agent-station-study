@@ -16,6 +16,11 @@ if (!workbenchSource.includes('/api/v1/rag/knowledge/files')
   || !workbenchSource.includes('/corpus/rag/attachments')) {
   throw new Error('RAG evaluation import must use the production multipart upload endpoint before attachment');
 }
+if (!workbenchSource.includes('uploadSingleRagDocument(item)')
+  || !workbenchSource.includes('再次导入同一文件会自动跳过已完成的大文件')
+  || !workbenchSource.includes('renderRagImportStatus()')) {
+  throw new Error('RAG import must upload and attach parent documents incrementally with visible resumable progress');
+}
 
 const jsonl = parseJsonl('{"externalId":"q1","query":"hello"}\nnot-json\n{"externalId":"q2","query":"world"}');
 if (jsonl.items.length !== 2 || jsonl.errors.length !== 1 || jsonl.errors[0].line !== 2) {

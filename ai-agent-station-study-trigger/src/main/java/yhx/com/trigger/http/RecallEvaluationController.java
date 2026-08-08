@@ -139,7 +139,7 @@ public class RecallEvaluationController {
             @PathVariable("datasetId") String datasetId,
             @RequestParam("itemType") String itemType,
             @RequestParam(name = "limit", defaultValue = "1000") int limit) {
-        return call(() -> facade.listVectorRecords(datasetId, itemType, bounded(limit)).stream()
+        return call(() -> facade.listVectorRecords(datasetId, itemType, vectorBounded(limit)).stream()
                 .map(RecallEvaluationApiMapper::vectorRecord).toList());
     }
 
@@ -250,6 +250,10 @@ public class RecallEvaluationController {
 
     private int bounded(int limit) {
         return Math.min(1000, Math.max(1, limit));
+    }
+
+    private int vectorBounded(int limit) {
+        return Math.min(5000, Math.max(1, limit));
     }
 
     private void requireBatch(List<?> values) {

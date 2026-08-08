@@ -50,6 +50,24 @@ public class RecallMetricsCalculatorTest {
         Assert.assertEquals(Integer.valueOf(3), metrics.getEvaluatedCaseCount());
     }
 
+    @Test
+    public void duplicate_chunks_are_ranked_as_one_parent_document() {
+        RecallMetricsCalculator calculator = new RecallMetricsCalculator();
+        List<RecallExpectedItemVO> expected = List.of(
+                RecallExpectedItemVO.builder().sourceId("doc-1").grade(3).matchMode("PARENT_DOCUMENT").build(),
+                RecallExpectedItemVO.builder().sourceId("doc-2").grade(3).matchMode("PARENT_DOCUMENT").build());
+        List<RecallEvaluationHitEntity> hits = List.of(
+                hit(1, "doc-1-chunk-1", "doc-1"),
+                hit(2, "doc-1-chunk-2", "doc-1"),
+                hit(3, "doc-2-chunk-1", "doc-2"));
+
+        RecallCaseMetricsVO metrics = calculator.calculateCase(expected, hits, 2);
+
+        Assert.assertEquals(1D, metrics.getPrecisionAtK(), 0.000001D);
+        Assert.assertEquals(1D, metrics.getRecallAtK(), 0.000001D);
+        Assert.assertEquals(1D, metrics.getReciprocalRank(), 0.000001D);
+    }
+
     private RecallEvaluationHitEntity hit(int rank, String sourceId, String parentSourceId) {
         return RecallEvaluationHitEntity.builder()
                 .rankNo(rank)

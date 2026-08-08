@@ -122,6 +122,17 @@ textarea { resize: vertical; min-height: 112px; font: 13px/1.65 "SFMono-Regular"
 .import-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
 .import-divider::before, .import-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
 .import-divider span { white-space: nowrap; }
+.rag-import-status { margin: 0 16px 14px; padding: 13px 14px; border: 1px solid #b9c9e8; border-radius: 12px; background: #f7faff; }
+.rag-import-status.failed { border-color: rgba(209,67,67,.32); background: rgba(209,67,67,.045); }
+.rag-import-status-head { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+.rag-import-status-head strong { font-size: 13px; }
+.rag-import-status-head span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.rag-import-status .progress { height: 6px; margin: 9px 0 7px; }
+.rag-import-status p { margin: 0; color: var(--muted); font-size: 12px; }
+.chunk-summary { display: inline-flex; align-items: center; gap: 6px; font-weight: 680; cursor: pointer; }
+.chunk-summary::before { content: "▸"; color: #5f8de8; transition: transform .15s ease; }
+details[open] > .chunk-summary::before { transform: rotate(90deg); }
+.chunk-preview { margin-top: 5px; color: var(--muted); line-height: 1.55; white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
 .table { width: 100%; border-collapse: collapse; }
 .table th { padding: 9px 10px; text-align: left; color: #667085; font-size: 12px; letter-spacing: .03em; font-weight: 700; background: #f8fafc; }

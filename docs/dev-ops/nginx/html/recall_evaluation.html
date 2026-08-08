@@ -82,7 +82,7 @@
       <div class="field"><label>格式</label><select id="importFormat"><option value="jsonl">JSONL</option><option value="json">JSON 数组</option><option value="csv">CSV</option></select></div>
       <div class="field"><label>数据内容</label><textarea id="importText" rows="14" placeholder="选择文件后会自动读取到这里；也可以每行粘贴一个 JSON 对象"></textarea></div>
       <div class="hint" id="importHint"></div>
-      <div class="actions"><button class="btn primary" type="submit">解析并导入</button><button class="btn" type="button" data-close-modal>取消</button></div>
+      <div class="actions"><button class="btn primary" id="importSubmitBtn" type="submit">解析并导入</button><button class="btn" type="button" data-close-modal>取消</button></div>
     </form>
   </div>
 </div>
@@ -90,7 +90,7 @@
 <div class="toast" id="toast"></div>
 <aside class="id-preview-popover" id="idPreview" role="tooltip" hidden></aside>
 
-<script src="recall_evaluation_logic.js?v=20260808-6"></script>
-<script src="recall_evaluation.js?v=20260808-7"></script>
+<script src="recall_evaluation_logic.js?v=20260808-8"></script>
+<script src="recall_evaluation.js?v=20260808-9"></script>
 </body>
 </html>

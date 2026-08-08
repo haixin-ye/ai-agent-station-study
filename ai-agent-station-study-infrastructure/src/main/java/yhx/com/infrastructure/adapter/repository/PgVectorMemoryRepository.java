@@ -176,6 +176,21 @@ public class PgVectorMemoryRepository implements IVectorMemoryRepository {
     }
 
     @Override
+    public int mergeMetadata(VectorCollectionTypeEnumVO collectionType,
+                             String sourceId,
+                             Map<String, Object> metadata) {
+        if (collectionType == null || isBlank(sourceId) || metadata == null || metadata.isEmpty()) {
+            return 0;
+        }
+        return jdbcTemplate.update("""
+                        UPDATE public.%s
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) || ?::jsonb
+                        WHERE source_id = ?
+                        """.formatted(tableName(collectionType)),
+                JSON.toJSONString(metadata), sourceId);
+    }
+
+    @Override
     public void disable(VectorCollectionTypeEnumVO collectionType, String sourceId) {
         if (collectionType == null || isBlank(sourceId)) {
             return;
