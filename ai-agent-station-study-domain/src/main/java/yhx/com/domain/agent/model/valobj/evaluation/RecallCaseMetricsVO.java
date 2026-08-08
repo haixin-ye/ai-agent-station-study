@@ -20,6 +20,13 @@ public class RecallCaseMetricsVO {
     private Long plannerLatencyMs;
     private Double plannerPrecision;
     private Double plannerRecall;
+    private Boolean plannerHit;
+    private Double plannerReciprocalRank;
+    private Double plannerNdcgAtK;
+    private Integer plannerSelectedCount;
+    private Double plannerRelevantRetentionRate;
+    private Double plannerIrrelevantRemovalRate;
+    private Integer plannerRelevantDroppedCount;
     private Boolean plannerInvoked;
     private Boolean clarificationRequested;
     private Boolean plannerFailed;

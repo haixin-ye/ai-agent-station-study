@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AutoAgent · Recall Evaluation Lab</title>
+  <title>AutoAgent · 召回批量测试</title>
   <link rel="stylesheet" href="recall_evaluation.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark" aria-hidden="true"></div>
-      <div><div class="eyebrow">Retrieval instrumentation</div><h1>召回评测实验室</h1></div>
+      <div><div class="eyebrow">Memory &amp; RAG Evaluation</div><h1>召回批量测试</h1></div>
     </div>
     <div class="top-stats">
       <div class="mini-stat"><span>Dataset</span><strong id="headerDataset">未选择</strong></div>
@@ -42,15 +42,14 @@
           </div>
         </div>
         <nav class="tabs" aria-label="评测模块">
-          <button class="tab active" data-tab="overview">总览</button>
-          <button class="tab" data-tab="corpus">语料库</button>
-          <button class="tab" data-tab="cases">问题与标签</button>
-          <button class="tab" data-tab="experiment">运行实验</button>
-          <button class="tab" data-tab="results">结果与 A/B</button>
+          <button class="tab active" data-tab="corpus">记忆数据</button>
+          <button class="tab" data-tab="cases">测试问题</button>
+          <button class="tab" data-tab="experiment">参数与运行</button>
+          <button class="tab" data-tab="results">测试结果</button>
         </nav>
       </section>
       <section class="view" id="view">
-        <div class="panel hero-panel"><div class="empty"><div><h3>从一个隔离的数据集开始</h3><p>导入真实 RAG / 长期记忆，建立期望标签，然后批量测量召回质量。</p></div></div></div>
+        <div class="panel hero-panel"><div class="empty"><div><h3>请选择或创建测试数据集</h3><p>依次导入记忆数据、测试问题，然后配置参数并批量测试。</p></div></div></div>
       </section>
     </main>
   </div>
@@ -60,7 +59,7 @@
   <div class="modal-card">
     <div class="modal-head"><h3>新建评测数据集</h3><button class="icon-btn" data-close-modal>×</button></div>
     <form class="modal-body grid" id="datasetForm">
-      <div class="field"><label>名称</label><input class="input" name="name" required placeholder="例如：售后知识库召回基线"></div>
+      <div class="field"><label>名称</label><input class="input" name="name" required placeholder="例如：个人助理召回测试集"></div>
       <div class="field"><label>说明</label><textarea name="description" placeholder="记录数据来源、标注口径和实验目标"></textarea></div>
       <div class="actions"><button class="btn primary" type="submit">创建并进入</button><button class="btn" type="button" data-close-modal>取消</button></div>
     </form>

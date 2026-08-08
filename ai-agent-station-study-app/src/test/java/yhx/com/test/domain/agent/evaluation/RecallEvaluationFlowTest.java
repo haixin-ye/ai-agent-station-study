@@ -26,6 +26,7 @@ import yhx.com.domain.agent.model.valobj.evaluation.RecallExecutionOptionsVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorIndexRecordVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
+import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
@@ -142,6 +143,48 @@ public class RecallEvaluationFlowTest {
         Assert.assertEquals(2, evaluations.results.size());
         Assert.assertEquals(1, evaluations.hits.size());
         Assert.assertNotNull(evaluations.run.getMetricsJson());
+    }
+
+    @Test
+    public void planner_enabled_run_reports_raw_and_filtered_quality() {
+        InMemoryEvaluationRepository evaluations = new InMemoryEvaluationRepository();
+        evaluations.dataset = RecallEvaluationDatasetEntity.builder()
+                .datasetId("dataset-1").evalUserId("eval-user:dataset-1")
+                .evalSessionId("eval-session:dataset-1").build();
+        evaluations.corpus = RecallEvaluationCorpusItemEntity.builder()
+                .corpusItemId("corpus-1").datasetId("dataset-1").externalId("10001")
+                .itemType("LONG_TERM_MEMORY").sourceId("memory-1").build();
+        evaluations.cases.add(RecallEvaluationCaseEntity.builder().caseId("case-ok").datasetId("dataset-1")
+                .queryText("slow travel").sourceScope("MEMORY").status("ACTIVE")
+                .expectedJson("[{\"externalId\":\"10001\",\"grade\":3}]").build());
+        evaluations.run = RecallEvaluationRunEntity.builder().evaluationRunId("run-planner").datasetId("dataset-1")
+                .status("PENDING").configJson("{\"datasetId\":\"dataset-1\",\"sourceScope\":\"MEMORY\",\"topK\":3,\"minScore\":0.2,\"plannerEnabled\":true}")
+                .completedCaseCount(0).failedCaseCount(0).build();
+
+        FakeMemoryRepository memories = new FakeMemoryRepository();
+        memories.saved = AgentMemoryEntity.builder().memoryId("memory-1").memoryType("LONG_TERM_MEMORY")
+                .summary("slow travel preference").contentRef("payload-1").build();
+        FakePayloadRepository payloads = new FakePayloadRepository();
+        payloads.saved = AgentPayloadEntity.builder().payloadId("payload-1").content("slow travel preference").build();
+        RecallEvaluationRunner runner = new RecallEvaluationRunner(evaluations,
+                new VectorContextRecallPreselector(new FailingByQueryVectorRepository(), null, null, memories, payloads), null,
+                (candidates, config) -> ContextPlannerOutputVO.builder().status("READY")
+                        .reason("keep the matching memory")
+                        .selectedContext(List.of(Map.of("sourceId", "memory-1"))).build(),
+                new RecallMetricsCalculator());
+
+        runner.execute("run-planner");
+
+        yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationMetricsVO metrics = JSON.parseObject(
+                evaluations.run.getMetricsJson(),
+                yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationMetricsVO.class);
+        Assert.assertEquals(Double.valueOf(1D), metrics.getHitRateAtK());
+        Assert.assertEquals(Double.valueOf(1D), metrics.getPlannerHitRateAtK());
+        Assert.assertEquals(Double.valueOf(1D), metrics.getPlannerPrecision());
+        Assert.assertEquals(Double.valueOf(1D), metrics.getPlannerRecall());
+        Assert.assertEquals(Double.valueOf(1D), metrics.getPlannerRelevantRetentionRate());
+        Assert.assertEquals(Integer.valueOf(0), metrics.getPlannerRelevantDroppedCount());
+        Assert.assertTrue(evaluations.hits.get(0).getSelectedByPlanner());
     }
 
     private static class CapturingVectorRepository implements IVectorMemoryRepository {

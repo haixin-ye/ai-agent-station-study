@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "key": "travel",
+      "name": "跨国旅行规划"
+    },
+    {
+      "key": "software",
+      "name": "软件项目研发"
+    },
+    {
+      "key": "content",
+      "name": "内容创作与发布"
+    },
+    {
+      "key": "routine",
+      "name": "日常运动与作息"
+    },
+    {
+      "key": "home",
+      "name": "居住与消费决策"
+    },
+    {
+      "key": "learning",
+      "name": "语言与技能学习"
+    }
+  ],
+  "counts": {
+    "rag": 60,
+    "longTermMemory": 60,
+    "userPreference": 60,
+    "corpus": 180,
+    "cases": 150
+  },
+  "idRanges": {
+    "rag": [
+      "10001",
+      "10060"
+    ],
+    "longTermMemory": [
+      "20001",
+      "20060"
+    ],
+    "userPreference": [
+      "30001",
+      "30060"
+    ],
+    "cases": [
+      "40001",
+      "40150"
+    ]
+  }
+}

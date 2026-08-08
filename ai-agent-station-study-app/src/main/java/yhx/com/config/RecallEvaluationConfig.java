@@ -99,7 +99,9 @@ public class RecallEvaluationConfig {
                                                          RecallEvaluationIngestionService ingestionService,
                                                          RecallEvaluationRunner runner,
                                                          RecallEvaluationComparisonService comparisonService,
+                                                         IVectorMemoryRepository vectorMemoryRepository,
                                                          @Qualifier("recallEvaluationExecutor") Executor executor) {
-        return new RecallEvaluationFacade(repository, ingestionService, runner, comparisonService, executor);
+        return new RecallEvaluationFacade(repository, ingestionService, runner, comparisonService,
+                vectorMemoryRepository, executor);
     }
 }

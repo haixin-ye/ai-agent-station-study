@@ -4,8 +4,10 @@ import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO
 import yhx.com.domain.agent.model.valobj.memory.VectorIndexRecordVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
+import yhx.com.domain.agent.model.valobj.memory.VectorStoredRecordVO;
 
 import java.util.List;
+import java.util.Map;
 
 public interface IVectorMemoryRepository {
 
@@ -14,6 +16,12 @@ public interface IVectorMemoryRepository {
     List<VectorRecallHitVO> search(VectorRecallQueryVO query);
 
     default List<VectorRecallHitVO> lexicalSearch(VectorRecallQueryVO query) {
+        return List.of();
+    }
+
+    default List<VectorStoredRecordVO> listStoredRecords(List<VectorCollectionTypeEnumVO> collectionTypes,
+                                                         Map<String, Object> metadataFilters,
+                                                         int limit) {
         return List.of();
     }
 

@@ -72,6 +72,13 @@ public final class RecallEvaluationDTO {
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class VectorRecordView {
+        private String externalId; private String collectionType; private String vectorId;
+        private String sourceType; private String sourceId; private String content; private String summary;
+        private Integer embeddingDimensions; private Map<String, Object> metadata; private LocalDateTime occurredAt;
+    }
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class CaseView {
         private String caseId; private String datasetId; private String externalId; private String query;
         private String sourceScope; private List<ExpectedItemRequest> expected; private List<String> tags;
@@ -94,6 +101,9 @@ public final class RecallEvaluationDTO {
         private Double ndcgAtK; private Double mapAtK; private Double noHitRate;
         private Long retrievalLatencyAverageMs; private Long retrievalLatencyP50Ms; private Long retrievalLatencyP95Ms;
         private Integer plannerInvocationCount; private Double plannerPrecision; private Double plannerRecall;
+        private Double plannerHitRateAtK; private Double plannerMeanReciprocalRank; private Double plannerNdcgAtK;
+        private Double plannerAverageSelectedCount; private Double plannerRelevantRetentionRate;
+        private Double plannerIrrelevantRemovalRate; private Integer plannerRelevantDroppedCount;
         private Double clarificationRate; private Double plannerFailureRate; private Long plannerLatencyAverageMs;
         private Long plannerLatencyP50Ms; private Long plannerLatencyP95Ms;
     }
@@ -112,7 +122,7 @@ public final class RecallEvaluationDTO {
     public static class HitView {
         private String hitId; private String evaluationRunId; private String caseId; private Integer rankNo;
         private String retrievalChannel; private String collectionType; private String sourceType;
-        private String sourceId; private String parentSourceId; private BigDecimal score; private Integer expectedGrade;
+        private String externalId; private String sourceId; private String parentSourceId; private BigDecimal score; private Integer expectedGrade;
         private Boolean selectedByPlanner; private Object candidate;
     }
 

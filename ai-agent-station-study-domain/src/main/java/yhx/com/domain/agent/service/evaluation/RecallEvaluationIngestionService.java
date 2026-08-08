@@ -148,6 +148,7 @@ public class RecallEvaluationIngestionService {
             RecallEvaluationCorpusItemEntity item = createPending(dataset, input);
             try {
                 validate(datasetId, input);
+                item.setExternalId(input.getExternalId());
                 evaluationRepository.saveCorpusItem(item);
                 persisted++;
                 ingest(dataset, input, item);
@@ -242,6 +243,7 @@ public class RecallEvaluationIngestionService {
         if (input == null || isBlank(input.getExternalId()) || isBlank(input.getContent())) {
             throw new IllegalArgumentException("externalId and content are required.");
         }
+        input.setExternalId(RecallEvaluationIdPolicy.requireNumericId(input.getExternalId(), "Corpus externalId"));
         String type = normalizedType(input.getType());
         if (!List.of("RAG_DOCUMENT", "LONG_TERM_MEMORY", "USER_PREFERENCE").contains(type)) {
             throw new IllegalArgumentException("Unsupported corpus type: " + input.getType());

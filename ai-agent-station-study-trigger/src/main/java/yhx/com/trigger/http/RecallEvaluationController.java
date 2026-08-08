@@ -60,35 +60,35 @@ public class RecallEvaluationController {
     }
 
     @GetMapping("/datasets/{datasetId}")
-    public Response<RecallEvaluationDTO.DatasetView> getDataset(@PathVariable String datasetId) {
+    public Response<RecallEvaluationDTO.DatasetView> getDataset(@PathVariable("datasetId") String datasetId) {
         return call(() -> RecallEvaluationApiMapper.dataset(facade.getDataset(datasetId)));
     }
 
     @PatchMapping("/datasets/{datasetId}")
-    public Response<RecallEvaluationDTO.DatasetView> updateDataset(@PathVariable String datasetId,
+    public Response<RecallEvaluationDTO.DatasetView> updateDataset(@PathVariable("datasetId") String datasetId,
                                                                    @RequestBody RecallEvaluationDTO.DatasetRequest request) {
         return call(() -> RecallEvaluationApiMapper.dataset(
                 facade.updateDataset(datasetId, request.getName(), request.getDescription())));
     }
 
     @DeleteMapping("/datasets/{datasetId}")
-    public Response<RecallEvaluationDTO.DatasetView> deleteDataset(@PathVariable String datasetId) {
+    public Response<RecallEvaluationDTO.DatasetView> deleteDataset(@PathVariable("datasetId") String datasetId) {
         return call(() -> RecallEvaluationApiMapper.dataset(facade.deleteDataset(datasetId)));
     }
 
     @GetMapping("/datasets/{datasetId}/corpus")
     public Response<List<RecallEvaluationDTO.CorpusItemView>> listCorpus(
-            @PathVariable String datasetId,
-            @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "200") int limit,
-            @RequestParam(defaultValue = "0") int offset) {
+            @PathVariable("datasetId") String datasetId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "limit", defaultValue = "200") int limit,
+            @RequestParam(name = "offset", defaultValue = "0") int offset) {
         return call(() -> facade.listCorpus(datasetId, status, bounded(limit), Math.max(0, offset)).stream()
                 .map(RecallEvaluationApiMapper::corpus).toList());
     }
 
     @PostMapping("/datasets/{datasetId}/corpus/batch")
     public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> importCorpus(
-            @PathVariable String datasetId,
+            @PathVariable("datasetId") String datasetId,
             @RequestBody RecallEvaluationDTO.CorpusBatchRequest request) {
         return call(() -> {
             requireBatch(request == null ? null : request.getItems());
@@ -99,7 +99,7 @@ public class RecallEvaluationController {
 
     @PostMapping(value = "/datasets/{datasetId}/corpus/files", consumes = "multipart/form-data")
     public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CorpusItemView>> importFiles(
-            @PathVariable String datasetId,
+            @PathVariable("datasetId") String datasetId,
             @RequestParam("files") List<MultipartFile> files) {
         return call(() -> {
             requireBatch(files);
@@ -116,30 +116,39 @@ public class RecallEvaluationController {
     }
 
     @PostMapping("/datasets/{datasetId}/corpus/{corpusItemId}/reindex")
-    public Response<RecallEvaluationDTO.CorpusItemView> reindexCorpus(@PathVariable String datasetId,
-                                                                     @PathVariable String corpusItemId) {
+    public Response<RecallEvaluationDTO.CorpusItemView> reindexCorpus(@PathVariable("datasetId") String datasetId,
+                                                                     @PathVariable("corpusItemId") String corpusItemId) {
         return call(() -> RecallEvaluationApiMapper.corpus(facade.reindexCorpus(datasetId, corpusItemId)));
     }
 
+    @GetMapping("/datasets/{datasetId}/vectors")
+    public Response<List<RecallEvaluationDTO.VectorRecordView>> listVectorRecords(
+            @PathVariable("datasetId") String datasetId,
+            @RequestParam("itemType") String itemType,
+            @RequestParam(name = "limit", defaultValue = "1000") int limit) {
+        return call(() -> facade.listVectorRecords(datasetId, itemType, bounded(limit)).stream()
+                .map(RecallEvaluationApiMapper::vectorRecord).toList());
+    }
+
     @DeleteMapping("/datasets/{datasetId}/corpus/{corpusItemId}")
-    public Response<RecallEvaluationDTO.CorpusItemView> disableCorpus(@PathVariable String datasetId,
-                                                                     @PathVariable String corpusItemId) {
+    public Response<RecallEvaluationDTO.CorpusItemView> disableCorpus(@PathVariable("datasetId") String datasetId,
+                                                                     @PathVariable("corpusItemId") String corpusItemId) {
         return call(() -> RecallEvaluationApiMapper.corpus(facade.disableCorpus(datasetId, corpusItemId)));
     }
 
     @GetMapping("/datasets/{datasetId}/cases")
     public Response<List<RecallEvaluationDTO.CaseView>> listCases(
-            @PathVariable String datasetId,
-            @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "200") int limit,
-            @RequestParam(defaultValue = "0") int offset) {
+            @PathVariable("datasetId") String datasetId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "limit", defaultValue = "200") int limit,
+            @RequestParam(name = "offset", defaultValue = "0") int offset) {
         return call(() -> facade.listCases(datasetId, status, bounded(limit), Math.max(0, offset)).stream()
                 .map(RecallEvaluationApiMapper::testCase).toList());
     }
 
     @PostMapping("/datasets/{datasetId}/cases/batch")
     public Response<RecallEvaluationDTO.ImportView<RecallEvaluationDTO.CaseView>> importCases(
-            @PathVariable String datasetId,
+            @PathVariable("datasetId") String datasetId,
             @RequestBody RecallEvaluationDTO.CaseBatchRequest request) {
         return call(() -> {
             requireBatch(request == null ? null : request.getItems());
@@ -154,8 +163,8 @@ public class RecallEvaluationController {
 
     @PatchMapping("/datasets/{datasetId}/cases/{caseId}")
     public Response<RecallEvaluationDTO.CaseView> updateCase(
-            @PathVariable String datasetId,
-            @PathVariable String caseId,
+            @PathVariable("datasetId") String datasetId,
+            @PathVariable("caseId") String caseId,
             @RequestBody RecallEvaluationDTO.CaseUpdateRequest request) {
         return call(() -> RecallEvaluationApiMapper.testCase(facade.updateCase(datasetId,
                 RecallEvaluationCaseEntity.builder().caseId(caseId).queryText(request.getQuery())
@@ -167,8 +176,8 @@ public class RecallEvaluationController {
     }
 
     @GetMapping("/runs")
-    public Response<List<RecallEvaluationDTO.RunView>> listRuns(@RequestParam String datasetId,
-                                                                @RequestParam(defaultValue = "50") int limit) {
+    public Response<List<RecallEvaluationDTO.RunView>> listRuns(@RequestParam("datasetId") String datasetId,
+                                                                @RequestParam(name = "limit", defaultValue = "50") int limit) {
         return call(() -> facade.listRuns(datasetId, Math.min(200, Math.max(1, limit))).stream()
                 .map(RecallEvaluationApiMapper::run).toList());
     }
@@ -179,18 +188,18 @@ public class RecallEvaluationController {
     }
 
     @GetMapping("/runs/{runId}")
-    public Response<RecallEvaluationDTO.RunDetailView> getRun(@PathVariable String runId) {
+    public Response<RecallEvaluationDTO.RunDetailView> getRun(@PathVariable("runId") String runId) {
         return call(() -> runDetail(facade.getRun(runId)));
     }
 
     @PostMapping("/runs/{runId}/cancel")
-    public Response<RecallEvaluationDTO.RunView> cancelRun(@PathVariable String runId) {
+    public Response<RecallEvaluationDTO.RunView> cancelRun(@PathVariable("runId") String runId) {
         return call(() -> RecallEvaluationApiMapper.run(facade.cancelRun(runId)));
     }
 
     @GetMapping("/compare")
-    public Response<RecallEvaluationDTO.ComparisonView> compare(@RequestParam String leftRunId,
-                                                               @RequestParam String rightRunId) {
+    public Response<RecallEvaluationDTO.ComparisonView> compare(@RequestParam("leftRunId") String leftRunId,
+                                                               @RequestParam("rightRunId") String rightRunId) {
         return call(() -> RecallEvaluationApiMapper.comparison(facade.compare(leftRunId, rightRunId)));
     }
 

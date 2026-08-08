@@ -25,6 +25,13 @@ public class RecallEvaluationMetricsVO {
     private Integer plannerInvocationCount;
     private Double plannerPrecision;
     private Double plannerRecall;
+    private Double plannerHitRateAtK;
+    private Double plannerMeanReciprocalRank;
+    private Double plannerNdcgAtK;
+    private Double plannerAverageSelectedCount;
+    private Double plannerRelevantRetentionRate;
+    private Double plannerIrrelevantRemovalRate;
+    private Integer plannerRelevantDroppedCount;
     private Double clarificationRate;
     private Double plannerFailureRate;
     private Long plannerLatencyAverageMs;

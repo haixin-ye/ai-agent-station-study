@@ -2,6 +2,7 @@ package yhx.com.domain.agent.service.evaluation;
 
 import com.alibaba.fastjson.JSON;
 import yhx.com.domain.agent.adapter.repository.IRecallEvaluationRepository;
+import yhx.com.domain.agent.adapter.repository.IVectorMemoryRepository;
 import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCaseEntity;
 import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationCorpusItemEntity;
 import yhx.com.domain.agent.model.entity.evaluation.RecallEvaluationDatasetEntity;
@@ -14,6 +15,9 @@ import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationComparisonVO
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationMetricsVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunConfigVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunDetailVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallExpectedItemVO;
+import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
+import yhx.com.domain.agent.model.valobj.memory.VectorStoredRecordVO;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -30,17 +34,20 @@ public class RecallEvaluationFacade {
     private final RecallEvaluationIngestionService ingestionService;
     private final RecallEvaluationRunner runner;
     private final RecallEvaluationComparisonService comparisonService;
+    private final IVectorMemoryRepository vectorMemoryRepository;
     private final Executor executor;
 
     public RecallEvaluationFacade(IRecallEvaluationRepository repository,
                                   RecallEvaluationIngestionService ingestionService,
                                   RecallEvaluationRunner runner,
                                   RecallEvaluationComparisonService comparisonService,
+                                  IVectorMemoryRepository vectorMemoryRepository,
                                   Executor executor) {
         this.repository = repository;
         this.ingestionService = ingestionService;
         this.runner = runner;
         this.comparisonService = comparisonService;
+        this.vectorMemoryRepository = vectorMemoryRepository;
         this.executor = executor;
     }
 
@@ -105,6 +112,19 @@ public class RecallEvaluationFacade {
         return repository.listCorpusItems(datasetId, status, limit, offset);
     }
 
+    public List<VectorStoredRecordVO> listVectorRecords(String datasetId, String itemType, int limit) {
+        getDataset(datasetId);
+        List<VectorCollectionTypeEnumVO> collections = switch (itemType == null ? "" : itemType.toUpperCase()) {
+            case "LONG_TERM_MEMORY" -> List.of(VectorCollectionTypeEnumVO.LONG_TERM_MEMORY);
+            case "USER_PREFERENCE" -> List.of(VectorCollectionTypeEnumVO.USER_PREFERENCE);
+            case "RAG_DOCUMENT", "RAG" -> List.of(VectorCollectionTypeEnumVO.RAG_DOCUMENT,
+                    VectorCollectionTypeEnumVO.RAG_CHUNK, VectorCollectionTypeEnumVO.RAG_FILE_CHUNK,
+                    VectorCollectionTypeEnumVO.RAG_CODE_FILE_SUMMARY, VectorCollectionTypeEnumVO.RAG_CODE_CHUNK);
+            default -> throw new IllegalArgumentException("Unsupported vector itemType: " + itemType);
+        };
+        return vectorMemoryRepository.listStoredRecords(collections, java.util.Map.of("evalDatasetId", datasetId), limit);
+    }
+
     public RecallEvaluationCorpusItemEntity disableCorpus(String datasetId, String corpusItemId) {
         requireCorpusDataset(datasetId, corpusItemId);
         return ingestionService.disableItem(corpusItemId);
@@ -124,7 +144,7 @@ public class RecallEvaluationFacade {
         List<String> errors = new ArrayList<>();
         for (RecallCaseImportItemVO input : inputs) {
             try {
-                validateCase(input, existing);
+                validateCase(datasetId, input, existing);
                 RecallEvaluationCaseEntity value = RecallEvaluationCaseEntity.builder()
                         .datasetId(datasetId)
                         .externalId(input.getExternalId())
@@ -225,16 +245,30 @@ public class RecallEvaluationFacade {
         return comparisonService.compare(leftRunId, rightRunId);
     }
 
-    private void validateCase(RecallCaseImportItemVO input, Set<String> existing) {
+    private void validateCase(String datasetId, RecallCaseImportItemVO input, Set<String> existing) {
         if (input == null || input.getExternalId() == null || input.getExternalId().isBlank()
                 || input.getQuery() == null || input.getQuery().isBlank()) {
             throw new IllegalArgumentException("externalId and query are required.");
         }
+        input.setExternalId(RecallEvaluationIdPolicy.requireNumericId(input.getExternalId(), "Case externalId"));
         if (existing.contains(input.getExternalId())) {
             throw new IllegalArgumentException("Duplicate case externalId.");
         }
         if (input.getExpected() == null || input.getExpected().isEmpty()) {
             throw new IllegalArgumentException("At least one expected label is required.");
+        }
+        for (RecallExpectedItemVO expected : input.getExpected()) {
+            if (expected == null) {
+                throw new IllegalArgumentException("Expected labels cannot contain null entries.");
+            }
+            String externalId = RecallEvaluationIdPolicy.requireNumericId(expected.getExternalId(),
+                    "Expected externalId");
+            expected.setExternalId(externalId);
+            RecallEvaluationCorpusItemEntity corpus = repository.findCorpusItemByExternalId(datasetId, externalId)
+                    .orElseThrow(() -> new IllegalArgumentException("Expected externalId does not exist: " + externalId));
+            if (!"READY".equals(corpus.getStatus())) {
+                throw new IllegalArgumentException("Expected externalId is not READY: " + externalId);
+            }
         }
     }
 

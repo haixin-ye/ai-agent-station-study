@@ -14,6 +14,7 @@ import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationComparisonVO
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationMetricsVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunConfigVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallExpectedItemVO;
+import yhx.com.domain.agent.model.valobj.memory.VectorStoredRecordVO;
 
 import java.util.List;
 
@@ -41,6 +42,18 @@ public final class RecallEvaluationApiMapper {
                 .failureStage(value.getFailureStage()).failureCode(value.getFailureCode())
                 .failureMessage(value.getFailureMessage()).createdAt(value.getCreatedAt()).updatedAt(value.getUpdatedAt())
                 .build();
+    }
+
+    public static RecallEvaluationDTO.VectorRecordView vectorRecord(VectorStoredRecordVO value) {
+        Object externalId = value.getMetadata() == null ? null : value.getMetadata().get("evalExternalId");
+        return RecallEvaluationDTO.VectorRecordView.builder()
+                .externalId(externalId == null ? null : String.valueOf(externalId))
+                .collectionType(value.getCollectionType() == null ? null : value.getCollectionType().name())
+                .vectorId(value.getVectorId())
+                .sourceType(value.getSourceType() == null ? null : value.getSourceType().name())
+                .sourceId(value.getSourceId()).content(value.getContent()).summary(value.getSummary())
+                .embeddingDimensions(value.getEmbeddingDimensions()).metadata(value.getMetadata())
+                .occurredAt(value.getOccurredAt()).build();
     }
 
     public static RecallEvaluationDTO.CaseView testCase(RecallEvaluationCaseEntity value) {
@@ -73,7 +86,14 @@ public final class RecallEvaluationApiMapper {
                 .noHitRate(value.getNoHitRate()).retrievalLatencyAverageMs(value.getRetrievalLatencyAverageMs())
                 .retrievalLatencyP50Ms(value.getRetrievalLatencyP50Ms()).retrievalLatencyP95Ms(value.getRetrievalLatencyP95Ms())
                 .plannerInvocationCount(value.getPlannerInvocationCount()).plannerPrecision(value.getPlannerPrecision())
-                .plannerRecall(value.getPlannerRecall()).clarificationRate(value.getClarificationRate())
+                .plannerRecall(value.getPlannerRecall()).plannerHitRateAtK(value.getPlannerHitRateAtK())
+                .plannerMeanReciprocalRank(value.getPlannerMeanReciprocalRank())
+                .plannerNdcgAtK(value.getPlannerNdcgAtK())
+                .plannerAverageSelectedCount(value.getPlannerAverageSelectedCount())
+                .plannerRelevantRetentionRate(value.getPlannerRelevantRetentionRate())
+                .plannerIrrelevantRemovalRate(value.getPlannerIrrelevantRemovalRate())
+                .plannerRelevantDroppedCount(value.getPlannerRelevantDroppedCount())
+                .clarificationRate(value.getClarificationRate())
                 .plannerFailureRate(value.getPlannerFailureRate()).plannerLatencyAverageMs(value.getPlannerLatencyAverageMs())
                 .plannerLatencyP50Ms(value.getPlannerLatencyP50Ms()).plannerLatencyP95Ms(value.getPlannerLatencyP95Ms()).build();
     }
@@ -91,12 +111,23 @@ public final class RecallEvaluationApiMapper {
     }
 
     public static RecallEvaluationDTO.HitView hit(RecallEvaluationHitEntity value) {
+        Object candidate = any(value.getCandidateJson());
         return RecallEvaluationDTO.HitView.builder()
                 .hitId(value.getHitId()).evaluationRunId(value.getEvaluationRunId()).caseId(value.getCaseId())
                 .rankNo(value.getRankNo()).retrievalChannel(value.getRetrievalChannel())
-                .collectionType(value.getCollectionType()).sourceType(value.getSourceType()).sourceId(value.getSourceId())
+                .collectionType(value.getCollectionType()).sourceType(value.getSourceType())
+                .externalId(candidateExternalId(candidate)).sourceId(value.getSourceId())
                 .parentSourceId(value.getParentSourceId()).score(value.getScore()).expectedGrade(value.getExpectedGrade())
-                .selectedByPlanner(value.getSelectedByPlanner()).candidate(any(value.getCandidateJson())).build();
+                .selectedByPlanner(value.getSelectedByPlanner()).candidate(candidate).build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String candidateExternalId(Object candidate) {
+        if (!(candidate instanceof java.util.Map<?, ?> map)) return null;
+        Object metadata = map.get("metadata");
+        if (!(metadata instanceof java.util.Map<?, ?> metadataMap)) return null;
+        Object value = metadataMap.get("evalExternalId");
+        return value == null ? null : String.valueOf(value);
     }
 
     public static RecallEvaluationDTO.ComparisonView comparison(RecallEvaluationComparisonVO value) {

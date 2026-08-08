@@ -121,6 +121,13 @@ public class RecallEvaluationRunner {
         metrics.setPlannerLatencyMs(plannerOutcome.latencyMs);
         metrics.setPlannerPrecision(plannerOutcome.precision);
         metrics.setPlannerRecall(plannerOutcome.recall);
+        metrics.setPlannerHit(plannerOutcome.hit);
+        metrics.setPlannerReciprocalRank(plannerOutcome.reciprocalRank);
+        metrics.setPlannerNdcgAtK(plannerOutcome.ndcgAtK);
+        metrics.setPlannerSelectedCount(plannerOutcome.selectedCount);
+        metrics.setPlannerRelevantRetentionRate(plannerOutcome.relevantRetentionRate);
+        metrics.setPlannerIrrelevantRemovalRate(plannerOutcome.irrelevantRemovalRate);
+        metrics.setPlannerRelevantDroppedCount(plannerOutcome.relevantDroppedCount);
         metrics.setClarificationRequested(plannerOutcome.clarificationRequested);
         metrics.setPlannerFailed(plannerOutcome.failed);
 
@@ -247,15 +254,27 @@ public class RecallEvaluationRunner {
             int selectedRelevant = (int) hits.stream().filter(hit -> Boolean.TRUE.equals(hit.getSelectedByPlanner())
                     && hit.getExpectedGrade() != null).count();
             int relevantRetrieved = (int) hits.stream().filter(hit -> hit.getExpectedGrade() != null).count();
+            int irrelevantRetrieved = hits.size() - relevantRetrieved;
+            int selectedIrrelevant = selectedCount - selectedRelevant;
+            List<RecallEvaluationHitEntity> selectedHits = hits.stream()
+                    .filter(hit -> Boolean.TRUE.equals(hit.getSelectedByPlanner())).toList();
+            RecallCaseMetricsVO selectedMetrics = metricsCalculator.calculateCase(expected, selectedHits,
+                    positive(config.getTopK(), 8));
             return new PlannerOutcome(true, false,
                     output != null && output.getClarificationRequest() != null && !output.getClarificationRequest().isEmpty(),
                     System.currentTimeMillis() - startedAt,
-                    selectedCount == 0 ? 0D : selectedRelevant / (double) selectedCount,
+                    selectedMetrics.getPrecisionAtK(), selectedMetrics.getRecallAtK(),
+                    Boolean.TRUE.equals(selectedMetrics.getHit()), selectedMetrics.getReciprocalRank(),
+                    selectedMetrics.getNdcgAtK(), selectedCount,
                     relevantRetrieved == 0 ? 0D : selectedRelevant / (double) relevantRetrieved,
+                    irrelevantRetrieved == 0 ? 0D
+                            : (irrelevantRetrieved - selectedIrrelevant) / (double) irrelevantRetrieved,
+                    Math.max(0, relevantRetrieved - selectedRelevant),
                     output, selected);
         } catch (Exception error) {
             return new PlannerOutcome(true, true, false, System.currentTimeMillis() - startedAt,
-                    0D, 0D, ContextPlannerOutputVO.builder().status("FAILED").reason(readable(error)).build(), Set.of());
+                    0D, 0D, false, 0D, 0D, 0, 0D, 0D, 0,
+                    ContextPlannerOutputVO.builder().status("FAILED").reason(readable(error)).build(), Set.of());
         }
     }
 
@@ -372,10 +391,14 @@ public class RecallEvaluationRunner {
     }
 
     private record PlannerOutcome(boolean invoked, boolean failed, boolean clarificationRequested,
-                                  long latencyMs, double precision, double recall,
+                                  long latencyMs, double precision, double recall, boolean hit,
+                                  double reciprocalRank, double ndcgAtK, int selectedCount,
+                                  double relevantRetentionRate, double irrelevantRemovalRate,
+                                  int relevantDroppedCount,
                                   ContextPlannerOutputVO output, Set<String> selectedIds) {
         private static PlannerOutcome notInvoked() {
-            return new PlannerOutcome(false, false, false, 0L, 0D, 0D, null, Set.of());
+            return new PlannerOutcome(false, false, false, 0L, 0D, 0D, false,
+                    0D, 0D, 0, 0D, 0D, 0, null, Set.of());
         }
     }
 }

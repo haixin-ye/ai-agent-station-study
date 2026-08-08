@@ -15,6 +15,7 @@ import yhx.com.domain.agent.model.valobj.memory.VectorIndexRecordVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallFilterVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
+import yhx.com.domain.agent.model.valobj.memory.VectorStoredRecordVO;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -118,6 +119,59 @@ public class PgVectorMemoryRepository implements IVectorMemoryRepository {
         return hits.stream()
                 .sorted(Comparator.comparing(VectorRecallHitVO::getScore, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(topK)
+                .toList();
+    }
+
+    @Override
+    public List<VectorStoredRecordVO> listStoredRecords(List<VectorCollectionTypeEnumVO> collectionTypes,
+                                                        Map<String, Object> metadataFilters,
+                                                        int limit) {
+        if (collectionTypes == null || collectionTypes.isEmpty()) {
+            return List.of();
+        }
+        int boundedLimit = Math.min(5000, Math.max(1, limit));
+        List<VectorStoredRecordVO> records = new ArrayList<>();
+        for (VectorCollectionTypeEnumVO collectionType : collectionTypes) {
+            StringBuilder sql = new StringBuilder("""
+                    SELECT id::text AS vector_id,
+                           source_type,
+                           source_id,
+                           user_id,
+                           session_id,
+                           content,
+                           summary,
+                           metadata::text AS metadata,
+                           occurred_at,
+                           vector_dims(embedding) AS embedding_dimensions
+                    FROM public.%s
+                    WHERE 1 = 1
+                    """.formatted(tableName(collectionType)));
+            List<Object> args = new ArrayList<>();
+            if (metadataFilters != null && !metadataFilters.isEmpty()) {
+                sql.append(" AND metadata @> ?::jsonb");
+                args.add(JSON.toJSONString(metadataFilters));
+            }
+            sql.append(" ORDER BY occurred_at DESC NULLS LAST, source_id LIMIT ?");
+            args.add(boundedLimit);
+            records.addAll(jdbcTemplate.query(sql.toString(),
+                    (rs, rowNum) -> VectorStoredRecordVO.builder()
+                            .collectionType(collectionType)
+                            .vectorId(rs.getString("vector_id"))
+                            .sourceType(VectorSourceTypeEnumVO.valueOf(rs.getString("source_type")))
+                            .sourceId(rs.getString("source_id"))
+                            .userId(rs.getString("user_id"))
+                            .sessionId(rs.getString("session_id"))
+                            .content(rs.getString("content"))
+                            .summary(rs.getString("summary"))
+                            .metadata(parseMetadata(rs.getString("metadata")))
+                            .embeddingDimensions((Integer) rs.getObject("embedding_dimensions"))
+                            .occurredAt(toLocalDateTime(rs.getTimestamp("occurred_at")))
+                            .build(), args.toArray()));
+        }
+        return records.stream()
+                .sorted(Comparator.comparing(VectorStoredRecordVO::getOccurredAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(boundedLimit)
                 .toList();
     }
 

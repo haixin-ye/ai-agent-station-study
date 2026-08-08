@@ -4,8 +4,11 @@
   const API_BASE = (params.get('api') || location.origin).replace(/\/$/, '');
   const API = `${API_BASE}/api/v1/dev/recall-evaluations`;
   const state = {
-    tab: 'overview', datasets: [], datasetId: params.get('datasetId'), corpus: [], cases: [], runs: [],
-    runId: params.get('runId'), runDetail: null, comparison: null, importTarget: null, polling: false
+    tab: params.get('tab') || 'corpus', corpusType: params.get('corpusType') || 'RAG_DOCUMENT',
+    datasets: [], datasetId: params.get('datasetId'), corpus: [], cases: [], runs: [],
+    vectors: { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] },
+    runId: params.get('runId'), runDetail: null, comparison: null, importTarget: null,
+    importCorpusType: null, polling: false
   };
   const els = {
     view: document.getElementById('view'), datasetList: document.getElementById('datasetList'),
@@ -30,15 +33,17 @@
 
   async function request(path, options = {}) {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 12000);
+    const timeoutMs = Number(options.timeoutMs || 12000);
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const init = { ...options, signal: options.signal || controller.signal, headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) } };
+      const { timeoutMs: ignoredTimeout, ...fetchOptions } = options;
+      const init = { ...fetchOptions, signal: options.signal || controller.signal, headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) } };
       const response = await fetch(`${API}${path}`, init);
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload || payload.code !== '0000') throw new Error(payload?.info || `HTTP ${response.status}`);
       return payload.data;
     } catch (error) {
-      if (error.name === 'AbortError') throw new Error('后端接口连接超时，请确认 dev 服务已启动。');
+      if (error.name === 'AbortError') throw new Error('请求处理超时，请确认后端、Embedding服务和向量数据库状态。');
       throw error;
     } finally {
       window.clearTimeout(timeout);
@@ -62,11 +67,18 @@
   async function loadDatasetData() {
     if (!state.datasetId) return;
     const id = encodeURIComponent(state.datasetId);
-    [state.corpus, state.cases, state.runs] = await Promise.all([
+    const [corpus, cases, runs, ragVectors, memoryVectors, preferenceVectors] = await Promise.all([
       request(`/datasets/${id}/corpus?limit=1000`),
       request(`/datasets/${id}/cases?limit=1000`),
-      request(`/runs?datasetId=${id}&limit=100`)
+      request(`/runs?datasetId=${id}&limit=100`),
+      request(`/datasets/${id}/vectors?itemType=RAG_DOCUMENT&limit=1000`),
+      request(`/datasets/${id}/vectors?itemType=LONG_TERM_MEMORY&limit=1000`),
+      request(`/datasets/${id}/vectors?itemType=USER_PREFERENCE&limit=1000`)
     ]);
+    state.corpus = corpus;
+    state.cases = cases;
+    state.runs = runs;
+    state.vectors = { RAG_DOCUMENT: ragVectors, LONG_TERM_MEMORY: memoryVectors, USER_PREFERENCE: preferenceVectors };
     if (state.runId && !state.runs.some(run => run.evaluationRunId === state.runId)) state.runId = null;
     if (!state.runId && state.runs.length) state.runId = state.runs[0].evaluationRunId;
     if (state.runId && state.tab === 'results') await loadRunDetail(state.runId);
@@ -107,10 +119,11 @@
 
   function renderView() {
     if (!state.datasetId) {
-      els.view.innerHTML = '<div class="panel hero-panel"><div class="empty"><div><h3>从一个隔离的数据集开始</h3><p>导入真实 RAG / 长期记忆，建立期望标签，然后批量测量召回质量。</p></div></div></div>';
+      els.view.innerHTML = '<div class="panel hero-panel"><div class="empty"><div><h3>请选择或创建测试数据集</h3><p>导入记忆数据与测试问题，然后配置参数并开始批量召回。</p></div></div></div>';
       return;
     }
-    const renderers = { overview: renderOverview, corpus: renderCorpus, cases: renderCases, experiment: renderExperiment, results: renderResults };
+    const renderers = { corpus: renderCorpus, cases: renderCases, experiment: renderExperiment, results: renderResults };
+    if (!renderers[state.tab]) state.tab = 'corpus';
     els.view.innerHTML = renderers[state.tab]();
   }
 
@@ -134,29 +147,41 @@
   }
 
   function renderCorpus() {
-    return `<div class="grid">
-      <section class="panel"><div class="panel-head"><div><h3>评测语料</h3><p>真实写入 RAG / Memory 存储，并以 evalDatasetId 隔离。</p></div><div class="actions"><button class="btn" id="uploadFilesBtn">上传文档</button><button class="btn primary" data-open-import="corpus">JSONL / CSV 导入</button></div></div>
-      <div class="panel-body">${state.corpus.length ? `<table class="table"><thead><tr><th>语料</th><th>类型</th><th>真实来源</th><th>状态</th><th>操作</th></tr></thead><tbody>${state.corpus.map(corpusRow).join('')}</tbody></table>` : '<div class="empty">尚未导入语料。支持文本/Markdown 文件，或结构化批量导入。</div>'}</div></section>
-      <section class="panel"><div class="panel-head"><div><h3>批量字段约定</h3><p>不要提交原始数据库 ID；externalId 是标注和 A/B 对比的稳定键。</p></div></div><div class="panel-body"><code class="hint">{"externalId":"refund-policy","type":"RAG_DOCUMENT","title":"退款规则","content":"...","tags":["policy"]}</code><br><br><code class="hint">type: RAG_DOCUMENT | LONG_TERM_MEMORY | USER_PREFERENCE</code></div></section>
-    </div>`;
+    const types = [['RAG_DOCUMENT', 'RAG 数据'], ['LONG_TERM_MEMORY', '长期记忆'], ['USER_PREFERENCE', '用户偏好']];
+    const type = state.corpusType;
+    const items = state.corpus.filter(item => item.itemType === type);
+    const vectors = state.vectors[type] || [];
+    const label = types.find(item => item[0] === type)?.[1] || type;
+    return `<section class="panel">
+      <div class="subtabs">${types.map(([value, text]) => `<button class="subtab ${value === type ? 'active' : ''}" data-corpus-type="${value}">${text} <span class="tag">${state.corpus.filter(item => item.itemType === value).length}</span></button>`).join('')}</div>
+      <div class="panel-head"><div><h3>${label}表</h3><p>表格同时展示评测记录与 PGVector 中按 evalDatasetId 查询到的真实向量行。</p></div><div class="actions">${type === 'RAG_DOCUMENT' ? '<button class="btn" id="uploadFilesBtn">上传文本/Markdown</button>' : ''}<button class="btn primary" data-open-import="corpus" data-corpus-type="${type}">导入 ${label}</button></div></div>
+      <div class="panel-body">${items.length ? `<table class="table"><thead><tr><th>自定义数字ID</th><th>内容</th><th>真实向量库记录</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
+    </section>`;
   }
 
-  function corpusRow(item) {
-    return `<tr><td><div class="primary-text">${esc(item.title || item.externalId)}</div><div class="secondary-text">${esc(item.externalId)}${item.failureMessage ? ` · ${esc(item.failureCode)}: ${esc(item.failureMessage)}` : ''}</div></td><td><span class="tag">${esc(item.itemType)}</span></td><td><div class="primary-text">${esc(item.sourceId || '—')}</div><div class="secondary-text">${number(item.sourceRefs?.length)} vector refs</div></td><td>${statePill(item.status)}</td><td><div class="actions"><button class="btn small" data-reindex="${esc(item.corpusItemId)}">重建索引</button><button class="btn small danger" data-disable-corpus="${esc(item.corpusItemId)}">停用</button></div></td></tr>`;
+  function corpusRow(item, vectors) {
+    const stored = vectors.filter(record => record.externalId === item.externalId);
+    const preview = stored[0]?.content || item.summary || '';
+    return `<tr><td><div class="primary-text">${esc(item.externalId)}</div><div class="secondary-text">${esc(item.title || item.itemType)}</div></td><td><div class="primary-text">${esc(item.summary || item.title || '—')}</div><div class="secondary-text" title="${esc(preview)}">${esc(preview || '—')}</div></td><td>${stored.length ? `<details><summary>${stored.length} 条真实向量记录</summary><div class="db-records">${stored.map(vectorRecord).join('')}</div></details>` : '<span class="state failed">向量库无记录</span>'}</td><td>${statePill(item.status)}${item.failureMessage ? `<div class="secondary-text">${esc(item.failureCode)} · ${esc(item.failureMessage)}</div>` : ''}</td><td><div class="actions"><button class="btn small" data-reindex="${esc(item.corpusItemId)}">重建索引</button><button class="btn small danger" data-disable-corpus="${esc(item.corpusItemId)}">停用</button></div></td></tr>`;
+  }
+
+  function vectorRecord(item) {
+    return `<div class="db-record"><div><strong>${esc(item.collectionType)}</strong> · ${number(item.embeddingDimensions)}维</div><div>sourceId: <code>${esc(item.sourceId)}</code></div><div>vectorId: <code>${esc(item.vectorId)}</code></div></div>`;
   }
 
   function renderCases() {
-    return `<div class="grid"><section class="panel"><div class="panel-head"><div><h3>问题与期望标签</h3><p>标签可按精确 source 或 RAG 父文档匹配，grade 取 1–3。</p></div><button class="btn primary" data-open-import="cases">JSONL / CSV 导入</button></div><div class="panel-body">
-      ${state.cases.length ? `<table class="table"><thead><tr><th>问题</th><th>范围</th><th>期望命中</th><th>标签</th><th>状态</th></tr></thead><tbody>${state.cases.map(caseRow).join('')}</tbody></table>` : '<div class="empty">还没有评测问题。导入问题并标注期望命中的 externalId。</div>'}
-      </div></section><section class="panel"><div class="panel-head"><div><h3>标注示例</h3><p>expected.externalId 会在运行时解析为该数据集内的真实 sourceId。</p></div></div><div class="panel-body"><code class="hint">{"externalId":"q-refund","query":"退款需要多久？","sourceScope":"RAG","expected":[{"externalId":"refund-policy","grade":3,"matchMode":"PARENT_DOCUMENT"}]}</code></div></section></div>`;
+    return `<section class="panel"><div class="panel-head"><div><h3>测试问题表</h3><p>问题ID和期望命中ID都使用5–12位数字字符串；导入时会验证期望数据已成功入库。</p></div><button class="btn primary" data-open-import="cases">导入测试问题</button></div><div class="panel-body">
+      ${state.cases.length ? `<table class="table"><thead><tr><th>问题ID</th><th>用户问题</th><th>召回范围</th><th>期望命中ID</th><th>场景标签</th><th>状态</th></tr></thead><tbody>${state.cases.map(caseRow).join('')}</tbody></table>` : '<div class="empty">还没有测试问题。请先导入已经标注正确答案的问题集。</div>'}
+      </div></section>`;
   }
 
   function caseRow(item) {
     const expected = (item.expected || []).map(value => value.externalId || value.sourceId).filter(Boolean);
-    return `<tr><td><div class="primary-text">${esc(item.query)}</div><div class="secondary-text">${esc(item.externalId)}</div></td><td><span class="tag">${esc(item.sourceScope || 'MIXED')}</span></td><td>${expected.map(value => `<span class="tag">${esc(value)}</span>`).join(' ') || '—'}</td><td>${(item.tags || []).map(value => `<span class="tag">${esc(value)}</span>`).join(' ')}</td><td>${statePill(item.status)}</td></tr>`;
+    return `<tr><td><div class="primary-text">${esc(item.externalId)}</div></td><td><div class="primary-text">${esc(item.query)}</div></td><td><span class="tag">${esc(item.sourceScope || 'MIXED')}</span></td><td>${expected.map(value => `<span class="tag">${esc(value)}</span>`).join(' ') || '—'}</td><td>${(item.tags || []).map(value => `<span class="tag">${esc(value)}</span>`).join(' ')}</td><td>${statePill(item.status)}</td></tr>`;
   }
 
   function renderExperiment() {
+    const ready = state.corpus.length > 0 && state.corpus.every(item => item.status === 'READY') && state.cases.length > 0;
     return `<div class="grid two"><form class="panel" id="runForm"><div class="panel-head"><div><h3>召回参数</h3><p>参数会作为不可变快照保存在 Run 中。</p></div></div><div class="panel-body form-grid">
       <div class="field wide"><label>实验名称</label><input class="input" name="name" value="baseline-${new Date().toISOString().slice(0,10)}" required></div>
       <div class="field"><label>召回范围</label><select name="sourceScope"><option>MIXED</option><option>RAG</option><option>MEMORY</option></select></div>
@@ -166,10 +191,13 @@
       <div class="field"><label>问题上限</label><input class="input" name="caseLimit" type="number" min="1" value="1000"></div>
       <div class="field"><label>单例超时（ms）</label><input class="input" name="caseTimeoutMs" type="number" min="100" value="30000"></div>
       <div class="field wide"><label>向量集合（逗号分隔；留空使用范围默认值）</label><input class="input" name="collectionTypes" placeholder="RAG_CHUNK,LONG_TERM_MEMORY"></div>
-      <div class="field wide"><label><input type="checkbox" name="plannerEnabled"> 启用 Context Planner 复选（随后立即停止）</label></div>
+      <div class="field wide"><label>Context Planner 模式</label><div class="planner-options">
+        <label class="planner-option"><strong><input type="radio" name="plannerMode" value="off" checked>关闭 Context Planner</strong><span>只统计原始向量/混合召回结果。</span></label>
+        <label class="planner-option"><strong><input type="radio" name="plannerMode" value="on">开启 Context Planner</strong><span>保留原始候选，再统计Planner筛选后的准确率与错误剔除情况。</span></label>
+      </div></div>
       <div class="field"><label>Planner Model</label><input class="input" name="plannerModelCode" placeholder="留空使用组件默认模型"></div>
       <div class="field"><label>Temperature</label><input class="input" name="plannerTemperature" type="number" min="0" max="2" step="0.1" value="0.1"></div>
-      <div class="field wide"><button class="btn primary" type="submit" ${state.cases.length ? '' : 'disabled'}>开始批量评测</button><span class="hint"> ${state.cases.length ? `将运行 ${state.cases.length} 个问题` : '请先导入问题和标签'}</span></div>
+      <div class="field wide"><button class="btn primary" type="submit" ${ready ? '' : 'disabled'}>开始批量测试</button><span class="hint">${ready ? `将运行 ${state.cases.length} 个问题；当前 ${state.corpus.length} 条记忆数据全部READY。` : '请先导入记忆数据和测试问题，并确保全部记忆数据为READY。'}</span></div>
       </div></form>
       <section class="panel"><div class="panel-head"><div><h3>最近运行</h3><p>运行在有界线程池中异步执行，单个问题失败不会中止批次。</p></div></div><div class="panel-body"><div class="run-list">${state.runs.length ? state.runs.slice(0,10).map(runCard).join('') : '<div class="empty">尚未运行实验</div>'}</div></div></section></div>`;
   }
@@ -186,20 +214,40 @@
     const detail = state.runDetail?.run?.evaluationRunId === run.evaluationRunId ? state.runDetail : null;
     const metrics = detail?.metrics || run.metrics;
     const grouped = detail ? logic.groupRunResults(detail.results, detail.hits) : [];
+    const plannerEnabled = Boolean(run.config?.plannerEnabled);
     return `<div class="grid">
-      <section class="panel"><div class="panel-head"><div><h3>${esc(run.name || run.evaluationRunId)}</h3><p>${esc(run.evaluationRunId)} · ${esc(run.config?.sourceScope)} / ${esc(run.config?.retrievalMode)}</p></div><div class="actions">${statePill(run.status)}${['RUNNING','PENDING'].includes(run.status) ? `<button class="btn small danger" data-cancel-run="${esc(run.evaluationRunId)}">取消</button>` : ''}</div></div><div class="panel-body"><div class="metric-grid">${metric('Hit Rate@K', pct(metrics?.hitRateAtK))}${metric('Precision@K', pct(metrics?.precisionAtK))}${metric('Recall@K', pct(metrics?.recallAtK))}${metric('MRR', Number(metrics?.meanReciprocalRank || 0).toFixed(3))}${metric('nDCG@K', Number(metrics?.ndcgAtK || 0).toFixed(3))}${metric('MAP@K', Number(metrics?.mapAtK || 0).toFixed(3))}${metric('No Hit', pct(metrics?.noHitRate))}${metric('P95 Latency', `${number(metrics?.retrievalLatencyP95Ms)} ms`)}</div></div></section>
-      <section class="panel"><div class="panel-head"><div><h3>A/B 对比</h3><p>选择同一数据集中的另一次运行作为左侧基线。</p></div><div class="actions"><select class="input" id="compareLeft">${state.runs.filter(item => item.evaluationRunId !== run.evaluationRunId).map(item => `<option value="${esc(item.evaluationRunId)}">${esc(item.name || item.evaluationRunId)}</option>`).join('')}</select><button class="btn" id="compareBtn" ${state.runs.length < 2 ? 'disabled' : ''}>对比</button></div></div>${state.comparison ? comparisonBody(state.comparison) : ''}</section>
-      <section class="panel"><div class="panel-head"><div><h3>逐问题诊断</h3><p>展开问题查看每个候选的真实来源、通道、分数和 Planner 选择。</p></div><span class="tag">${grouped.length} cases</span></div><div class="panel-body grid">${grouped.length ? grouped.map(resultCard).join('') : '<div class="empty">运行中，结果会在不打断当前操作的情况下更新。</div>'}</div></section>
+      <section class="panel"><div class="panel-head"><div><h3>${esc(run.name || run.evaluationRunId)}</h3><p>${esc(run.evaluationRunId)} · ${esc(run.config?.sourceScope)} / ${esc(run.config?.retrievalMode)} · Context Planner ${plannerEnabled ? '开启' : '关闭'}</p></div><div class="actions">${statePill(run.status)}${['RUNNING','PENDING'].includes(run.status) ? `<button class="btn small danger" data-cancel-run="${esc(run.evaluationRunId)}">取消</button>` : ''}</div></div><div class="panel-body">${plannerEnabled ? plannerMetricComparison(metrics) : `<div class="metric-grid">${rawMetrics(metrics)}</div>`}</div></section>
+      ${plannerEnabled ? `<section class="panel"><div class="panel-head"><div><h3>Context Planner 筛选质量</h3><p>用于判断Planner是否保留正确候选、剔除无关候选，以及Prompt是否需要优化。</p></div></div><div class="panel-body"><div class="metric-grid">${metric('正确候选保留率', pct(metrics?.plannerRelevantRetentionRate))}${metric('无关候选剔除率', pct(metrics?.plannerIrrelevantRemovalRate))}${metric('正确候选误删', number(metrics?.plannerRelevantDroppedCount))}${metric('平均保留候选数', Number(metrics?.plannerAverageSelectedCount || 0).toFixed(1))}${metric('Planner失败率', pct(metrics?.plannerFailureRate))}${metric('Planner平均耗时', `${number(metrics?.plannerLatencyAverageMs)} ms`)}</div></div></section>` : ''}
+      <section class="panel"><div class="panel-head"><div><h3>逐问题测试结果</h3><p>展开问题，直接对比期望数字ID、原始召回ID和Planner保留/剔除结果。</p></div><span class="tag">${grouped.length} 个问题</span></div><div class="panel-body grid">${grouped.length ? grouped.map(item => resultCard(item, plannerEnabled)).join('') : '<div class="empty">运行中，结果会自动更新。</div>'}</div></section>
     </div>`;
   }
 
-  function resultCard(item) {
-    const testCase = state.cases.find(value => value.caseId === item.caseId);
-    return `<details class="result-card"><summary><span>${item.hit ? '✓' : '—'}</span><div><div class="primary-text">${esc(testCase?.query || item.caseId)}</div><div class="secondary-text">${esc(item.status)}${item.failureCode ? ` · ${esc(item.failureCode)}` : ''}</div></div><div><span class="hint">P@K</span><br>${Number(item.precisionAtK || 0).toFixed(3)}</div><div><span class="hint">R@K</span><br>${Number(item.recallAtK || 0).toFixed(3)}</div><div><span class="hint">Latency</span><br>${number(item.retrievalLatencyMs)} ms</div></summary><div class="result-body">${item.failureMessage ? `<p class="state failed">${esc(item.failureMessage)}</p>` : ''}${item.hits.length ? item.hits.map(hitRow).join('') : '<div class="hint">没有候选命中</div>'}</div></details>`;
+  function rawMetrics(metrics) {
+    return `${metric('Hit Rate@K', pct(metrics?.hitRateAtK))}${metric('Precision@K', pct(metrics?.precisionAtK))}${metric('Recall@K', pct(metrics?.recallAtK))}${metric('MRR', Number(metrics?.meanReciprocalRank || 0).toFixed(3))}${metric('nDCG@K', Number(metrics?.ndcgAtK || 0).toFixed(3))}${metric('MAP@K', Number(metrics?.mapAtK || 0).toFixed(3))}${metric('No Hit', pct(metrics?.noHitRate))}${metric('P95耗时', `${number(metrics?.retrievalLatencyP95Ms)} ms`)}`;
   }
 
-  function hitRow(hit) {
-    return `<div class="hit-row"><span class="rank">#${esc(hit.rankNo)}</span><span class="tag">${esc(hit.retrievalChannel)}</span><div><div class="primary-text">${esc(hit.sourceId)}</div><div class="secondary-text">${esc(hit.collectionType)} · parent ${esc(hit.parentSourceId || '—')}</div></div><span>${Number(hit.score || 0).toFixed(4)}</span><span>${hit.expectedGrade ? `<span class="state ready">grade ${hit.expectedGrade}</span>` : hit.selectedByPlanner ? '<span class="state running">planner</span>' : '—'}</span></div>`;
+  function plannerMetricComparison(metrics) {
+    const rows = [
+      ['命中率', metrics?.hitRateAtK, metrics?.plannerHitRateAtK, true],
+      ['Precision@K', metrics?.precisionAtK, metrics?.plannerPrecision, true],
+      ['Recall@K', metrics?.recallAtK, metrics?.plannerRecall, true],
+      ['MRR', metrics?.meanReciprocalRank, metrics?.plannerMeanReciprocalRank, false],
+      ['nDCG@K', metrics?.ndcgAtK, metrics?.plannerNdcgAtK, false]
+    ];
+    return `<table class="metric-compare"><thead><tr><th>准确率指标</th><th>原始召回</th><th>Planner筛选后</th><th>变化</th></tr></thead><tbody>${rows.map(([label, raw, planned, percent]) => { const delta = logic.metricDelta(raw, planned); const format = value => percent ? pct(value) : Number(value || 0).toFixed(3); return `<tr><td>${label}</td><td>${format(raw)}</td><td>${format(planned)}</td><td class="delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta > 0 ? '+' : ''}${percent ? pct(delta) : delta.toFixed(3)}</td></tr>`; }).join('')}</tbody></table>`;
+  }
+
+  function resultCard(item, plannerEnabled) {
+    const testCase = state.cases.find(value => value.caseId === item.caseId);
+    const expected = (testCase?.expected || []).map(value => value.externalId || value.sourceId).filter(Boolean);
+    const selected = item.hits.filter(hit => hit.selectedByPlanner);
+    const plannerHit = selected.some(hit => hit.expectedGrade);
+    return `<details class="result-card"><summary><span>${item.hit ? '✓' : '—'}</span><div><div class="primary-text">${esc(testCase?.query || item.caseId)}</div><div class="secondary-text">问题ID ${esc(testCase?.externalId || item.caseId)} · 期望 ${expected.map(esc).join(', ') || '—'}</div></div><div><span class="hint">原始结果</span><br>${item.hit ? '命中' : '未命中'}</div><div><span class="hint">Planner结果</span><br>${plannerEnabled ? (plannerHit ? '命中' : '未命中') : '未启用'}</div><div><span class="hint">耗时</span><br>${number(item.retrievalLatencyMs)} ms</div></summary><div class="result-body">${item.failureMessage ? `<p class="state failed">${esc(item.failureMessage)}</p>` : ''}<p><strong>期望命中ID：</strong>${expected.map(value => `<span class="tag">${esc(value)}</span>`).join(' ') || '—'}</p><h4>原始召回候选</h4>${item.hits.length ? item.hits.map(hit => hitRow(hit, plannerEnabled)).join('') : '<div class="hint">没有候选命中</div>'}${plannerEnabled ? `<h4>Context Planner 结果</h4><p>${statePill(item.plannerStatus || 'UNKNOWN')} · ${esc(item.plannerReason || '没有返回筛选理由')}</p><p><strong>保留：</strong>${selected.map(hit => `<span class="tag">${esc(hit.externalId || hit.sourceId)}</span>`).join(' ') || '无'}</p><details><summary>查看Planner完整结构化输出</summary><pre>${esc(JSON.stringify(item.plannerOutput || {}, null, 2))}</pre></details>` : ''}</div></details>`;
+  }
+
+  function hitRow(hit, plannerEnabled) {
+    const plannerState = plannerEnabled ? (hit.selectedByPlanner ? '<span class="candidate-state keep">Planner保留</span>' : '<span class="candidate-state drop">Planner剔除</span>') : '';
+    return `<div class="hit-row"><span class="rank">#${esc(hit.rankNo)}</span><span class="tag">${esc(hit.retrievalChannel)}</span><div><div class="primary-text">ID ${esc(hit.externalId || '未映射')} ${hit.expectedGrade ? '<span class="state ready">正确答案</span>' : ''}</div><div class="secondary-text">sourceId ${esc(hit.sourceId)} · ${esc(hit.collectionType)} · parent ${esc(hit.parentSourceId || '—')}</div></div><span>${Number(hit.score || 0).toFixed(4)}</span><span>${plannerState || (hit.expectedGrade ? `grade ${hit.expectedGrade}` : '—')}</span></div>`;
   }
 
   function comparisonBody(value) {
@@ -208,7 +256,7 @@
   }
 
   async function selectDataset(datasetId) {
-    state.datasetId = datasetId; state.runId = null; state.runDetail = null; state.comparison = null;
+    state.datasetId = datasetId; state.tab = 'corpus'; state.runId = null; state.runDetail = null; state.comparison = null;
     await loadDatasetData(); updateUrl(); renderAll();
   }
 
@@ -240,10 +288,12 @@
 
   function openModal(modal) { modal.classList.add('open'); modal.setAttribute('aria-hidden', 'false'); }
   function closeModals() { document.querySelectorAll('.modal.open').forEach(modal => { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }); }
-  function openImport(target) {
+  function openImport(target, corpusType = null) {
     state.importTarget = target; els.importText.value = '';
-    els.importModalTitle.textContent = target === 'corpus' ? '批量导入评测语料' : '批量导入问题与标签';
-    els.importHint.textContent = target === 'corpus' ? '必填：externalId、type、content。CSV 的 tags 用 | 分隔。' : '必填：externalId、query、expected。CSV 的 expected 填 JSON 数组。';
+    state.importCorpusType = corpusType;
+    const labels = { RAG_DOCUMENT: 'RAG数据', LONG_TERM_MEMORY: '长期记忆', USER_PREFERENCE: '用户偏好' };
+    els.importModalTitle.textContent = target === 'corpus' ? `批量导入${labels[corpusType] || '记忆数据'}` : '批量导入测试问题';
+    els.importHint.textContent = target === 'corpus' ? `必填：externalId（5–12位数字字符串）、content。当前表格类型：${corpusType || '由type字段决定'}。` : '必填：externalId、query、expected；问题ID与expected.externalId都使用数字字符串。';
     openModal(els.importModal);
   }
 
@@ -260,7 +310,10 @@
     event.preventDefault();
     const items = normalizeImported(els.importText.value);
     const path = state.importTarget === 'corpus' ? 'corpus' : 'cases';
-    const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }) });
+    if (state.importTarget === 'corpus' && state.importCorpusType) {
+      items.forEach(item => { item.type = state.importCorpusType; });
+    }
+    const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }), timeoutMs: 300000 });
     closeModals(); showToast(`已导入 ${result.acceptedCount} 项，失败 ${result.failedCount} 项`, result.failedCount ? 'error' : '');
     await refreshSelected();
   }
@@ -272,7 +325,7 @@
       retrievalMode: data.get('retrievalMode'), topK: Number(data.get('topK')), minScore: Number(data.get('minScore')),
       caseLimit: Number(data.get('caseLimit')), caseTimeoutMs: Number(data.get('caseTimeoutMs')),
       collectionTypes: String(data.get('collectionTypes') || '').split(',').map(value => value.trim()).filter(Boolean),
-      plannerEnabled: data.get('plannerEnabled') === 'on', plannerModelCode: data.get('plannerModelCode') || null,
+      plannerEnabled: data.get('plannerMode') === 'on', plannerModelCode: data.get('plannerModelCode') || null,
       plannerTemperature: Number(data.get('plannerTemperature')), plannerMaxOutputTokens: 3000
     };
     const run = await request('/runs', { method:'POST', body: JSON.stringify(payload) });
@@ -281,7 +334,7 @@
   }
 
   async function refreshSelected() { await loadDatasets(); await loadDatasetData(); renderAll(); }
-  function updateUrl() { const next = new URL(location.href); state.datasetId ? next.searchParams.set('datasetId', state.datasetId) : next.searchParams.delete('datasetId'); state.runId ? next.searchParams.set('runId', state.runId) : next.searchParams.delete('runId'); history.replaceState(null, '', next); }
+  function updateUrl() { const next = new URL(location.href); state.datasetId ? next.searchParams.set('datasetId', state.datasetId) : next.searchParams.delete('datasetId'); state.runId ? next.searchParams.set('runId', state.runId) : next.searchParams.delete('runId'); next.searchParams.set('tab', state.tab); next.searchParams.set('corpusType', state.corpusType); history.replaceState(null, '', next); }
   let toastTimer;
   function showToast(message, type = '') { clearTimeout(toastTimer); els.toast.textContent = message; els.toast.className = `toast show ${type}`; toastTimer = setTimeout(() => els.toast.className = 'toast', 3200); }
   function showError(error) { showToast(error?.message || String(error), 'error'); }
@@ -289,8 +342,9 @@
   document.addEventListener('click', async event => {
     const dataset = event.target.closest('[data-dataset-id]'); if (dataset) return selectDataset(dataset.datasetId).catch(showError);
     const tab = event.target.closest('[data-tab]'); if (tab) return setTab(tab.dataset.tab);
+    const corpusType = event.target.closest('[data-corpus-type]'); if (corpusType && !corpusType.matches('[data-open-import]')) { state.corpusType = corpusType.dataset.corpusType; updateUrl(); return renderView(); }
     const goTab = event.target.closest('[data-go-tab]'); if (goTab) return setTab(goTab.dataset.goTab);
-    const importButton = event.target.closest('[data-open-import]'); if (importButton) return openImport(importButton.dataset.openImport);
+    const importButton = event.target.closest('[data-open-import]'); if (importButton) return openImport(importButton.dataset.openImport, importButton.dataset.corpusType || null);
     const run = event.target.closest('[data-run-id]'); if (run) { state.runId = run.dataset.runId; state.tab = 'results'; updateUrl(); await loadRunDetail(state.runId); return renderAll(); }
     const reindex = event.target.closest('[data-reindex]'); if (reindex) { await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/${encodeURIComponent(reindex.dataset.reindex)}/reindex`, {method:'POST'}); showToast('索引已重建'); return refreshSelected(); }
     const disable = event.target.closest('[data-disable-corpus]'); if (disable && confirm('停用这条评测语料及其向量索引？')) { await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/${encodeURIComponent(disable.dataset.disableCorpus)}`, {method:'DELETE'}); return refreshSelected(); }
@@ -309,7 +363,7 @@
   els.filePicker.addEventListener('change', async () => {
     if (!els.filePicker.files.length) return;
     const form = new FormData(); [...els.filePicker.files].forEach(file => form.append('files', file));
-    try { const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/files`, {method:'POST', body:form}); showToast(`已导入 ${result.acceptedCount} 个文档`, result.failedCount ? 'error' : ''); await refreshSelected(); } catch (error) { showError(error); } finally { els.filePicker.value = ''; }
+    try { const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/files`, {method:'POST', body:form, timeoutMs:300000}); showToast(`已导入 ${result.acceptedCount} 个文档`, result.failedCount ? 'error' : ''); await refreshSelected(); } catch (error) { showError(error); } finally { els.filePicker.value = ''; }
   });
 
   document.getElementById('newDatasetBtn').addEventListener('click', () => openModal(els.datasetModal));
