@@ -33,6 +33,7 @@ import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.evaluation.RecallEvaluationRunner;
 import yhx.com.domain.agent.service.evaluation.RecallEvaluationIngestionService;
+import yhx.com.domain.agent.service.evaluation.RecallEvaluationFacade;
 import yhx.com.domain.agent.service.evaluation.RecallMetricsCalculator;
 import com.alibaba.fastjson.JSON;
 
@@ -106,6 +107,11 @@ public class RecallEvaluationFlowTest {
     @Test
     public void batch_disable_deduplicates_selected_items_and_reports_missing_items() {
         InMemoryEvaluationRepository evaluations = new InMemoryEvaluationRepository();
+        evaluations.dataset = RecallEvaluationDatasetEntity.builder()
+                .datasetId("dataset-1")
+                .corpusCount(1)
+                .readyCorpusCount(1)
+                .build();
         evaluations.corpus = RecallEvaluationCorpusItemEntity.builder()
                 .corpusItemId("corpus-1")
                 .datasetId("dataset-1")
@@ -117,14 +123,18 @@ public class RecallEvaluationFlowTest {
         CapturingVectorRepository vectors = new CapturingVectorRepository();
         RecallEvaluationIngestionService ingestion = new RecallEvaluationIngestionService(
                 evaluations, null, null, null, new FakeMemoryRepository(), null, vectors, null, null);
+        RecallEvaluationFacade facade = new RecallEvaluationFacade(
+                evaluations, ingestion, null, null, null, null);
 
-        RecallCorpusBatchActionResultVO result = ingestion.disableBatch(
+        RecallCorpusBatchActionResultVO result = facade.disableCorpusBatch(
                 "dataset-1", List.of("corpus-1", "corpus-1", "missing"));
 
         Assert.assertEquals(Integer.valueOf(1), result.getSucceededCount());
         Assert.assertEquals(Integer.valueOf(1), result.getFailedCount());
         Assert.assertEquals(List.of("memory-1"), vectors.disabledSourceIds);
         Assert.assertEquals("DISABLED", evaluations.corpus.getStatus());
+        Assert.assertEquals(Integer.valueOf(1), evaluations.dataset.getCorpusCount());
+        Assert.assertEquals(Integer.valueOf(0), evaluations.dataset.getReadyCorpusCount());
         Assert.assertTrue(result.getErrors().get(0).contains("missing"));
     }
 

@@ -128,22 +128,30 @@ public class RecallEvaluationFacade {
 
     public RecallEvaluationCorpusItemEntity disableCorpus(String datasetId, String corpusItemId) {
         requireCorpusDataset(datasetId, corpusItemId);
-        return ingestionService.disableItem(corpusItemId);
+        RecallEvaluationCorpusItemEntity item = ingestionService.disableItem(corpusItemId);
+        syncCorpusCounts(datasetId);
+        return item;
     }
 
     public RecallEvaluationCorpusItemEntity reindexCorpus(String datasetId, String corpusItemId) {
         requireCorpusDataset(datasetId, corpusItemId);
-        return ingestionService.reindexItem(corpusItemId);
+        RecallEvaluationCorpusItemEntity item = ingestionService.reindexItem(corpusItemId);
+        syncCorpusCounts(datasetId);
+        return item;
     }
 
     public RecallCorpusBatchActionResultVO reindexCorpusBatch(String datasetId, List<String> corpusItemIds) {
         getDataset(datasetId);
-        return ingestionService.reindexBatch(datasetId, corpusItemIds);
+        RecallCorpusBatchActionResultVO result = ingestionService.reindexBatch(datasetId, corpusItemIds);
+        syncCorpusCounts(datasetId);
+        return result;
     }
 
     public RecallCorpusBatchActionResultVO disableCorpusBatch(String datasetId, List<String> corpusItemIds) {
         getDataset(datasetId);
-        return ingestionService.disableBatch(datasetId, corpusItemIds);
+        RecallCorpusBatchActionResultVO result = ingestionService.disableBatch(datasetId, corpusItemIds);
+        syncCorpusCounts(datasetId);
+        return result;
     }
 
     public RecallCaseImportResultVO importCases(String datasetId, List<RecallCaseImportItemVO> items) {
@@ -310,6 +318,14 @@ public class RecallEvaluationFacade {
         RecallEvaluationCorpusItemEntity item = repository.findCorpusItem(corpusItemId)
                 .orElseThrow(() -> new IllegalArgumentException("Evaluation corpus item does not exist: " + corpusItemId));
         if (!datasetId.equals(item.getDatasetId())) throw new IllegalArgumentException("Corpus item does not belong to dataset.");
+    }
+
+    private void syncCorpusCounts(String datasetId) {
+        RecallEvaluationDatasetEntity dataset = getDataset(datasetId);
+        List<RecallEvaluationCorpusItemEntity> items = repository.listCorpusItems(datasetId, null, 10000, 0);
+        dataset.setCorpusCount(items.size());
+        dataset.setReadyCorpusCount((int) items.stream().filter(item -> "READY".equals(item.getStatus())).count());
+        repository.updateDataset(dataset);
     }
 
     private RecallEvaluationRunEntity requiredRun(String runId) {
