@@ -23,9 +23,11 @@ public class RecallMetricsCalculator {
                 .sorted(Comparator.comparing(RecallEvaluationHitEntity::getRankNo,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+        boolean parentMatching = labels.stream().anyMatch(label -> label != null
+                && "PARENT_DOCUMENT".equalsIgnoreCase(label.getMatchMode()));
         Map<String, RecallEvaluationHitEntity> logicalResults = new LinkedHashMap<>();
         for (RecallEvaluationHitEntity hit : sorted) {
-            logicalResults.putIfAbsent(logicalResultKey(hit), hit);
+            logicalResults.putIfAbsent(logicalResultKey(hit, parentMatching), hit);
         }
         List<RecallEvaluationHitEntity> ranked = logicalResults.values().stream()
                 .limit(Math.max(1, topK))
@@ -153,12 +155,12 @@ public class RecallMetricsCalculator {
         return String.valueOf(label.getSourceId()) + "|" + String.valueOf(label.getMatchMode());
     }
 
-    private String logicalResultKey(RecallEvaluationHitEntity hit) {
+    private String logicalResultKey(RecallEvaluationHitEntity hit, boolean parentMatching) {
         if (hit == null) {
             return "null";
         }
         String parentSourceId = hit.getParentSourceId();
-        if (parentSourceId != null && !parentSourceId.isBlank()) {
+        if (parentMatching && parentSourceId != null && !parentSourceId.isBlank()) {
             return "PARENT|" + parentSourceId;
         }
         return "SOURCE|" + String.valueOf(hit.getSourceId());

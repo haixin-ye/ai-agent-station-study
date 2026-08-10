@@ -45,6 +45,12 @@ public class RagAssetRepository implements IRagAssetRepository {
     }
 
     @Override
+    public Optional<RagDocumentEntity> findLatestDocument(String userId, String sessionId, String sourceName) {
+        return Optional.ofNullable(agentRagDocumentDao.queryLatestByScopeAndSource(userId, sessionId, sourceName))
+                .map(this::toEntity);
+    }
+
+    @Override
     public List<RagDocumentEntity> findDocumentsByIds(List<String> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
             return List.of();

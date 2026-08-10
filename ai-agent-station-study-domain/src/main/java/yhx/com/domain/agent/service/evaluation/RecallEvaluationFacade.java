@@ -113,7 +113,9 @@ public class RecallEvaluationFacade {
             String datasetId,
             List<RecallRagAttachmentItemVO> items) {
         getDataset(datasetId);
-        return ingestionService.attachUploadedRagDocuments(datasetId, items);
+        RecallCorpusImportResultVO result = ingestionService.attachUploadedRagDocuments(datasetId, items);
+        syncCorpusCounts(datasetId);
+        return result;
     }
 
     public List<RecallEvaluationCorpusItemEntity> listCorpus(String datasetId, String status, int limit, int offset) {
@@ -126,7 +128,7 @@ public class RecallEvaluationFacade {
         List<VectorCollectionTypeEnumVO> collections = switch (itemType == null ? "" : itemType.toUpperCase()) {
             case "LONG_TERM_MEMORY" -> List.of(VectorCollectionTypeEnumVO.LONG_TERM_MEMORY);
             case "USER_PREFERENCE" -> List.of(VectorCollectionTypeEnumVO.USER_PREFERENCE);
-            case "RAG_DOCUMENT", "RAG" -> List.of(VectorCollectionTypeEnumVO.RAG_DOCUMENT,
+            case "RAG_CHUNK", "RAG_DOCUMENT", "RAG" -> List.of(VectorCollectionTypeEnumVO.RAG_DOCUMENT,
                     VectorCollectionTypeEnumVO.RAG_CHUNK, VectorCollectionTypeEnumVO.RAG_FILE_CHUNK,
                     VectorCollectionTypeEnumVO.RAG_CODE_FILE_SUMMARY, VectorCollectionTypeEnumVO.RAG_CODE_CHUNK);
             default -> throw new IllegalArgumentException("Unsupported vector itemType: " + itemType);

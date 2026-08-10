@@ -39,10 +39,10 @@ for (const item of corpus) {
 for (const item of rag) {
   const chunks = splitLikeProduction(item.content);
   const paragraphs = item.content.split(/\n\s*\n/);
-  if (item.content.length < 3800) failures.push(`RAG正文过短(${item.content.length}): ${item.externalId}`);
-  if (paragraphs.length < 6) failures.push(`RAG段落不足: ${item.externalId}`);
-  if (Math.max(...paragraphs.map(value => value.length)) <= 512) failures.push(`RAG没有触发段内切分: ${item.externalId}`);
-  if (chunks.length < 12) failures.push(`RAG实际chunk不足(${chunks.length}): ${item.externalId}`);
+  if (item.type !== 'RAG_CHUNK') failures.push(`RAG类型必须为RAG_CHUNK: ${item.externalId}`);
+  if (item.content.length < 260 || item.content.length > 512) failures.push(`RAG Chunk长度应为260-512字(${item.content.length}): ${item.externalId}`);
+  if (paragraphs.length !== 1) failures.push(`RAG Chunk必须只有一个自然段: ${item.externalId}`);
+  if (chunks.length !== 1) failures.push(`RAG记录必须恰好形成1个chunk，实际为${chunks.length}: ${item.externalId}`);
 }
 for (const item of memories) if (item.content.length < 380) failures.push(`长期记忆过短(${item.content.length}): ${item.externalId}`);
 for (const item of preferences) if (item.content.length < 360) failures.push(`用户偏好过短(${item.content.length}): ${item.externalId}`);
@@ -51,6 +51,7 @@ for (const item of cases) {
   for (const label of item.expected || []) {
     if (!corpusIds.has(label.externalId)) failures.push(`问题${item.externalId}引用不存在的ID ${label.externalId}`);
     if (![2, 3].includes(label.grade)) failures.push(`问题${item.externalId} grade无效`);
+    if (Number(label.externalId) >= 11001 && Number(label.externalId) <= 11100 && label.matchMode !== 'EXACT_SOURCE') failures.push(`问题${item.externalId}的RAG标签必须使用EXACT_SOURCE`);
   }
 }
 

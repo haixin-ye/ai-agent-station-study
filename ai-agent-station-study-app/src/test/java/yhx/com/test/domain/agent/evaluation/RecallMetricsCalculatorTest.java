@@ -68,6 +68,22 @@ public class RecallMetricsCalculatorTest {
         Assert.assertEquals(1D, metrics.getReciprocalRank(), 0.000001D);
     }
 
+    @Test
+    public void exact_chunk_labels_are_not_collapsed_when_they_share_a_parent() {
+        RecallMetricsCalculator calculator = new RecallMetricsCalculator();
+        List<RecallExpectedItemVO> expected = List.of(
+                RecallExpectedItemVO.builder().sourceId("chunk-1").grade(3).matchMode("EXACT_SOURCE").build(),
+                RecallExpectedItemVO.builder().sourceId("chunk-2").grade(3).matchMode("EXACT_SOURCE").build());
+        List<RecallEvaluationHitEntity> hits = List.of(
+                hit(1, "chunk-1", "doc-1"),
+                hit(2, "chunk-2", "doc-1"));
+
+        RecallCaseMetricsVO metrics = calculator.calculateCase(expected, hits, 2);
+
+        Assert.assertEquals(1D, metrics.getPrecisionAtK(), 0.000001D);
+        Assert.assertEquals(1D, metrics.getRecallAtK(), 0.000001D);
+    }
+
     private RecallEvaluationHitEntity hit(int rank, String sourceId, String parentSourceId) {
         return RecallEvaluationHitEntity.builder()
                 .rankNo(rank)

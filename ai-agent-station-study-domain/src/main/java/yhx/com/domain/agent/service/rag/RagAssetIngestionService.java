@@ -169,23 +169,27 @@ public class RagAssetIngestionService {
     private RagAssetAnalysisResultVO analyzeDocument(String sourceName, String sourceType, String text) {
         try {
             RagAssetAnalysisResultVO result = analyzer.analyzeDocument(sourceName, sourceType, text);
-            return result == null ? fallbackAnalysis(sourceName, sourceType, text) : result;
+            return result == null ? fallbackDocumentAnalysis(sourceName, sourceType, text) : result;
         } catch (Exception ignored) {
-            return fallbackAnalysis(sourceName, sourceType, text);
+            return fallbackDocumentAnalysis(sourceName, sourceType, text);
         }
     }
 
     private RagAssetAnalysisResultVO analyzeChunk(String sourceName, String sourceType, String text) {
         try {
             RagAssetAnalysisResultVO result = analyzer.analyzeChunk(sourceName, sourceType, text);
-            return result == null ? fallbackAnalysis(sourceName, sourceType, text) : result;
+            return result == null ? fallbackChunkAnalysis(sourceName, sourceType, text) : result;
         } catch (Exception ignored) {
-            return fallbackAnalysis(sourceName, sourceType, text);
+            return fallbackChunkAnalysis(sourceName, sourceType, text);
         }
     }
 
-    private RagAssetAnalysisResultVO fallbackAnalysis(String sourceName, String sourceType, String text) {
+    private RagAssetAnalysisResultVO fallbackDocumentAnalysis(String sourceName, String sourceType, String text) {
         return new DeterministicRagAssetAnalyzer().analyzeDocument(sourceName, sourceType, text);
+    }
+
+    private RagAssetAnalysisResultVO fallbackChunkAnalysis(String sourceName, String sourceType, String text) {
+        return new DeterministicRagAssetAnalyzer().analyzeChunk(sourceName, sourceType, text);
     }
 
     private String savePayload(PayloadTypeEnumVO type, String content) {

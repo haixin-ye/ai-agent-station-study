@@ -228,7 +228,8 @@ public class RecallEvaluationController {
         List<String> errors = result.getItems().stream().filter(item -> item.getFailureMessage() != null)
                 .map(item -> item.getExternalId() + ": " + item.getFailureMessage()).toList();
         return RecallEvaluationDTO.ImportView.<RecallEvaluationDTO.CorpusItemView>builder()
-                .acceptedCount(result.getAcceptedCount()).failedCount(result.getFailedCount())
+                .acceptedCount(result.getAcceptedCount()).skippedCount(result.getSkippedCount())
+                .failedCount(result.getFailedCount())
                 .items(result.getItems().stream().map(RecallEvaluationApiMapper::corpus).toList()).errors(errors).build();
     }
 

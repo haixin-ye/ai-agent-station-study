@@ -32,6 +32,66 @@ import java.util.Optional;
 public class RagAssetIngestionServiceTest {
 
     @Test
+    public void ingestFiles_usesRawChunkTextWhenDeterministicAnalyzerIsActive() {
+        FakeRagAssetRepository assetRepository = new FakeRagAssetRepository();
+        FakePayloadRepository payloadRepository = new FakePayloadRepository();
+        FakeVectorMemoryRepository vectorMemoryRepository = new FakeVectorMemoryRepository();
+        RagAssetIngestionService service = new RagAssetIngestionService(
+                assetRepository,
+                payloadRepository,
+                new RagParagraphChunker(512, 100),
+                new RagVectorIndexingService(vectorMemoryRepository, new FakeVectorIndexRepository()));
+        String chunkText = "The blue ticket number is NZ-417 and it is stored inside the red book.";
+
+        service.ingestFiles(RagFileIngestCommandEntity.builder()
+                .userId("user-1")
+                .sessionId("session-1")
+                .files(List.of(RagFilePayloadEntity.builder()
+                        .fileName("ticket.txt")
+                        .content(chunkText.getBytes(StandardCharsets.UTF_8))
+                        .build()))
+                .build());
+
+        VectorIndexRecordVO chunkRecord = vectorMemoryRepository.records.stream()
+                .filter(record -> record.getCollectionType() == VectorCollectionTypeEnumVO.RAG_FILE_CHUNK)
+                .findFirst()
+                .orElseThrow();
+        Assert.assertEquals(chunkText, chunkRecord.getText());
+        Assert.assertFalse(chunkRecord.getText().contains("sourceType:"));
+        Assert.assertFalse(chunkRecord.getText().contains("summary:"));
+        Assert.assertFalse(chunkRecord.getText().contains("content:"));
+    }
+
+    @Test
+    public void ingestFiles_usesRawChunkTextWhenChunkAnalysisFallsBack() {
+        FakeRagAssetRepository assetRepository = new FakeRagAssetRepository();
+        FakePayloadRepository payloadRepository = new FakePayloadRepository();
+        FakeVectorMemoryRepository vectorMemoryRepository = new FakeVectorMemoryRepository();
+        RagAssetIngestionService service = new RagAssetIngestionService(
+                assetRepository,
+                payloadRepository,
+                new RagParagraphChunker(512, 100),
+                new RagVectorIndexingService(vectorMemoryRepository, new FakeVectorIndexRepository()),
+                new FailingChunkAnalyzer());
+        String chunkText = "Fallback retrieval must embed this chunk text directly.";
+
+        service.ingestFiles(RagFileIngestCommandEntity.builder()
+                .userId("user-1")
+                .sessionId("session-1")
+                .files(List.of(RagFilePayloadEntity.builder()
+                        .fileName("fallback.txt")
+                        .content(chunkText.getBytes(StandardCharsets.UTF_8))
+                        .build()))
+                .build());
+
+        VectorIndexRecordVO chunkRecord = vectorMemoryRepository.records.stream()
+                .filter(record -> record.getCollectionType() == VectorCollectionTypeEnumVO.RAG_FILE_CHUNK)
+                .findFirst()
+                .orElseThrow();
+        Assert.assertEquals(chunkText, chunkRecord.getText());
+    }
+
+    @Test
     public void ingestFiles_persistsDocumentChunksPayloadsAndVectorsUsingAnalyzerSummaries() {
         FakeRagAssetRepository assetRepository = new FakeRagAssetRepository();
         FakePayloadRepository payloadRepository = new FakePayloadRepository();
@@ -120,6 +180,23 @@ public class RagAssetIngestionServiceTest {
                     .summary("LLM chunk summary")
                     .retrievalText("LLM chunk retrieval text for " + sourceName)
                     .build();
+        }
+    }
+
+    private static class FailingChunkAnalyzer implements RagAssetAnalyzer {
+
+        @Override
+        public RagAssetAnalysisResultVO analyzeDocument(String sourceName, String sourceType, String text) {
+            return RagAssetAnalysisResultVO.builder()
+                    .title(sourceName)
+                    .summary("Document summary")
+                    .retrievalText("Document retrieval text")
+                    .build();
+        }
+
+        @Override
+        public RagAssetAnalysisResultVO analyzeChunk(String sourceName, String sourceType, String text) {
+            throw new IllegalStateException("simulated analyzer failure");
         }
     }
 

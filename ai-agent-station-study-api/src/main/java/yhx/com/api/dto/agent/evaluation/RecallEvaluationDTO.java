@@ -145,7 +145,7 @@ public final class RecallEvaluationDTO {
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class ImportView<T> {
-        private Integer acceptedCount; private Integer failedCount; private List<T> items; private List<String> errors;
+        private Integer acceptedCount; private Integer skippedCount; private Integer failedCount; private List<T> items; private List<String> errors;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

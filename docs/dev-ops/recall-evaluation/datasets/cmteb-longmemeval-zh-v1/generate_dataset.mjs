@@ -452,34 +452,9 @@ const blueprints = [
   }
 ];
 
-const ensureLong = (paragraph, topic, signals, minimum = 640) => {
-  const clauses = [
-    `核验时应围绕“${topic.a}”提取可以执行的条件，并使用${signals.slice(0, 3).join('、')}交叉检查，而不是只比较标题关键词。`,
-    `如果候选资料只提到相近对象，却没有出现编号${topic.d}对应的边界“${topic.b}”，应把它视为同主题干扰项。`,
-    `实际执行记录要保留输入、判断依据、被排除方案与最终结果，方便在召回不正确时区分向量检索、Planner筛选和下游处理问题。`,
-    `对于时间、数量、版本和状态字段，必须说明采用的是哪一次更新；若信息冲突，以文档明确声明的当前规则为准，同时保留旧值作为审计背景。`,
-    `这份资料的目标是支持语义检索，因此问题可能使用同义表达、代词或结果描述，不一定复述“${topic.title}”这个标题。`
-  ];
-  let value = paragraph;
-  let i = 0;
-  while (value.length < minimum) {
-    value += clauses[i % clauses.length];
-    i += 1;
-  }
-  return value;
-};
-
-const makeRagContent = (scenario, topic, topicIndex) => {
+const makeRagChunkContent = (scenario, topic, topicIndex) => {
   const rotated = [...scenario.signals.slice(topicIndex % 5), ...scenario.signals.slice(0, topicIndex % 5)];
-  const paragraphs = [
-    `一、文档定位与适用问题。资料编号${topic.d}，主题为“${topic.title}”。${scenario.setting}本资料给出的核心判断是：${topic.a}。它适合回答没有直接照抄标题、但描述了目标、限制或异常结果的问题。检索时应同时识别${rotated.slice(0, 4).join('、')}等语义线索，并确认问题指向的是当前主题而不是邻近流程。`,
-    `二、决策规则与输入条件。开始前应收集对象、时间、数量、版本、参与人、当前状态和不可突破的硬约束，再按“先确认事实、再比较方案、最后记录取舍”的顺序处理。此主题最关键的边界是：${topic.b}。编号${topic.d}代表这一组规则的唯一锚点，但真实用户问题通常不会出现编号；系统必须依赖语义、条件组合和因果关系完成召回。`,
-    `三、执行流程。第一步把用户请求改写为目标与限制；第二步核对${rotated.slice(2, 6).join('、')}；第三步从候选中排除仅共享名词却不满足条件的资料；第四步验证例外；第五步形成可复查结论。执行过程中，每一个重要字段都要记录来源。如果新信息覆盖旧信息，不能简单删除旧值，而要标记更新时间、当前有效值以及变化原因。`,
-    `四、容易混淆的反例。最常见的错误是：${topic.c}。另一个错误是只看到${rotated.slice(5, 8).join('、')}中的一个词就判定命中，而忽略主题要求的组合条件。若候选内容只提供一般常识，没有编号${topic.d}对应的具体约束，相关度最多只能算次要。若候选与当前规则冲突，必须先检查它是否是旧版本、不同对象或不同场景。`,
-    `五、案例推演。正例问题可能描述“我遇到了相关限制，应该优先检查什么、哪些方案要排除”，但完全不出现资料标题；只要其目标与“${topic.a}”一致，并触发“${topic.b}”，就应召回本资料。负例问题则可能重复大量同领域名词，却实际询问${topic.c}所指向的另一类任务。评测时要关注正确资料是否进入Top K，也要观察同主题干扰资料的排序。`,
-    `六、输出与验收。最终答复应指出采用的规则、触发条件、被排除方案、风险与下一步，并明确哪些信息来自资料、哪些属于用户自己的长期记忆或偏好。验收至少包括：命中父文档、关键段落进入候选、相似资料未挤掉正确结果、时间与版本口径一致、Planner筛选后仍保留有效证据。资料编号${topic.d}仅用于人工核对，不应成为查询必须包含的捷径。`
-  ];
-  return paragraphs.map(p => ensureLong(p, topic, rotated)).join('\n\n');
+  return `资料片段编号${topic.d}，主题为“${topic.title}”。${scenario.setting}核心判断是：${topic.a}。适用时必须同时核对对象、时间、当前状态以及${rotated.slice(0, 4).join('、')}等线索，不能只比较标题关键词。关键边界是：${topic.b}。执行时先确认事实和硬约束，再排除只共享领域名词却不满足条件的候选，最后记录采用规则、例外与风险。最容易混淆的反例是：${topic.c}。如果资料来自旧版本、不同对象或不同场景，即使词面更相似也不能覆盖当前规则。用户问题可能使用同义表达、代词或结果描述，不会直接出现标题和编号，因此应依靠条件组合、因果关系和排除项召回本片段。`;
 };
 
 const makeMemoryContent = (scenario, fact) => [
@@ -509,10 +484,10 @@ activeBlueprints.forEach((scenario, scenarioIndex) => {
     const id = String(11001 + scenarioIndex * 10 + topicIndex);
     rag.push({
       externalId: id,
-      type: 'RAG_DOCUMENT',
+      type: 'RAG_CHUNK',
       title: topic.title,
       summary: `${topic.a}；关键边界：${topic.b}。`,
-      content: makeRagContent(scenario, topic, topicIndex),
+      content: makeRagChunkContent(scenario, topic, topicIndex),
       tags: [scenario.key, scenario.name, 'RAG', `topic-${topicIndex + 1}`, topic.d]
     });
   });
@@ -552,7 +527,7 @@ activeBlueprints.forEach((scenario, s) => {
       externalId: String(caseId++),
       query: `在${scenario.name}的资料里，不复述标题，请根据“${topic.b}”这个限制说明应该采用什么判断方法，并指出为什么不能按“${topic.c}”处理。`,
       sourceScope: 'RAG',
-      expected: [expected(String(11001 + s * 10 + i), 3, 'PARENT_DOCUMENT')],
+      expected: [expected(String(11001 + s * 10 + i), 3, 'EXACT_SOURCE')],
       tags: [scenario.key, scenario.name, i < 3 ? '语义改写' : i < 5 ? '条件检索' : '难负例', 'C-MTEB-style']
     });
   }
@@ -591,7 +566,7 @@ activeBlueprints.forEach((scenario, s) => {
       query: `请处理一个${scenario.name}的真实决策：公共资料要求“${topic.b}”；我最近关于${fact.title}的信息已经发生变化；同时我通常${pref.a}，并且在相关场景还会${pref2.a}。应该综合检索哪些依据，怎样避免采用旧事实或相似但错误的资料？`,
       sourceScope: 'MIXED',
       expected: [
-        expected(String(11001 + s * 10 + topicIndex), 3, 'PARENT_DOCUMENT'),
+        expected(String(11001 + s * 10 + topicIndex), 3, 'EXACT_SOURCE'),
         expected(String(21001 + s * 10 + topicIndex), 3, 'EXACT_SOURCE'),
         expected(String(31001 + s * 10 + topicIndex), 2, 'EXACT_SOURCE'),
         expected(String(31001 + s * 10 + secondPreferenceIndex), 2, 'EXACT_SOURCE')
@@ -635,14 +610,15 @@ const chunkCounts = rag.map(item => {
 });
 
 const manifest = {
-  version: '1.0.0',
-  generatedAt: '2026-08-08',
+  version: '2.0.0',
+  generatedAt: '2026-08-09',
   synthetic: true,
+  evaluationUnit: 'RAG_CHUNK',
   methodology: ['C-MTEB-style Chinese semantic retrieval and hard negatives', 'LongMemEval-style temporal updates, multi-session synthesis, and conditional preferences'],
   scenarios: activeBlueprints.map(({ key, name }) => ({ key, name })),
   counts: { rag: rag.length, longTermMemory: memories.length, userPreference: preferences.length, corpus: rag.length + memories.length + preferences.length, cases: orderedCases.length },
   idRanges: { rag: ['11001', '11100'], longTermMemory: ['21001', '21100'], userPreference: ['31001', '31100'], cases: ['41001', '41200'] },
-  productionChunking: { maxChars: 512, overlapChars: 100, minChunksPerDocument: Math.min(...chunkCounts), maxChunksPerDocument: Math.max(...chunkCounts), averageChunksPerDocument: Number((chunkCounts.reduce((a, b) => a + b, 0) / chunkCounts.length).toFixed(2)) }
+  productionChunking: { maxChars: 512, overlapChars: 100, requiredChunksPerRagItem: 1, minChunksPerDocument: Math.min(...chunkCounts), maxChunksPerDocument: Math.max(...chunkCounts), averageChunksPerDocument: Number((chunkCounts.reduce((a, b) => a + b, 0) / chunkCounts.length).toFixed(2)) }
 };
 fs.writeFileSync(path.join(outputDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 

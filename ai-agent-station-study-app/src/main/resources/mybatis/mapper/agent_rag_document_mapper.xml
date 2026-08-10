@@ -71,6 +71,19 @@
         LIMIT 1
     </select>
 
+    <select id="queryLatestByScopeAndSource" resultMap="AgentRagDocumentMap">
+        SELECT id, document_id, user_id, session_id, source_type, source_name,
+               repository_url, repository_name, branch_name, relative_path,
+               title, summary, content_ref, summary_ref, content_sha256,
+               status, chunk_count, failure_message, created_at, updated_at
+        FROM agent_rag_document
+        WHERE user_id = #{userId}
+          AND session_id = #{sessionId}
+          AND source_name = #{sourceName}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
     <select id="queryByDocumentIds" resultMap="AgentRagDocumentMap">
         SELECT id, document_id, user_id, session_id, source_type, source_name,
                repository_url, repository_name, branch_name, relative_path,

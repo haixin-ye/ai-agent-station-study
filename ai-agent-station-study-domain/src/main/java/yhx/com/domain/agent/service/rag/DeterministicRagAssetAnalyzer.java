@@ -18,7 +18,7 @@ public class DeterministicRagAssetAnalyzer implements RagAssetAnalyzer {
     public RagAssetAnalysisResultVO analyzeChunk(String sourceName, String sourceType, String text) {
         return RagAssetAnalysisResultVO.builder()
                 .summary(summarize(text))
-                .retrievalText(indexText(sourceName, sourceType, text))
+                .retrievalText(text)
                 .language(language(sourceName))
                 .build();
     }

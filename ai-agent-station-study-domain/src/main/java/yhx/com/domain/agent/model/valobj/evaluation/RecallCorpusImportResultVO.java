@@ -14,6 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 public class RecallCorpusImportResultVO {
     private Integer acceptedCount;
+    private Integer skippedCount;
     private Integer failedCount;
     private List<RecallEvaluationCorpusItemEntity> items;
 }

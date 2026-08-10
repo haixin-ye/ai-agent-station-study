@@ -22,6 +22,7 @@ import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
 import yhx.com.domain.agent.service.rag.RagContextRecallPreselector;
+import yhx.com.domain.agent.service.rag.IRagDomainService;
 import yhx.com.domain.agent.service.rag.RagVectorIndexingService;
 
 import java.util.concurrent.Executor;
@@ -60,10 +61,11 @@ public class RecallEvaluationConfig {
             IPayloadRepository payloadRepository,
             IVectorMemoryRepository vectorMemoryRepository,
             MemoryVectorIndexingService memoryVectorIndexingService,
-            RagVectorIndexingService ragVectorIndexingService) {
+            RagVectorIndexingService ragVectorIndexingService,
+            IRagDomainService ragDomainService) {
         return new RecallEvaluationIngestionService(evaluationRepository, ragAssetRepository,
                 longTermMemoryService, memoryRepository, payloadRepository,
-                vectorMemoryRepository, memoryVectorIndexingService, ragVectorIndexingService);
+                vectorMemoryRepository, memoryVectorIndexingService, ragVectorIndexingService, ragDomainService);
     }
 
     @Bean

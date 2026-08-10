@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public class RecallEvaluationRunner {
+    private static final String EVALUATION_AGENT_ID = "RECALL_EVALUATION";
 
     private final IRecallEvaluationRepository repository;
     private final VectorContextRecallPreselector memoryRecall;
@@ -98,9 +99,11 @@ public class RecallEvaluationRunner {
                                             RecallEvaluationRunConfigVO config) {
         List<RecallExpectedItemVO> expected = resolveExpected(dataset.getDatasetId(), testCase.getExpectedJson());
         ContextPreparationCommand command = ContextPreparationCommand.builder()
-                .runId(null)
+                .runId(run.getEvaluationRunId())
                 .userId(dataset.getEvalUserId())
                 .sessionId(dataset.getEvalSessionId())
+                .agentId(EVALUATION_AGENT_ID)
+                .loopIndex(0)
                 .userInput(testCase.getQueryText())
                 .build();
         RecallExecutionOptionsVO options = options(dataset.getDatasetId(), config);
@@ -116,7 +119,7 @@ public class RecallEvaluationRunner {
         metrics.setRetrievalLatencyMs(retrievalLatency);
 
         PlannerOutcome plannerOutcome = Boolean.TRUE.equals(config.getPlannerEnabled())
-                ? invokePlanner(memory, rag, hits, expected, config) : PlannerOutcome.notInvoked();
+                ? invokePlanner(run, memory, rag, hits, expected, config) : PlannerOutcome.notInvoked();
         metrics.setPlannerInvoked(plannerOutcome.invoked);
         metrics.setPlannerLatencyMs(plannerOutcome.latencyMs);
         metrics.setPlannerPrecision(plannerOutcome.precision);
@@ -172,6 +175,11 @@ public class RecallEvaluationRunner {
             return defaults;
         }
         Set<String> selected = new HashSet<>(config.getCollectionTypes());
+        // The evaluation corpus calls a row RAG_CHUNK, while normal file ingestion stores
+        // its physical vector in RAG_FILE_CHUNK. Keep older/manual configs working.
+        if (selected.contains(VectorCollectionTypeEnumVO.RAG_CHUNK.name())) {
+            selected.add(VectorCollectionTypeEnumVO.RAG_FILE_CHUNK.name());
+        }
         return defaults.stream().filter(value -> selected.contains(value.name())).toList();
     }
 
@@ -187,15 +195,7 @@ public class RecallEvaluationRunner {
                 .sorted(Comparator.comparing((RankedRawHit value) -> value.hit.getScore(),
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
-        Map<String, RankedRawHit> logicalResults = new LinkedHashMap<>();
-        for (RankedRawHit value : scored) {
-            String documentId = metadata(value.hit, "documentId");
-            String logicalKey = documentId == null || documentId.isBlank()
-                    ? String.valueOf(value.hit.getCollectionType()) + "|" + value.hit.getSourceId()
-                    : "RAG_DOCUMENT|" + documentId;
-            logicalResults.putIfAbsent(logicalKey, value);
-        }
-        List<RankedRawHit> ranked = logicalResults.values().stream()
+        List<RankedRawHit> ranked = scored.stream()
                 .limit(topK)
                 .toList();
         List<RecallEvaluationHitEntity> result = new ArrayList<>();
@@ -244,7 +244,8 @@ public class RecallEvaluationRunner {
         }
     }
 
-    private PlannerOutcome invokePlanner(DetailedRecallResultVO memory,
+    private PlannerOutcome invokePlanner(RecallEvaluationRunEntity run,
+                                         DetailedRecallResultVO memory,
                                          DetailedRecallResultVO rag,
                                          List<RecallEvaluationHitEntity> hits,
                                          List<RecallExpectedItemVO> expected,
@@ -256,7 +257,8 @@ public class RecallEvaluationRunner {
                     .artifactCandidates(List.of()).evidenceCandidates(List.of()).build()
                     : memory.getCandidateBundle();
             bundle.setRagCandidates(rag == null || rag.getRagCandidates() == null ? List.of() : rag.getRagCandidates());
-            ContextPlannerOutputVO output = planner.plan(bundle, config);
+            ContextPlannerOutputVO output = planner.plan(bundle, config,
+                    run.getEvaluationRunId(), EVALUATION_AGENT_ID);
             Set<String> selected = selectedIds(output);
             hits.forEach(hit -> hit.setSelectedByPlanner(selected.contains(hit.getSourceId())
                     || selected.contains(hit.getParentSourceId())));

@@ -23,17 +23,25 @@ import yhx.com.domain.agent.model.entity.rag.RagChunkEntity;
 import yhx.com.domain.agent.model.entity.rag.RagCodeFileEntity;
 import yhx.com.domain.agent.model.entity.rag.RagCodeSymbolEntity;
 import yhx.com.domain.agent.model.entity.rag.RagDocumentEntity;
+import yhx.com.domain.agent.model.entity.rag.RagFileIngestCommandEntity;
+import yhx.com.domain.agent.model.entity.rag.RagGitIngestCommandEntity;
+import yhx.com.domain.agent.model.valobj.context.ContextCandidateBundleVO;
 import yhx.com.domain.agent.model.valobj.context.ContextPreparationCommand;
 import yhx.com.domain.agent.model.valobj.enums.memory.VectorCollectionTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.enums.memory.VectorSourceTypeEnumVO;
 import yhx.com.domain.agent.model.valobj.evaluation.DetailedRecallResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusBatchActionResultVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportItemVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallExecutionOptionsVO;
+import yhx.com.domain.agent.model.valobj.evaluation.RecallEvaluationRunConfigVO;
 import yhx.com.domain.agent.model.valobj.evaluation.RecallRagAttachmentItemVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorIndexRecordVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallHitVO;
 import yhx.com.domain.agent.model.valobj.memory.VectorRecallQueryVO;
 import yhx.com.domain.agent.model.valobj.invocation.ContextPlannerOutputVO;
+import yhx.com.domain.agent.model.valobj.invocation.NodeInvocationProfileVO;
+import yhx.com.domain.agent.service.evaluation.ContextPlannerEvaluationAdapter;
 import yhx.com.domain.agent.service.memory.VectorContextRecallPreselector;
 import yhx.com.domain.agent.service.memory.LongTermMemoryService;
 import yhx.com.domain.agent.service.memory.MemoryVectorIndexingService;
@@ -42,6 +50,8 @@ import yhx.com.domain.agent.service.evaluation.RecallEvaluationIngestionService;
 import yhx.com.domain.agent.service.evaluation.RecallEvaluationFacade;
 import yhx.com.domain.agent.service.evaluation.RecallMetricsCalculator;
 import yhx.com.domain.agent.service.rag.RagVectorIndexingService;
+import yhx.com.domain.agent.service.rag.IRagDomainService;
+import yhx.com.domain.agent.service.node.contextplanner.ContextPlannerNodeService;
 import com.alibaba.fastjson.JSON;
 
 import java.math.BigDecimal;
@@ -49,6 +59,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.LinkedHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -129,7 +140,7 @@ public class RecallEvaluationFlowTest {
                 .build();
         CapturingVectorRepository vectors = new CapturingVectorRepository();
         RecallEvaluationIngestionService ingestion = new RecallEvaluationIngestionService(
-                evaluations, null, null, new FakeMemoryRepository(), null, vectors, null, null);
+                evaluations, null, null, new FakeMemoryRepository(), null, vectors, null, null, null);
         RecallEvaluationFacade facade = new RecallEvaluationFacade(
                 evaluations, ingestion, null, null, null, null);
 
@@ -143,6 +154,73 @@ public class RecallEvaluationFlowTest {
         Assert.assertEquals(Integer.valueOf(1), evaluations.dataset.getCorpusCount());
         Assert.assertEquals(Integer.valueOf(0), evaluations.dataset.getReadyCorpusCount());
         Assert.assertTrue(result.getErrors().get(0).contains("missing"));
+    }
+
+    @Test
+    public void rag_chunk_import_maps_numeric_id_to_the_single_generated_chunk() {
+        InMemoryEvaluationRepository evaluations = new InMemoryEvaluationRepository();
+        evaluations.dataset = RecallEvaluationDatasetEntity.builder()
+                .datasetId("dataset-1")
+                .evalUserId("eval-user:dataset-1")
+                .evalSessionId("eval-session:dataset-1")
+                .corpusCount(0)
+                .readyCorpusCount(0)
+                .build();
+        FakeRagAssetRepository ragAssets = new FakeRagAssetRepository();
+        ragAssets.document = RagDocumentEntity.builder()
+                .documentId("rag-doc-1")
+                .title("独立召回片段")
+                .status("READY")
+                .chunkCount(1)
+                .build();
+        ragAssets.chunk = RagChunkEntity.builder()
+                .chunkId("rag-doc-1-chunk-1")
+                .documentId("rag-doc-1")
+                .chunkNo(1)
+                .chunkType("FILE_CHUNK")
+                .summary("片段摘要")
+                .contentRef("payload-rag-chunk")
+                .status("ACTIVE")
+                .build();
+        FakeRagDomainService ragService = new FakeRagDomainService(ragAssets);
+        CapturingVectorRepository vectors = new CapturingVectorRepository();
+        RagVectorIndexingService ragIndexing = new RagVectorIndexingService(
+                vectors, new FakeVectorIndexRepository());
+        RecallEvaluationIngestionService ingestion = new RecallEvaluationIngestionService(
+                evaluations, ragAssets, null, null, null, vectors, null, ragIndexing, ragService);
+
+        RecallCorpusImportResultVO result = ingestion.importBatch("dataset-1", List.of(
+                RecallCorpusImportItemVO.builder()
+                        .externalId("11001")
+                        .type("RAG_CHUNK")
+                        .title("独立召回片段")
+                        .content("这是一个包含完整条件、约束、反例和判断依据的独立RAG召回片段。")
+                        .build()));
+
+        Assert.assertEquals(Integer.valueOf(1), result.getAcceptedCount());
+        Assert.assertEquals("RAG_CHUNK", evaluations.corpus.getItemType());
+        Assert.assertEquals("rag-doc-1-chunk-1", evaluations.corpus.getSourceId());
+        Assert.assertEquals("rag-doc-1", evaluations.corpus.getParentSourceId());
+        Assert.assertEquals("payload-rag-chunk", evaluations.corpus.getContentRef());
+        Assert.assertTrue(ragService.command.getIndexingMetadata().isEmpty());
+        Assert.assertEquals(VectorCollectionTypeEnumVO.RAG_FILE_CHUNK, vectors.metadataCollection);
+        Assert.assertEquals("rag-doc-1-chunk-1", vectors.metadataSourceId);
+        Assert.assertEquals("dataset-1", vectors.mergedMetadata.get("evalDatasetId"));
+        Assert.assertEquals("11001", vectors.mergedMetadata.get("evalExternalId"));
+    }
+
+    @Test
+    public void planner_adapter_passes_evaluation_identity_to_real_node_pipeline() {
+        CapturingContextPlannerNodeService plannerNode = new CapturingContextPlannerNodeService();
+        ContextPlannerEvaluationAdapter adapter = new ContextPlannerEvaluationAdapter(plannerNode);
+
+        ContextPlannerOutputVO output = adapter.plan(ContextCandidateBundleVO.builder().build(),
+                RecallEvaluationRunConfigVO.builder().plannerModelCode("planner-model").build(),
+                "eval-run-1", "RECALL_EVALUATION");
+
+        Assert.assertEquals("READY", output.getStatus());
+        Assert.assertEquals("eval-run-1", plannerNode.runId);
+        Assert.assertEquals("RECALL_EVALUATION", plannerNode.agentId);
     }
 
     @Test
@@ -187,7 +265,7 @@ public class RecallEvaluationFlowTest {
         RagVectorIndexingService ragIndexing = new RagVectorIndexingService(
                 vectors, new FakeVectorIndexRepository());
         RecallEvaluationIngestionService ingestion = new RecallEvaluationIngestionService(
-                evaluations, ragAssets, null, null, payloads, vectors, null, ragIndexing);
+                evaluations, ragAssets, null, null, payloads, vectors, null, ragIndexing, null);
 
         yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO result =
                 ingestion.attachUploadedRagDocuments("dataset-1", List.of(
@@ -205,6 +283,28 @@ public class RecallEvaluationFlowTest {
         Assert.assertEquals("rag-doc-1-chunk-1", vectors.metadataSourceId);
         Assert.assertEquals("dataset-1", vectors.mergedMetadata.get("evalDatasetId"));
         Assert.assertEquals("10001", vectors.mergedMetadata.get("evalExternalId"));
+        Assert.assertEquals(Integer.valueOf(1), evaluations.dataset.getReadyCorpusCount());
+
+        evaluations.corpus.setStatus("DISABLED");
+        evaluations.dataset.setReadyCorpusCount(0);
+        ragAssets.document.setDocumentId("rag-doc-2");
+        ragAssets.document.setSourceName("10001-replacement.md");
+        ragAssets.chunk.setChunkId("rag-doc-2-chunk-1");
+        ragAssets.chunk.setDocumentId("rag-doc-2");
+
+        yhx.com.domain.agent.model.valobj.evaluation.RecallCorpusImportResultVO replacement =
+                ingestion.attachUploadedRagDocuments("dataset-1", List.of(
+                        RecallRagAttachmentItemVO.builder()
+                                .externalId("10001")
+                                .documentId("rag-doc-2")
+                                .title("replacement")
+                                .build()));
+
+        Assert.assertEquals(Integer.valueOf(1), replacement.getAcceptedCount());
+        Assert.assertEquals("corpus-1", evaluations.corpus.getCorpusItemId());
+        Assert.assertEquals("rag-doc-2", evaluations.corpus.getSourceId());
+        Assert.assertEquals("rag-doc-2-chunk-1", vectors.metadataSourceId);
+        Assert.assertEquals(Integer.valueOf(1), evaluations.dataset.getCorpusCount());
         Assert.assertEquals(Integer.valueOf(1), evaluations.dataset.getReadyCorpusCount());
     }
 
@@ -452,6 +552,39 @@ public class RecallEvaluationFlowTest {
         @Override public List<RagCodeFileEntity> findCodeFilesByDocumentId(String documentId) { return List.of(); }
         @Override public void saveCodeSymbol(RagCodeSymbolEntity symbol) { }
         @Override public List<RagCodeSymbolEntity> findCodeSymbolsByDocumentId(String documentId) { return List.of(); }
+    }
+
+    private static class FakeRagDomainService implements IRagDomainService {
+        private final FakeRagAssetRepository assets;
+        private RagFileIngestCommandEntity command;
+
+        private FakeRagDomainService(FakeRagAssetRepository assets) {
+            this.assets = assets;
+        }
+
+        @Override public Set<String> queryRagTagList() { return Set.of(); }
+        @Override public List<RagDocumentEntity> ingestFiles(RagFileIngestCommandEntity commandEntity) {
+            command = commandEntity;
+            return List.of(assets.document);
+        }
+        @Override public void analyzeGitRepository(RagGitIngestCommandEntity commandEntity) { }
+    }
+
+    private static class CapturingContextPlannerNodeService extends ContextPlannerNodeService {
+        private String runId;
+        private String agentId;
+
+        private CapturingContextPlannerNodeService() {
+            super(null);
+        }
+
+        @Override
+        public ContextPlannerOutputVO plan(Object input, String runId, String agentId,
+                                           NodeInvocationProfileVO profile, Integer loopIndex) {
+            this.runId = runId;
+            this.agentId = agentId;
+            return ContextPlannerOutputVO.builder().status("READY").build();
+        }
     }
 
     private static class InMemoryEvaluationRepository implements IRecallEvaluationRepository {

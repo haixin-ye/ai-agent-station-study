@@ -11,15 +11,16 @@ const workbenchSource = fs.readFileSync(require.resolve('./recall_evaluation.js'
 if (!workbenchSource.includes('selectDataset(datasetCard.dataset.datasetId)')) {
   throw new Error('dataset card must read datasetId from HTMLElement.dataset');
 }
-if (!workbenchSource.includes('/api/v1/rag/knowledge/files')
-  || !workbenchSource.includes('new File([')
-  || !workbenchSource.includes('/corpus/rag/attachments')) {
-  throw new Error('RAG evaluation import must use the production multipart upload endpoint before attachment');
+if (!workbenchSource.includes("['RAG_CHUNK', 'RAG Chunk']")
+  || !workbenchSource.includes('item.type = state.importCorpusType')
+  || workbenchSource.includes('/corpus/rag/attachments')) {
+  throw new Error('RAG evaluation import must use the direct chunk corpus contract without parent-document attachment');
 }
-if (!workbenchSource.includes('uploadSingleRagDocument(item)')
-  || !workbenchSource.includes('再次导入同一文件会自动跳过已完成的大文件')
-  || !workbenchSource.includes('renderRagImportStatus()')) {
-  throw new Error('RAG import must upload and attach parent documents incrementally with visible resumable progress');
+if (!workbenchSource.includes('METRIC_HELP')
+  || !workbenchSource.includes('data-metric-help')
+  || !workbenchSource.includes('计算公式')
+  || !workbenchSource.includes('如何判断')) {
+  throw new Error('result metrics must expose hover/focus help with meaning, formula, and quality guidance');
 }
 
 const jsonl = parseJsonl('{"externalId":"q1","query":"hello"}\nnot-json\n{"externalId":"q2","query":"world"}');

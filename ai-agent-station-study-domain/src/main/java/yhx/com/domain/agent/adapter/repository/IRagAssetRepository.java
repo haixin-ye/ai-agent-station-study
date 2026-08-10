@@ -16,6 +16,10 @@ public interface IRagAssetRepository {
 
     Optional<RagDocumentEntity> findDocument(String documentId);
 
+    default Optional<RagDocumentEntity> findLatestDocument(String userId, String sessionId, String sourceName) {
+        return Optional.empty();
+    }
+
     List<RagDocumentEntity> findDocumentsByIds(List<String> documentIds);
 
     void saveChunk(RagChunkEntity chunk);

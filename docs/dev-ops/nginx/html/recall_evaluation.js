@@ -4,12 +4,12 @@
   const API_BASE = (params.get('api') || location.origin).replace(/\/$/, '');
   const API = `${API_BASE}/api/v1/dev/recall-evaluations`;
   const state = {
-    tab: params.get('tab') || 'corpus', corpusType: params.get('corpusType') || 'RAG_DOCUMENT',
+    tab: params.get('tab') || 'corpus', corpusType: params.get('corpusType') || 'RAG_CHUNK',
     datasets: [], datasetId: params.get('datasetId'), corpus: [], cases: [], runs: [],
-    vectors: { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] },
+    vectors: { RAG_CHUNK: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] },
     runId: params.get('runId'), runDetail: null, comparison: null, importTarget: null,
     importCorpusType: null, polling: false, viewRefreshPending: false, selectedCorpusIds: new Set(),
-    importSubmitting: false, ragImport: null
+    importSubmitting: false
   };
   const els = {
     view: document.getElementById('view'), datasetList: document.getElementById('datasetList'),
@@ -21,7 +21,7 @@
     importText: document.getElementById('importText'), importFormat: document.getElementById('importFormat'),
     importHint: document.getElementById('importHint'), importFilePicker: document.getElementById('importFilePicker'),
     importFileName: document.getElementById('importFileName'), importSubmitBtn: document.getElementById('importSubmitBtn'),
-    idPreview: document.getElementById('idPreview'),
+    idPreview: document.getElementById('idPreview'), metricHelp: document.getElementById('metricHelp'),
     toast: document.getElementById('toast')
   };
 
@@ -32,7 +32,40 @@
   const pct = value => `${((Number(value) || 0) * 100).toFixed(1)}%`;
   const number = value => Number(value || 0).toLocaleString('zh-CN');
   const statePill = value => `<span class="state ${statusClass(value)}">${esc(value || 'UNKNOWN')}</span>`;
-  const metric = (label, value, note = '') => `<div class="metric"><label>${esc(label)}</label><strong>${esc(value)}</strong>${note ? `<small>${esc(note)}</small>` : ''}</div>`;
+  const METRIC_HELP = {
+    hitRate: { title: 'Hit Rate@K · 命中率', meaning: '有多少问题能在前 K 个结果中至少找到一个正确答案。', formula: '命中问题数 ÷ 有效测试问题总数', good: '越高越好；≥90%通常很强，80%–90%可用，仍应和同一数据集基线比较。' },
+    precision: { title: 'Precision@K · 准确率', meaning: '召回出来的候选中，有多大比例是真正相关的。', formula: '每题：正确候选数 ÷ min(K, 实际返回数)，最后对全部问题取平均', good: '越高越好；高 Precision 表示噪声少。多答案问题通常更能体现该指标。' },
+    recall: { title: 'Recall@K · 召回率', meaning: '所有应该命中的正确答案中，实际找回了多少。', formula: '每题：已命中期望答案数 ÷ 期望答案总数，最后对全部问题取平均', good: '越高越好；核心知识召回通常希望≥90%，并应同时关注 Precision。' },
+    mrr: { title: 'MRR · 平均倒数排名', meaning: '衡量第一个正确答案出现得有多靠前。', formula: 'MRR = 平均(1 ÷ 第一个正确答案的排名)；未命中记为 0', good: '越接近 1 越好；≥0.8 表示正确答案通常位于第 1–2 名。' },
+    ndcg: { title: 'nDCG@K · 排序质量', meaning: '同时考虑相关性等级和答案排名，越相关的答案排得越靠前得分越高。', formula: 'nDCG@K = DCG@K ÷ 理想排序下的 IDCG@K', good: '越接近 1 越好；≥0.8 通常说明整体排序质量较好。' },
+    map: { title: 'MAP@K · 多答案排序质量', meaning: '综合衡量多个正确答案是否持续出现在靠前位置。', formula: '每题 AP = 各正确命中位置的 Precision 平均值；MAP = 所有问题 AP 的平均值', good: '越接近 1 越好；≥0.8 通常较好，尤其适合一个问题对应多个正确 ID。' },
+    noHit: { title: 'No Hit · 未命中率', meaning: '完全没有召回任何正确答案的问题比例。', formula: '未命中问题数 ÷ 有效测试问题总数', good: '越低越好；理想值为 0%，应优先排查这部分问题。' },
+    p95Latency: { title: 'P95 召回耗时', meaning: '95% 的测试问题，其召回耗时不会超过这个数值。', formula: '将单题召回耗时从小到大排序，取第 95 百分位', good: '越低越好；是否合格应以产品延迟 SLO 为准。' },
+    retention: { title: '正确候选保留率', meaning: 'Planner 对原始召回中的正确候选保留了多少。', formula: 'Planner 保留的正确候选数 ÷ 原始召回的正确候选数', good: '越高越好；建议≥95%，优先保证不误删正确答案。' },
+    removal: { title: '无关候选剔除率', meaning: 'Planner 从原始召回噪声中成功移除了多少。', formula: '(原始无关候选数 − Planner 保留的无关候选数) ÷ 原始无关候选数', good: '越高越好，但不能用误删正确答案换取高剔除率。' },
+    dropped: { title: '正确候选误删', meaning: 'Planner 错误删除的正确候选总数。', formula: 'Σ max(0, 原始正确候选数 − Planner 保留的正确候选数)', good: '越低越好，理想值为 0；出现任何误删都值得查看对应问题。' },
+    selectedCount: { title: '平均保留候选数', meaning: 'Planner 每个问题平均留下多少条上下文候选。', formula: 'Planner 保留候选总数 ÷ Planner 实际执行问题数', good: '没有统一的越高越好；应在正确候选保留率稳定的前提下尽量精简。' },
+    plannerFailure: { title: 'Planner 失败率', meaning: 'Context Planner 调用、解析或校验失败的问题比例。', formula: 'Planner 失败问题数 ÷ Planner 调用总数', good: '越低越好，理想值为 0%；持续高于 1% 应检查模型、Prompt、Contract 和 Runtime trace。' },
+    plannerLatency: { title: 'Planner 平均耗时', meaning: 'Context Planner 完成一次筛选平均需要多久。', formula: 'Planner 调用总耗时 ÷ Planner 调用次数', good: '越低越好；需要结合 Planner 带来的质量提升判断额外延迟是否值得。' },
+    rawResult: { title: '原始召回结果', meaning: '未经过 Context Planner 时，前 K 个召回结果是否包含正确答案。', formula: '存在至少一个 expected ID 命中则为“命中”，否则为“未命中”', good: '命中为好；未命中说明问题在召回、索引、过滤条件或数据本身。' },
+    plannerResult: { title: 'Planner 筛选结果', meaning: '经过 Context Planner 筛选后，保留下来的候选是否仍包含正确答案。', formula: 'Planner 保留候选中存在 expected ID 则为“命中”', good: '应保持命中；原始命中但 Planner 未命中，说明 Planner 误删了正确候选。' },
+    caseLatency: { title: '单题召回耗时', meaning: '这个问题执行 Memory/RAG 召回所消耗的时间。', formula: '召回结束时间 − 召回开始时间', good: '越低越好；应与同配置下的 P95 和产品延迟目标一起判断。' },
+    candidateScore: { title: '候选相关分数', meaning: '召回器给这条候选的相关性分数，用于本次排序和最低分阈值过滤。', formula: '由向量相似度或混合召回评分产生；具体尺度取决于召回模式', good: '同一次运行内通常越高越相关；不要跨模型、跨召回模式比较绝对值。' }
+  };
+  const METRIC_HELP_KEYS = {
+    'Hit Rate@K':'hitRate', 'Hit Rate':'hitRate', '命中率':'hitRate', 'Precision@K':'precision', 'Precision':'precision',
+    'Recall@K':'recall', 'Recall':'recall', 'MRR':'mrr', 'nDCG@K':'ndcg', 'nDCG':'ndcg', 'MAP@K':'map', 'MAP':'map',
+    'No Hit':'noHit', 'P95耗时':'p95Latency', 'P95 Latency':'p95Latency', '正确候选保留率':'retention',
+    '无关候选剔除率':'removal', '正确候选误删':'dropped', '平均保留候选数':'selectedCount',
+    'Planner失败率':'plannerFailure', 'Planner平均耗时':'plannerLatency', '原始结果':'rawResult',
+    'Planner结果':'plannerResult', '耗时':'caseLatency', '候选分数':'candidateScore'
+  };
+  const metricHelpIcon = label => {
+    const key = METRIC_HELP_KEYS[label];
+    return key ? `<button class="metric-help-trigger" type="button" data-metric-help="${esc(key)}" aria-label="查看 ${esc(label)} 的说明">?</button>` : '';
+  };
+  const metricLabel = label => `<span>${esc(label)}</span>${metricHelpIcon(label)}`;
+  const metric = (label, value, note = '') => `<div class="metric"><label>${metricLabel(label)}</label><strong>${esc(value)}</strong>${note ? `<small>${esc(note)}</small>` : ''}</div>`;
   const idPreviewTrigger = id => id ? `<span class="tag id-preview-trigger" tabindex="0" data-preview-id="${esc(id)}">${esc(id)}</span>` : '—';
 
   function previewRecord(externalId) {
@@ -74,12 +107,34 @@
     els.idPreview.innerHTML = '';
   }
 
+  function showMetricHelp(trigger) {
+    const help = METRIC_HELP[trigger.dataset.metricHelp];
+    if (!help) return;
+    els.metricHelp.innerHTML = `<div class="metric-help-head"><span>指标说明</span><strong>${esc(help.title)}</strong></div><p>${esc(help.meaning)}</p><div><span>计算公式</span><code>${esc(help.formula)}</code></div><div><span>如何判断</span><strong>${esc(help.good)}</strong></div>`;
+    els.metricHelp.hidden = false;
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(330, window.innerWidth - 24);
+    els.metricHelp.style.width = `${width}px`;
+    const left = Math.min(Math.max(12, rect.left - 12), window.innerWidth - width - 12);
+    let top = rect.bottom + 9;
+    const height = els.metricHelp.offsetHeight;
+    if (top + height > window.innerHeight - 12) top = Math.max(12, rect.top - height - 9);
+    els.metricHelp.style.left = `${left}px`;
+    els.metricHelp.style.top = `${top}px`;
+  }
+
+  function hideMetricHelp() {
+    els.metricHelp.hidden = true;
+    els.metricHelp.innerHTML = '';
+  }
+
   function inspectionActive() {
     const selection = window.getSelection?.()?.toString().trim();
     return Boolean(selection
       || document.querySelector('.modal.open')
       || document.querySelector('.result-card[open]')
       || !els.idPreview.hidden
+      || !els.metricHelp.hidden
       || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName));
   }
 
@@ -125,7 +180,7 @@
       request(`/runs?datasetId=${id}&limit=100`)
     ]);
     const vectorResults = await Promise.allSettled([
-      request(`/datasets/${id}/vectors?itemType=RAG_DOCUMENT&limit=5000`),
+      request(`/datasets/${id}/vectors?itemType=RAG_CHUNK&limit=1000`),
       request(`/datasets/${id}/vectors?itemType=LONG_TERM_MEMORY&limit=1000`),
       request(`/datasets/${id}/vectors?itemType=USER_PREFERENCE&limit=1000`)
     ]);
@@ -134,7 +189,7 @@
     state.cases = cases;
     state.runs = runs;
     state.vectors = {
-      RAG_DOCUMENT: vectorResults[0].status === 'fulfilled' ? vectorResults[0].value : [],
+      RAG_CHUNK: vectorResults[0].status === 'fulfilled' ? vectorResults[0].value : [],
       LONG_TERM_MEMORY: vectorResults[1].status === 'fulfilled' ? vectorResults[1].value : [],
       USER_PREFERENCE: vectorResults[2].status === 'fulfilled' ? vectorResults[2].value : []
     };
@@ -208,7 +263,7 @@
   }
 
   function renderCorpus() {
-    const types = [['RAG_DOCUMENT', 'RAG 数据'], ['LONG_TERM_MEMORY', '长期记忆'], ['USER_PREFERENCE', '用户偏好']];
+    const types = [['RAG_CHUNK', 'RAG Chunk'], ['LONG_TERM_MEMORY', '长期记忆'], ['USER_PREFERENCE', '用户偏好']];
     const type = state.corpusType;
     const items = state.corpus.filter(item => item.itemType === type);
     const selectable = items;
@@ -216,37 +271,19 @@
     const disableSelectedCount = selectable.filter(item => item.status !== 'DISABLED' && state.selectedCorpusIds.has(item.corpusItemId)).length;
     const vectors = state.vectors[type] || [];
     const label = types.find(item => item[0] === type)?.[1] || type;
-    const columnLabel = type === 'RAG_DOCUMENT' ? '内部 Chunk' : '真实向量库记录';
+    const idLabel = type === 'RAG_CHUNK' ? 'Chunk ID' : '记录ID';
     return `<section class="panel">
       <div class="subtabs">${types.map(([value, text]) => `<button class="subtab ${value === type ? 'active' : ''}" data-corpus-type="${value}">${text} <span class="tag">${state.corpus.filter(item => item.itemType === value).length}</span></button>`).join('')}</div>
-      <div class="panel-head"><div><h3>${type === 'RAG_DOCUMENT' ? 'RAG 原始文件表' : `${label}表`}</h3><p>${type === 'RAG_DOCUMENT' ? '每行代表一个原始大文件；文件内部的 chunk 仅作为可展开明细。' : '表格展示评测记录与 PGVector 中真实同步的向量行。'}</p></div><div class="actions corpus-batch-actions"><span class="batch-selection" data-batch-selection>${selectedCount ? `已选 ${selectedCount} 项` : '选择记录后可批量操作'}</span><button class="btn small" data-corpus-batch="reindex" ${selectedCount ? '' : 'disabled'}>批量重建索引</button><button class="btn small danger" data-corpus-batch="disable" ${disableSelectedCount ? '' : 'disabled'}>批量停用</button><button class="btn primary" data-open-import="corpus" data-corpus-type="${type}" ${state.importSubmitting ? 'disabled' : ''}>${state.importSubmitting && type === 'RAG_DOCUMENT' ? '正在上传…' : `导入 ${label}`}</button></div></div>
-      ${type === 'RAG_DOCUMENT' ? renderRagImportStatus() : ''}
-      <div class="panel-body">${items.length ? `<table class="table corpus-table"><thead><tr><th class="check-cell"><input type="checkbox" data-corpus-select-all aria-label="选择当前表全部记录" ${selectable.length && selectedCount === selectable.length ? 'checked' : ''} ${selectable.length ? '' : 'disabled'}></th><th>大文件ID</th><th>文件内容</th><th>${columnLabel}</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
+      <div class="panel-head"><div><h3>${label}表</h3><p>${type === 'RAG_CHUNK' ? '每条数据就是一个独立召回单元；数字ID直接对应唯一的真实向量 Chunk。' : '表格展示评测记录与 PGVector 中真实同步的向量行。'}</p></div><div class="actions corpus-batch-actions"><span class="batch-selection" data-batch-selection>${selectedCount ? `已选 ${selectedCount} 项` : '选择记录后可批量操作'}</span><button class="btn small" data-corpus-batch="reindex" ${selectedCount ? '' : 'disabled'}>批量重建索引</button><button class="btn small danger" data-corpus-batch="disable" ${disableSelectedCount ? '' : 'disabled'}>批量停用</button><button class="btn primary" data-open-import="corpus" data-corpus-type="${type}" ${state.importSubmitting ? 'disabled' : ''}>${state.importSubmitting ? '正在导入…' : `导入 ${label}`}</button></div></div>
+      <div class="panel-body">${items.length ? `<table class="table corpus-table"><thead><tr><th class="check-cell"><input type="checkbox" data-corpus-select-all aria-label="选择当前表全部记录" ${selectable.length && selectedCount === selectable.length ? 'checked' : ''} ${selectable.length ? '' : 'disabled'}></th><th>${idLabel}</th><th>内容</th><th>真实向量库记录</th><th>状态</th><th>操作</th></tr></thead><tbody>${items.map(item => corpusRow(item, vectors)).join('')}</tbody></table>` : `<div class="empty">尚未导入${label}。点击右上角导入JSONL或CSV。</div>`}</div>
     </section>`;
-  }
-
-  function renderRagImportStatus() {
-    const progress = state.ragImport;
-    if (!progress) return '';
-    const total = Math.max(1, Number(progress.total || 0));
-    const completed = Number(progress.completed || 0);
-    const percent = Math.min(100, completed / total * 100);
-    const status = progress.active ? `正在处理大文件 ${progress.currentExternalId || ''}`
-      : progress.failed ? '本次上传已暂停，可重新导入同一文件继续' : '本次上传完成';
-    return `<div class="rag-import-status ${progress.failed ? 'failed' : ''}" data-rag-import-status><div class="rag-import-status-head"><strong>${esc(status)}</strong><span>${completed}/${total} 完成 · ${Number(progress.skipped || 0)} 已跳过 · ${Number(progress.failed || 0)} 失败</span></div><div class="progress"><i style="width:${percent}%"></i></div><p>${esc(progress.message || '每个大文件完成后会立即写入看板。')}</p></div>`;
   }
 
   function corpusRow(item, vectors) {
     const stored = vectors.filter(record => record.externalId === item.externalId);
     const preview = stored[0]?.content || item.summary || '';
     const disabled = item.status === 'DISABLED';
-    const sourceRefs = Array.isArray(item.sourceRefs) ? item.sourceRefs : [];
-    const chunkCount = Math.max(stored.length, sourceRefs.length);
-    const vectorCell = item.itemType === 'RAG_DOCUMENT'
-      ? (stored.length
-        ? `<details><summary class="chunk-summary">${chunkCount} 个 chunk</summary><div class="db-records">${stored.slice().sort((a, b) => Number(a.metadata?.chunkNo || 0) - Number(b.metadata?.chunkNo || 0)).map(vectorRecord).join('')}</div></details>`
-        : item.status === 'READY' ? `<span class="state ready">${chunkCount || '—'} 个 chunk 已就绪</span>` : '<span class="state pending">等待生成 chunk</span>')
-      : (stored.length ? `<details><summary>${stored.length} 条真实向量记录</summary><div class="db-records">${stored.map(vectorRecord).join('')}</div></details>` : '<span class="state failed">向量库无记录</span>');
+    const vectorCell = stored.length ? `<details><summary>${stored.length} 条真实向量记录</summary><div class="db-records">${stored.map(vectorRecord).join('')}</div></details>` : '<span class="state failed">向量库无记录</span>';
     return `<tr data-corpus-row="${esc(item.corpusItemId)}" class="${state.selectedCorpusIds.has(item.corpusItemId) ? 'selected-row' : ''}"><td class="check-cell"><input type="checkbox" data-corpus-select="${esc(item.corpusItemId)}" aria-label="选择 ${esc(item.externalId)}" ${state.selectedCorpusIds.has(item.corpusItemId) ? 'checked' : ''}></td><td><div class="primary-text">${esc(item.externalId)}</div><div class="secondary-text">${esc(item.title || item.itemType)}</div></td><td><div class="primary-text">${esc(item.summary || item.title || '—')}</div><div class="secondary-text" title="${esc(preview)}">${esc(preview || '—')}</div></td><td>${vectorCell}</td><td>${statePill(item.status)}${item.failureMessage ? `<div class="secondary-text">${esc(item.failureCode)} · ${esc(item.failureMessage)}</div>` : ''}</td><td><div class="actions"><button class="btn small" data-reindex="${esc(item.corpusItemId)}">重建索引</button><button class="btn small danger" data-disable-corpus="${esc(item.corpusItemId)}" ${disabled ? 'disabled' : ''}>停用</button></div></td></tr>`;
   }
 
@@ -276,7 +313,7 @@
       <div class="field"><label>最低相似度</label><input class="input" name="minScore" type="number" min="-1" max="1" step="0.01" value="0.20"></div>
       <div class="field"><label>问题上限</label><input class="input" name="caseLimit" type="number" min="1" value="1000"></div>
       <div class="field"><label>单例超时（ms）</label><input class="input" name="caseTimeoutMs" type="number" min="100" value="30000"></div>
-      <div class="field wide"><label>向量集合（逗号分隔；留空使用范围默认值）</label><input class="input" name="collectionTypes" placeholder="RAG_CHUNK,LONG_TERM_MEMORY"></div>
+      <div class="field wide"><label>向量集合（逗号分隔；留空使用范围默认值）</label><input class="input" name="collectionTypes" placeholder="RAG_FILE_CHUNK,LONG_TERM_MEMORY,USER_PREFERENCE"></div>
       <div class="field wide"><label>Context Planner 模式</label><div class="planner-options">
         <label class="planner-option"><strong><input type="radio" name="plannerMode" value="off" checked>关闭 Context Planner</strong><span>只统计原始向量/混合召回结果。</span></label>
         <label class="planner-option"><strong><input type="radio" name="plannerMode" value="on">开启 Context Planner</strong><span>保留原始候选，再统计Planner筛选后的准确率与错误剔除情况。</span></label>
@@ -339,7 +376,7 @@
       ['MRR', metrics?.meanReciprocalRank, metrics?.plannerMeanReciprocalRank, false],
       ['nDCG@K', metrics?.ndcgAtK, metrics?.plannerNdcgAtK, false]
     ];
-    return `<table class="metric-compare"><thead><tr><th>准确率指标</th><th>原始召回</th><th>Planner筛选后</th><th>变化</th></tr></thead><tbody>${rows.map(([label, raw, planned, percent]) => { const delta = logic.metricDelta(raw, planned); const format = value => percent ? pct(value) : Number(value || 0).toFixed(3); return `<tr><td>${label}</td><td>${format(raw)}</td><td>${format(planned)}</td><td class="delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta > 0 ? '+' : ''}${percent ? pct(delta) : delta.toFixed(3)}</td></tr>`; }).join('')}</tbody></table>`;
+    return `<table class="metric-compare"><thead><tr><th>准确率指标</th><th>原始召回</th><th>Planner筛选后</th><th>变化</th></tr></thead><tbody>${rows.map(([label, raw, planned, percent]) => { const delta = logic.metricDelta(raw, planned); const format = value => percent ? pct(value) : Number(value || 0).toFixed(3); return `<tr><td><span class="metric-table-label">${metricLabel(label)}</span></td><td>${format(raw)}</td><td>${format(planned)}</td><td class="delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta > 0 ? '+' : ''}${percent ? pct(delta) : delta.toFixed(3)}</td></tr>`; }).join('')}</tbody></table>`;
   }
 
   function resultCard(item, plannerEnabled) {
@@ -347,18 +384,18 @@
     const expected = (testCase?.expected || []).map(value => value.externalId || value.sourceId).filter(Boolean);
     const selected = item.hits.filter(hit => hit.selectedByPlanner);
     const plannerHit = selected.some(hit => hit.expectedGrade);
-    return `<details class="result-card" data-result-id="${esc(item.caseResultId || item.caseId)}"><summary><span>${item.hit ? '✓' : '—'}</span><div><div class="primary-text">${esc(testCase?.query || item.caseId)}</div><div class="secondary-text result-expected">问题ID ${esc(testCase?.externalId || item.caseId)} · 期望 ${expected.map(idPreviewTrigger).join('') || '—'}</div></div><div><span class="hint">原始结果</span><br>${item.hit ? '命中' : '未命中'}</div><div><span class="hint">Planner结果</span><br>${plannerEnabled ? (plannerHit ? '命中' : '未命中') : '未启用'}</div><div><span class="hint">耗时</span><br>${number(item.retrievalLatencyMs)} ms</div></summary><div class="result-body">${item.failureMessage ? `<p class="state failed">${esc(item.failureMessage)}</p>` : ''}<div class="expected-row"><strong>期望命中ID：</strong><div class="id-preview-list">${expected.map(idPreviewTrigger).join('') || '—'}</div></div><h4>原始召回候选</h4>${item.hits.length ? item.hits.map(hit => hitRow(hit, plannerEnabled)).join('') : '<div class="hint">没有候选命中</div>'}${plannerEnabled ? `<h4>Context Planner 结果</h4><p>${statePill(item.plannerStatus || 'UNKNOWN')} · ${esc(item.plannerReason || '没有返回筛选理由')}</p><div class="expected-row"><strong>保留：</strong><div class="id-preview-list">${selected.map(hit => idPreviewTrigger(hit.externalId || hit.sourceId)).join('') || '无'}</div></div><details><summary>查看Planner完整结构化输出</summary><pre>${esc(JSON.stringify(item.plannerOutput || {}, null, 2))}</pre></details>` : ''}</div></details>`;
+    return `<details class="result-card" data-result-id="${esc(item.caseResultId || item.caseId)}"><summary><span>${item.hit ? '✓' : '—'}</span><div><div class="primary-text">${esc(testCase?.query || item.caseId)}</div><div class="secondary-text result-expected">问题ID ${esc(testCase?.externalId || item.caseId)} · 期望 ${expected.map(idPreviewTrigger).join('') || '—'}</div></div><div><span class="hint metric-inline-label">${metricLabel('原始结果')}</span><br>${item.hit ? '命中' : '未命中'}</div><div><span class="hint metric-inline-label">${metricLabel('Planner结果')}</span><br>${plannerEnabled ? (plannerHit ? '命中' : '未命中') : '未启用'}</div><div><span class="hint metric-inline-label">${metricLabel('耗时')}</span><br>${number(item.retrievalLatencyMs)} ms</div></summary><div class="result-body">${item.failureMessage ? `<p class="state failed">${esc(item.failureMessage)}</p>` : ''}<div class="expected-row"><strong>期望命中ID：</strong><div class="id-preview-list">${expected.map(idPreviewTrigger).join('') || '—'}</div></div><h4>原始召回候选</h4>${item.hits.length ? item.hits.map(hit => hitRow(hit, plannerEnabled)).join('') : '<div class="hint">没有候选命中</div>'}${plannerEnabled ? `<h4>Context Planner 结果</h4><p>${statePill(item.plannerStatus || 'UNKNOWN')} · ${esc(item.plannerReason || '没有返回筛选理由')}</p><div class="expected-row"><strong>保留：</strong><div class="id-preview-list">${selected.map(hit => idPreviewTrigger(hit.externalId || hit.sourceId)).join('') || '无'}</div></div><details><summary>查看Planner完整结构化输出</summary><pre>${esc(JSON.stringify(item.plannerOutput || {}, null, 2))}</pre></details>` : ''}</div></details>`;
   }
 
   function hitRow(hit, plannerEnabled) {
     const plannerState = plannerEnabled ? (hit.selectedByPlanner ? '<span class="candidate-state keep">Planner保留</span>' : '<span class="candidate-state drop">Planner剔除</span>') : '';
     const externalId = hit.externalId;
-    return `<div class="hit-row"><span class="rank">#${esc(hit.rankNo)}</span><span class="tag">${esc(hit.retrievalChannel)}</span><div><div class="primary-text hit-id">ID ${externalId ? idPreviewTrigger(externalId) : '<span class="hint">未映射</span>'} ${hit.expectedGrade ? '<span class="state ready">正确答案</span>' : ''}</div><div class="secondary-text">sourceId ${esc(hit.sourceId)} · ${esc(hit.collectionType)} · parent ${esc(hit.parentSourceId || '—')}</div></div><span>${Number(hit.score || 0).toFixed(4)}</span><span>${plannerState || (hit.expectedGrade ? `grade ${hit.expectedGrade}` : '—')}</span></div>`;
+    return `<div class="hit-row"><span class="rank">#${esc(hit.rankNo)}</span><span class="tag">${esc(hit.retrievalChannel)}</span><div><div class="primary-text hit-id">ID ${externalId ? idPreviewTrigger(externalId) : '<span class="hint">未映射</span>'} ${hit.expectedGrade ? '<span class="state ready">正确答案</span>' : ''}</div><div class="secondary-text">sourceId ${esc(hit.sourceId)} · ${esc(hit.collectionType)} · parent ${esc(hit.parentSourceId || '—')}</div></div><span class="candidate-score">${Number(hit.score || 0).toFixed(4)}${metricHelpIcon('候选分数')}</span><span>${plannerState || (hit.expectedGrade ? `grade ${hit.expectedGrade}` : '—')}</span></div>`;
   }
 
   function comparisonBody(value) {
     const fields = [['Hit Rate','hitRateAtK'],['Precision','precisionAtK'],['Recall','recallAtK'],['MRR','meanReciprocalRank'],['nDCG','ndcgAtK'],['MAP','mapAtK'],['No Hit','noHitRate']];
-    return `<div class="panel-body"><div class="metric-grid">${fields.map(([label,key]) => { const delta = value.metricDeltas?.[key] ?? logic.metricDelta(value.leftMetrics?.[key], value.rightMetrics?.[key]); return `<div class="metric"><label>${label} Δ</label><strong class="delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta > 0 ? '+' : ''}${delta.toFixed(3)}</strong><small>${Number(value.leftMetrics?.[key] || 0).toFixed(3)} → ${Number(value.rightMetrics?.[key] || 0).toFixed(3)}</small></div>`; }).join('')}</div></div>`;
+    return `<div class="panel-body"><div class="metric-grid">${fields.map(([label,key]) => { const delta = value.metricDeltas?.[key] ?? logic.metricDelta(value.leftMetrics?.[key], value.rightMetrics?.[key]); return `<div class="metric"><label>${metricLabel(label)}<span>Δ</span></label><strong class="delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta > 0 ? '+' : ''}${delta.toFixed(3)}</strong><small>${Number(value.leftMetrics?.[key] || 0).toFixed(3)} → ${Number(value.rightMetrics?.[key] || 0).toFixed(3)}</small></div>`; }).join('')}</div></div>`;
   }
 
   async function selectDataset(datasetId) {
@@ -369,7 +406,7 @@
     state.datasetId = datasetId; state.tab = 'corpus'; state.runId = null; state.runDetail = null; state.comparison = null;
     state.selectedCorpusIds.clear();
     state.corpus = []; state.cases = []; state.runs = [];
-    state.vectors = { RAG_DOCUMENT: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] };
+    state.vectors = { RAG_CHUNK: [], LONG_TERM_MEMORY: [], USER_PREFERENCE: [] };
     updateUrl(); renderAll();
     await loadDatasetData(datasetId); renderAll();
   }
@@ -415,10 +452,10 @@
     els.importFilePicker.value = '';
     els.importFileName.textContent = '尚未选择文件';
     els.importFileName.classList.remove('ready');
-    const labels = { RAG_DOCUMENT: 'RAG数据', LONG_TERM_MEMORY: '长期记忆', USER_PREFERENCE: '用户偏好' };
+    const labels = { RAG_CHUNK: 'RAG Chunk', LONG_TERM_MEMORY: '长期记忆', USER_PREFERENCE: '用户偏好' };
     els.importModalTitle.textContent = target === 'corpus' ? `批量导入${labels[corpusType] || '记忆数据'}` : '批量导入测试问题';
     els.importHint.textContent = target === 'corpus'
-      ? `必填：externalId（5–12位数字字符串）、content。当前表格类型：${corpusType || '由type字段决定'}。${corpusType === 'RAG_DOCUMENT' ? 'RAG 内容将直接调用主界面的文件上传接口完成解析、分块和向量化。' : ''}`
+      ? `必填：externalId（5–12位数字字符串）、content。当前表格类型：${corpusType || '由type字段决定'}。${corpusType === 'RAG_CHUNK' ? '每条RAG内容必须是一个自然段，并且只能生成一个独立Chunk。' : ''}`
       : '必填：externalId、query、expected；问题ID与expected.externalId都使用数字字符串。';
     openModal(els.importModal);
   }
@@ -453,9 +490,7 @@
     state.importSubmitting = true;
     if (els.importSubmitBtn) { els.importSubmitBtn.disabled = true; els.importSubmitBtn.textContent = '正在导入…'; }
     try {
-      const result = state.importTarget === 'corpus' && state.importCorpusType === 'RAG_DOCUMENT'
-        ? await uploadRagThroughProductionEndpoint(items)
-        : await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }), timeoutMs: 300000 });
+      const result = await request(`/datasets/${encodeURIComponent(state.datasetId)}/${path}/batch`, { method:'POST', body: JSON.stringify({ items }), timeoutMs: 300000 });
       closeModals();
       const skipped = Number(result.skippedCount || 0);
       showToast(`已导入 ${result.acceptedCount} 项，跳过 ${skipped} 项，失败 ${result.failedCount} 项`, result.failedCount ? 'error' : '');
@@ -466,121 +501,6 @@
       if (!inspectionActive()) renderAll();
       else document.querySelectorAll('[data-open-import="corpus"]').forEach(button => { button.disabled = false; });
     }
-  }
-
-  async function uploadRagThroughProductionEndpoint(items) {
-    const existing = new Set(state.corpus.filter(item => item.itemType === 'RAG_DOCUMENT' && item.status === 'READY').map(item => String(item.externalId)));
-    const incoming = new Set();
-    for (const item of items) {
-      const externalId = String(item.externalId || '');
-      if (!/^\d{5,12}$/.test(externalId)) throw new Error(`RAG 自定义ID必须是5–12位数字：${externalId || '空值'}`);
-      if (!String(item.content || '').trim()) throw new Error(`RAG ${externalId} 缺少 content`);
-      if (incoming.has(externalId)) throw new Error(`导入文件中存在重复的 RAG 大文件ID：${externalId}`);
-      incoming.add(externalId);
-    }
-    const pending = items.filter(item => !existing.has(String(item.externalId)));
-    const skippedCount = items.length - pending.length;
-    state.ragImport = { active: true, total: pending.length, completed: 0, failed: 0, skipped: skippedCount, currentExternalId: null, message: '准备逐个上传大文件…' };
-    closeModals(); renderAll();
-    let acceptedCount = 0;
-    let failedCount = 0;
-    for (let index = 0; index < pending.length; index++) {
-      const item = pending[index];
-      state.ragImport.currentExternalId = String(item.externalId);
-      state.ragImport.message = `正在通过正式 RAG 接口处理 ${item.externalId}.md；完成后会立即显示。`;
-      updateRagImportStatus();
-      try {
-        const document = await uploadSingleRagDocument(item);
-        const attachment = {
-          externalId: String(item.externalId), documentId: document.documentId,
-          title: item.title || document.title || `${item.externalId}.md`,
-          summary: item.summary || document.summary || null, tags: item.tags || []
-        };
-        const attached = await request(`/datasets/${encodeURIComponent(state.datasetId)}/corpus/rag/attachments`, {
-          method: 'POST', body: JSON.stringify({ items: [attachment] }), timeoutMs: 120000
-        });
-        if (Number(attached.acceptedCount || 0) !== 1) {
-          throw new Error(attached.items?.[0]?.failureMessage || `大文件 ${item.externalId} 未能登记到评测数据集。`);
-        }
-        acceptedCount++;
-        state.ragImport.completed = acceptedCount;
-        state.ragImport.message = `大文件 ${item.externalId} 已完成，共 ${attached.items?.[0]?.sourceRefs?.length || 0} 个 chunk。`;
-        await mergeCompletedRagBatch(attached.items || []);
-      } catch (error) {
-        failedCount++;
-        state.ragImport.failed = failedCount;
-        state.ragImport.active = false;
-        state.ragImport.message = `${item.externalId} 上传失败：${error.message}。再次导入同一文件会自动跳过已完成的大文件。`;
-        updateRagImportStatus();
-        break;
-      }
-    }
-    state.ragImport.active = false;
-    state.ragImport.currentExternalId = null;
-    if (!failedCount) state.ragImport.message = pending.length ? '全部大文件均已上传并登记完成。' : '所选大文件此前均已完成，本次无需重复上传。';
-    updateRagImportStatus();
-    return { acceptedCount, failedCount, skippedCount, items: [] };
-  }
-
-  async function uploadSingleRagDocument(item) {
-    const formData = new FormData();
-    formData.append('knowledgeTag', state.datasetId);
-    formData.append('files', new File([String(item.content)], `${String(item.externalId)}.md`, { type: 'text/markdown;charset=UTF-8' }));
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 600000);
-    let upload;
-    try {
-      const response = await fetch(`${API_BASE}/api/v1/rag/knowledge/files`, {
-        method: 'POST', body: formData, signal: controller.signal
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload || payload.code !== '0000') {
-        throw new Error(payload?.info || `RAG 上传失败：HTTP ${response.status}`);
-      }
-      upload = payload.data;
-    } catch (error) {
-      if (error.name === 'AbortError') throw new Error('RAG 文件上传超时，请检查后端、Embedding服务和向量数据库。');
-      throw error;
-    } finally {
-      window.clearTimeout(timeout);
-    }
-    const documents = Array.isArray(upload?.documents) ? upload.documents : [];
-    if (documents.length !== 1) {
-      throw new Error(`生产 RAG 接口返回 ${documents.length} 个文档，预期为 1 个，无法安全关联评测ID。`);
-    }
-    return documents[0];
-  }
-
-  async function mergeCompletedRagBatch(items) {
-    const byId = new Map(state.corpus.map(item => [item.corpusItemId, item]));
-    items.forEach(item => byId.set(item.corpusItemId, item));
-    state.corpus = [...byId.values()];
-    await loadDatasets();
-    renderHeader(); renderRail();
-    const tbody = state.corpusType === 'RAG_DOCUMENT' ? document.querySelector('.corpus-table tbody') : null;
-    if (!tbody) {
-      if (!inspectionActive()) renderView();
-      else state.viewRefreshPending = true;
-    } else {
-      for (const item of items) {
-        const current = tbody.querySelector(`[data-corpus-row="${CSS.escape(item.corpusItemId)}"]`);
-        const holder = document.createElement('tbody');
-        holder.innerHTML = corpusRow(item, state.vectors.RAG_DOCUMENT || []);
-        if (current) current.replaceWith(holder.firstElementChild);
-        else tbody.append(holder.firstElementChild);
-      }
-      const tabCount = document.querySelector('[data-corpus-type="RAG_DOCUMENT"] .tag');
-      if (tabCount) tabCount.textContent = state.corpus.filter(item => item.itemType === 'RAG_DOCUMENT').length;
-    }
-    updateRagImportStatus();
-  }
-
-  function updateRagImportStatus() {
-    const current = document.querySelector('[data-rag-import-status]');
-    if (!current) { if (!inspectionActive()) renderAll(); return; }
-    const holder = document.createElement('div');
-    holder.innerHTML = renderRagImportStatus();
-    current.replaceWith(holder.firstElementChild);
   }
 
   async function startRun(form) {
@@ -664,18 +584,35 @@
     if (!trigger || trigger.contains(next) || els.idPreview.contains(next)) return;
     hideIdPreview();
   });
+  document.addEventListener('pointerover', event => {
+    const trigger = event.target.closest('[data-metric-help]');
+    if (!trigger || trigger.contains(event.relatedTarget)) return;
+    showMetricHelp(trigger);
+  });
+  document.addEventListener('pointerout', event => {
+    const trigger = event.target.closest('[data-metric-help]');
+    const next = event.relatedTarget;
+    if (!trigger || trigger.contains(next) || els.metricHelp.contains(next)) return;
+    hideMetricHelp();
+  });
   document.addEventListener('focusin', event => {
     const trigger = event.target.closest('[data-preview-id]');
     if (trigger) showIdPreview(trigger);
+    const metricTrigger = event.target.closest('[data-metric-help]');
+    if (metricTrigger) showMetricHelp(metricTrigger);
   });
   document.addEventListener('focusout', event => {
     if (event.target.closest('[data-preview-id]') && !event.relatedTarget?.closest?.('[data-preview-id]')) hideIdPreview();
+    if (event.target.closest('[data-metric-help]') && !event.relatedTarget?.closest?.('[data-metric-help]')) hideMetricHelp();
   });
   els.idPreview.addEventListener('pointerleave', hideIdPreview);
-  els.view.addEventListener('scroll', hideIdPreview, { passive: true });
-  window.addEventListener('resize', hideIdPreview);
+  els.metricHelp.addEventListener('pointerleave', hideMetricHelp);
+  els.view.addEventListener('scroll', () => { hideIdPreview(); hideMetricHelp(); }, { passive: true });
+  window.addEventListener('resize', () => { hideIdPreview(); hideMetricHelp(); });
 
   document.addEventListener('click', async event => {
+    const help = event.target.closest('[data-metric-help]');
+    if (help) { event.preventDefault(); event.stopPropagation(); return showMetricHelp(help); }
     const datasetCard = event.target.closest('[data-dataset-id]');
     if (datasetCard) return selectDataset(datasetCard.dataset.datasetId).catch(showError);
     const tab = event.target.closest('[data-tab]'); if (tab) return setTab(tab.dataset.tab);
